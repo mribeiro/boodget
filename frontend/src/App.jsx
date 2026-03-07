@@ -100,11 +100,11 @@ function Navbar() {
 
   return (
     <nav className="navbar">
-      <span className="nav-brand" onClick={() => navigate('/')}>
+      <span className="nav-brand" onClick={() => navigate('/', { state: { explicit: true } })}>
         Capital Tracker
       </span>
       <div className="nav-links">
-        <button className="nav-link" onClick={() => navigate('/')}>
+        <button className="nav-link" onClick={() => navigate('/', { state: { explicit: true } })}>
           Dossiers
         </button>
         <button className="nav-link" onClick={() => navigate('/users')}>

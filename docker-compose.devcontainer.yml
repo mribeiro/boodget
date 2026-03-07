@@ -1,0 +1,19 @@
+services:
+  capital-tracker:
+    volumes:
+      - type: bind
+        source: .
+        target: /workspaces/money_manager
+      - type: volume
+        source: backend_node_modules
+        target: /workspaces/money_manager/backend/node_modules
+      - type: volume
+        source: frontend_node_modules
+        target: /workspaces/money_manager/frontend/node_modules
+      - type: bind
+        source: ${HOME}/.claude
+        target: /root/.claude
+
+volumes:
+  backend_node_modules:
+  frontend_node_modules:

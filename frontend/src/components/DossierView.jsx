@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
 import CapitalChart from './CapitalChart';
@@ -31,7 +31,9 @@ function formatEur(value) {
 export default function DossierView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useContext(AuthContext);
+  const autoOpened = location.state?.autoOpened === true;
 
   const [dossier, setDossier] = useState(null);
   const [months, setMonths] = useState([]);
@@ -113,9 +115,11 @@ export default function DossierView() {
       {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
       <div className="page-header">
-        <button className="btn-ghost" onClick={() => navigate('/')}>
-          &larr; Back
-        </button>
+        {!autoOpened && (
+          <button className="btn-ghost" onClick={() => navigate('/')}>
+            &larr; Back
+          </button>
+        )}
         <h1 style={{ flex: 1 }}>{dossier.name}</h1>
         <div className="page-header-actions">
           <button className="btn-secondary" onClick={() => setShowAccountManager(true)}>

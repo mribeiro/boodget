@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 
 export default function DossierList() {
@@ -10,12 +10,24 @@ export default function DossierList() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const importRef = useRef();
 
   useEffect(() => {
+    const isExplicit = location.state?.explicit;
+    if (isExplicit) {
+      // Consume the flag so back-button navigation doesn't preserve it
+      window.history.replaceState({}, document.title);
+    }
     api
       .getDossiers()
-      .then(setDossiers)
+      .then((data) => {
+        if (data.length === 1 && !isExplicit) {
+          navigate(`/dossiers/${data[0].id}`, { replace: true, state: { autoOpened: true } });
+          return;
+        }
+        setDossiers(data);
+      })
       .catch(() => setError('Failed to load dossiers'))
       .finally(() => setLoading(false));
   }, []);
