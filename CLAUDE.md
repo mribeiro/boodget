@@ -11,6 +11,10 @@ Key concepts:
 - **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier.
 - **Month**: A monthly snapshot capturing the value of all accounts at a point in time.
 
+## Versioning
+
+Current version: **v0.1** (tagged in git). Both `backend/package.json` and `frontend/package.json` carry the version as `0.1.0`. When releasing a new version, bump both package files and create an annotated git tag (`git tag -a vX.Y -m "..."`).
+
 ## Architecture
 
 ```
@@ -119,7 +123,30 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 | `month_account_snapshot` | Which accounts were active when a month was created (composite PK). |
 | `month_entries` | One row per `(month_id, account_id)` with `value` and optional `comment`. |
 
-**Migrations** run at startup after table creation. Check `backend/src/db/index.js` for the migration list before adding schema changes.
+### Migration System
+
+All schema changes **must** go through the migration system in `backend/src/db/index.js`. Migrations run automatically at service startup.
+
+- A `schema_migrations` table tracks which migrations have been applied (by `id`).
+- Migrations are defined as an array of `{ id, up() }` objects. The runner checks the table and only calls `up()` for unapplied migrations.
+- IDs follow the pattern `NNN_description`, e.g. `003_add_foo_to_bar`.
+- Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
+
+**To add a new migration**, append an entry to the `migrations` array:
+
+```js
+{
+  id: '003_your_description',
+  up() {
+    const cols = db.prepare('PRAGMA table_info(your_table)').all();
+    if (!cols.find((c) => c.name === 'your_column')) {
+      db.exec('ALTER TABLE your_table ADD COLUMN your_column TYPE');
+    }
+  },
+},
+```
+
+Never modify or remove existing migration entries — only append new ones.
 
 **Database access pattern**: `better-sqlite3` is synchronous. All DB calls are direct (no async/await, no ORM). Use `.prepare()` + `.run()` / `.get()` / `.all()`.
 
