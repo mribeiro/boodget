@@ -1,6 +1,6 @@
 {
   "name": "capital-tracker-backend",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",

@@ -75,17 +75,41 @@ db.exec(`
   );
 `);
 
-// Migrations (run after table creation so they're safe on fresh DBs)
-{
-  const accountCols = db.prepare('PRAGMA table_info(accounts)').all();
-  if (!accountCols.find((c) => c.name === 'position')) {
-    db.exec('ALTER TABLE accounts ADD COLUMN position INTEGER DEFAULT 0');
-    db.exec('UPDATE accounts SET position = rowid');
-  }
+// Migration tracking
+db.exec(`
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    id TEXT PRIMARY KEY,
+    applied_at TEXT DEFAULT (datetime('now'))
+  )
+`);
 
-  const monthCols = db.prepare('PRAGMA table_info(months)').all();
-  if (!monthCols.find((c) => c.name === 'filled_at')) {
-    db.exec('ALTER TABLE months ADD COLUMN filled_at TEXT');
+const migrations = [
+  {
+    id: '001_add_position_to_accounts',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(accounts)').all();
+      if (!cols.find((c) => c.name === 'position')) {
+        db.exec('ALTER TABLE accounts ADD COLUMN position INTEGER DEFAULT 0');
+        db.exec('UPDATE accounts SET position = rowid');
+      }
+    },
+  },
+  {
+    id: '002_add_filled_at_to_months',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(months)').all();
+      if (!cols.find((c) => c.name === 'filled_at')) {
+        db.exec('ALTER TABLE months ADD COLUMN filled_at TEXT');
+      }
+    },
+  },
+];
+
+for (const migration of migrations) {
+  const applied = db.prepare('SELECT id FROM schema_migrations WHERE id = ?').get(migration.id);
+  if (!applied) {
+    migration.up();
+    db.prepare('INSERT INTO schema_migrations (id) VALUES (?)').run(migration.id);
   }
 }
 
