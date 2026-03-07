@@ -9,20 +9,6 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Migrations
-{
-  const accountCols = db.prepare('PRAGMA table_info(accounts)').all();
-  if (!accountCols.find((c) => c.name === 'position')) {
-    db.exec('ALTER TABLE accounts ADD COLUMN position INTEGER DEFAULT 0');
-    db.exec('UPDATE accounts SET position = rowid');
-  }
-
-  const monthCols = db.prepare('PRAGMA table_info(months)').all();
-  if (!monthCols.find((c) => c.name === 'filled_at')) {
-    db.exec('ALTER TABLE months ADD COLUMN filled_at TEXT');
-  }
-}
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -88,6 +74,20 @@ db.exec(`
     PRIMARY KEY (month_id, account_id)
   );
 `);
+
+// Migrations (run after table creation so they're safe on fresh DBs)
+{
+  const accountCols = db.prepare('PRAGMA table_info(accounts)').all();
+  if (!accountCols.find((c) => c.name === 'position')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN position INTEGER DEFAULT 0');
+    db.exec('UPDATE accounts SET position = rowid');
+  }
+
+  const monthCols = db.prepare('PRAGMA table_info(months)').all();
+  if (!monthCols.find((c) => c.name === 'filled_at')) {
+    db.exec('ALTER TABLE months ADD COLUMN filled_at TEXT');
+  }
+}
 
 class SQLiteSessionStore extends session.Store {
   get(sid, callback) {
