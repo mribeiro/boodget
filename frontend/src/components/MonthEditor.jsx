@@ -1,0 +1,304 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function monthLabel(year, month) {
+  return `${MONTH_NAMES[month - 1]} ${year}`;
+}
+
+export default function MonthEditor() {
+  const { id: dossierId, monthId } = useParams();
+  const navigate = useNavigate();
+
+  const [monthData, setMonthData] = useState(null);
+  const [values, setValues] = useState({});   // accountId -> value (string)
+  const [comments, setComments] = useState({}); // accountId -> comment
+  const [overallComment, setOverallComment] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api
+      .getMonth(dossierId, monthId)
+      .then((data) => {
+        setMonthData(data);
+        setOverallComment(data.comment || '');
+        const v = {};
+        const c = {};
+        for (const entry of data.entries) {
+          v[entry.id] = entry.value != null ? String(entry.value) : '';
+          c[entry.id] = entry.comment || '';
+        }
+        setValues(v);
+        setComments(c);
+      })
+      .catch(() => setError('Failed to load month data'));
+  }, [dossierId, monthId]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setSaving(true);
+    try {
+      const entries = (monthData?.entries || []).map((entry) => ({
+        accountId: entry.id,
+        value: values[entry.id] !== '' ? parseFloat(values[entry.id]) : null,
+        comment: comments[entry.id] || null,
+      }));
+      await api.saveMonth(dossierId, monthId, { entries, comment: overallComment || null });
+      navigate(`/dossiers/${dossierId}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSyncAccounts() {
+    setError('');
+    setSuccess('');
+    try {
+      await api.syncMonthAccounts(dossierId, monthId);
+      const data = await api.getMonth(dossierId, monthId);
+      setMonthData(data);
+      const v = { ...values };
+      const c = { ...comments };
+      for (const entry of data.entries) {
+        if (!(entry.id in v)) {
+          v[entry.id] = '';
+          c[entry.id] = '';
+        }
+      }
+      setValues(v);
+      setComments(c);
+      setSuccess('New accounts added to this month');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleReset() {
+    if (!confirm('Reset this month? All values and comments will be cleared.')) return;
+    setError('');
+    setSuccess('');
+    try {
+      await api.resetMonth(dossierId, monthId);
+      const data = await api.getMonth(dossierId, monthId);
+      setMonthData(data);
+      setOverallComment('');
+      const v = {};
+      const c = {};
+      for (const entry of data.entries) {
+        v[entry.id] = '';
+        c[entry.id] = '';
+      }
+      setValues(v);
+      setComments(c);
+      setSuccess('Month has been reset');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function focusValueAt(index) {
+    document.querySelector(`[data-value-idx="${index}"]`)?.focus();
+  }
+
+  function handleValueKeyDown(e, index) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      focusValueAt(index + 1);
+    }
+  }
+
+  function handleCommentKeyDown(e, index) {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      focusValueAt(index + 1);
+    }
+  }
+
+  if (!monthData) return <div className="loading">Loading...</div>;
+
+  const entryIndexMap = Object.fromEntries(monthData.entries.map((entry, i) => [entry.id, i]));
+
+  // Group entries by group_name
+  const groups = monthData.entries.reduce((acc, entry) => {
+    if (!acc[entry.group_name]) acc[entry.group_name] = [];
+    acc[entry.group_name].push(entry);
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      <div className="page-header">
+        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`)}>
+          &larr; Back
+        </button>
+        <h1 style={{ flex: 1 }}>
+          {monthLabel(monthData.year, monthData.month)}
+          {monthData.filled ? (
+            <span className="badge badge-filled" style={{ marginLeft: '0.75rem', verticalAlign: 'middle' }}>
+              Filled
+            </span>
+          ) : (
+            <span className="badge badge-empty" style={{ marginLeft: '0.75rem', verticalAlign: 'middle' }}>
+              Not filled
+            </span>
+          )}
+        </h1>
+      </div>
+
+      {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+      {success && <div className="alert alert-success" style={{ marginBottom: '1rem' }}>{success}</div>}
+      {monthData && monthData.missing_accounts > 0 && (
+        <div className="alert alert-error" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>
+            {monthData.missing_accounts} account{monthData.missing_accounts > 1 ? 's' : ''} exist{monthData.missing_accounts === 1 ? 's' : ''} that {monthData.missing_accounts === 1 ? 'is' : 'are'} not part of this month yet.
+          </span>
+          <button className="btn-secondary" style={{ marginLeft: '1rem', whiteSpace: 'nowrap' }} onClick={handleSyncAccounts}>
+            Add to month
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div className="month-editor">
+          {monthData.entries.length === 0 ? (
+            <div className="empty-state">
+              <p>No accounts were configured when this month was created.</p>
+              <p>Go back and add accounts to the dossier, then create a new month.</p>
+            </div>
+          ) : (
+            <>
+              <div className="overall-comment">
+                <label htmlFor="overall-comment">Overall comment (optional)</label>
+                <textarea
+                  id="overall-comment"
+                  value={overallComment}
+                  onChange={(e) => setOverallComment(e.target.value)}
+                  placeholder="Notes about this month..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="table-container" style={{ border: 'none', borderRadius: 0 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Type</th>
+                      <th style={{ textAlign: 'center' }}>Idle</th>
+                      <th style={{ textAlign: 'right' }}>Value (€)</th>
+                      <th>Comment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(groups).map(([groupName, entries]) => (
+                      <React.Fragment key={groupName}>
+                        <tr className="group-header">
+                          <td colSpan={5}>{groupName}</td>
+                        </tr>
+                        {entries.map((entry) => (
+                          <tr key={entry.id}>
+                            <td>
+                              {entry.name}
+                              {entry.archived ? (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    marginLeft: '0.5rem',
+                                    background: '#f1f5f9',
+                                    color: 'var(--color-text-muted)',
+                                    fontSize: '0.7rem',
+                                  }}
+                                >
+                                  Archived
+                                </span>
+                              ) : null}
+                            </td>
+                            <td className="text-muted" style={{ fontSize: '0.8rem' }}>
+                              {entry.type}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {entry.is_idle_money ? (
+                                <span style={{ color: 'var(--color-text-muted)' }}>Yes</span>
+                              ) : null}
+                            </td>
+                            <td>
+                              {entry.prev_value != null && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginBottom: '0.2rem', textAlign: 'right' }}>
+                                  {entry.prev_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                              )}
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                className="value-input"
+                                data-value-idx={entryIndexMap[entry.id]}
+                                value={values[entry.id] ?? ''}
+                                onChange={(e) =>
+                                  setValues((v) => ({ ...v, [entry.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => handleValueKeyDown(e, entryIndexMap[entry.id])}
+                              />
+                              {(() => {
+                                if (entry.prev_value == null) return null;
+                                const current = values[entry.id] !== '' ? parseFloat(values[entry.id]) : null;
+                                if (current == null) return null;
+                                const diff = current - entry.prev_value;
+                                const color = diff > 0 ? 'var(--color-success, #16a34a)' : diff < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)';
+                                const sign = diff > 0 ? '+' : '';
+                                return (
+                                  <div style={{ fontSize: '0.72rem', color, marginTop: '0.2rem', textAlign: 'right' }}>
+                                    {sign}{diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                placeholder="Optional comment"
+                                className="comment-input"
+                                value={comments[entry.id] ?? ''}
+                                onChange={(e) =>
+                                  setComments((c) => ({ ...c, [entry.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => handleCommentKeyDown(e, entryIndexMap[entry.id])}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {monthData.entries.length > 0 && (
+            <div className="month-editor-footer">
+              <button type="button" className="btn-secondary" onClick={handleReset}>
+                Reset
+              </button>
+              <button type="submit" className="btn-primary" disabled={saving}>
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}

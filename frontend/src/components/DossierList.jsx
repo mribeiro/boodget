@@ -1,0 +1,125 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
+
+export default function DossierList() {
+  const [dossiers, setDossiers] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const navigate = useNavigate();
+  const importRef = useRef();
+
+  useEffect(() => {
+    api
+      .getDossiers()
+      .then(setDossiers)
+      .catch(() => setError('Failed to load dossiers'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setError('');
+    try {
+      const d = await api.createDossier({ name });
+      setDossiers((prev) => [...prev, d]);
+      setName('');
+      setShowForm(false);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    setError('');
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const d = await api.importDossier(data);
+      setDossiers((prev) => [...prev, d]);
+      navigate(`/dossiers/${d.id}`);
+    } catch (err) {
+      setError(err.message || 'Failed to import dossier');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  if (loading) return <div className="loading">Loading...</div>;
+
+  return (
+    <div>
+      <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportFile} />
+      <div className="page-header">
+        <h1>Dossiers</h1>
+        <div className="page-header-actions">
+          <button className="btn-secondary" onClick={() => importRef.current.click()} disabled={importing}>
+            {importing ? 'Importing…' : 'Import'}
+          </button>
+          <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : 'New dossier'}
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius)',
+            padding: '1.25rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            gap: '0.75rem',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
+            <label htmlFor="dossier-name">Dossier name</label>
+            <input
+              id="dossier-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              required
+            />
+          </div>
+          <button type="submit" className="btn-primary">
+            Create
+          </button>
+        </form>
+      )}
+
+      {error && <div className="alert alert-error">{error}</div>}
+
+      {dossiers.length === 0 ? (
+        <div className="empty-state">
+          <p>No dossiers yet.</p>
+          <button className="btn-primary" onClick={() => setShowForm(true)}>
+            Create your first dossier
+          </button>
+        </div>
+      ) : (
+        <div className="card-grid">
+          {dossiers.map((d) => (
+            <div key={d.id} className="card" onClick={() => navigate(`/dossiers/${d.id}`)}>
+              <div className="card-title">{d.name}</div>
+              <div className="card-meta">{d.is_creator ? 'Owner' : 'Shared with me'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

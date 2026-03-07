@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - NODE_ENV=production
+      - SESSION_SECRET=change-this-to-a-long-random-secret
+      - DB_PATH=/data/capital-tracker.db
+      # OIDC (optional — uncomment and fill in to enable)
+      # - OIDC_ENABLED=true
+      # - OIDC_ISSUER_URL=https://your-oidc-provider.com
+      # - OIDC_CLIENT_ID=your-client-id
+      # - OIDC_CLIENT_SECRET=your-client-secret
+      # - OIDC_REDIRECT_URI=http://localhost:3000/api/auth/oidc/callback
+      # - OIDC_PROVIDER_NAME=My SSO
+    restart: unless-stopped

@@ -1,0 +1,24 @@
+{
+  "name": "Capital Tracker Dev",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/money_manager",
+  "overrideCommand": true,
+  "forwardPorts": [3000, 5173],
+  "postCreateCommand": "cd backend && npm install && cd ../frontend && npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "remoteEnv": {
+    "SESSION_SECRET": "dev-only-secret-change-in-production",
+    "DB_PATH": "/workspaces/money_manager/data/capital-tracker.db"
+  }
+}
