@@ -8,6 +8,7 @@ import AccountManager from './AccountManager';
 import ShareManager from './ShareManager';
 import ExpensesTab from './expenses/ExpensesTab';
 import DossierSettingsTab from './DossierSettingsTab';
+import WorkbenchTab from './workbench/WorkbenchTab';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -156,8 +157,11 @@ export default function DossierView() {
         >
           Monthly Expenses
         </button>
-        <button className="tab-btn" disabled>
-          Workbench <span className="coming-soon-badge">Coming Soon</span>
+        <button
+          className={`tab-btn ${activeTab === 'workbench' ? 'active' : ''}`}
+          onClick={() => setActiveTab('workbench')}
+        >
+          Workbench
         </button>
         <button
           className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
@@ -296,6 +300,10 @@ export default function DossierView() {
 
       {activeTab === 'expenses' && (
         <ExpensesTab dossierId={id} />
+      )}
+
+      {activeTab === 'workbench' && (
+        <WorkbenchTab dossierId={id} />
       )}
 
       {activeTab === 'settings' && (
