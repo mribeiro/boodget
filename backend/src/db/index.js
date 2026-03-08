@@ -103,6 +103,74 @@ const migrations = [
       }
     },
   },
+  {
+    id: '003_add_cycle_start_day_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'cycle_start_day')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN cycle_start_day INTEGER DEFAULT 25');
+      }
+    },
+  },
+  {
+    id: '004_create_expense_template_items',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS expense_template_items (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          section TEXT NOT NULL CHECK(section IN ('expense', 'distribution')),
+          name TEXT NOT NULL,
+          type TEXT CHECK(type IN ('Fixed', 'Budget')),
+          value REAL NOT NULL DEFAULT 0,
+          day_of_payment INTEGER,
+          position INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
+  {
+    id: '005_create_expense_cycles',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS expense_cycles (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          year INTEGER NOT NULL,
+          month INTEGER NOT NULL,
+          salary REAL NOT NULL DEFAULT 0,
+          previous_balance REAL NOT NULL DEFAULT 0,
+          is_closed INTEGER DEFAULT 0,
+          final_real_balance REAL,
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(dossier_id, year, month)
+        )
+      `);
+    },
+  },
+  {
+    id: '006_create_cycle_items',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS cycle_items (
+          id TEXT PRIMARY KEY,
+          cycle_id TEXT NOT NULL REFERENCES expense_cycles(id) ON DELETE CASCADE,
+          template_item_id TEXT,
+          section TEXT NOT NULL CHECK(section IN ('expense', 'distribution')),
+          name TEXT NOT NULL,
+          type TEXT CHECK(type IN ('Fixed', 'Budget')),
+          value REAL NOT NULL DEFAULT 0,
+          day_of_payment INTEGER,
+          paid INTEGER DEFAULT 0,
+          spent REAL DEFAULT 0,
+          done INTEGER DEFAULT 0,
+          position INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {

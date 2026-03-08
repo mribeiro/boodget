@@ -65,4 +65,29 @@ export const api = {
     request('POST', `/dossiers/${dossierId}/months/${monthId}/reset`),
   syncMonthAccounts: (dossierId, monthId) =>
     request('POST', `/dossiers/${dossierId}/months/${monthId}/sync-accounts`),
+
+  // Dossier settings
+  getDossierSettings: (dossierId) => request('GET', `/dossiers/${dossierId}/settings`),
+  updateDossierSettings: (dossierId, data) => request('PATCH', `/dossiers/${dossierId}/settings`, data),
+
+  // Expense template
+  getExpenseTemplate: (dossierId) => request('GET', `/dossiers/${dossierId}/expense-template`),
+  createTemplateItem: (dossierId, data) => request('POST', `/dossiers/${dossierId}/expense-template`, data),
+  updateTemplateItem: (dossierId, itemId, data) =>
+    request('PUT', `/dossiers/${dossierId}/expense-template/${itemId}`, data),
+  deleteTemplateItem: (dossierId, itemId) =>
+    request('DELETE', `/dossiers/${dossierId}/expense-template/${itemId}`),
+
+  // Cycles
+  getCycles: (dossierId) => request('GET', `/dossiers/${dossierId}/cycles`),
+  createCycle: (dossierId, data) => request('POST', `/dossiers/${dossierId}/cycles`, data),
+  getCycle: (dossierId, cycleId) => request('GET', `/dossiers/${dossierId}/cycles/${cycleId}`),
+  updateCycle: (dossierId, cycleId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/cycles/${cycleId}`, data),
+  createCycleItem: (dossierId, cycleId, data) =>
+    request('POST', `/dossiers/${dossierId}/cycles/${cycleId}/items`, data),
+  updateCycleItem: (dossierId, cycleId, itemId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`, data),
+  deleteCycleItem: (dossierId, cycleId, itemId) =>
+    request('DELETE', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`),
 };

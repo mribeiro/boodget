@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const accountsRouter = require('./accounts');
 const monthsRouter = require('./months');
+const expensesRouter = require('./expenses');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -40,7 +41,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || data.version !== 1) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || (data.version !== 1 && data.version !== 2)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -54,8 +55,8 @@ router.post('/import', (req, res) => {
   const dossierId = uuidv4();
 
   const doImport = db.transaction(() => {
-    db.prepare('INSERT INTO dossiers (id, name, creator_id, currency) VALUES (?, ?, ?, ?)').run(
-      dossierId, finalName, req.user.id, data.dossier.currency || 'EUR'
+    db.prepare('INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day) VALUES (?, ?, ?, ?, ?)').run(
+      dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25
     );
 
     const accountIdMap = {};
@@ -82,6 +83,27 @@ router.post('/import', (req, res) => {
         if (!newAccountId) continue;
         insertSnapshot.run(monthId, newAccountId);
         insertEntry.run(monthId, newAccountId, e.value ?? null, e.comment || null);
+      }
+    }
+
+    const insertTemplateItem = db.prepare(
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    for (const ti of (data.expense_template || [])) {
+      insertTemplateItem.run(uuidv4(), dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0);
+    }
+
+    const insertCycle = db.prepare(
+      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    const insertCycleItem = db.prepare(
+      'INSERT INTO cycle_items (id, cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    for (const c of (data.cycles || [])) {
+      const cycleId = uuidv4();
+      insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null);
+      for (const ci of (c.items || [])) {
+        insertCycleItem.run(uuidv4(), cycleId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0);
       }
     }
   });
@@ -114,7 +136,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, is_idle_money, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -134,11 +156,31 @@ router.get('/:id/export', (req, res) => {
     }
   }
 
+  const expenseTemplate = db
+    .prepare('SELECT section, name, type, value, day_of_payment, position FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
+    .all(req.params.id);
+
+  const cycles = db
+    .prepare('SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
+    .all(req.params.id);
+
+  const cycleItemsByCycleId = {};
+  if (cycles.length > 0) {
+    const ph = cycles.map(() => '?').join(',');
+    const cycleItems = db
+      .prepare(`SELECT cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position FROM cycle_items WHERE cycle_id IN (${ph}) ORDER BY section, position, created_at`)
+      .all(...cycles.map((c) => c.id));
+    for (const ci of cycleItems) {
+      if (!cycleItemsByCycleId[ci.cycle_id]) cycleItemsByCycleId[ci.cycle_id] = [];
+      cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position });
+    }
+  }
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 1,
-    dossier: { name: dossier.name, currency: dossier.currency },
+    version: 2,
+    dossier: { name: dossier.name, currency: dossier.currency, cycle_start_day: dossier.cycle_start_day },
     accounts,
     months: months.map((m) => ({
       year: m.year,
@@ -147,6 +189,16 @@ router.get('/:id/export', (req, res) => {
       comment: m.comment,
       filled_at: m.filled_at,
       entries: entriesByMonth[m.id] || [],
+    })),
+    expense_template: expenseTemplate,
+    cycles: cycles.map((c) => ({
+      year: c.year,
+      month: c.month,
+      salary: c.salary,
+      previous_balance: c.previous_balance,
+      is_closed: c.is_closed,
+      final_real_balance: c.final_real_balance,
+      items: cycleItemsByCycleId[c.id] || [],
     })),
   });
 });
@@ -206,5 +258,8 @@ router.delete('/:id/access/:userId', (req, res) => {
   );
   res.status(204).end();
 });
+
+// Expenses sub-router (settings, expense-template, cycles) — mounted last so specific routes above take priority
+router.use('/:id', expensesRouter);
 
 module.exports = router;

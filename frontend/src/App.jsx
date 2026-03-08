@@ -6,6 +6,7 @@ import LoginPage from './components/LoginPage';
 import DossierList from './components/DossierList';
 import DossierView from './components/DossierView';
 import MonthEditor from './components/MonthEditor';
+import CycleEditor from './components/expenses/CycleEditor';
 import UserManager from './components/UserManager';
 import PasswordChange from './components/PasswordChange';
 
@@ -80,6 +81,7 @@ function AppRoutes() {
           <Route path="/" element={<DossierList />} />
           <Route path="/dossiers/:id" element={<DossierView />} />
           <Route path="/dossiers/:id/months/:monthId" element={<MonthEditor />} />
+          <Route path="/dossiers/:id/cycles/:cycleId" element={<CycleEditor />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
           <Route path="*" element={<Navigate to="/" replace />} />

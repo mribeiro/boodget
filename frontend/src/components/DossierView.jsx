@@ -6,6 +6,8 @@ import CapitalChart from './CapitalChart';
 import CapitalCompareTable from './CapitalCompareTable';
 import AccountManager from './AccountManager';
 import ShareManager from './ShareManager';
+import ExpensesTab from './expenses/ExpensesTab';
+import DossierSettingsTab from './DossierSettingsTab';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -37,7 +39,7 @@ export default function DossierView() {
 
   const [dossier, setDossier] = useState(null);
   const [months, setMonths] = useState([]);
-  const [activeTab, setActiveTab] = useState('capital');
+  const [activeTab, setActiveTab] = useState(location.state?.tab ?? 'capital');
   const [showAccountManager, setShowAccountManager] = useState(false);
   const [showShareManager, setShowShareManager] = useState(false);
   const [showAddMonth, setShowAddMonth] = useState(false);
@@ -148,11 +150,20 @@ export default function DossierView() {
         >
           Capital
         </button>
-        <button className="tab-btn" disabled>
-          Monthly Expenses <span className="coming-soon-badge">Coming Soon</span>
+        <button
+          className={`tab-btn ${activeTab === 'expenses' ? 'active' : ''}`}
+          onClick={() => setActiveTab('expenses')}
+        >
+          Monthly Expenses
         </button>
         <button className="tab-btn" disabled>
           Workbench <span className="coming-soon-badge">Coming Soon</span>
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          Settings
         </button>
       </div>
 
@@ -281,6 +292,14 @@ export default function DossierView() {
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === 'expenses' && (
+        <ExpensesTab dossierId={id} />
+      )}
+
+      {activeTab === 'settings' && (
+        <DossierSettingsTab dossierId={id} />
       )}
 
       {showAddMonth && (
