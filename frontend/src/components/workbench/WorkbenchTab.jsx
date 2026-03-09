@@ -39,6 +39,39 @@ function ClassBadge({ classification }) {
   );
 }
 
+function ClassificationPills({ value, onChange }) {
+  const options = [
+    { value: 'must', label: 'Must', bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
+    { value: 'want', label: 'Want', bg: '#dbeafe', color: '#1e40af', border: '#3b82f6' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: '0.25rem' }}>
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(active ? null : opt.value)}
+            style={{
+              fontSize: '0.7rem',
+              padding: '0.15rem 0.5rem',
+              borderRadius: '999px',
+              border: active ? `1px solid ${opt.border}` : '1px solid var(--color-border)',
+              background: active ? opt.bg : 'transparent',
+              color: active ? opt.color : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontWeight: active ? 600 : 400,
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function TemplateTag() {
   return (
     <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', borderRadius: 'var(--radius)', background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', marginLeft: '0.35rem' }}>
@@ -86,6 +119,7 @@ function buildWorkingStateFromTemplates(monthlyTemplate, annualTemplate, distrib
     income: [],
     monthlyExpenses,
     annualExpenses: annualItems,
+    annualDeductible: 0,
     distributions: distItems,
   };
 }
@@ -96,6 +130,7 @@ function stateFromSnapshot(data) {
     income: (data.income || []).map((e) => ({ ...e, _id: newId() })),
     monthlyExpenses: (data.monthlyExpenses || []).map((e) => ({ ...e, _id: newId() })),
     annualExpenses: (data.annualExpenses || []).map((e) => ({ ...e, _id: newId() })),
+    annualDeductible: data.annualDeductible || 0,
     distributions: (data.distributions || []).map((e) => ({ ...e, _id: newId() })),
   };
 }
@@ -109,6 +144,7 @@ function stateToSnapshotData(state) {
     income: state.income.map(strip),
     monthlyExpenses: state.monthlyExpenses.map(strip),
     annualExpenses: state.annualExpenses.map(strip),
+    annualDeductible: state.annualDeductible || 0,
     distributions: state.distributions.map(strip),
   };
 }
@@ -213,6 +249,11 @@ export default function WorkbenchTab({ dossierId }) {
 
   function removeEntry(section, _id) {
     setState((prev) => ({ ...prev, [section]: prev[section].filter((e) => e._id !== _id) }));
+    markDirty();
+  }
+
+  function updateScalar(field, value) {
+    setState((prev) => ({ ...prev, [field]: value }));
     markDirty();
   }
 
@@ -494,6 +535,8 @@ export default function WorkbenchTab({ dossierId }) {
 
           <AnnualExpensesSection
             entries={state.annualExpenses}
+            annualDeductible={state.annualDeductible || 0}
+            onChangeDeductible={(v) => updateScalar('annualDeductible', v)}
             onAdd={(e) => addEntry('annualExpenses', e)}
             onUpdate={(_id, ch) => updateEntry('annualExpenses', _id, ch)}
             onRemove={(_id) => removeEntry('annualExpenses', _id)}
@@ -777,7 +820,7 @@ function MonthlyExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom
             { key: 'name', label: 'Name', type: 'text' },
             { key: 'type', label: 'Type', type: 'select', options: [{ value: 'Fixed', label: 'Fixed' }, { value: 'Budget', label: 'Budget' }] },
             { key: 'value', label: 'Value / Max (€)', type: 'number' },
-            { key: 'classification', label: 'Classification', type: 'select', options: [{ value: '', label: '— unset —' }, { value: 'must', label: 'Must' }, { value: 'want', label: 'Want' }] },
+            { key: 'classification', label: 'Classification', type: 'classification-pills' },
           ]}
           onSave={(d) => {
             onAdd({ name: d.name, value: Number(d.value), type: d.type || 'Fixed', classification: d.classification || null, isFromTemplate: false, templateItemId: null });
@@ -808,7 +851,7 @@ function MonthlyExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom
 
 // ── Annual Expenses Section ──────────────────────────────────────────────────
 
-function AnnualExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom, onSyncTo }) {
+function AnnualExpensesSection({ entries, annualDeductible, onChangeDeductible, onAdd, onUpdate, onRemove, onSyncFrom, onSyncTo }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showSyncToModal, setShowSyncToModal] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -821,6 +864,8 @@ function AnnualExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom,
   const totalMonthlyAvg = totalAnnual / 12;
   const totalMustAvg = totalMustAnnual / 12;
   const totalWantAvg = totalWantAnnual / 12;
+  const annualMissing = totalAnnual - (annualDeductible || 0);
+  const monthlyMissingAvg = annualMissing / 12;
 
   async function doSyncTo(overrides) {
     setSyncing(true);
@@ -837,7 +882,7 @@ function AnnualExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom,
 
   return (
     <div className="card" style={{ padding: '1rem' }}>
-      <SectionHeader title="Annual Expenses" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={`Annual: ${fmt(totalAnnual)} | Avg/mo: ${fmt(totalMonthlyAvg)}`}>
+      <SectionHeader title="Annual Expenses" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={`Annual: ${fmt(totalAnnual)} | Avg/mo: ${fmt(totalMonthlyAvg)} | Missing avg: ${fmt(monthlyMissingAvg)}`}>
         <button className="btn-secondary" onClick={onSyncFrom} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
           Sync from template
         </button>
@@ -881,12 +926,37 @@ function AnnualExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom,
 
           <SectionSummary rows={[
             { label: 'Total annual', value: totalAnnual },
-            { label: 'Total Must (annual)', value: totalMustAnnual },
-            { label: 'Total Want (annual)', value: totalWantAnnual },
-            { label: 'Total monthly avg', value: totalMonthlyAvg },
-            { label: 'Must monthly avg', value: totalMustAvg },
-            { label: 'Want monthly avg', value: totalWantAvg },
+            { label: 'Must (annual)', value: totalMustAnnual },
+            { label: 'Want (annual)', value: totalWantAnnual },
+            { label: 'Monthly avg', value: totalMonthlyAvg },
+            { label: 'Must avg/mo', value: totalMustAvg },
+            { label: 'Want avg/mo', value: totalWantAvg },
           ]} />
+
+          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.75rem', paddingTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+            <span style={{ color: 'var(--color-text-muted)' }}>Carried over:</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={annualDeductible || ''}
+              onChange={(e) => onChangeDeductible(Number(e.target.value) || 0)}
+              placeholder="0.00"
+              style={{ width: '8rem', textAlign: 'right', fontSize: '0.875rem' }}
+            />
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>€</span>
+          </div>
+
+          <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'var(--color-surface)', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', fontSize: '0.85rem' }}>
+            <div>
+              <span style={{ color: 'var(--color-text-muted)' }}>Annual missing: </span>
+              <strong>{fmt(annualMissing)}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-muted)' }}>Monthly missing avg: </span>
+              <strong>{fmt(monthlyMissingAvg)}</strong>
+            </div>
+          </div>
 
           {showAdd && (
             <AddEntryModal
@@ -894,7 +964,7 @@ function AnnualExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom,
               fields={[
                 { key: 'name', label: 'Name', type: 'text' },
                 { key: 'value', label: 'Annual value (€)', type: 'number' },
-                { key: 'classification', label: 'Classification', type: 'select', options: [{ value: '', label: '— unset —' }, { value: 'must', label: 'Must' }, { value: 'want', label: 'Want' }] },
+                { key: 'classification', label: 'Classification', type: 'classification-pills' },
               ]}
               onSave={(d) => {
                 onAdd({ name: d.name, value: Number(d.value), classification: d.classification || null, isFromTemplate: false, templateItemId: null });
@@ -1016,6 +1086,64 @@ function DistributionsSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom, 
 
 // ── Global Summary Section ───────────────────────────────────────────────────
 
+const SUMMARY_COLORS = {
+  must: '#f59e0b',
+  want: '#3b82f6',
+  save: '#22c55e',
+  leftover: '#94a3b8',
+};
+
+function IncomeStackBar({ totalIncome, totalMust, totalWant, totalSave, leftover }) {
+  const segments = [
+    { key: 'must', label: 'Must', value: Math.max(0, totalMust), color: SUMMARY_COLORS.must },
+    { key: 'want', label: 'Want', value: Math.max(0, totalWant), color: SUMMARY_COLORS.want },
+    { key: 'save', label: 'Save', value: Math.max(0, totalSave), color: SUMMARY_COLORS.save },
+    { key: 'leftover', label: 'Leftover', value: Math.max(0, leftover), color: SUMMARY_COLORS.leftover },
+  ].filter((s) => s.value > 0);
+
+  const total = segments.reduce((acc, s) => acc + s.value, 0);
+  if (total <= 0) return null;
+
+  return (
+    <div style={{ marginTop: '0.75rem' }}>
+      <div style={{ display: 'flex', height: '1.75rem', borderRadius: 'var(--radius)', overflow: 'hidden', gap: '2px' }}>
+        {segments.map((seg) => {
+          const pct = (seg.value / total) * 100;
+          return (
+            <div
+              key={seg.key}
+              title={`${seg.label}: ${fmt(seg.value)} (${pct.toFixed(1)}%)`}
+              style={{ flex: pct, background: seg.color, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minWidth: 0 }}
+            >
+              {pct > 9 && (
+                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
+                  {pct.toFixed(0)}%
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+        {segments.map((seg) => {
+          const pct = (seg.value / total) * 100;
+          return (
+            <div key={seg.key} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+              <span style={{ width: '0.55rem', height: '0.55rem', borderRadius: '50%', background: seg.color, flexShrink: 0, display: 'inline-block' }} />
+              {seg.label} {pct.toFixed(1)}%
+            </div>
+          );
+        })}
+        {leftover < 0 && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--color-danger)', marginLeft: 'auto' }}>
+            Over budget by {fmt(Math.abs(leftover))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GlobalSummarySection({ summary }) {
   const { totalIncome, totalMust, totalWant, totalSave, leftover } = summary;
   const [collapsed, setCollapsed] = useState(true);
@@ -1026,8 +1154,10 @@ function GlobalSummarySection({ summary }) {
     <div className="card" style={{ padding: '1rem' }}>
       <SectionHeader title="Global Summary" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={collapsedSummary} />
 
+      <IncomeStackBar totalIncome={totalIncome} totalMust={totalMust} totalWant={totalWant} totalSave={totalSave} leftover={leftover} />
+
       {!collapsed && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(10rem, 1fr))', gap: '0.75rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(10rem, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
           {[
             { label: 'Total Income', value: totalIncome, bold: true },
             { label: 'Total Must', value: totalMust, pct: fmtPct(totalMust, totalIncome) },
@@ -1106,21 +1236,7 @@ function ExpenseEntryRow({ entry, onChangeName, onChangeValue, onChangeClassific
         style={{ width: '7rem', textAlign: 'right', fontSize: '0.875rem' }}
       />
       <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>€</span>
-      <select
-        value={entry.classification || ''}
-        onChange={(e) => onChangeClassification(e.target.value || null)}
-        style={{
-          fontSize: '0.75rem', padding: '0.1rem 0.3rem', borderRadius: 'var(--radius)',
-          border: '1px solid var(--color-border)',
-          background: entry.classification ? CLASS_COLORS[entry.classification].background : '#fff8e1',
-          color: entry.classification ? CLASS_COLORS[entry.classification].color : '#b45309',
-          cursor: 'pointer',
-        }}
-      >
-        <option value="">! unset</option>
-        <option value="must">Must</option>
-        <option value="want">Want</option>
-      </select>
+      <ClassificationPills value={entry.classification} onChange={onChangeClassification} />
       <button onClick={onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '1rem', padding: '0 0.2rem', flexShrink: 0 }} title="Remove">&times;</button>
     </div>
   );
@@ -1154,21 +1270,7 @@ function AnnualEntryRow({ entry, onChangeName, onChangeValue, onChangeClassifica
         {fmt(entry.value / 12)}
       </td>
       <td style={{ padding: '0.3rem 0.4rem' }}>
-        <select
-          value={entry.classification || ''}
-          onChange={(e) => onChangeClassification(e.target.value || null)}
-          style={{
-            fontSize: '0.75rem', padding: '0.1rem 0.3rem', borderRadius: 'var(--radius)',
-            border: '1px solid var(--color-border)',
-            background: entry.classification ? CLASS_COLORS[entry.classification].background : '#fff8e1',
-            color: entry.classification ? CLASS_COLORS[entry.classification].color : '#b45309',
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">! unset</option>
-          <option value="must">Must</option>
-          <option value="want">Want</option>
-        </select>
+        <ClassificationPills value={entry.classification} onChange={onChangeClassification} />
       </td>
       <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
         <button onClick={onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '1rem', padding: '0 0.2rem' }} title="Remove">&times;</button>
@@ -1280,7 +1382,12 @@ function AddEntryModal({ title, fields, onSave, onClose }) {
             {fields.map((f) => (
               <div key={f.key} className="form-group">
                 <label>{f.label}</label>
-                {f.type === 'select' ? (
+                {f.type === 'classification-pills' ? (
+                  <ClassificationPills
+                    value={values[f.key] || null}
+                    onChange={(v) => setValues((prev) => ({ ...prev, [f.key]: v }))}
+                  />
+                ) : f.type === 'select' ? (
                   <select value={values[f.key] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}>
                     {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>

@@ -10,10 +10,38 @@ function formatValue(v) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' €';
 }
 
-const CLASS_COLORS = {
-  must: { background: '#fef3c7', color: '#92400e' },
-  want: { background: '#dbeafe', color: '#1e40af' },
-};
+function ClassificationPills({ value, onChange }) {
+  const options = [
+    { value: 'must', label: 'Must', bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
+    { value: 'want', label: 'Want', bg: '#dbeafe', color: '#1e40af', border: '#3b82f6' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: '0.25rem' }}>
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(active ? null : opt.value)}
+            style={{
+              fontSize: '0.7rem',
+              padding: '0.15rem 0.5rem',
+              borderRadius: '999px',
+              border: active ? `1px solid ${opt.border}` : '1px solid var(--color-border)',
+              background: active ? opt.bg : 'transparent',
+              color: active ? opt.color : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontWeight: active ? 600 : 400,
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AnnualExpenseTemplate({ dossierId }) {
   const [items, setItems] = useState([]);
@@ -105,23 +133,10 @@ export default function AnnualExpenseTemplate({ dossierId }) {
                     : '—'}
                 </td>
                 <td style={{ padding: '0.3rem 0.5rem' }}>
-                  <select
-                    value={item.classification || ''}
-                    onChange={(e) => handleClassificationChange(item, e.target.value)}
-                    style={{
-                      fontSize: '0.75rem',
-                      padding: '0.15rem 0.3rem',
-                      borderRadius: 'var(--radius)',
-                      border: '1px solid var(--color-border)',
-                      background: item.classification ? CLASS_COLORS[item.classification].background : '#fff8e1',
-                      color: item.classification ? CLASS_COLORS[item.classification].color : '#b45309',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <option value="">— unset —</option>
-                    <option value="must">Must</option>
-                    <option value="want">Want</option>
-                  </select>
+                  <ClassificationPills
+                    value={item.classification}
+                    onChange={(v) => handleClassificationChange(item, v)}
+                  />
                 </td>
                 <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <button
