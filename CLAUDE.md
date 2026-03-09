@@ -149,13 +149,13 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - IDs follow the pattern `NNN_description`, e.g. `003_add_foo_to_bar`.
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
 
-The last applied migration is `006_create_cycle_items`. The next migration id must be `007_...`.
+The last applied migration is `010_create_workbench_snapshots`. The next migration id must be `011_...`.
 
 **To add a new migration**, append an entry to the `migrations` array:
 
 ```js
 {
-  id: '007_your_description',
+  id: '011_your_description',
   up() {
     const cols = db.prepare('PRAGMA table_info(your_table)').all();
     if (!cols.find((c) => c.name === 'your_column')) {
@@ -292,7 +292,7 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 8. **Cycle start day**: Stored on the dossier (`cycle_start_day`, default 25). A cycle for month M runs from day `cycle_start_day` of M to day `cycle_start_day - 1` of M+1. Use `new Date(year, month - 1, startDay)` / `new Date(year, month, startDay - 1)` for date range computation (JS Date handles month overflow automatically).
 9. **Template → cycle copy**: When a new cycle is created, all template items are copied into `cycle_items`. `day_of_payment` values are clamped to the last day of the cycle's calendar month at copy time (e.g., day 30 becomes day 28 for February).
 10. **Expense sorting**: Fixed expenses sort by day within the cycle: days ≥ `cycle_start_day` first (ascending), then days < `cycle_start_day` (ascending). Budget items always sort last. This applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format version**: The export JSON is now `version: 2`. Includes `dossier.cycle_start_day`, `expense_template[]`, and `cycles[]` (each with `items[]`). Import accepts both version 1 (old, no expenses data) and version 2.
+11. **Export format version**: The export JSON is now `version: 3`. Includes `dossier.cycle_start_day`, `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`), `annual_expense_template[]`, `workbench_snapshots[]`, and `cycles[]` (each with `items[]`). Import accepts versions 1, 2, and 3.
 
 ## Environment Variables
 

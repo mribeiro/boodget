@@ -61,6 +61,8 @@ The Workbench is composed of the following sections:
 
 All sections are visible simultaneously. Recalculation is triggered instantly on any value change.
 
+Each section is **collapsed by default**, showing only its summary row. The user can expand a section to view and edit its entries. The collapsed state shows enough information to understand the section at a glance (i.e. the summary values).
+
 ---
 
 ## 4. Income
