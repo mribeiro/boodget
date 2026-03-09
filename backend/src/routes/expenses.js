@@ -148,25 +148,68 @@ router.put('/expense-template/:itemId', (req, res) => {
     .get(req.params.itemId, req.params.id);
   if (!item) return res.status(404).json({ error: 'Template item not found' });
 
-  const { name, value, day_of_payment } = req.body;
+  const { name, value, day_of_payment, classification, must_amount, want_amount, save_amount } = req.body;
   if (name !== undefined && !name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
   if (value !== undefined && (isNaN(Number(value)) || Number(value) < 0)) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
+  }
+  if (classification !== undefined && classification !== null && !['must', 'want'].includes(classification)) {
+    return res.status(400).json({ error: 'classification must be "must" or "want"' });
   }
 
   const newName = name !== undefined ? name.trim() : item.name;
   const newValue = value !== undefined ? Number(value) : item.value;
   const newDop = day_of_payment !== undefined ? day_of_payment : item.day_of_payment;
+  const newClassification = classification !== undefined ? classification : item.classification;
+  const newMustAmount = must_amount !== undefined ? (must_amount !== null ? Number(must_amount) : null) : item.must_amount;
+  const newWantAmount = want_amount !== undefined ? (want_amount !== null ? Number(want_amount) : null) : item.want_amount;
+  const newSaveAmount = save_amount !== undefined ? (save_amount !== null ? Number(save_amount) : null) : item.save_amount;
 
-  db.prepare('UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ? WHERE id = ?').run(
-    newName,
-    newValue,
-    newDop,
-    req.params.itemId
-  );
+  db.prepare(
+    'UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ?, classification = ?, must_amount = ?, want_amount = ?, save_amount = ? WHERE id = ?'
+  ).run(newName, newValue, newDop, newClassification, newMustAmount, newWantAmount, newSaveAmount, req.params.itemId);
 
   const updated = db.prepare('SELECT * FROM expense_template_items WHERE id = ?').get(req.params.itemId);
   res.json(updated);
+});
+
+// POST /expense-template/bulk-replace
+router.post('/expense-template/bulk-replace', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const { section, items } = req.body;
+  if (!section || !['expense', 'distribution'].includes(section)) {
+    return res.status(400).json({ error: 'section must be "expense" or "distribution"' });
+  }
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
+
+  const replace = db.transaction(() => {
+    db.prepare('DELETE FROM expense_template_items WHERE dossier_id = ? AND section = ?').run(req.params.id, section);
+    const insert = db.prepare(
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    items.forEach((item, idx) => {
+      insert.run(
+        uuidv4(),
+        req.params.id,
+        section,
+        String(item.name).trim(),
+        item.type || null,
+        Number(item.value) || 0,
+        item.day_of_payment != null ? item.day_of_payment : null,
+        item.classification || null,
+        item.must_amount != null ? Number(item.must_amount) : null,
+        item.want_amount != null ? Number(item.want_amount) : null,
+        item.save_amount != null ? Number(item.save_amount) : null,
+        idx
+      );
+    });
+  });
+
+  replace();
+  const newItems = db
+    .prepare('SELECT * FROM expense_template_items WHERE dossier_id = ? AND section = ? ORDER BY position')
+    .all(req.params.id, section);
+  res.json(newItems);
 });
 
 // DELETE /expense-template/:itemId
@@ -394,6 +437,207 @@ router.delete('/cycles/:cycleId/items/:itemId', (req, res) => {
   if (!item) return res.status(404).json({ error: 'Item not found' });
 
   db.prepare('DELETE FROM cycle_items WHERE id = ?').run(req.params.itemId);
+  res.status(204).end();
+});
+
+// ── Annual Expense Template ──────────────────────────────────────────────────
+
+// GET /annual-expense-template
+router.get('/annual-expense-template', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const items = db
+    .prepare('SELECT * FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position, created_at')
+    .all(req.params.id);
+  res.json(items);
+});
+
+// POST /annual-expense-template
+router.post('/annual-expense-template', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const { name, value, day_of_payment, month_of_payment, classification } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  if (value == null || isNaN(Number(value)) || Number(value) < 0) {
+    return res.status(400).json({ error: 'value must be a non-negative number' });
+  }
+  if (classification && !['must', 'want'].includes(classification)) {
+    return res.status(400).json({ error: 'classification must be "must" or "want"' });
+  }
+
+  const maxPos = db
+    .prepare('SELECT MAX(position) as mp FROM annual_expense_template_items WHERE dossier_id = ?')
+    .get(req.params.id);
+  const position = (maxPos.mp ?? -1) + 1;
+
+  const id = uuidv4();
+  db.prepare(
+    'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    id,
+    req.params.id,
+    String(name).trim(),
+    Number(value),
+    day_of_payment != null ? day_of_payment : null,
+    month_of_payment != null ? month_of_payment : null,
+    classification || null,
+    position
+  );
+
+  const item = db.prepare('SELECT * FROM annual_expense_template_items WHERE id = ?').get(id);
+  res.status(201).json(item);
+});
+
+// PUT /annual-expense-template/:itemId
+router.put('/annual-expense-template/:itemId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const item = db
+    .prepare('SELECT * FROM annual_expense_template_items WHERE id = ? AND dossier_id = ?')
+    .get(req.params.itemId, req.params.id);
+  if (!item) return res.status(404).json({ error: 'Template item not found' });
+
+  const { name, value, day_of_payment, month_of_payment, classification } = req.body;
+  if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'name cannot be empty' });
+  if (value !== undefined && (isNaN(Number(value)) || Number(value) < 0)) {
+    return res.status(400).json({ error: 'value must be a non-negative number' });
+  }
+  if (classification !== undefined && classification !== null && !['must', 'want'].includes(classification)) {
+    return res.status(400).json({ error: 'classification must be "must" or "want"' });
+  }
+
+  const newName = name !== undefined ? String(name).trim() : item.name;
+  const newValue = value !== undefined ? Number(value) : item.value;
+  const newDop = day_of_payment !== undefined ? day_of_payment : item.day_of_payment;
+  const newMop = month_of_payment !== undefined ? month_of_payment : item.month_of_payment;
+  const newClassification = classification !== undefined ? classification : item.classification;
+
+  db.prepare(
+    'UPDATE annual_expense_template_items SET name = ?, value = ?, day_of_payment = ?, month_of_payment = ?, classification = ? WHERE id = ?'
+  ).run(newName, newValue, newDop, newMop, newClassification, req.params.itemId);
+
+  const updated = db.prepare('SELECT * FROM annual_expense_template_items WHERE id = ?').get(req.params.itemId);
+  res.json(updated);
+});
+
+// DELETE /annual-expense-template/:itemId
+router.delete('/annual-expense-template/:itemId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const item = db
+    .prepare('SELECT * FROM annual_expense_template_items WHERE id = ? AND dossier_id = ?')
+    .get(req.params.itemId, req.params.id);
+  if (!item) return res.status(404).json({ error: 'Template item not found' });
+  db.prepare('DELETE FROM annual_expense_template_items WHERE id = ?').run(req.params.itemId);
+  res.status(204).end();
+});
+
+// POST /annual-expense-template/bulk-replace
+router.post('/annual-expense-template/bulk-replace', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const { items } = req.body;
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
+
+  const replace = db.transaction(() => {
+    db.prepare('DELETE FROM annual_expense_template_items WHERE dossier_id = ?').run(req.params.id);
+    const insert = db.prepare(
+      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    items.forEach((item, idx) => {
+      insert.run(
+        uuidv4(),
+        req.params.id,
+        String(item.name).trim(),
+        Number(item.value) || 0,
+        item.day_of_payment != null ? item.day_of_payment : null,
+        item.month_of_payment != null ? item.month_of_payment : null,
+        item.classification || null,
+        idx
+      );
+    });
+  });
+
+  replace();
+  const newItems = db
+    .prepare('SELECT * FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+    .all(req.params.id);
+  res.json(newItems);
+});
+
+// ── Workbench Snapshots ──────────────────────────────────────────────────────
+
+// GET /workbench-snapshots
+router.get('/workbench-snapshots', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const snapshots = db
+    .prepare('SELECT * FROM workbench_snapshots WHERE dossier_id = ? ORDER BY updated_at DESC')
+    .all(req.params.id);
+  res.json(snapshots.map((s) => ({ ...s, data: JSON.parse(s.data) })));
+});
+
+// POST /workbench-snapshots
+router.post('/workbench-snapshots', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const { name, data } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  if (data == null) return res.status(400).json({ error: 'data is required' });
+
+  const id = uuidv4();
+  db.prepare('INSERT INTO workbench_snapshots (id, dossier_id, name, data) VALUES (?, ?, ?, ?)').run(
+    id,
+    req.params.id,
+    String(name).trim(),
+    JSON.stringify(data)
+  );
+
+  const snapshot = db.prepare('SELECT * FROM workbench_snapshots WHERE id = ?').get(id);
+  res.status(201).json({ ...snapshot, data: JSON.parse(snapshot.data) });
+});
+
+// PUT /workbench-snapshots/:snapshotId
+router.put('/workbench-snapshots/:snapshotId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const snapshot = db
+    .prepare('SELECT * FROM workbench_snapshots WHERE id = ? AND dossier_id = ?')
+    .get(req.params.snapshotId, req.params.id);
+  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+
+  const { data } = req.body;
+  if (data == null) return res.status(400).json({ error: 'data is required' });
+
+  db.prepare("UPDATE workbench_snapshots SET data = ?, updated_at = datetime('now') WHERE id = ?").run(
+    JSON.stringify(data),
+    req.params.snapshotId
+  );
+
+  const updated = db.prepare('SELECT * FROM workbench_snapshots WHERE id = ?').get(req.params.snapshotId);
+  res.json({ ...updated, data: JSON.parse(updated.data) });
+});
+
+// POST /workbench-snapshots/:snapshotId/duplicate
+router.post('/workbench-snapshots/:snapshotId/duplicate', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const snapshot = db
+    .prepare('SELECT * FROM workbench_snapshots WHERE id = ? AND dossier_id = ?')
+    .get(req.params.snapshotId, req.params.id);
+  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+
+  const newId = uuidv4();
+  db.prepare('INSERT INTO workbench_snapshots (id, dossier_id, name, data) VALUES (?, ?, ?, ?)').run(
+    newId,
+    req.params.id,
+    `Copy of ${snapshot.name}`,
+    snapshot.data
+  );
+
+  const newSnapshot = db.prepare('SELECT * FROM workbench_snapshots WHERE id = ?').get(newId);
+  res.status(201).json({ ...newSnapshot, data: JSON.parse(newSnapshot.data) });
+});
+
+// DELETE /workbench-snapshots/:snapshotId
+router.delete('/workbench-snapshots/:snapshotId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const snapshot = db
+    .prepare('SELECT * FROM workbench_snapshots WHERE id = ? AND dossier_id = ?')
+    .get(req.params.snapshotId, req.params.id);
+  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+  db.prepare('DELETE FROM workbench_snapshots WHERE id = ?').run(req.params.snapshotId);
   res.status(204).end();
 });
 

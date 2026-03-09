@@ -90,4 +90,32 @@ export const api = {
     request('PATCH', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`, data),
   deleteCycleItem: (dossierId, cycleId, itemId) =>
     request('DELETE', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`),
+
+  // Expense template (extended)
+  bulkReplaceExpenseTemplateSection: (dossierId, section, items) =>
+    request('POST', `/dossiers/${dossierId}/expense-template/bulk-replace`, { section, items }),
+
+  // Annual expense template
+  getAnnualExpenseTemplate: (dossierId) =>
+    request('GET', `/dossiers/${dossierId}/annual-expense-template`),
+  createAnnualTemplateItem: (dossierId, data) =>
+    request('POST', `/dossiers/${dossierId}/annual-expense-template`, data),
+  updateAnnualTemplateItem: (dossierId, itemId, data) =>
+    request('PUT', `/dossiers/${dossierId}/annual-expense-template/${itemId}`, data),
+  deleteAnnualTemplateItem: (dossierId, itemId) =>
+    request('DELETE', `/dossiers/${dossierId}/annual-expense-template/${itemId}`),
+  bulkReplaceAnnualExpenseTemplate: (dossierId, items) =>
+    request('POST', `/dossiers/${dossierId}/annual-expense-template/bulk-replace`, { items }),
+
+  // Workbench snapshots
+  getWorkbenchSnapshots: (dossierId) =>
+    request('GET', `/dossiers/${dossierId}/workbench-snapshots`),
+  createWorkbenchSnapshot: (dossierId, data) =>
+    request('POST', `/dossiers/${dossierId}/workbench-snapshots`, data),
+  saveWorkbenchSnapshot: (dossierId, snapshotId, data) =>
+    request('PUT', `/dossiers/${dossierId}/workbench-snapshots/${snapshotId}`, data),
+  duplicateWorkbenchSnapshot: (dossierId, snapshotId) =>
+    request('POST', `/dossiers/${dossierId}/workbench-snapshots/${snapshotId}/duplicate`),
+  deleteWorkbenchSnapshot: (dossierId, snapshotId) =>
+    request('DELETE', `/dossiers/${dossierId}/workbench-snapshots/${snapshotId}`),
 };

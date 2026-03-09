@@ -171,6 +171,63 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '007_add_classification_to_expense_template_items',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(expense_template_items)').all();
+      if (!cols.find((c) => c.name === 'classification')) {
+        db.exec(`ALTER TABLE expense_template_items ADD COLUMN classification TEXT CHECK(classification IN ('must', 'want'))`);
+      }
+    },
+  },
+  {
+    id: '008_add_decomposition_to_expense_template_items',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(expense_template_items)').all();
+      if (!cols.find((c) => c.name === 'must_amount')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN must_amount REAL');
+      }
+      if (!cols.find((c) => c.name === 'want_amount')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN want_amount REAL');
+      }
+      if (!cols.find((c) => c.name === 'save_amount')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN save_amount REAL');
+      }
+    },
+  },
+  {
+    id: '009_create_annual_expense_template_items',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_template_items (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          value REAL NOT NULL DEFAULT 0,
+          day_of_payment INTEGER,
+          month_of_payment INTEGER,
+          classification TEXT CHECK(classification IN ('must', 'want')),
+          position INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
+  {
+    id: '010_create_workbench_snapshots',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workbench_snapshots (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          data TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {

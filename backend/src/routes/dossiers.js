@@ -41,7 +41,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || (data.version !== 1 && data.version !== 2)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || (data.version !== 1 && data.version !== 2 && data.version !== 3)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -87,10 +87,24 @@ router.post('/import', (req, res) => {
     }
 
     const insertTemplateItem = db.prepare(
-      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     for (const ti of (data.expense_template || [])) {
-      insertTemplateItem.run(uuidv4(), dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0);
+      insertTemplateItem.run(uuidv4(), dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null);
+    }
+
+    const insertAnnualTemplateItem = db.prepare(
+      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    for (const ti of (data.annual_expense_template || [])) {
+      insertAnnualTemplateItem.run(uuidv4(), dossierId, ti.name, ti.value ?? 0, ti.day_of_payment ?? null, ti.month_of_payment ?? null, ti.classification ?? null, ti.position ?? 0);
+    }
+
+    const insertWorkbenchSnapshot = db.prepare(
+      'INSERT INTO workbench_snapshots (id, dossier_id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    for (const s of (data.workbench_snapshots || [])) {
+      insertWorkbenchSnapshot.run(uuidv4(), dossierId, s.name, typeof s.data === 'string' ? s.data : JSON.stringify(s.data), s.created_at || null, s.updated_at || null);
     }
 
     const insertCycle = db.prepare(
@@ -157,8 +171,17 @@ router.get('/:id/export', (req, res) => {
   }
 
   const expenseTemplate = db
-    .prepare('SELECT section, name, type, value, day_of_payment, position FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
+    .prepare('SELECT section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
     .all(req.params.id);
+
+  const annualExpenseTemplate = db
+    .prepare('SELECT name, value, day_of_payment, month_of_payment, classification, position FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+    .all(req.params.id);
+
+  const workbenchSnapshots = db
+    .prepare('SELECT name, data, created_at, updated_at FROM workbench_snapshots WHERE dossier_id = ? ORDER BY created_at')
+    .all(req.params.id)
+    .map((s) => ({ ...s, data: JSON.parse(s.data) }));
 
   const cycles = db
     .prepare('SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
@@ -179,7 +202,7 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 2,
+    version: 3,
     dossier: { name: dossier.name, currency: dossier.currency, cycle_start_day: dossier.cycle_start_day },
     accounts,
     months: months.map((m) => ({
@@ -191,6 +214,8 @@ router.get('/:id/export', (req, res) => {
       entries: entriesByMonth[m.id] || [],
     })),
     expense_template: expenseTemplate,
+    annual_expense_template: annualExpenseTemplate,
+    workbench_snapshots: workbenchSnapshots,
     cycles: cycles.map((c) => ({
       year: c.year,
       month: c.month,
