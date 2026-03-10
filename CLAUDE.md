@@ -39,12 +39,13 @@ capital-tracker/
 │   │       └── expenses.js   # Expense settings, monthly template, annual template, cycles,
 │   │                         # cycle items, workbench snapshots (nested under dossiers)
 │   ├── scripts/
-│   │   └── reset-password.js # CLI tool for emergency password reset via docker exec
-│   └── Dockerfile            # Multi-stage: builds frontend, then runs backend+frontend
+│   │   ├── reset-password.js # Node.js tool for emergency password reset
+│   │   └── reset-password.sh # Shell wrapper (made executable in Docker image)
+│   └── Dockerfile            # Multi-stage: builds frontend (with GIT_COMMIT arg), then runs backend+frontend
 ├── frontend/         # React 18 SPA (ES Modules, Vite)
 │   ├── src/
 │   │   ├── main.jsx          # React entry point
-│   │   ├── App.jsx           # AuthContext, routing, setup/login gates
+│   │   ├── App.jsx           # AuthContext, routing, setup/login gates; navbar shows 7-char git SHA
 │   │   ├── services/api.js   # Fetch-based API client wrapper
 │   │   └── components/
 │   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Workbench / Settings tabs
@@ -62,6 +63,9 @@ capital-tracker/
 │   ├── SPECIFICATION.md                  # Core product specification (Capital section)
 │   ├── SPECIFICATION_MONTHLY_EXPENSES.md # Monthly Expenses specification
 │   └── SPECIFICATION_WORKBENCH.md        # Workbench specification
+├── .github/
+│   └── workflows/
+│       └── deploy.yml        # CI/CD: build Docker image and deploy to self-hosted runner
 ├── docker-compose.yml        # Production deployment (SQLite persisted to ./data/)
 └── .devcontainer/            # VS Code Dev Container config
 ```
@@ -118,13 +122,29 @@ The `SESSION_SECRET` environment variable in `docker-compose.yml` **must be chan
 cd frontend && npm run build   # outputs to frontend/dist/
 ```
 
-The backend serves `frontend/dist/` as static files when `NODE_ENV=production`.
+The backend serves the built frontend from `frontend-dist/` (inside the Docker image — the Dockerfile copies `frontend/dist/` to `./frontend-dist` in the container) when `NODE_ENV=production`.
+
+### Git Commit SHA in Navbar
+
+The Dockerfile accepts a `GIT_COMMIT` build arg (set by the CI/CD workflow to `github.sha`). It is exposed to Vite as `VITE_GIT_COMMIT`. The Navbar in `App.jsx` displays the first 7 characters of this SHA in the header for build identification. In local dev it shows `unknown`.
+
+### CI/CD Pipeline
+
+`.github/workflows/deploy.yml` runs on every push to `main` or `dev`:
+
+1. **Build** (self-hosted runner): `docker build -t capital-tracker:latest[-dev] --build-arg GIT_COMMIT=<sha> .`
+2. **Deploy** (self-hosted runner): `docker compose up -d --force-recreate` from `/home/mothership/docker/stacks/capital-tracker[-dev]/`
+
+- The `-dev` suffix is appended to both the image tag and deploy directory when the branch is `dev`.
+- The workflow uses `workflow_dispatch` for manual triggers.
 
 ### Emergency Password Reset
 
 ```bash
-docker exec -it <container> node /app/scripts/reset-password.js <username> <new-password>
+docker exec -it <container> /app/scripts/reset-password.sh <username> <new-password>
 ```
+
+The shell script (`reset-password.sh`) is a thin wrapper that calls `reset-password.js`; both live in `backend/scripts/`. The `.sh` file is made executable in the Docker image (`chmod +x`).
 
 ## Database
 
