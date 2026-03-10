@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t capital-tracker:latest${{ env.SUFFIX }} -f backend/Dockerfile .
+        run: docker build -t capital-tracker:latest${{ env.SUFFIX }} -f backend/Dockerfile --build-arg GIT_COMMIT=${{ github.sha }} .
 
   deploy:
     runs-on: self-hosted
