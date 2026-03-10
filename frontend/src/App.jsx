@@ -105,11 +105,9 @@ function Navbar() {
       <span className="nav-brand" onClick={() => navigate('/', { state: { explicit: true } })}>
         Capital Tracker
       </span>
-      {import.meta.env.VITE_GIT_COMMIT && import.meta.env.VITE_GIT_COMMIT !== 'unknown' && (
-        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontFamily: 'monospace', opacity: 0.6 }}>
-          {import.meta.env.VITE_GIT_COMMIT}
-        </span>
-      )}
+      <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontFamily: 'monospace', opacity: 0.6 }}>
+        {import.meta.env.VITE_GIT_COMMIT || 'unknown'}
+      </span>
       <div className="nav-links">
         <button className="nav-link" onClick={() => navigate('/', { state: { explicit: true } })}>
           Dossiers
