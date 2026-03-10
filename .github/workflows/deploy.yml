@@ -18,6 +18,8 @@ jobs:
       - name: Deploy to ${{ env.DEPLOY_DIR }}
         working-directory: ${{ env.DEPLOY_DIR }}
         run: |
-          docker compose -p capital-tracker down
-          docker compose -p capital-tracker build
-          docker compose -p capital-tracker up -d
+            cd /prod
+            git pull
+            docker compose -p capital-tracker down
+            docker compose -p capital-tracker build
+            docker compose -p capital-tracker up -d
