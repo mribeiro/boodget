@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+env:
+  SUFFIX: ${{ github.ref_name == 'dev' && '-dev' || '' }}
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t capital-tracker:latest${{ env.SUFFIX }} -f backend/Dockerfile .
+
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Deploy
+        working-directory: /home/mothership/docker/stacks/capital-tracker${{ env.SUFFIX }}
+        run: docker compose up -d --force-recreate
