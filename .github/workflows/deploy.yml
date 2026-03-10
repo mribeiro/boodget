@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  SUFFIX: ${{ github.ref_name == 'main' && '' || '-dev' }}
+  SUFFIX: ${{ github.ref_name == 'dev' && '-dev' || '' }}
 
 jobs:
   build:
