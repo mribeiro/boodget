@@ -1,0 +1,23 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+env:
+  DEPLOY_DIR: ${{ github.ref_name == 'main' && '/prod' || '/dev' }}
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Linux, X64, gpu]
+
+    steps:
+      - name: Deploy to ${{ env.DEPLOY_DIR }}
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          docker compose down
+          docker compose build
+          docker compose up -d
