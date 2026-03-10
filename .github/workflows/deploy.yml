@@ -4,22 +4,20 @@ on:
   push:
     branches:
       - main
-      - dev
   workflow_dispatch:
-
-env:
-  DEPLOY_DIR: ${{ github.ref_name == 'main' && '/prod' || '/dev' }}
 
 jobs:
   deploy:
-    runs-on: [self-hosted, Linux, X64, gpu]
+    runs-on: [self-hosted]
 
     steps:
-      - name: Deploy to ${{ env.DEPLOY_DIR }}
-        working-directory: ${{ env.DEPLOY_DIR }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t capital-tracker:latest -f backend/Dockerfile .
+
+      - name: Deploy
+        working-directory: /prod
         run: |
-            cd /prod
-            git pull
-            docker compose -p capital-tracker down
-            docker compose -p capital-tracker build
-            docker compose -p capital-tracker up -d
+          docker compose -p capital-tracker up -d
