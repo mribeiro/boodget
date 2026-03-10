@@ -106,7 +106,7 @@ function Navbar() {
         Capital Tracker
       </span>
       <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontFamily: 'monospace', opacity: 0.6 }}>
-        {import.meta.env.VITE_GIT_COMMIT || 'unknown'}
+        {(import.meta.env.VITE_GIT_COMMIT || 'unknown').slice(0, 7)}
       </span>
       <div className="nav-links">
         <button className="nav-link" onClick={() => navigate('/', { state: { explicit: true } })}>
