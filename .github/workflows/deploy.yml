@@ -7,9 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: [self-hosted]
-
+  build:
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,7 +16,10 @@ jobs:
       - name: Build image
         run: docker build -t capital-tracker:latest -f backend/Dockerfile .
 
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    steps:
       - name: Deploy
         working-directory: /home/mothership/docker/stacks/capital-tracker
-        run: |
-          docker compose up -d
+        run: docker compose up -d --force-recreate
