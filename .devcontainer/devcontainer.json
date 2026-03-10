@@ -5,7 +5,7 @@
   "workspaceFolder": "/workspaces/money_manager",
   "overrideCommand": true,
   "forwardPorts": [3000, 5173],
-  "postCreateCommand": "cd backend && npm install && cd ../frontend && npm install --include=dev",
+  "postCreateCommand": "apk add --no-cache git && cd /workspaces/money_manager/backend && npm install && cd /workspaces/money_manager/frontend && npm install --include=dev",
   "postStartCommand": "(cd /workspaces/money_manager/backend && npm run dev) & (cd /workspaces/money_manager/frontend && npm run dev)",
   "customizations": {
     "vscode": {

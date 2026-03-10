@@ -1,6 +1,8 @@
 # Stage 1: Build the React frontend
 FROM node:20-alpine AS frontend-builder
 WORKDIR /build
+ARG GIT_COMMIT=unknown
+ENV VITE_GIT_COMMIT=$GIT_COMMIT
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
