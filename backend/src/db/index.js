@@ -228,6 +228,35 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '011_create_goals',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS goals (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          target_year INTEGER NOT NULL,
+          target_month INTEGER NOT NULL,
+          target_value REAL NOT NULL DEFAULT 0,
+          extra_initial_amount REAL NOT NULL DEFAULT 0,
+          monthly_amount REAL,
+          position INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS goal_accounts (
+          goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+          account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          PRIMARY KEY (goal_id, account_id)
+        );
+        CREATE TABLE IF NOT EXISTS goal_distributions (
+          goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+          template_item_id TEXT NOT NULL REFERENCES expense_template_items(id) ON DELETE CASCADE,
+          PRIMARY KEY (goal_id, template_item_id)
+        );
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {

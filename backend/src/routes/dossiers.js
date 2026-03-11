@@ -6,9 +6,11 @@ const { v4: uuidv4 } = require('uuid');
 const accountsRouter = require('./accounts');
 const monthsRouter = require('./months');
 const expensesRouter = require('./expenses');
+const goalsRouter = require('./goals');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
+router.use('/:id/goals', goalsRouter);
 
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
@@ -41,7 +43,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || (data.version !== 1 && data.version !== 2 && data.version !== 3)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || (data.version !== 1 && data.version !== 2 && data.version !== 3 && data.version !== 4)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -89,8 +91,14 @@ router.post('/import', (req, res) => {
     const insertTemplateItem = db.prepare(
       'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
+    // Map distribution template item name → new ID (for goal import resolution)
+    const distributionItemNameMap = {};
     for (const ti of (data.expense_template || [])) {
-      insertTemplateItem.run(uuidv4(), dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null);
+      const newId = uuidv4();
+      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null);
+      if (ti.section === 'distribution') {
+        distributionItemNameMap[ti.name] = newId;
+      }
     }
 
     const insertAnnualTemplateItem = db.prepare(
@@ -118,6 +126,33 @@ router.post('/import', (req, res) => {
       insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null);
       for (const ci of (c.items || [])) {
         insertCycleItem.run(uuidv4(), cycleId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0);
+      }
+    }
+
+    // Build account lookup by group_name+name for goal import resolution
+    const accountNameMap = {};
+    for (const [oldId, newId] of Object.entries(accountIdMap)) {
+      const acc = (data.accounts || []).find((a) => a.id === oldId);
+      if (acc) accountNameMap[`${acc.group_name}||${acc.name}`] = newId;
+    }
+
+    const insertGoal = db.prepare(
+      'INSERT INTO goals (id, dossier_id, name, target_year, target_month, target_value, extra_initial_amount, monthly_amount, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    for (const g of (data.goals || [])) {
+      const goalId = uuidv4();
+      insertGoal.run(goalId, dossierId, g.name, g.target_year, g.target_month, g.target_value ?? 0, g.extra_initial_amount ?? 0, g.monthly_amount ?? null, g.position ?? 0);
+      for (const a of (g.accounts || [])) {
+        const newAccountId = accountNameMap[`${a.group_name}||${a.name}`];
+        if (newAccountId) {
+          db.prepare('INSERT OR IGNORE INTO goal_accounts (goal_id, account_id) VALUES (?, ?)').run(goalId, newAccountId);
+        }
+      }
+      for (const name of (g.distribution_names || [])) {
+        const newItemId = distributionItemNameMap[name];
+        if (newItemId) {
+          db.prepare('INSERT OR IGNORE INTO goal_distributions (goal_id, template_item_id) VALUES (?, ?)').run(goalId, newItemId);
+        }
       }
     }
   });
@@ -199,10 +234,48 @@ router.get('/:id/export', (req, res) => {
     }
   }
 
+  // Build goals export with account names and distribution item names
+  const goalsRaw = db
+    .prepare('SELECT * FROM goals WHERE dossier_id = ? ORDER BY position, created_at')
+    .all(req.params.id);
+  // Re-fetch template items with IDs for goal distribution name resolution
+  const templateItemsByIdFull = {};
+  for (const ti of db.prepare('SELECT id, name FROM expense_template_items WHERE dossier_id = ?').all(req.params.id)) {
+    templateItemsByIdFull[ti.id] = ti;
+  }
+
+  const goals = goalsRaw.map((g) => {
+    const goalAccountRows = db.prepare('SELECT account_id FROM goal_accounts WHERE goal_id = ?').all(g.id);
+    const goalDistRows = db.prepare('SELECT template_item_id FROM goal_distributions WHERE goal_id = ?').all(g.id);
+    const accountsForGoal = goalAccountRows
+      .map((r) => {
+        const acc = db.prepare('SELECT group_name, name FROM accounts WHERE id = ?').get(r.account_id);
+        return acc ? { group_name: acc.group_name, name: acc.name } : null;
+      })
+      .filter(Boolean);
+    const distribution_names = goalDistRows
+      .map((r) => {
+        const item = templateItemsByIdFull[r.template_item_id];
+        return item ? item.name : null;
+      })
+      .filter(Boolean);
+    return {
+      name: g.name,
+      target_year: g.target_year,
+      target_month: g.target_month,
+      target_value: g.target_value,
+      extra_initial_amount: g.extra_initial_amount,
+      monthly_amount: g.monthly_amount,
+      position: g.position,
+      accounts: accountsForGoal,
+      distribution_names,
+    };
+  });
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 3,
+    version: 4,
     dossier: { name: dossier.name, currency: dossier.currency, cycle_start_day: dossier.cycle_start_day },
     accounts,
     months: months.map((m) => ({
@@ -225,6 +298,7 @@ router.get('/:id/export', (req, res) => {
       final_real_balance: c.final_real_balance,
       items: cycleItemsByCycleId[c.id] || [],
     })),
+    goals,
   });
 });
 

@@ -118,4 +118,14 @@ export const api = {
     request('POST', `/dossiers/${dossierId}/workbench-snapshots/${snapshotId}/duplicate`),
   deleteWorkbenchSnapshot: (dossierId, snapshotId) =>
     request('DELETE', `/dossiers/${dossierId}/workbench-snapshots/${snapshotId}`),
+
+  // Goals
+  getGoals: (dossierId) =>
+    request('GET', `/dossiers/${dossierId}/goals`),
+  createGoal: (dossierId, data) =>
+    request('POST', `/dossiers/${dossierId}/goals`, data),
+  updateGoal: (dossierId, goalId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/goals/${goalId}`, data),
+  deleteGoal: (dossierId, goalId) =>
+    request('DELETE', `/dossiers/${dossierId}/goals/${goalId}`),
 };
