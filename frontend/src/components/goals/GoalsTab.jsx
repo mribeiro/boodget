@@ -178,83 +178,80 @@ export default function GoalsTab({ dossierId }) {
       {/* Add/Edit Modal */}
       {modalPreset !== null && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal" style={{ width: '520px', maxWidth: '95vw' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>{isEditing ? 'Edit Goal' : 'New Goal'}</h3>
+          <div className="modal" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{isEditing ? 'Edit Goal' : 'New Goal'}</h2>
+              <button className="close-btn" onClick={closeModal}>&times;</button>
+            </div>
+            <div className="modal-body">
+              {formError && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{formError}</div>}
 
-            {formError && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{formError}</div>}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <label>
-                <div style={{ marginBottom: '0.25rem', fontWeight: 500 }}>Name</div>
+              <div className="form-group">
+                <label>Name</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Emergency Fund"
-                  style={{ width: '100%' }}
                 />
-              </label>
+              </div>
 
               <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <label style={{ flex: 1 }}>
-                  <div style={{ marginBottom: '0.25rem', fontWeight: 500 }}>Target year</div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Target year</label>
                   <input
                     type="number"
                     value={form.target_year}
                     onChange={(e) => setForm((f) => ({ ...f, target_year: Number(e.target.value) }))}
                     min={CURRENT_YEAR}
                     max={2100}
-                    style={{ width: '100%' }}
                   />
-                </label>
-                <label style={{ flex: 1 }}>
-                  <div style={{ marginBottom: '0.25rem', fontWeight: 500 }}>Target month</div>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Target month</label>
                   <select
                     value={form.target_month}
                     onChange={(e) => setForm((f) => ({ ...f, target_month: Number(e.target.value) }))}
-                    style={{ width: '100%' }}
                   >
                     {MONTH_NAMES.map((name, i) => (
                       <option key={i + 1} value={i + 1}>{name}</option>
                     ))}
                   </select>
-                </label>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <label style={{ flex: 1 }}>
-                  <div style={{ marginBottom: '0.25rem', fontWeight: 500 }}>Target value</div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Target value</label>
                   <input
                     type="number"
                     value={form.target_value}
                     onChange={(e) => setForm((f) => ({ ...f, target_value: e.target.value }))}
                     min={0}
-                    placeholder="0"
-                    style={{ width: '100%' }}
+                    placeholder="0.00"
                   />
-                </label>
-                <label style={{ flex: 1 }}>
-                  <div style={{ marginBottom: '0.25rem', fontWeight: 500 }}>Extra initial amount</div>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Extra initial amount</label>
                   <input
                     type="number"
                     value={form.extra_initial_amount}
                     onChange={(e) => setForm((f) => ({ ...f, extra_initial_amount: e.target.value }))}
                     min={0}
-                    placeholder="0"
-                    style={{ width: '100%' }}
+                    placeholder="0.00"
                   />
-                </label>
+                </div>
               </div>
 
               {/* Accounts */}
-              <div>
-                <div style={{ fontWeight: 500, marginBottom: '0.4rem' }}>Contributing accounts</div>
+              <div className="form-group">
+                <label>Contributing accounts</label>
                 {accounts.length === 0 ? (
                   <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>No accounts in this dossier.</div>
                 ) : (
-                  <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: '0.5rem', maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: '0.5rem', maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                     {accounts.map((acc) => (
-                      <label key={acc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <label key={acc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 'normal' }}>
                         <input
                           type="checkbox"
                           checked={form.account_ids.includes(acc.id)}
@@ -269,8 +266,8 @@ export default function GoalsTab({ dossierId }) {
               </div>
 
               {/* Monthly contribution mode */}
-              <div>
-                <div style={{ fontWeight: 500, marginBottom: '0.4rem' }}>Monthly contribution</div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Monthly contribution</label>
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <button
                     type="button"
@@ -308,9 +305,9 @@ export default function GoalsTab({ dossierId }) {
                   distributions.length === 0 ? (
                     <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>No distribution template items defined.</div>
                   ) : (
-                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: '0.5rem', maxHeight: '130px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: '0.5rem', maxHeight: '120px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                       {distributions.map((dist) => (
-                        <label key={dist.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                        <label key={dist.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 'normal' }}>
                           <input
                             type="checkbox"
                             checked={form.distribution_template_item_ids.includes(dist.id)}
@@ -329,13 +326,11 @@ export default function GoalsTab({ dossierId }) {
                     onChange={(e) => setForm((f) => ({ ...f, monthly_amount: e.target.value }))}
                     min={0}
                     placeholder="0.00"
-                    style={{ width: '100%' }}
                   />
                 )}
               </div>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
+            <div className="modal-footer">
               <button className="btn-secondary" onClick={closeModal} disabled={saving}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create goal'}
@@ -349,9 +344,14 @@ export default function GoalsTab({ dossierId }) {
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>Delete goal?</h3>
-            <p>This action cannot be undone.</p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <div className="modal-header">
+              <h2>Delete goal?</h2>
+              <button className="close-btn" onClick={() => setConfirmDelete(null)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ margin: 0 }}>This action cannot be undone.</p>
+            </div>
+            <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
               <button className="btn-danger" onClick={() => handleDelete(confirmDelete)}>Delete</button>
             </div>
