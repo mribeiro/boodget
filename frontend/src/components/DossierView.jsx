@@ -9,6 +9,7 @@ import ShareManager from './ShareManager';
 import ExpensesTab from './expenses/ExpensesTab';
 import DossierSettingsTab from './DossierSettingsTab';
 import WorkbenchTab from './workbench/WorkbenchTab';
+import GoalsTab from './goals/GoalsTab';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -164,6 +165,12 @@ export default function DossierView() {
           Workbench
         </button>
         <button
+          className={`tab-btn ${activeTab === 'goals' ? 'active' : ''}`}
+          onClick={() => setActiveTab('goals')}
+        >
+          Goals
+        </button>
+        <button
           className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
           onClick={() => setActiveTab('settings')}
         >
@@ -304,6 +311,10 @@ export default function DossierView() {
 
       {activeTab === 'workbench' && (
         <WorkbenchTab dossierId={id} />
+      )}
+
+      {activeTab === 'goals' && (
+        <GoalsTab dossierId={id} />
       )}
 
       {activeTab === 'settings' && (
