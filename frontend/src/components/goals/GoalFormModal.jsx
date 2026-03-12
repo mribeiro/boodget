@@ -227,6 +227,9 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
                   step="0.01"
                   placeholder="0.00"
                 />
+                <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                  A one-off amount already included in the selected accounts' balance (e.g. an exceptional cash injection). Used for projection only — not added again to current progress.
+                </div>
               </div>
 
               {hasExtra && (

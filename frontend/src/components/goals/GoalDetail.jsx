@@ -159,10 +159,7 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
           <KeyValue label="Anticipated completion" value={formatYM(goal.anticipated_completion_date)} accent />
         )}
         {goal.extra_value > 0 && (
-          <KeyValue label="Extra value in hand" value={formatEur(goal.extra_value)} />
-        )}
-        {goal.current_accumulated_value > 0 && (
-          <KeyValue label="From accounts" value={formatEur(goal.current_accumulated_value)} />
+          <KeyValue label="Extra value (in accounts)" value={formatEur(goal.extra_value)} note="Already included in account balance — used for projection only" />
         )}
       </div>
 
@@ -290,7 +287,7 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
   );
 }
 
-function KeyValue({ label, value, highlight, accent }) {
+function KeyValue({ label, value, highlight, accent, note }) {
   return (
     <div
       style={{
@@ -302,6 +299,7 @@ function KeyValue({ label, value, highlight, accent }) {
     >
       <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem' }}>{label}</div>
       <div style={{ fontWeight: 600, fontSize: '1rem', color: highlight ? '#d97706' : accent ? '#059669' : 'var(--color-text)' }}>{value}</div>
+      {note && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.25rem', fontStyle: 'italic' }}>{note}</div>}
     </div>
   );
 }
