@@ -228,6 +228,62 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '011_create_goals',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS goals (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          target_value REAL NOT NULL,
+          target_date TEXT NOT NULL,
+          extra_value REAL,
+          extra_value_impact_mode TEXT CHECK(extra_value_impact_mode IN ('reduce_monthly_amount', 'anticipate_end_date')),
+          contribution_mode TEXT NOT NULL CHECK(contribution_mode IN ('via_distributions', 'manual', 'ad_hoc')),
+          manual_monthly_value REAL,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
+  {
+    id: '012_create_goal_accounts',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS goal_accounts (
+          goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+          account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          PRIMARY KEY (goal_id, account_id)
+        )
+      `);
+    },
+  },
+  {
+    id: '013_create_goal_distributions',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS goal_distributions (
+          goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+          distribution_template_id TEXT NOT NULL REFERENCES expense_template_items(id) ON DELETE CASCADE,
+          PRIMARY KEY (goal_id, distribution_template_id)
+        )
+      `);
+    },
+  },
+  {
+    id: '014_create_goal_cycle_contributions',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS goal_cycle_contributions (
+          goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+          cycle_id TEXT NOT NULL REFERENCES expense_cycles(id) ON DELETE CASCADE,
+          real_contribution REAL NOT NULL DEFAULT 0,
+          PRIMARY KEY (goal_id, cycle_id)
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {
