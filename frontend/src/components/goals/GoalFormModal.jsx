@@ -6,26 +6,24 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function targetDateOptions() {
-  const now = new Date();
-  const options = [];
-  for (let i = 1; i <= 60; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-    options.push({ value: ym, label });
-  }
-  return options;
+function parseYM(ym) {
+  const [y, m] = ym.split('-');
+  return { year: parseInt(y, 10), month: parseInt(m, 10) };
 }
 
 export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
   const isEdit = !!goal;
   const now = new Date();
-  const defaultTargetDate = `${now.getFullYear() + 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const defaultYear = now.getFullYear() + 1;
+  const defaultMonth = now.getMonth() + 1;
+
+  const initialYM = goal?.target_date ? parseYM(goal.target_date) : { year: defaultYear, month: defaultMonth };
 
   const [name, setName] = useState(goal?.name ?? '');
   const [targetValue, setTargetValue] = useState(goal?.target_value ?? '');
-  const [targetDate, setTargetDate] = useState(goal?.target_date ?? defaultTargetDate);
+  const [targetYear, setTargetYear] = useState(initialYM.year);
+  const [targetMonth, setTargetMonth] = useState(initialYM.month);
+  const targetDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
   const [contributionMode, setContributionMode] = useState(goal?.contribution_mode ?? 'via_distributions');
   const [manualMonthlyValue, setManualMonthlyValue] = useState(goal?.manual_monthly_value ?? '');
   const [extraValue, setExtraValue] = useState(goal?.extra_value != null ? String(goal.extra_value) : '');
@@ -99,7 +97,6 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
     }
   }
 
-  const targetDateOpts = targetDateOptions();
   const hasExtra = extraValue !== '' && extraValue != null && Number(extraValue) > 0;
 
   return (
@@ -125,11 +122,21 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
               </div>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Target date</label>
-                <select value={targetDate} onChange={(e) => setTargetDate(e.target.value)}>
-                  {targetDateOpts.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <select value={targetMonth} onChange={(e) => setTargetMonth(Number(e.target.value))} style={{ flex: 2 }}>
+                    {MONTH_NAMES.map((m, i) => (
+                      <option key={i + 1} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    value={targetYear}
+                    onChange={(e) => setTargetYear(Number(e.target.value))}
+                    min="2020"
+                    max="2100"
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                </div>
               </div>
             </div>
 
