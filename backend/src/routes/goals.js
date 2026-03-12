@@ -50,7 +50,8 @@ function computeGoalValues(goal, dossierId) {
   }
 
   const extraValue = goal.extra_value || 0;
-  const totalCurrentProgress = currentAccumulatedValue + extraValue;
+  // Extra value is already included in the account balance — not added again to progress
+  const totalCurrentProgress = currentAccumulatedValue;
   const remainingAmount = goal.target_value - totalCurrentProgress;
 
   const nowYM = currentYearMonth();
@@ -74,29 +75,28 @@ function computeGoalValues(goal, dossierId) {
     expectedMonthlyContribution = goal.manual_monthly_value || 0;
   }
 
-  // Monthly value needed
-  // In "reduce_monthly_amount" or no extra value: remaining_amount / months_remaining (extra already baked in)
-  // In "anticipate_end_date": compute without extra value (extra only affects anticipated date)
+  // Monthly value needed:
+  // - "reduce_monthly_amount": subtract extra_value from remaining before dividing
+  // - "anticipate_end_date": extra only shifts the completion date, not the monthly amount
+  // - default (no extra or ad_hoc): remaining / months
   let monthlyValueNeeded = 0;
   if (monthsRemaining > 0) {
-    if (goal.extra_value_impact_mode === 'anticipate_end_date' && extraValue > 0) {
-      // Extra value does not reduce monthly amount; it anticipates the end date
-      const remainingWithoutExtra = goal.target_value - currentAccumulatedValue;
-      monthlyValueNeeded = remainingWithoutExtra / monthsRemaining;
+    if (goal.extra_value_impact_mode === 'reduce_monthly_amount' && extraValue > 0) {
+      monthlyValueNeeded = (remainingAmount - extraValue) / monthsRemaining;
     } else {
       monthlyValueNeeded = remainingAmount / monthsRemaining;
     }
   }
 
   // Anticipated completion date (only for "anticipate_end_date" mode with extra value)
+  // months_needed = (remaining - extra) / expected, then date = today + months_needed
   let anticipatedCompletionDate = null;
   if (
     goal.extra_value_impact_mode === 'anticipate_end_date' &&
     extraValue > 0 &&
     expectedMonthlyContribution > 0
   ) {
-    const remainingWithExtra = goal.target_value - currentAccumulatedValue - extraValue;
-    const monthsNeeded = Math.max(0, Math.ceil(remainingWithExtra / expectedMonthlyContribution));
+    const monthsNeeded = Math.max(0, Math.ceil((remainingAmount - extraValue) / expectedMonthlyContribution));
     const now = new Date();
     const d = new Date(now.getFullYear(), now.getMonth() + monthsNeeded, 1);
     anticipatedCompletionDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
