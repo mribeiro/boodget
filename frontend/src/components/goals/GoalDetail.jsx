@@ -46,6 +46,17 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
   const [editingCycle, setEditingCycle] = useState(null);
   const [cycleContribValue, setCycleContribValue] = useState('');
   const [savingContrib, setSavingContrib] = useState(false);
+  const [newHistYear, setNewHistYear] = useState(new Date().getFullYear());
+  const [newHistMonth, setNewHistMonth] = useState(1);
+  const [newHistAmount, setNewHistAmount] = useState('');
+  const [batchStartYear, setBatchStartYear] = useState(new Date().getFullYear());
+  const [batchStartMonth, setBatchStartMonth] = useState(1);
+  const [batchEndYear, setBatchEndYear] = useState(new Date().getFullYear());
+  const [batchEndMonth, setBatchEndMonth] = useState(new Date().getMonth() + 1);
+  const [batchAmount, setBatchAmount] = useState('');
+  const [histError, setHistError] = useState('');
+  const [savingHist, setSavingHist] = useState(false);
+  const [histOpen, setHistOpen] = useState(false);
 
   useEffect(() => {
     load();
@@ -71,6 +82,77 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
       onGoalDeleted();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  async function handleAddHistorical() {
+    setHistError('');
+    const y = Number(newHistYear);
+    const m = Number(newHistMonth);
+    const a = Number(newHistAmount);
+    if (!Number.isInteger(y) || y < 1900) { setHistError('Invalid year'); return; }
+    if (m < 1 || m > 12) { setHistError('Invalid month'); return; }
+    if (isNaN(a)) { setHistError('Amount must be a number'); return; }
+    const existing = goal.historical_contributions || [];
+    if (existing.some((h) => h.year === y && h.month === m)) {
+      setHistError('An entry for that month already exists'); return;
+    }
+    setSavingHist(true);
+    try {
+      await api.bulkReplaceGoalHistoricalContributions(dossierId, goal.id, [
+        ...existing,
+        { year: y, month: m, amount: a },
+      ]);
+      setNewHistAmount('');
+      await load();
+    } catch (err) {
+      setHistError(err.message);
+    } finally {
+      setSavingHist(false);
+    }
+  }
+
+  async function handleAddBatchHistorical() {
+    setHistError('');
+    const sy = Number(batchStartYear), sm = Number(batchStartMonth);
+    const ey = Number(batchEndYear), em = Number(batchEndMonth);
+    const a = Number(batchAmount);
+    if (!Number.isInteger(sy) || sy < 1900) { setHistError('Invalid start year'); return; }
+    if (!Number.isInteger(ey) || ey < 1900) { setHistError('Invalid end year'); return; }
+    if (sy * 12 + sm > ey * 12 + em) { setHistError('Start must be before or equal to end'); return; }
+    if (isNaN(a)) { setHistError('Amount must be a number'); return; }
+    const existing = goal.historical_contributions || [];
+    const toAdd = [];
+    let y = sy, m = sm;
+    while (y * 12 + m <= ey * 12 + em) {
+      if (!existing.some((h) => h.year === y && h.month === m)) {
+        toAdd.push({ year: y, month: m, amount: a });
+      }
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+    if (toAdd.length === 0) { setHistError('All months in this range already have entries'); return; }
+    setSavingHist(true);
+    try {
+      const merged = [...existing, ...toAdd].sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+      await api.bulkReplaceGoalHistoricalContributions(dossierId, goal.id, merged);
+      setBatchAmount('');
+      await load();
+    } catch (err) {
+      setHistError(err.message);
+    } finally {
+      setSavingHist(false);
+    }
+  }
+
+  async function handleDeleteHistorical(year, month) {
+    const existing = goal.historical_contributions || [];
+    const updated = existing.filter((h) => !(h.year === year && h.month === month));
+    try {
+      await api.bulkReplaceGoalHistoricalContributions(dossierId, goal.id, updated);
+      await load();
+    } catch (err) {
+      setHistError(err.message);
     }
   }
 
@@ -198,12 +280,114 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
         </div>
       )}
 
+      {/* Historical contributions */}
+      {!isAdHoc && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <button
+            className="btn-ghost"
+            onClick={() => setHistOpen((o) => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', fontWeight: 600, padding: '0', marginBottom: histOpen ? '0.75rem' : 0 }}
+          >
+            <span style={{ fontSize: '0.75rem' }}>{histOpen ? '▼' : '▶'}</span>
+            Historical contributions
+          </button>
+          {histOpen && <>
+          <p style={{ fontSize: '0.825rem', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
+            Record contributions made before this goal was created. These amounts are already reflected in your account balance and are used only for chart display — they are not added to any total.
+          </p>
+          {(goal.historical_contributions || []).length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+                  <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', fontWeight: 500 }}>Month</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', fontWeight: 500 }}>Year</th>
+                  <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem', fontWeight: 500 }}>Amount</th>
+                  <th style={{ width: '2rem' }} />
+                </tr>
+              </thead>
+              <tbody>
+                {(goal.historical_contributions || []).map((h) => (
+                  <tr key={`${h.year}-${h.month}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <td style={{ padding: '0.35rem 0.5rem' }}>{MONTH_NAMES[h.month - 1]}</td>
+                    <td style={{ padding: '0.35rem 0.5rem' }}>{h.year}</td>
+                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right' }}>{formatEur(h.amount)}</td>
+                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'center' }}>
+                      <button
+                        className="btn-danger"
+                        style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
+                        onClick={() => handleDeleteHistorical(h.year, h.month)}
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>Month</label>
+              <select value={newHistMonth} onChange={(e) => setNewHistMonth(Number(e.target.value))} style={{ width: '7rem' }}>
+                {MONTH_NAMES.map((name, i) => (
+                  <option key={i + 1} value={i + 1}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>Year</label>
+              <input type="number" value={newHistYear} onChange={(e) => setNewHistYear(Number(e.target.value))} style={{ width: '6rem' }} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>Amount (€)</label>
+              <input type="number" step="0.01" min="0" value={newHistAmount} onChange={(e) => setNewHistAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+            </div>
+            <button className="btn-secondary" onClick={handleAddHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
+              Add entry
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>From</label>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <select value={batchStartMonth} onChange={(e) => setBatchStartMonth(Number(e.target.value))} style={{ width: '7rem' }}>
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={i + 1} value={i + 1}>{name}</option>
+                  ))}
+                </select>
+                <input type="number" value={batchStartYear} onChange={(e) => setBatchStartYear(Number(e.target.value))} style={{ width: '6rem' }} />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>To</label>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <select value={batchEndMonth} onChange={(e) => setBatchEndMonth(Number(e.target.value))} style={{ width: '7rem' }}>
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={i + 1} value={i + 1}>{name}</option>
+                  ))}
+                </select>
+                <input type="number" value={batchEndYear} onChange={(e) => setBatchEndYear(Number(e.target.value))} style={{ width: '6rem' }} />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>Amount/month (€)</label>
+              <input type="number" step="0.01" min="0" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+            </div>
+            <button className="btn-secondary" onClick={handleAddBatchHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
+              Add range
+            </button>
+          </div>
+          {histError && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{histError}</div>}
+          </>}
+        </div>
+      )}
+
       {/* Per-cycle manual contributions */}
       {goal.contribution_mode === 'manual' && goal.chart_data && goal.chart_data.length > 0 && (
         <div>
           <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Cycle contributions</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            {goal.chart_data.map((c) => {
+            {goal.chart_data.filter((c) => !c.is_historical).map((c) => {
               const label = `${MONTH_NAMES[c.month - 1]} ${c.year}`;
               const isEditing = editingCycle === c.cycle_id;
               return (

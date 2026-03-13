@@ -131,16 +131,24 @@ A goal is always in one of three states:
 
 Each cycle contributes a real contribution value to the goal:
 
-- **“Via Distributions”:** sum of the values of selected distributions marked as `done` in that cycle, regardless of whether the cycle is open or closed.
-- **“Manual”:** the user manually enters the real contribution value for each cycle. This is done from the **goal detail page**, which lists all cycles and allows entering a value per cycle.
-- **“Ad-hoc”:** no per-cycle tracking. Progress is determined solely by the current value of the selected accounts in the most recent Capital snapshot.
+- **”Via Distributions”:** sum of the values of selected distributions marked as `done` in that cycle, regardless of whether the cycle is open or closed. Matched by `template_item_id` FK when available, falling back to name matching for items copied before template linkage was enforced.
+- **”Manual”:** the user manually enters the real contribution value for each cycle. This is done from the **goal detail page**, which lists all cycles and allows entering a value per cycle.
+- **”Ad-hoc”:** no per-cycle tracking. Progress is determined solely by the current value of the selected accounts in the most recent Capital snapshot.
 
-### 7.2 Cumulative Tracking
+### 7.2 Historical Contributions
+
+For goals in **”Via Distributions”** or **”Manual”** modes, users may enter pre-cycle contributions covering months before any expense cycles existed in the dossier (or before the goal was created). These are stored as `goal_historical_contributions` rows (year, month, amount) and managed via a bulk-replace operation from the goal detail page.
+
+In the chart, historical contributions are prepended before the first cycle data point, accumulated into the `real_cumulative` line. If a historical month overlaps with an existing cycle month, the cycle data takes precedence.
+
+### 7.3 Cumulative Tracking
 
 The system maintains a cumulative view of:
 
-- **Expected cumulative**: sum of expected monthly contributions from goal creation up to each cycle.
-- **Real cumulative**: sum of real contributions recorded up to each cycle.
+- **Expected cumulative**: sum of expected monthly contributions per cycle from the goal's creation month onwards.
+- **Real cumulative**: sum of historical contributions (pre-cycle) followed by real contributions per cycle.
+
+Both lines start from the goal creation month. Historical contribution points carry `is_historical: true` in the chart data and have no `expected_cumulative` value (since no cycle existed yet).
 
 -----
 
@@ -226,9 +234,26 @@ A table to store manually entered real contributions per cycle:
 
 |Field              |Type   |Description                                      |
 |-------------------|-------|-------------------------------------------------|
-|`goal_id`          |integer|Foreign key to goal                              |
-|`cycle_id`         |integer|Foreign key to cycle                             |
+|`goal_id`          |text   |Foreign key to goal (UUID)                       |
+|`cycle_id`         |text   |Foreign key to cycle (UUID)                      |
 |`real_contribution`|decimal|Manually entered real contribution for this cycle|
+
+Composite PK `(goal_id, cycle_id)`. Upserted on write. Cascades on goal or cycle delete.
+
+### 10.5 Goal historical contributions
+
+A table to store pre-cycle monthly contribution amounts for the cumulative chart:
+
+|Field   |Type   |Description                                    |
+|--------|-------|-----------------------------------------------|
+|`goal_id`|text  |Foreign key to goal (UUID)                     |
+|`year`  |integer|Year of the contribution                       |
+|`month` |integer|Month of the contribution (1–12)               |
+|`amount`|decimal|Contribution amount for that month             |
+
+Composite PK `(goal_id, year, month)`. Managed via the bulk-replace endpoint — the entire set is replaced atomically on save. Cascades on goal delete. Only applicable to “Via Distributions” and “Manual” contribution modes.
+
+> **Note on IDs**: all PKs in this feature use UUIDs (TEXT), consistent with the rest of the codebase.
 
 -----
 
@@ -237,5 +262,4 @@ A table to store manually entered real contributions per cycle:
 - Notifications or reminders for upcoming goal deadlines
 - Multiple contribution modes active simultaneously on the same goal
 - Goal templates or duplication
-- Export of goal data
 - Comparison between goals

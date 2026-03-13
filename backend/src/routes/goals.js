@@ -149,7 +149,14 @@ function buildChartData(goal, dossierId) {
       return ym >= goalYM;
     });
 
-  if (cycles.length === 0) return [];
+  // Fetch historical contributions (sorted)
+  const historicalRows = db
+    .prepare(
+      'SELECT year, month, amount FROM goal_historical_contributions WHERE goal_id = ? ORDER BY year ASC, month ASC'
+    )
+    .all(goal.id);
+
+  if (cycles.length === 0 && historicalRows.length === 0) return [];
 
   let expectedMonthlyContribution = 0;
   if (goal.contribution_mode === 'via_distributions') {
@@ -180,6 +187,25 @@ function buildChartData(goal, dossierId) {
   const chartData = [];
   let expectedCumulative = 0;
   let realCumulative = 0;
+
+  // Prepend historical contributions (months before the tracked cycle range)
+  const cycleYMs = new Set(cycles.map((c) => `${c.year}-${String(c.month).padStart(2, '0')}`));
+  for (const h of historicalRows) {
+    const hYM = `${h.year}-${String(h.month).padStart(2, '0')}`;
+    if (cycleYMs.has(hYM)) continue; // cycle data takes precedence for overlapping months
+    realCumulative += h.amount;
+    chartData.push({
+      cycle_id: null,
+      year: h.year,
+      month: h.month,
+      expected_cumulative: null,
+      real_cumulative: realCumulative,
+      real_contribution: h.amount,
+      is_historical: true,
+    });
+  }
+  // Sort historical points before cycle points (they should already be ordered, but be safe)
+  chartData.sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
 
   for (const cycle of cycles) {
     expectedCumulative += expectedMonthlyContribution;
@@ -353,6 +379,9 @@ router.get('/goals/:goalId', (req, res) => {
     .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
     .all(goal.id)
     .map((r) => r.distribution_template_id);
+  const historicalContributions = db
+    .prepare('SELECT year, month, amount FROM goal_historical_contributions WHERE goal_id = ? ORDER BY year, month')
+    .all(goal.id);
   const chartData = buildChartData(goal, req.params.id);
 
   res.json({
@@ -360,6 +389,7 @@ router.get('/goals/:goalId', (req, res) => {
     ...computed,
     account_ids: accounts,
     distribution_template_ids: distributions,
+    historical_contributions: historicalContributions,
     chart_data: chartData,
   });
 });
@@ -525,6 +555,42 @@ router.put('/goals/:goalId/cycle-contributions/:cycleId', (req, res) => {
   ).run(goal.id, cycle.id, Number(real_contribution));
 
   res.json({ goal_id: goal.id, cycle_id: cycle.id, real_contribution: Number(real_contribution) });
+});
+
+// POST /goals/:goalId/historical-contributions/bulk-replace
+router.post('/goals/:goalId/historical-contributions/bulk-replace', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const goal = db
+    .prepare('SELECT * FROM goals WHERE id = ? AND dossier_id = ?')
+    .get(req.params.goalId, req.params.id);
+  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+
+  const { items } = req.body;
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
+
+  for (const item of items) {
+    const y = Number(item.year);
+    const m = Number(item.month);
+    const a = Number(item.amount);
+    if (!Number.isInteger(y) || y < 1900 || y > 2200) return res.status(400).json({ error: 'Each item must have a valid year' });
+    if (!Number.isInteger(m) || m < 1 || m > 12) return res.status(400).json({ error: 'Each item must have a valid month (1–12)' });
+    if (isNaN(a)) return res.status(400).json({ error: 'Each item must have a numeric amount' });
+  }
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM goal_historical_contributions WHERE goal_id = ?').run(goal.id);
+    const insert = db.prepare(
+      'INSERT INTO goal_historical_contributions (goal_id, year, month, amount) VALUES (?, ?, ?, ?)'
+    );
+    for (const item of items) {
+      insert.run(goal.id, Number(item.year), Number(item.month), Number(item.amount));
+    }
+  })();
+
+  const saved = db
+    .prepare('SELECT year, month, amount FROM goal_historical_contributions WHERE goal_id = ? ORDER BY year, month')
+    .all(goal.id);
+  res.json(saved);
 });
 
 module.exports = router;

@@ -15,6 +15,7 @@ Key concepts:
 - **Expense Template**: A per-dossier list of template items (expenses and distributions) that are automatically copied into each new cycle when it is created. Payment days are clamped to the last day of the cycle's month at copy time. Each expense entry also carries a `classification` (`must`/`want`). Distribution entries carry `must_amount`, `want_amount`, `save_amount` decomposition fields.
 - **Annual Expense Template**: A per-dossier list of annual expenses (separate from the monthly expense template). Each entry has `name`, `value`, `day_of_payment`, `month_of_payment`, `classification`. Used by the Workbench to compute monthly averages (value / 12).
 - **Workbench**: A scenario calculator within a dossier. Users model income vs. expenses vs. distributions with Must/Want/Save breakdowns. State is ephemeral per session. Can be saved as named **snapshots** (persisted). If exactly one snapshot exists, it is auto-loaded on open. A "New from scratch" button resets to the template-based working state.
+- **Goal**: A financial objective with a name, target value, and target date, scoped to a dossier. Tracks progress via contributing accounts (current value) and monthly contributions (via distribution template items, a fixed manual amount, or ad-hoc). Supports historical contributions for months before cycle tracking began. State is auto-computed: `active`, `completed`, or `failed`.
 
 ## Versioning
 
@@ -33,11 +34,12 @@ capital-tracker/
 │   │       ├── auth.js       # Login, logout, OIDC, change-password
 │   │       ├── setup.js      # First-launch setup
 │   │       ├── users.js      # User CRUD
-│   │       ├── dossiers.js   # Dossier CRUD, sharing, import/export (v3); mounts expenses sub-router
+│   │       ├── dossiers.js   # Dossier CRUD, sharing, import/export (v4); mounts expenses + goals sub-routers
 │   │       ├── accounts.js   # Account CRUD (nested under dossiers)
 │   │       ├── months.js     # Month snapshots and entries (nested under dossiers)
-│   │       └── expenses.js   # Expense settings, monthly template, annual template, cycles,
-│   │                         # cycle items, workbench snapshots (nested under dossiers)
+│   │       ├── expenses.js   # Expense settings, monthly template, annual template, cycles,
+│   │       │                 # cycle items, workbench snapshots (nested under dossiers)
+│   │       └── goals.js      # Goals CRUD, cycle contributions, historical contributions (nested under dossiers)
 │   ├── scripts/
 │   │   ├── reset-password.js # Node.js tool for emergency password reset
 │   │   └── reset-password.sh # Shell wrapper (made executable in Docker image)
@@ -57,12 +59,17 @@ capital-tracker/
 │   │       │   ├── ExpenseTemplate.jsx     # Monthly expense template editor (with classification)
 │   │       │   ├── AnnualExpenseTemplate.jsx # Annual expense template editor
 │   │       │   └── DossierSettings.jsx     # Cycle start day setting
-│   │       └── workbench/
-│   │           └── WorkbenchTab.jsx        # Workbench scenario calculator (income, expenses, distributions, summary, snapshots)
+│   │       ├── workbench/
+│   │       │   └── WorkbenchTab.jsx        # Workbench scenario calculator (income, expenses, distributions, summary, snapshots)
+│   │       └── goals/
+│   │           ├── GoalsTab.jsx            # Goals list tab within DossierView
+│   │           ├── GoalFormModal.jsx       # Create/edit goal modal
+│   │           └── GoalDetail.jsx          # Goal detail view (progress bar, chart, cycle contributions, historical contributions)
 ├── ai-spec/
 │   ├── SPECIFICATION.md                  # Core product specification (Capital section)
 │   ├── SPECIFICATION_MONTHLY_EXPENSES.md # Monthly Expenses specification
-│   └── SPECIFICATION_WORKBENCH.md        # Workbench specification
+│   ├── SPECIFICATION_WORKBENCH.md        # Workbench specification
+│   └── SPECIFICATION_GOALS.md            # Goals specification
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml        # CI/CD: build Docker image and deploy to self-hosted runner
@@ -167,6 +174,11 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 | `cycle_items` | Items within a cycle. `section` ∈ `{expense, distribution}`. Fixed expenses have `paid` bool. Budget expenses have `spent` real. Distributions have `done` bool. `template_item_id` FK to template (nullable). |
 | `annual_expense_template_items` | Per-dossier annual expense template. Fields: `name`, `value`, `day_of_payment`, `month_of_payment` (1–12), `classification` (`must`/`want`), `position`. Used by the Workbench (monthly avg = value / 12). |
 | `workbench_snapshots` | Named snapshots of the Workbench state per dossier. Fields: `name`, `data` (JSON string of full workbench state), `created_at`, `updated_at`. |
+| `goals` | Financial objectives per dossier. Fields: `name`, `target_value`, `target_date` (YYYY-MM), `extra_value` (nullable), `extra_value_impact_mode` (`reduce_monthly_amount`/`anticipate_end_date`, nullable), `contribution_mode` (`via_distributions`/`manual`/`ad_hoc`), `manual_monthly_value` (nullable), `created_at`. |
+| `goal_accounts` | Many-to-many: accounts whose current value counts toward a goal. Composite PK `(goal_id, account_id)`. Cascades on goal or account delete. |
+| `goal_distributions` | Many-to-many: distribution template items selected for `via_distributions` mode. Composite PK `(goal_id, distribution_template_id)`. Cascades on goal or template item delete. |
+| `goal_cycle_contributions` | Real contribution per cycle for `manual` mode goals. Composite PK `(goal_id, cycle_id)`. `real_contribution` is upserted. Cascades on goal or cycle delete. |
+| `goal_historical_contributions` | Pre-cycle historical contributions (year/month/amount) for the chart. Composite PK `(goal_id, year, month)`. Managed via bulk-replace. Cascades on goal delete. |
 
 `dossiers` also has a `cycle_start_day INTEGER DEFAULT 25` column (added in migration `003`).
 
@@ -179,13 +191,20 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - IDs follow the pattern `NNN_description`, e.g. `003_add_foo_to_bar`.
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
 
-The last applied migration is `010_create_workbench_snapshots`. The next migration id must be `011_...`.
+The last applied migration is `015_create_goal_historical_contributions`. The next migration id must be `016_...`.
+
+Migrations 011–015 created the goals subsystem:
+- `011_create_goals` — `goals` table
+- `012_create_goal_accounts` — `goal_accounts` join table
+- `013_create_goal_distributions` — `goal_distributions` join table
+- `014_create_goal_cycle_contributions` — `goal_cycle_contributions` table
+- `015_create_goal_historical_contributions` — `goal_historical_contributions` table
 
 **To add a new migration**, append an entry to the `migrations` array:
 
 ```js
 {
-  id: '011_your_description',
+  id: '016_your_description',
   up() {
     const cols = db.prepare('PRAGMA table_info(your_table)').all();
     if (!cols.find((c) => c.name === 'your_column')) {
@@ -276,6 +295,15 @@ PATCH  /api/dossiers/:id/cycles/:cycleId      { salary?, previous_balance?, is_c
 POST   /api/dossiers/:id/cycles/:cycleId/items          { section, name, type?, value, day_of_payment? }
 PATCH  /api/dossiers/:id/cycles/:cycleId/items/:itemId  { value?, day_of_payment?, paid?, spent?, done? }
 DELETE /api/dossiers/:id/cycles/:cycleId/items/:itemId
+
+GET    /api/dossiers/:id/goals
+POST   /api/dossiers/:id/goals   { name, target_value, target_date, contribution_mode, manual_monthly_value?, extra_value?, extra_value_impact_mode?, account_ids?, distribution_template_ids? }
+GET    /api/dossiers/:id/goals/:goalId   # includes chart_data and historical_contributions
+PUT    /api/dossiers/:id/goals/:goalId   { name?, target_value?, target_date?, contribution_mode?, manual_monthly_value?, extra_value?, extra_value_impact_mode?, account_ids?, distribution_template_ids? }
+DELETE /api/dossiers/:id/goals/:goalId
+
+PUT    /api/dossiers/:id/goals/:goalId/cycle-contributions/:cycleId  { real_contribution }  # manual mode only
+POST   /api/dossiers/:id/goals/:goalId/historical-contributions/bulk-replace  { items: [{year, month, amount}] }
 ```
 
 ### Error Handling
@@ -301,12 +329,13 @@ Always add new API helper functions to `api.js` rather than calling `fetch` dire
 
 ### Routing
 
-React Router v6. All routes defined in `App.jsx`. Route params: `dossierId`, `monthId`, `cycleId`.
+React Router v6. All routes defined in `App.jsx`. Route params: `dossierId`, `monthId`, `cycleId`, `goalId`.
 
 Key routes:
-- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Workbench, Settings)
+- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Workbench, Goals, Settings)
 - `/dossiers/:id/months/:monthId` → month detail
 - `/dossiers/:id/cycles/:cycleId` → `CycleEditor`
+- `/dossiers/:id/goals/:goalId` → `GoalDetail`
 
 `DossierView` tab state can be restored via router location state: `navigate('/dossiers/:id', { state: { tab: 'expenses' } })`.
 
@@ -335,7 +364,7 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 8. **Cycle start day**: Stored on the dossier (`cycle_start_day`, default 25). A cycle for month M runs from day `cycle_start_day` of M to day `cycle_start_day - 1` of M+1. Use `new Date(year, month - 1, startDay)` / `new Date(year, month, startDay - 1)` for date range computation (JS Date handles month overflow automatically).
 9. **Template → cycle copy**: When a new cycle is created, all template items are copied into `cycle_items`. `day_of_payment` values are clamped to the last day of the cycle's calendar month at copy time (e.g., day 30 becomes day 28 for February).
 10. **Expense sorting**: Fixed expenses sort by day within the cycle: days ≥ `cycle_start_day` first (ascending), then days < `cycle_start_day` (ascending). Budget items always sort last. This applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format version**: The export JSON is now `version: 3`. Includes `dossier.cycle_start_day`, `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`), `annual_expense_template[]`, `workbench_snapshots[]`, and `cycles[]` (each with `items[]`). Import accepts versions 1, 2, and 3.
+11. **Export format version**: The export JSON is now `version: 4`. Includes `dossier.cycle_start_day`, `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`), `annual_expense_template[]`, `workbench_snapshots[]`, `cycles[]` (each with `items[]`), and `goals[]` (each with `account_names[]`, `distribution_names[]`, `cycle_contributions[]`, `historical_contributions[]`). Import accepts versions 1, 2, 3, and 4. Goals are re-linked by account name and distribution template item name.
 
 ## Environment Variables
 
@@ -358,7 +387,7 @@ Do not implement the following unless the specification is explicitly updated:
 - PWA or mobile app
 - Multi-currency conversion
 
-The Monthly Expenses feature (cycles, templates, settings) and the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template) are fully implemented.
+The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), and Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import) are fully implemented.
 
 ## No Test Suite
 
