@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const accountsRouter = require('./accounts');
 const monthsRouter = require('./months');
 const expensesRouter = require('./expenses');
+const goalsRouter = require('./goals');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -284,7 +285,9 @@ router.delete('/:id/access/:userId', (req, res) => {
   res.status(204).end();
 });
 
-// Expenses sub-router (settings, expense-template, cycles) — mounted last so specific routes above take priority
+// Expenses sub-router (settings, expense-template, cycles)
 router.use('/:id', expensesRouter);
+// Goals sub-router
+router.use('/:id', goalsRouter);
 
 module.exports = router;
