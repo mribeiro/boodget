@@ -67,6 +67,7 @@ jobs:
           docker build \
             -t capital-tracker:preview-$SLUG \
             --build-arg GIT_COMMIT=${{ github.sha }} \
+            -f backend/Dockerfile \
             .
 
       - name: Deploy stack
