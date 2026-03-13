@@ -6,6 +6,10 @@ on:
       - main
       - dev
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   deploy:
     runs-on: self-hosted
@@ -72,3 +76,43 @@ jobs:
         run: |
           cd "$STACK_DIR"
           docker compose up -d --force-recreate
+
+      - name: Comment on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "${{ github.ref_name }}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR for this branch — skipping comment."
+            exit 0
+          fi
+
+          URL="https://${SLUG}.preview.${{ secrets.PREVIEW_DOMAIN }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          BODY="<!-- capital-tracker-preview -->
+          ## Preview environment
+
+          | | |
+          |---|---|
+          | **URL** | [${URL}](${URL}) |
+          | **Commit** | \`${SHORT_SHA}\` |"
+
+          EXISTING_ID=$(gh api \
+            "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '[.[] | select(.body | startswith("<!-- capital-tracker-preview -->"))] | .[0].id // empty')
+
+          if [ -n "$EXISTING_ID" ]; then
+            gh api --method PATCH \
+              "repos/${{ github.repository }}/issues/comments/${EXISTING_ID}" \
+              -f body="$BODY"
+          else
+            gh pr comment "$PR_NUMBER" \
+              --repo "${{ github.repository }}" \
+              --body "$BODY"
+          fi
