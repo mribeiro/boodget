@@ -1,0 +1,23 @@
+services:
+  preview-index:
+    build: .
+    container_name: capital-tracker-preview-index
+    restart: unless-stopped
+    environment:
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ct-preview-index.rule=Host(`preview.${PREVIEW_DOMAIN}`)"
+      - "traefik.http.routers.ct-preview-index.entrypoints=websecure"
+      - "traefik.http.routers.ct-preview-index.tls=true"
+      - "traefik.http.routers.ct-preview-index.tls.certresolver=${CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.services.ct-preview-index.loadbalancer.server.port=3000"
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}
