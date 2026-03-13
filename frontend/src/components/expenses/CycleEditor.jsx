@@ -107,6 +107,16 @@ export default function CycleEditor() {
     }
   }
 
+  async function handleReopen() {
+    setError('');
+    try {
+      await api.updateCycle(dossierId, cycleId, { is_closed: false });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleUpdateFinalBalance() {
     setError('');
     const bal = Number(finalBalance);
@@ -271,6 +281,9 @@ export default function CycleEditor() {
                 </div>
                 <button className="btn-secondary" onClick={handleUpdateFinalBalance} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
                   Update
+                </button>
+                <button className="btn-secondary" onClick={handleReopen} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+                  Reopen
                 </button>
               </div>
             ) : showCloseForm ? (
