@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const session = require('express-session');
 const path = require('path');
 const { db, SQLiteSessionStore } = require('./db');
@@ -28,12 +29,16 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', requireAuth, require('./routes/users'));
 app.use('/api/dossiers', requireAuth, require('./routes/dossiers'));
 
-// Serve the built frontend in production
-if (process.env.NODE_ENV === 'production') {
-  const frontendDist = path.join(__dirname, '..', 'frontend-dist');
-  app.use(express.static(frontendDist));
+// Serve the built frontend when available (production, dev, ephemeral, etc.)
+const frontendDist = path.join(__dirname, '..', 'frontend-dist');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist, { index: false }));
   app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendDist, 'index.html'));
+    const html = fs.readFileSync(path.join(frontendDist, 'index.html'), 'utf8');
+    const appEnv = process.env.NODE_ENV || 'production';
+    const injected = html.replace('<head>', `<head><script>window.__APP_ENV__="${appEnv}";</script>`);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(injected);
   });
 }
 
