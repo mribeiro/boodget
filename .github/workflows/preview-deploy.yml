@@ -43,7 +43,7 @@ jobs:
               container_name: capital-tracker-preview-${SLUG}
               restart: unless-stopped
               environment:
-                NODE_ENV: production
+                NODE_ENV: ephemeral
                 SESSION_SECRET: ${SESSION_SECRET}
                 DB_PATH: /data/capital-tracker.db
                 SEED_ON_EMPTY: "true"

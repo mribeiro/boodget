@@ -95,13 +95,19 @@ function Navbar() {
   const { user, setAuthState } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const appEnv = window.__APP_ENV__;
+  const navbarBg =
+    appEnv === 'dev' ? 'var(--color-navbar-dev)' :
+    appEnv === 'ephemeral' ? 'var(--color-navbar-ephemeral)' :
+    undefined;
+
   async function handleLogout() {
     await api.logout().catch(() => {});
     setAuthState((s) => ({ ...s, user: null }));
   }
 
   return (
-    <nav className="navbar">
+    <nav className="navbar" style={navbarBg ? { backgroundColor: navbarBg } : undefined}>
       <span className="nav-brand" onClick={() => navigate('/', { state: { explicit: true } })}>
         Capital Tracker
       </span>
