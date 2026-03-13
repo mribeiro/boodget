@@ -10,7 +10,12 @@ export default function LoginPage({ onLogin }) {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    api.getOidcConfig().then(setOidcConfig).catch(() => {});
+    api.getOidcConfig().then((cfg) => {
+      setOidcConfig(cfg);
+      if (cfg.prefill) {
+        setForm({ username: cfg.prefill.username, password: cfg.prefill.password });
+      }
+    }).catch(() => {});
     if (searchParams.get('error') === 'oidc') {
       setError('SSO login failed. Please try again.');
     }

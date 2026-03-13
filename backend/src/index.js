@@ -46,6 +46,9 @@ async function start() {
       process.exit(1);
     }
   }
+  if (process.env.SEED_ON_EMPTY === 'true') {
+    require('./db/seed')();
+  }
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => console.log(`Capital Tracker running on port ${PORT}`));
 }
