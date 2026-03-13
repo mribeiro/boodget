@@ -74,9 +74,14 @@ router.post('/change-password', requireAuth, (req, res) => {
 
 // GET /api/auth/oidc/config
 router.get('/oidc/config', (req, res) => {
+  const prefill =
+    process.env.SEED_ON_EMPTY === 'true'
+      ? { username: 'preview', password: 'Preview@Capital2024!' }
+      : null;
   res.json({
     enabled: process.env.OIDC_ENABLED === 'true',
     providerName: process.env.OIDC_PROVIDER_NAME || 'SSO Login',
+    prefill,
   });
 });
 
