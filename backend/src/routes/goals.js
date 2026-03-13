@@ -189,10 +189,19 @@ function buildChartData(goal, dossierId) {
       const ph = distTemplateIds.map(() => '?').join(',');
       const row = db
         .prepare(
-          `SELECT COALESCE(SUM(value), 0) as total FROM cycle_items
-           WHERE cycle_id = ? AND template_item_id IN (${ph}) AND done = 1`
+          `SELECT COALESCE(SUM(ci.value), 0) as total
+           FROM cycle_items ci
+           WHERE ci.cycle_id = ?
+             AND ci.section = 'distribution'
+             AND ci.done = 1
+             AND (
+               ci.template_item_id IN (${ph})
+               OR (ci.template_item_id IS NULL AND ci.name IN (
+                     SELECT name FROM expense_template_items WHERE id IN (${ph})
+                   ))
+             )`
         )
-        .get(cycle.id, ...distTemplateIds);
+        .get(cycle.id, ...distTemplateIds, ...distTemplateIds);
       realContribution = row.total || 0;
     } else if (goal.contribution_mode === 'manual') {
       const contrib = db
