@@ -42,7 +42,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || (data.version !== 1 && data.version !== 2 && data.version !== 3)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || (data.version !== 1 && data.version !== 2 && data.version !== 3 && data.version !== 4)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -90,8 +90,11 @@ router.post('/import', (req, res) => {
     const insertTemplateItem = db.prepare(
       'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
+    const templateNameToId = {};
     for (const ti of (data.expense_template || [])) {
-      insertTemplateItem.run(uuidv4(), dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null);
+      const newId = uuidv4();
+      if (ti.section === 'distribution') templateNameToId[ti.name] = newId;
+      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null);
     }
 
     const insertAnnualTemplateItem = db.prepare(
@@ -114,11 +117,56 @@ router.post('/import', (req, res) => {
     const insertCycleItem = db.prepare(
       'INSERT INTO cycle_items (id, cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
+    const cycleYMToId = {};
     for (const c of (data.cycles || [])) {
       const cycleId = uuidv4();
+      cycleYMToId[`${c.year}-${c.month}`] = cycleId;
       insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null);
       for (const ci of (c.items || [])) {
         insertCycleItem.run(uuidv4(), cycleId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0);
+      }
+    }
+
+    // Build account name→newId map for goal re-linking
+    const accountNameToId = {};
+    for (const a of (data.accounts || [])) {
+      accountNameToId[a.name] = accountIdMap[a.id];
+    }
+
+    const insertGoal = db.prepare(
+      'INSERT INTO goals (id, dossier_id, name, target_value, target_date, extra_value, extra_value_impact_mode, contribution_mode, manual_monthly_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    const insertGoalAccount = db.prepare('INSERT OR IGNORE INTO goal_accounts (goal_id, account_id) VALUES (?, ?)');
+    const insertGoalDist = db.prepare('INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_id) VALUES (?, ?)');
+    const insertGoalCycleContrib = db.prepare(
+      'INSERT INTO goal_cycle_contributions (goal_id, cycle_id, real_contribution) VALUES (?, ?, ?) ON CONFLICT(goal_id, cycle_id) DO UPDATE SET real_contribution = excluded.real_contribution'
+    );
+    const insertGoalHistorical = db.prepare(
+      'INSERT INTO goal_historical_contributions (goal_id, year, month, amount) VALUES (?, ?, ?, ?)'
+    );
+
+    for (const g of (data.goals || [])) {
+      const goalId = uuidv4();
+      insertGoal.run(
+        goalId, dossierId, g.name, g.target_value, g.target_date,
+        g.extra_value ?? null, g.extra_value_impact_mode ?? null,
+        g.contribution_mode, g.manual_monthly_value ?? null,
+        g.created_at || null
+      );
+      for (const name of (g.account_names || [])) {
+        const accId = accountNameToId[name];
+        if (accId) insertGoalAccount.run(goalId, accId);
+      }
+      for (const name of (g.distribution_names || [])) {
+        const distId = templateNameToId[name];
+        if (distId) insertGoalDist.run(goalId, distId);
+      }
+      for (const cc of (g.cycle_contributions || [])) {
+        const cycleId = cycleYMToId[`${cc.year}-${cc.month}`];
+        if (cycleId) insertGoalCycleContrib.run(goalId, cycleId, cc.real_contribution ?? 0);
+      }
+      for (const hc of (g.historical_contributions || [])) {
+        insertGoalHistorical.run(goalId, hc.year, hc.month, hc.amount ?? 0);
       }
     }
   });
@@ -200,10 +248,43 @@ router.get('/:id/export', (req, res) => {
     }
   }
 
+  const goalsRaw = db
+    .prepare('SELECT * FROM goals WHERE dossier_id = ? ORDER BY created_at')
+    .all(req.params.id);
+
+  const goalsExport = goalsRaw.map((g) => {
+    const accountNames = db
+      .prepare('SELECT a.name FROM goal_accounts ga JOIN accounts a ON a.id = ga.account_id WHERE ga.goal_id = ?')
+      .all(g.id).map((r) => r.name);
+    const distributionNames = db
+      .prepare('SELECT eti.name FROM goal_distributions gd JOIN expense_template_items eti ON eti.id = gd.distribution_template_id WHERE gd.goal_id = ?')
+      .all(g.id).map((r) => r.name);
+    const cycleContributions = db
+      .prepare('SELECT ec.year, ec.month, gcc.real_contribution FROM goal_cycle_contributions gcc JOIN expense_cycles ec ON ec.id = gcc.cycle_id WHERE gcc.goal_id = ?')
+      .all(g.id);
+    const historicalContributions = db
+      .prepare('SELECT year, month, amount FROM goal_historical_contributions WHERE goal_id = ? ORDER BY year, month')
+      .all(g.id);
+    return {
+      name: g.name,
+      target_value: g.target_value,
+      target_date: g.target_date,
+      extra_value: g.extra_value,
+      extra_value_impact_mode: g.extra_value_impact_mode,
+      contribution_mode: g.contribution_mode,
+      manual_monthly_value: g.manual_monthly_value,
+      created_at: g.created_at,
+      account_names: accountNames,
+      distribution_names: distributionNames,
+      cycle_contributions: cycleContributions,
+      historical_contributions: historicalContributions,
+    };
+  });
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 3,
+    version: 4,
     dossier: { name: dossier.name, currency: dossier.currency, cycle_start_day: dossier.cycle_start_day },
     accounts,
     months: months.map((m) => ({
@@ -226,6 +307,7 @@ router.get('/:id/export', (req, res) => {
       final_real_balance: c.final_real_balance,
       items: cycleItemsByCycleId[c.id] || [],
     })),
+    goals: goalsExport,
   });
 });
 
