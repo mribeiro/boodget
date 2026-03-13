@@ -72,7 +72,8 @@ capital-tracker/
 │   └── SPECIFICATION_GOALS.md            # Goals specification
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml        # CI/CD: build Docker image and deploy to self-hosted runner
+│       ├── deploy.yml          # CI/CD: build Docker image and deploy to self-hosted runner
+│       └── preview-deploy.yml  # Ephemeral preview environments for feature branches
 ├── docker-compose.yml        # Production deployment (SQLite persisted to ./data/)
 └── .devcontainer/            # VS Code Dev Container config
 ```
@@ -137,13 +138,31 @@ The Dockerfile accepts a `GIT_COMMIT` build arg (set by the CI/CD workflow to `g
 
 ### CI/CD Pipeline
 
-`.github/workflows/deploy.yml` runs on every push to `main` or `dev`:
+**Production/Dev** — `.github/workflows/deploy.yml` runs on every push to `main` or `dev`:
 
 1. **Build** (self-hosted runner): `docker build -t capital-tracker:latest[-dev] --build-arg GIT_COMMIT=<sha> .`
 2. **Deploy** (self-hosted runner): `docker compose up -d --force-recreate` from `/home/mothership/docker/stacks/capital-tracker[-dev]/`
 
 - The `-dev` suffix is appended to both the image tag and deploy directory when the branch is `dev`.
 - The workflow uses `workflow_dispatch` for manual triggers.
+
+**Preview environments** — `.github/workflows/preview-deploy.yml` runs on every push to any branch except `main` and `dev`:
+
+1. **Compute slug**: branch name is lowercased and non-alphanumeric characters replaced with `-` (e.g. `feature/foo-bar` → `feature-foo-bar`).
+2. **Generate docker-compose.yml**: written to `$PREVIEW_STACK_BASE/<slug>/` (default base: `/home/mothership/docker/stacks/capital-tracker-preview`). The compose file wires the container into Traefik with the host rule `<slug>.preview.<PREVIEW_DOMAIN>`.
+3. **Build**: `docker build -t capital-tracker:preview-<slug> --build-arg GIT_COMMIT=<sha> .`
+4. **Deploy**: `docker compose up -d --force-recreate` in the stack directory.
+5. **Comment on PR**: looks up the open PR for the branch via `gh pr list`. If found, posts (or updates in-place) a comment with the preview URL and short commit SHA. The comment is identified by the hidden marker `<!-- capital-tracker-preview -->` so subsequent pushes update the same comment rather than creating a new one. If no open PR exists the step exits silently.
+
+Required GitHub secrets/vars for preview environments:
+
+| Name | Kind | Description |
+|---|---|---|
+| `PREVIEW_DOMAIN` | secret | Base domain (e.g. `example.com`). Preview URL becomes `https://<slug>.preview.<PREVIEW_DOMAIN>`. |
+| `PREVIEW_SESSION_SECRET` | secret | Session secret injected into preview containers. |
+| `PREVIEW_STACK_BASE` | var | Directory where per-branch stack folders are created. Default: `/home/mothership/docker/stacks/capital-tracker-preview`. |
+| `TRAEFIK_NETWORK` | var | Docker network name for Traefik. Default: `traefik`. |
+| `PREVIEW_CERT_RESOLVER` | var | Traefik cert resolver name. Default: `letsencrypt`. |
 
 ### Emergency Password Reset
 
