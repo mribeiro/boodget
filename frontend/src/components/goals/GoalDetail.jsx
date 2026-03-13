@@ -56,6 +56,7 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
   const [batchAmount, setBatchAmount] = useState('');
   const [histError, setHistError] = useState('');
   const [savingHist, setSavingHist] = useState(false);
+  const [histOpen, setHistOpen] = useState(false);
 
   useEffect(() => {
     load();
@@ -282,7 +283,15 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
       {/* Historical contributions */}
       {!isAdHoc && (
         <div style={{ marginBottom: '1.5rem' }}>
-          <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Historical contributions</h3>
+          <button
+            className="btn-ghost"
+            onClick={() => setHistOpen((o) => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', fontWeight: 600, padding: '0', marginBottom: histOpen ? '0.75rem' : 0 }}
+          >
+            <span style={{ fontSize: '0.75rem' }}>{histOpen ? '▼' : '▶'}</span>
+            Historical contributions
+          </button>
+          {histOpen && <>
           <p style={{ fontSize: '0.825rem', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
             Record contributions made before this goal was created. These amounts are already reflected in your account balance and are used only for chart display — they are not added to any total.
           </p>
@@ -369,6 +378,7 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
             </button>
           </div>
           {histError && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{histError}</div>}
+          </>}
         </div>
       )}
 
