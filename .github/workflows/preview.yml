@@ -1,0 +1,100 @@
+name: Preview Environments
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - dev
+  delete:
+
+jobs:
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute slug
+        run: |
+          SLUG=$(echo "${{ github.ref_name }}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//;s/-$//')
+          echo "SLUG=$SLUG" >> $GITHUB_ENV
+          STACK_BASE="${{ vars.PREVIEW_STACK_BASE }}"
+          STACK_BASE="${STACK_BASE:-/home/mothership/docker/stacks/capital-tracker-preview}"
+          echo "STACK_DIR=$STACK_BASE/$SLUG" >> $GITHUB_ENV
+
+      - name: Prepare stack directory
+        run: mkdir -p "$STACK_DIR/data"
+
+      - name: Generate docker-compose.yml
+        run: |
+          DOMAIN="${{ secrets.PREVIEW_DOMAIN }}"
+          SESSION_SECRET="${{ secrets.PREVIEW_SESSION_SECRET }}"
+          TRAEFIK_NETWORK="${{ vars.TRAEFIK_NETWORK }}"
+          TRAEFIK_NETWORK="${TRAEFIK_NETWORK:-traefik}"
+          CERT_RESOLVER="${{ vars.PREVIEW_CERT_RESOLVER }}"
+          CERT_RESOLVER="${CERT_RESOLVER:-letsencrypt}"
+
+          cat > "$STACK_DIR/docker-compose.yml" <<EOF
+          services:
+            app:
+              image: capital-tracker:preview-${SLUG}
+              container_name: capital-tracker-preview-${SLUG}
+              restart: unless-stopped
+              environment:
+                NODE_ENV: production
+                SESSION_SECRET: ${SESSION_SECRET}
+                DB_PATH: /data/capital-tracker.db
+                SEED_ON_EMPTY: "true"
+              volumes:
+                - ./data:/data
+              networks:
+                - traefik
+              labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.ct-preview-${SLUG}.rule=Host(\`${SLUG}.preview.${DOMAIN}\`)"
+                - "traefik.http.routers.ct-preview-${SLUG}.entrypoints=websecure"
+                - "traefik.http.routers.ct-preview-${SLUG}.tls=true"
+                - "traefik.http.routers.ct-preview-${SLUG}.tls.certresolver=${CERT_RESOLVER}"
+                - "traefik.http.services.ct-preview-${SLUG}.loadbalancer.server.port=3000"
+          networks:
+            traefik:
+              external: true
+              name: ${TRAEFIK_NETWORK}
+          EOF
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t capital-tracker:preview-$SLUG \
+            --build-arg GIT_COMMIT=${{ github.sha }} \
+            .
+
+      - name: Deploy stack
+        run: |
+          cd "$STACK_DIR"
+          docker compose up -d --force-recreate
+
+  destroy:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: self-hosted
+    steps:
+      - name: Compute slug
+        run: |
+          SLUG=$(echo "${{ github.event.ref }}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//;s/-$//')
+          echo "SLUG=$SLUG" >> $GITHUB_ENV
+          STACK_BASE="${{ vars.PREVIEW_STACK_BASE }}"
+          STACK_BASE="${STACK_BASE:-/home/mothership/docker/stacks/capital-tracker-preview}"
+          echo "STACK_DIR=$STACK_BASE/$SLUG" >> $GITHUB_ENV
+
+      - name: Tear down stack
+        run: |
+          if [ -d "$STACK_DIR" ]; then
+            echo "Destroying preview environment: $SLUG"
+            cd "$STACK_DIR"
+            docker compose down --rmi local
+            cd /
+            rm -rf "$STACK_DIR"
+            echo "Destroyed: $STACK_DIR"
+          else
+            echo "Stack directory not found for slug '$SLUG', nothing to destroy."
+          fi
