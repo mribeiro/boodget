@@ -284,6 +284,20 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '015_create_goal_historical_contributions',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS goal_historical_contributions (
+          goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+          year    INTEGER NOT NULL,
+          month   INTEGER NOT NULL,
+          amount  REAL NOT NULL DEFAULT 0,
+          PRIMARY KEY (goal_id, year, month)
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {
