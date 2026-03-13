@@ -129,4 +129,6 @@ export const api = {
     request('DELETE', `/dossiers/${dossierId}/goals/${goalId}`),
   updateGoalCycleContribution: (dossierId, goalId, cycleId, data) =>
     request('PUT', `/dossiers/${dossierId}/goals/${goalId}/cycle-contributions/${cycleId}`, data),
+  bulkReplaceGoalHistoricalContributions: (dossierId, goalId, items) =>
+    request('POST', `/dossiers/${dossierId}/goals/${goalId}/historical-contributions/bulk-replace`, { items }),
 };
