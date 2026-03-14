@@ -1576,6 +1576,12 @@ tr:hover td {
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 767px) {
+  /* Lock the shell to the viewport and stack vertically */
+  .app-shell {
+    flex-direction: column;
+    height: 100vh;
+  }
+
   .sidebar {
     transform: translateX(-100%);
     transition: transform var(--transition-slow), width var(--transition-slow);
@@ -1586,13 +1592,24 @@ tr:hover td {
     width: var(--sidebar-width-expanded);
   }
 
+  /* Main column scrolls inside the shell — avoids position:fixed quirks on iOS */
   .app-shell-main {
     margin-left: 0 !important;
-    padding-bottom: 72px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0;
   }
 
+  /* Bottom nav is in normal flow, always at the bottom of the shell */
   .bottom-nav {
+    position: static;
     display: flex;
+    width: 100%;
+    flex-shrink: 0;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .navbar-hamburger {
