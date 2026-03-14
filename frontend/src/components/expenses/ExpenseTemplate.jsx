@@ -146,97 +146,34 @@ export default function ExpenseTemplate({ dossierId }) {
           No {activeTab === 'expense' ? 'expenses' : 'distributions'} in template yet.
         </p>
       ) : activeTab === 'expense' ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-          <thead>
-            <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Type</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value / Max</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Day</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tabItems.map((item) => (
-              <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '0.4rem 0.5rem' }}>{item.name}</td>
-                <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
-                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
-                  {item.type === 'Fixed' ? item.day_of_payment : '—'}
-                </td>
-                <td style={{ padding: '0.3rem 0.5rem' }}>
-                  <ClassificationPills
-                    value={item.classification}
-                    onChange={(v) => handleClassificationChange(item, v)}
-                  />
-                </td>
-                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => { setEditingItem(item); setShowAddModal(true); }}
-                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="btn-danger"
-                    onClick={() => handleDelete(item)}
-                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                  >
-                    Delete
-                  </button>
-                </td>
+        <div className="table-container" style={{ marginBottom: '0.75rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Type</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value / Max</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Day</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-          <thead>
-            <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Must</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Want</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Save</th>
-              <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tabItems.map((item) => {
-              const sumDecomp = (item.must_amount || 0) + (item.want_amount || 0) + (item.save_amount || 0);
-              const anySet = item.must_amount != null || item.want_amount != null || item.save_amount != null;
-              const mismatch = anySet && Math.abs(sumDecomp - item.value) > 0.005;
-              return (
+            </thead>
+            <tbody>
+              {tabItems.map((item) => (
                 <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }}>
                   <td style={{ padding: '0.4rem 0.5rem' }}>{item.name}</td>
+                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
                   <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                  {['must_amount', 'want_amount', 'save_amount'].map((field) => (
-                    <td key={field} style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={item[field] ?? ''}
-                        onChange={(e) => handleDecompositionChange(item, field, e.target.value)}
-                        placeholder="—"
-                        style={{
-                          width: '5.5rem',
-                          textAlign: 'right',
-                          fontSize: '0.8rem',
-                          border: mismatch ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
-                        }}
-                      />
-                    </td>
-                  ))}
+                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
+                    {item.type === 'Fixed' ? item.day_of_payment : '—'}
+                  </td>
+                  <td style={{ padding: '0.3rem 0.5rem' }}>
+                    <ClassificationPills
+                      value={item.classification}
+                      onChange={(v) => handleClassificationChange(item, v)}
+                    />
+                  </td>
                   <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {mismatch && (
-                      <span style={{ fontSize: '0.7rem', color: 'var(--color-danger)', marginRight: '0.4rem' }}>
-                        sum ≠ {formatValue(item.value)}
-                      </span>
-                    )}
                     <button
                       className="btn-secondary"
                       onClick={() => { setEditingItem(item); setShowAddModal(true); }}
@@ -253,10 +190,77 @@ export default function ExpenseTemplate({ dossierId }) {
                     </button>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="table-container" style={{ marginBottom: '0.75rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Must</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Want</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Save</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tabItems.map((item) => {
+                const sumDecomp = (item.must_amount || 0) + (item.want_amount || 0) + (item.save_amount || 0);
+                const anySet = item.must_amount != null || item.want_amount != null || item.save_amount != null;
+                const mismatch = anySet && Math.abs(sumDecomp - item.value) > 0.005;
+                return (
+                  <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }}>
+                    <td style={{ padding: '0.4rem 0.5rem' }}>{item.name}</td>
+                    <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                    {['must_amount', 'want_amount', 'save_amount'].map((field) => (
+                      <td key={field} style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={item[field] ?? ''}
+                          onChange={(e) => handleDecompositionChange(item, field, e.target.value)}
+                          placeholder="—"
+                          style={{
+                            width: '5.5rem',
+                            textAlign: 'right',
+                            fontSize: '0.8rem',
+                            border: mismatch ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
+                          }}
+                        />
+                      </td>
+                    ))}
+                    <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {mismatch && (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-danger)', marginRight: '0.4rem' }}>
+                          sum ≠ {formatValue(item.value)}
+                        </span>
+                      )}
+                      <button
+                        className="btn-secondary"
+                        onClick={() => { setEditingItem(item); setShowAddModal(true); }}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn-danger"
+                        onClick={() => handleDelete(item)}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <button
