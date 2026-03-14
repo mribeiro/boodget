@@ -16,6 +16,7 @@ Key concepts:
 - **Annual Expense Template**: A per-dossier list of annual expenses (separate from the monthly expense template). Each entry has `name`, `value`, `day_of_payment`, `month_of_payment`, `classification`. Used by the Workbench to compute monthly averages (value / 12).
 - **Workbench**: A scenario calculator within a dossier. Users model income vs. expenses vs. distributions with Must/Want/Save breakdowns. State is ephemeral per session. Can be saved as named **snapshots** (persisted). If exactly one snapshot exists, it is auto-loaded on open. A "New from scratch" button resets to the template-based working state.
 - **Goal**: A financial objective with a name, target value, and target date, scoped to a dossier. Tracks progress via contributing accounts (current value) and monthly contributions (via distribution template items, a fixed manual amount, or ad-hoc). Supports historical contributions for months before cycle tracking began. State is auto-computed: `active`, `completed`, or `failed`.
+- **Glances**: A read-only summary panel rendered above the tab bar in `DossierView`. Shows four cards (Capital, Current Cycle, Next Expense, Goals) with colour-coded states (neutral / amber / red). Clicking the Next Expense card navigates directly to the current cycle's `CycleEditor` page; other cards navigate to their respective tab. Three per-dossier warning day thresholds control when amber/red states activate.
 
 ## Versioning
 
@@ -53,6 +54,12 @@ capital-tracker/
 │   │   └── components/
 │   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Workbench / Settings tabs
 │   │       ├── DossierSettingsTab.jsx  # Settings tab: cycle start day, monthly template, annual template
+│   │       ├── glances/
+│   │       │   ├── GlancesPanel.jsx        # Glances panel (rendered above tab bar in DossierView)
+│   │       │   ├── CapitalGlance.jsx       # Capital card (total, variation, idle money)
+│   │       │   ├── CycleGlance.jsx         # Current Cycle card (balance, warnings)
+│   │       │   ├── NextExpenseGlance.jsx   # Next Expense card (next unpaid fixed expense)
+│   │       │   └── GoalsGlance.jsx         # Goals card (active/completed/failed counts)
 │   │       ├── expenses/
 │   │       │   ├── ExpensesTab.jsx         # Monthly Expenses tab (renders CycleList)
 │   │       │   ├── CycleList.jsx           # List of cycles with placeholder rows
@@ -71,6 +78,7 @@ capital-tracker/
 │   ├── SPECIFICATION_MONTHLY_EXPENSES.md   # Monthly Expenses specification
 │   ├── SPECIFICATION_WORKBENCH.md          # Workbench specification
 │   ├── SPECIFICATION_GOALS.md              # Goals specification
+│   ├── SPECIFICATION_GLANCES.md            # Glances panel specification
 │   └── SPECIFICATION_PREVIEW_ENVIRONMENTS.md # Preview environments infrastructure
 ├── preview-index/            # Lightweight service listing all running preview environments
 │   ├── server.js             # Plain Node.js HTTP server (no deps); queries Docker socket
@@ -207,7 +215,7 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 |---|---|
 | `users` | User accounts. `is_oidc=1` for SSO users (no password). |
 | `sessions` | Express session store. |
-| `dossiers` | Capital dossiers. `creator_id` FK → `users`. |
+| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25) and three Glances warning thresholds: `capital_snapshot_warning_day` (default 7), `next_cycle_warning_day` (default 22), `previous_cycle_close_warning_day` (default 25). All warning thresholds are integers 1–28. |
 | `dossier_access` | Many-to-many sharing: `(dossier_id, user_id)` PK. |
 | `accounts` | Tracked accounts. `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived` hides from new months. `is_idle_money` flags liquid cash. `position` controls display order. |
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool marks completion. |
@@ -224,8 +232,6 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 | `goal_cycle_contributions` | Real contribution per cycle for `manual` mode goals. Composite PK `(goal_id, cycle_id)`. `real_contribution` is upserted. Cascades on goal or cycle delete. |
 | `goal_historical_contributions` | Pre-cycle historical contributions (year/month/amount) for the chart. Composite PK `(goal_id, year, month)`. Managed via bulk-replace. Cascades on goal delete. |
 
-`dossiers` also has a `cycle_start_day INTEGER DEFAULT 25` column (added in migration `003`).
-
 ### Migration System
 
 All schema changes **must** go through the migration system in `backend/src/db/index.js`. Migrations run automatically at service startup.
@@ -235,20 +241,21 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - IDs follow the pattern `NNN_description`, e.g. `003_add_foo_to_bar`.
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
 
-The last applied migration is `015_create_goal_historical_contributions`. The next migration id must be `016_...`.
+The last applied migration is `016_add_glance_warning_days`. The next migration id must be `017_...`.
 
-Migrations 011–015 created the goals subsystem:
+Migrations 011–016:
 - `011_create_goals` — `goals` table
 - `012_create_goal_accounts` — `goal_accounts` join table
 - `013_create_goal_distributions` — `goal_distributions` join table
 - `014_create_goal_cycle_contributions` — `goal_cycle_contributions` table
 - `015_create_goal_historical_contributions` — `goal_historical_contributions` table
+- `016_add_glance_warning_days` — adds `capital_snapshot_warning_day`, `next_cycle_warning_day`, `previous_cycle_close_warning_day` columns to `dossiers`
 
 **To add a new migration**, append an entry to the `migrations` array:
 
 ```js
 {
-  id: '016_your_description',
+  id: '017_your_description',
   up() {
     const cols = db.prepare('PRAGMA table_info(your_table)').all();
     if (!cols.find((c) => c.name === 'your_column')) {
@@ -257,6 +264,8 @@ Migrations 011–015 created the goals subsystem:
   },
 },
 ```
+
+Migration `003` added `cycle_start_day` to `dossiers`. Migration `016` added the three Glances warning thresholds.
 
 Never modify or remove existing migration entries — only append new ones.
 
@@ -311,7 +320,7 @@ POST   /api/dossiers/:id/months/:monthId/sync-accounts
 POST   /api/dossiers/:id/months/:monthId/reset
 
 GET    /api/dossiers/:id/settings
-PATCH  /api/dossiers/:id/settings             { cycle_start_day }
+PATCH  /api/dossiers/:id/settings             { cycle_start_day?, capital_snapshot_warning_day?, next_cycle_warning_day?, previous_cycle_close_warning_day? }
 
 GET    /api/dossiers/:id/expense-template
 POST   /api/dossiers/:id/expense-template     { section, name, type?, value, day_of_payment?, classification?, must_amount?, want_amount?, save_amount? }
@@ -417,7 +426,7 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 | `SESSION_SECRET` | Yes | Secret for signing session cookies. Change before production use. |
 | `DB_PATH` | No | SQLite file path. Default: `./capital-tracker.db` |
 | `NODE_ENV` | No | Controls navbar tint injected at request time: `production` (default, no tint), `dev` (light teal), `ephemeral` (light rose). Static file serving is enabled whenever `frontend-dist/` exists, regardless of this value. |
-| `SEED_ON_EMPTY` | No | Set to `"true"` to seed baseline data (user, dossier, accounts, months, templates, cycle, snapshot) on first startup when the database is empty. Used in preview environments. |
+| `SEED_ON_EMPTY` | No | Set to `"true"` to seed baseline data on first startup when the database is empty. Creates one `preview` user and five dossiers: a full-featured "My Finances" dossier plus four Glances scenario dossiers ("All Good", "Capital Snapshot Missing", "Red Alerts", "Next Cycle Not Opened"). All dates are computed relative to today at seed time. Used in preview environments. |
 | `OIDC_ENABLED` | No | Set to `true` to enable OIDC SSO. |
 | `OIDC_ISSUER_URL` | If OIDC | OIDC provider issuer URL. |
 | `OIDC_CLIENT_ID` | If OIDC | OIDC client ID. |
@@ -432,7 +441,7 @@ Do not implement the following unless the specification is explicitly updated:
 - PWA or mobile app
 - Multi-currency conversion
 
-The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), and Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import) are fully implemented.
+The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import), and Glances (read-only summary panel with four colour-coded cards above the tab bar) are fully implemented.
 
 ## No Test Suite
 

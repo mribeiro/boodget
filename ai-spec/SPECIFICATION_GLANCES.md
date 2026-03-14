@@ -1,11 +1,10 @@
 # Capital Tracker — Glances Specification
 
-## 0. Instructions for Claude Code
+## 0. Status
 
-- This specification is an **extension** to `SPECIFICATION.md`, `SPECIFICATION_MONTHLY_EXPENSES.md`, `SPECIFICATION_WORKBENCH.md`, and `SPECIFICATION_GOALS.md`. Read all five before writing any code.
-- All architecture, auth, users, dossiers, and deployment rules defined in `SPECIFICATION.md` apply here without exception.
-- Before generating any files, **propose the folder structure and any schema changes**, and wait for approval.
-- Do **not overwrite** existing files unless explicitly instructed.
+**This feature is fully implemented.** The components, schema migration, and settings UI are all in place.
+
+This specification is an **extension** to `SPECIFICATION.md`, `SPECIFICATION_MONTHLY_EXPENSES.md`, `SPECIFICATION_WORKBENCH.md`, and `SPECIFICATION_GOALS.md`. Read all five alongside this one.
 
 ---
 
@@ -24,10 +23,10 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
   2. Current Cycle
   3. Next Expense
   4. Goals
-- Each card is **clickable** and navigates the user to the relevant dossier tab:
+- Each card is **clickable** and navigates the user to the relevant section:
   - Capital card → Capital tab
   - Current Cycle card → Monthly Expenses tab
-  - Next Expense card → Monthly Expenses tab (open current cycle)
+  - Next Expense card → **CycleEditor page for the current cycle** (`/dossiers/:id/cycles/:cycleId`). Fallback: Monthly Expenses tab when no current cycle exists.
   - Goals card → Goals tab
 - Cards use a **colour scheme** to communicate state:
   - **Neutral** (default) — no issue
@@ -254,10 +253,11 @@ Sub-components (one per card) are recommended for clarity:
 
 ---
 
-## 11. Out of Scope (this phase)
+## 11. Out of Scope
 
 - Customising which cards are shown or their order
-- Clicking a card navigating to a specific cycle (only to the tab)
 - Glances for the Workbench section
 - Notifications or push alerts based on the warning thresholds
 - Server-side computation of Glances data
+
+> **Implemented beyond original scope**: The Next Expense card navigates directly to the `CycleEditor` page for the current cycle (rather than only to the Monthly Expenses tab). All other cards still navigate to their respective tabs.
