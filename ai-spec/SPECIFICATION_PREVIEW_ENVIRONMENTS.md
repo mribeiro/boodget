@@ -117,7 +117,7 @@ Generated via heredoc inside the workflow. Must include:
 - **Container name**: `capital-tracker-preview-<slug>`
 - **Restart policy**: `unless-stopped`
 - **Environment variables**:
-  - `NODE_ENV=production`
+  - `NODE_ENV=ephemeral` — triggers the light-rose navbar tint so users can immediately identify preview instances
   - `SESSION_SECRET` — from `PREVIEW_SESSION_SECRET` secret
   - `DB_PATH=/data/capital-tracker.db`
   - `SEED_ON_EMPTY=true`
@@ -143,7 +143,28 @@ docker compose up -d --force-recreate
 
 ---
 
-## 5. Database Seeding
+## 5. Environment-Based Navbar Styling
+
+The backend injects `window.__APP_ENV__` into the served `index.html` at request time:
+
+```js
+const appEnv = process.env.NODE_ENV || 'production';
+const injected = html.replace('<head>', `<head><script>window.__APP_ENV__="${appEnv}";</script>`);
+```
+
+The `Navbar` component in `App.jsx` reads this value and applies a background colour:
+
+| Value | Colour | CSS variable |
+|---|---|---|
+| `dev` | `#f0fdfa` (light teal) | `--color-navbar-dev` |
+| `ephemeral` | `#fff1f2` (light rose) | `--color-navbar-ephemeral` |
+| `production` / unset | no override | — |
+
+Preview containers use `NODE_ENV=ephemeral`, so the rose navbar gives a visual cue that the user is on a preview instance. Static file serving is triggered by the existence of `frontend-dist/` (not by `NODE_ENV`), so `ephemeral` works the same as `production` for serving the frontend.
+
+---
+
+## 6. Database Seeding
 
 ### 5.1 Mechanism
 
@@ -277,7 +298,7 @@ Each entry must have a stable string `id` (e.g. `inc-1`, `me-1`, `ae-1`, `di-1`)
 
 ---
 
-## 6. Preview Index Service
+## 7. Preview Index Service
 
 A lightweight, persistent Node.js HTTP service that lists all running preview environments. It runs as a separate Docker Compose stack, deployed once manually on the server (not via GitHub Actions).
 
@@ -317,7 +338,7 @@ preview-index/
 
 ---
 
-## 7. File Summary
+## 8. File Summary
 
 Files to **create**:
 
@@ -337,7 +358,7 @@ Files to **modify**:
 
 ---
 
-## 8. Out of Scope
+## 9. Out of Scope
 
 - Any changes to the production or dev deployment pipelines (`deploy.yml`)
 - Authentication or access control on the preview index page
