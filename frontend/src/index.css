@@ -1611,6 +1611,10 @@ tr:hover td {
     padding: var(--space-4);
   }
 
+  .tabs--dossier {
+    display: none;
+  }
+
   .modal {
     min-width: unset;
     width: 95%;

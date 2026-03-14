@@ -6,8 +6,9 @@ import Navbar from './Navbar';
 const BOTTOM_NAV_TABS = [
   { key: 'capital',   icon: '€',  label: 'Capital' },
   { key: 'expenses',  icon: '📅', label: 'Expenses' },
-  { key: 'workbench', icon: '⚙', label: 'Workbench' },
+  { key: 'workbench', icon: '⚖', label: 'Workbench' },
   { key: 'goals',     icon: '◎', label: 'Goals' },
+  { key: 'settings',  icon: '⚙', label: 'Settings' },
 ];
 
 function getDossierIdFromPath(pathname) {

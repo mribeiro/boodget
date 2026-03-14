@@ -154,7 +154,7 @@ export default function DossierView() {
         onNavigate={setActiveTab}
       />
 
-      <div className="tabs">
+      <div className="tabs tabs--dossier">
         <button
           className={`tab-btn ${activeTab === 'capital' ? 'active' : ''}`}
           onClick={() => setActiveTab('capital')}
