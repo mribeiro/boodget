@@ -10,7 +10,7 @@ const CONTAINER_PREFIX = 'capital-tracker-preview-';
 function getContainers() {
   try {
     const raw = execSync(
-      'curl -sf --unix-socket /var/run/docker.sock http://localhost/v1.41/containers/json?all=true',
+      'curl -sf --unix-socket /var/run/docker.sock http://localhost/containers/json?all=true',
       { encoding: 'utf8' }
     );
     const containers = JSON.parse(raw);
