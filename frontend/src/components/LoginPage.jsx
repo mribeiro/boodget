@@ -42,7 +42,21 @@ export default function LoginPage({ onLogin }) {
   return (
     <div className="form-centered">
       <div className="form-card">
-        <h1>Capital Tracker</h1>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #38bdf8, #6366f1)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 18, fontWeight: 700, flexShrink: 0,
+          }}>
+            C
+          </div>
+          <div>
+            <h1 style={{ fontSize: 18, marginBottom: 0 }}>Capital Tracker</h1>
+          </div>
+        </div>
+
         <p className="subtitle">Sign in to your account</p>
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -79,8 +93,8 @@ export default function LoginPage({ onLogin }) {
         </form>
 
         {oidcConfig.enabled && (
-          <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
+          <div style={{ marginTop: 'var(--space-5)', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>
               or
             </div>
             <button

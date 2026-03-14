@@ -1,7 +1,15 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faChartLine,
+  faCalendarDays,
+  faScaleBalanced,
+  faBullseye,
+  faGear,
+} from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
-import { AuthContext } from '../App';
+import { AuthContext, AppContext } from '../App';
 import CapitalChart from './CapitalChart';
 import CapitalCompareTable from './CapitalCompareTable';
 import AccountManager from './AccountManager';
@@ -38,6 +46,7 @@ export default function DossierView() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useContext(AuthContext);
+  const { setCurrentDossier } = useContext(AppContext);
   const autoOpened = location.state?.autoOpened === true;
 
   const [dossier, setDossier] = useState(null);
@@ -55,6 +64,7 @@ export default function DossierView() {
       .then(([d, m]) => {
         setDossier(d);
         setMonths(m);
+        setCurrentDossier(d);
       })
       .catch(() => setError('Failed to load dossier'));
   }, [id]);
@@ -152,37 +162,23 @@ export default function DossierView() {
         onNavigate={setActiveTab}
       />
 
-      <div className="tabs">
-        <button
-          className={`tab-btn ${activeTab === 'capital' ? 'active' : ''}`}
-          onClick={() => setActiveTab('capital')}
-        >
-          Capital
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'expenses' ? 'active' : ''}`}
-          onClick={() => setActiveTab('expenses')}
-        >
-          Monthly Expenses
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'workbench' ? 'active' : ''}`}
-          onClick={() => setActiveTab('workbench')}
-        >
-          Workbench
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'goals' ? 'active' : ''}`}
-          onClick={() => setActiveTab('goals')}
-        >
-          Goals
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
-          onClick={() => setActiveTab('settings')}
-        >
-          Settings
-        </button>
+      <div className="tabs tabs--dossier">
+        {[
+          { key: 'capital',   icon: faChartLine,     label: 'Capital' },
+          { key: 'expenses',  icon: faCalendarDays,  label: 'Monthly Expenses' },
+          { key: 'workbench', icon: faScaleBalanced, label: 'Workbench' },
+          { key: 'goals',     icon: faBullseye,      label: 'Goals' },
+          { key: 'settings',  icon: faGear,          label: 'Settings' },
+        ].map(({ key, icon, label }) => (
+          <button
+            key={key}
+            className={`tab-btn${activeTab === key ? ' active' : ''}`}
+            onClick={() => setActiveTab(key)}
+          >
+            <FontAwesomeIcon icon={icon} className="tab-btn-icon" />
+            <span className="tab-btn-label">{label}</span>
+          </button>
+        ))}
       </div>
 
       {activeTab === 'capital' && (

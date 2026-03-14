@@ -58,8 +58,8 @@ export default function UserManager() {
       <div className="page-header">
         <h1>Users</h1>
         <div className="page-header-actions">
-          <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : 'New user'}
+          <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : 'Add user'}
           </button>
         </div>
       </div>
@@ -68,17 +68,10 @@ export default function UserManager() {
       {success && <div className="alert alert-success">{success}</div>}
 
       {showForm && (
-        <div
-          style={{
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-            maxWidth: 480,
-          }}
-        >
-          <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Create user</h2>
+        <div className="card card--flat" style={{ marginBottom: 'var(--space-5)', maxWidth: 480 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border-default)' }}>
+            Create user
+          </h2>
 
           <div className="password-rules">
             <strong>Password requirements:</strong>
@@ -133,7 +126,7 @@ export default function UserManager() {
           <thead>
             <tr>
               <th>Username</th>
-              <th>Auth</th>
+              <th>Type</th>
               <th>Created</th>
               <th></th>
             </tr>
@@ -142,36 +135,26 @@ export default function UserManager() {
             {users.map((u) => (
               <tr key={u.id}>
                 <td>
-                  {u.username}
+                  <span style={{ fontWeight: 500 }}>{u.username}</span>
                   {u.id === currentUser.id && (
-                    <span
-                      className="badge"
-                      style={{
-                        marginLeft: '0.5rem',
-                        background: '#dbeafe',
-                        color: 'var(--color-primary)',
-                        fontSize: '0.7rem',
-                      }}
-                    >
-                      You
-                    </span>
+                    <span className="badge badge-brand" style={{ marginLeft: 8 }}>You</span>
                   )}
                 </td>
-                <td style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                  {u.is_oidc ? 'SSO' : 'Local'}
+                <td>
+                  <span className={`badge ${u.is_oidc ? 'badge-neutral' : 'badge-neutral'}`}>
+                    {u.is_oidc ? 'SSO' : 'Local'}
+                  </span>
                 </td>
-                <td style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                <td className="text-sm" style={{ color: 'var(--text-muted)' }}>
                   {new Date(u.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
+                    year: 'numeric', month: 'short', day: 'numeric',
                   })}
                 </td>
-                <td>
+                <td style={{ textAlign: 'right' }}>
                   {u.id !== currentUser.id && (
                     <button
-                      className="btn-ghost"
-                      style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}
+                      className="btn-ghost btn-sm"
+                      style={{ color: 'var(--color-danger)' }}
                       onClick={() => handleDelete(u)}
                     >
                       Delete

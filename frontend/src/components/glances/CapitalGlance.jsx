@@ -7,6 +7,39 @@ function formatEur(value) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + ' €';
 }
 
+export function GlanceCard({ title, color = 'neutral', onClick, children }) {
+  const accentColor =
+    color === 'amber' ? 'var(--color-warning)' :
+    color === 'red'   ? 'var(--color-danger)'  :
+    color === 'green' ? 'var(--color-success)'  :
+    'var(--color-brand)';
+
+  const bgStyle =
+    color === 'amber' ? { background: 'var(--color-warning-light)' } :
+    color === 'red'   ? { background: 'var(--color-danger-light)' }  :
+    {};
+
+  const showWarningIcon = color === 'amber' || color === 'red';
+
+  return (
+    <div
+      className="glance-card card--accent-left"
+      style={{ borderLeftColor: accentColor, cursor: onClick ? 'pointer' : 'default', ...bgStyle }}
+      onClick={onClick}
+    >
+      <div className="glance-card-header">
+        <span className="glance-card-title">{title}</span>
+        {showWarningIcon && (
+          <span className="glance-card-icon" style={{ color: color === 'red' ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+            ⚠
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function CapitalGlance({ months, settings, today, onClick }) {
   const todayDay = today.getDate();
   const todayYear = today.getFullYear();
@@ -14,7 +47,6 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
 
   const filledMonths = months.filter((m) => m.filled);
 
-  // Empty state
   if (filledMonths.length === 0) {
     return (
       <GlanceCard title="Capital" color="neutral" onClick={onClick}>
@@ -23,14 +55,12 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
     );
   }
 
-  // Check for current month's filled snapshot
   const currentMonthFilled = filledMonths.find(
     (m) => m.year === todayYear && m.month === todayMonth
   );
 
   const warningDay = settings.capital_snapshot_warning_day ?? 7;
 
-  // Warning state: threshold reached but no filled snapshot for current month
   if (!currentMonthFilled && todayDay >= warningDay) {
     return (
       <GlanceCard title="Capital" color="amber" onClick={onClick}>
@@ -39,8 +69,7 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
     );
   }
 
-  // Normal state: show most recent filled snapshot
-  const latest = filledMonths[0]; // already sorted desc by DossierView
+  const latest = filledMonths[0];
   const previous = filledMonths[1] ?? null;
 
   const variation =
@@ -49,20 +78,23 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
       : null;
 
   const variationColor =
-    variation == null ? 'var(--color-text-muted)' : variation > 0 ? '#16a34a' : variation < 0 ? '#dc2626' : 'var(--color-text-muted)';
+    variation == null ? 'var(--text-muted)' :
+    variation > 0 ? 'var(--color-value-positive)' :
+    variation < 0 ? 'var(--color-value-negative)' :
+    'var(--text-muted)';
 
   return (
     <GlanceCard title="Capital" color="neutral" onClick={onClick}>
-      <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.2rem' }}>
+      <div className="text-2xl tabular" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
         {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
       </div>
       {variation != null && (
-        <div style={{ fontSize: '0.8rem', color: variationColor, marginBottom: '0.15rem' }}>
-          {variation > 0 ? '↑ +' : variation < 0 ? '↓ ' : ''}{variation.toFixed(1)}% vs. {MONTH_NAMES[(previous.month - 1)].slice(0, 3)}
+        <div className="text-sm" style={{ color: variationColor, marginBottom: 2 }}>
+          {variation > 0 ? '↑ +' : variation < 0 ? '↓ ' : ''}{variation.toFixed(1)}% vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
         </div>
       )}
       {latest.idle_total != null && latest.idle_total > 0 && (
-        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+        <div className="text-xs" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
           {formatEur(latest.idle_total)} in idle
         </div>
       )}
@@ -70,36 +102,4 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
   );
 }
 
-function GlanceCard({ title, color, onClick, children }) {
-  const borderColor =
-    color === 'amber' ? '#f59e0b' : color === 'red' ? '#ef4444' : 'var(--color-border)';
-  const bg =
-    color === 'amber' ? '#fffbeb' : color === 'red' ? '#fef2f2' : 'var(--color-surface)';
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        flex: 1,
-        minWidth: '160px',
-        padding: '0.875rem 1rem',
-        borderRadius: 'var(--radius)',
-        border: `1px solid ${borderColor}`,
-        background: bg,
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'box-shadow 0.15s',
-      }}
-      onMouseEnter={(e) => { if (onClick) e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; }}
-    >
-      <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: '0.4rem' }}>
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-const msgStyle = { margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)' };
-
-export { GlanceCard };
+const msgStyle = { margin: 0, fontSize: 13, color: 'var(--text-muted)' };

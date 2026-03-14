@@ -32,13 +32,11 @@ function formatYM(ym) {
   return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
 }
 
-function stateBadgeStyle(state) {
-  if (state === 'completed') return { background: '#d1fae5', color: '#065f46', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600 };
-  if (state === 'failed') return { background: '#fee2e2', color: '#991b1b', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600 };
-  return { background: 'var(--color-surface-elevated)', color: 'var(--color-text-muted)', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600 };
-}
 
-export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, onGoalDeleted }) {
+export default function GoalDetail() {
+  const { id: dossierId, goalId } = useParams();
+  const navigate = useNavigate();
+
   const [goal, setGoal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -60,7 +58,7 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
 
   useEffect(() => {
     load();
-  }, [goalId]);
+  }, [dossierId, goalId]);
 
   async function load() {
     setLoading(true);
@@ -79,7 +77,7 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
     if (!confirm(`Delete goal "${goal.name}"? This cannot be undone.`)) return;
     try {
       await api.deleteGoal(dossierId, goal.id);
-      onGoalDeleted();
+      navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } });
     } catch (err) {
       setError(err.message);
     }
@@ -183,13 +181,15 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <button className="btn-ghost" onClick={onBack}>&larr; Back to Goals</button>
-        <h2 style={{ flex: 1, margin: 0 }}>{goal.name}</h2>
-        <span style={stateBadgeStyle(goal.state)}>{goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}</span>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn-secondary" onClick={() => setShowEdit(true)}>Edit</button>
-          <button className="btn-danger" onClick={handleDelete}>Delete</button>
+      <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
+        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}>&larr; Back to Goals</button>
+        <h1 style={{ flex: 1, margin: 0 }}>{goal.name}</h1>
+        <span className={`badge badge-${goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand'}`}>
+          {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
+        </span>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <button className="btn-secondary btn-sm" onClick={() => setShowEdit(true)}>Edit</button>
+          <button className="btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         </div>
       </div>
 
@@ -200,25 +200,23 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
       )}
 
       {/* Progress bar */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.875rem' }}>
-          <span style={{ color: 'var(--color-text-muted)' }}>Progress</span>
+      <div style={{ marginBottom: 'var(--space-6)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontSize: 12 }}>
+          <span style={{ color: 'var(--text-muted)' }}>Progress</span>
           <span style={{ fontWeight: 600 }}>{progressPct.toFixed(1)}%</span>
         </div>
-        <div style={{ height: '12px', background: 'var(--color-border)', borderRadius: '999px', overflow: 'hidden' }}>
+        <div className="progress-track">
           <div
+            className="progress-fill"
             style={{
               width: `${progressPct}%`,
-              height: '100%',
               background: goal.state === 'completed'
-                ? '#10b981'
+                ? 'var(--color-success)'
                 : goal.state === 'failed'
-                ? '#ef4444'
+                ? 'var(--color-danger)'
                 : infeasible
-                ? '#f59e0b'
-                : 'var(--color-primary)',
-              borderRadius: '999px',
-              transition: 'width 0.3s ease',
+                ? 'var(--color-warning)'
+                : 'var(--color-brand)',
             }}
           />
         </div>
@@ -462,7 +460,7 @@ export default function GoalDetail({ dossierId, goalId, onBack, onGoalUpdated, o
           onSave={(updated) => {
             setGoal(updated);
             setShowEdit(false);
-            onGoalUpdated(updated);
+            load();
           }}
           onClose={() => setShowEdit(false)}
         />

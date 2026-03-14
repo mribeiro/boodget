@@ -18,17 +18,17 @@ export default function GoalsGlance({ goals, onClick }) {
   return (
     <GlanceCard title="Goals" color={color} onClick={onClick}>
       {active > 0 && (
-        <div style={{ fontSize: '0.85rem', color: 'var(--color-text)', marginBottom: '0.1rem' }}>
+        <div className="text-lg" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
           {active} active
         </div>
       )}
       {completed > 0 && (
-        <div style={{ fontSize: '0.85rem', color: '#16a34a', marginBottom: '0.1rem' }}>
+        <div className="text-sm" style={{ color: 'var(--color-success-text)', marginBottom: 2 }}>
           {completed} completed
         </div>
       )}
       {failed > 0 && (
-        <div style={{ fontSize: '0.85rem', color: '#dc2626', fontWeight: 600 }}>
+        <div className="text-sm" style={{ color: 'var(--color-danger-text)', fontWeight: 600 }}>
           {failed} failed ⚠
         </div>
       )}
@@ -36,4 +36,4 @@ export default function GoalsGlance({ goals, onClick }) {
   );
 }
 
-const msgStyle = { margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)' };
+const msgStyle = { margin: 0, fontSize: 13, color: 'var(--text-muted)' };

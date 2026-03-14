@@ -108,7 +108,8 @@ export default function AnnualExpenseTemplate({ dossierId }) {
           No annual expenses in template yet.
         </p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+        <div className="table-container" style={{ marginBottom: '0.75rem' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
           <thead>
             <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
               <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
@@ -158,6 +159,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <button

@@ -16,7 +16,6 @@ export default function DossierList() {
   useEffect(() => {
     const isExplicit = location.state?.explicit;
     if (isExplicit) {
-      // Consume the flag so back-button navigation doesn't preserve it
       window.history.replaceState({}, document.title);
     }
     api
@@ -72,45 +71,32 @@ export default function DossierList() {
       <div className="page-header">
         <h1>Dossiers</h1>
         <div className="page-header-actions">
-          <button className="btn-secondary" onClick={() => importRef.current.click()} disabled={importing}>
+          <button className="btn-secondary btn-sm" onClick={() => importRef.current.click()} disabled={importing}>
             {importing ? 'Importing…' : 'Import'}
           </button>
-          <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>
+          <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : 'New dossier'}
           </button>
         </div>
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          style={{
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            gap: '0.75rem',
-            alignItems: 'flex-end',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
-            <label htmlFor="dossier-name">Dossier name</label>
-            <input
-              id="dossier-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-              required
-            />
-          </div>
-          <button type="submit" className="btn-primary">
-            Create
-          </button>
-        </form>
+        <div className="card card--flat" style={{ marginBottom: 'var(--space-5)', maxWidth: 480 }}>
+          <form onSubmit={handleCreate} style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
+              <label htmlFor="dossier-name">Dossier name</label>
+              <input
+                id="dossier-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <button type="submit" className="btn-primary">Create</button>
+          </form>
+        </div>
       )}
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -125,7 +111,7 @@ export default function DossierList() {
       ) : (
         <div className="card-grid">
           {dossiers.map((d) => (
-            <div key={d.id} className="card" onClick={() => navigate(`/dossiers/${d.id}`)}>
+            <div key={d.id} className="card card--clickable" onClick={() => navigate(`/dossiers/${d.id}`)}>
               <div className="card-title">{d.name}</div>
               <div className="card-meta">{d.is_creator ? 'Owner' : 'Shared with me'}</div>
             </div>

@@ -24,17 +24,15 @@ function formatEur(value) {
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div
-      style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: '6px',
-        padding: '0.6rem 0.9rem',
-        fontSize: '0.875rem',
-        boxShadow: 'var(--shadow-md)',
-      }}
-    >
-      <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{label}</div>
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '8px 12px',
+      fontSize: 13,
+      boxShadow: 'var(--shadow-lg)',
+    }}>
+      <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>{label}</div>
       {payload.map((entry) => (
         <div key={entry.dataKey} style={{ color: entry.stroke }}>
           {entry.dataKey === 'total' ? 'Total: ' : 'Idle: '}
@@ -59,21 +57,23 @@ export default function CapitalChart({ months }) {
 
   return (
     <div className="chart-container">
-      <h2>Capital Evolution</h2>
-      <ResponsiveContainer width="100%" height={260}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
+        <h2 style={{ margin: 0 }}>Total Capital Evolution</h2>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            axisLine={{ stroke: 'var(--color-border)' }}
+            tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+            axisLine={{ stroke: 'var(--border-default)' }}
             tickLine={false}
           />
           <YAxis
             tickFormatter={(v) =>
               new Intl.NumberFormat('en-US', { notation: 'compact' }).format(v) + ' €'
             }
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
             axisLine={false}
             tickLine={false}
             width={80}
@@ -82,18 +82,18 @@ export default function CapitalChart({ months }) {
           <Line
             type="monotone"
             dataKey="total"
-            stroke="var(--color-primary)"
+            stroke="var(--color-brand)"
             strokeWidth={2.5}
-            dot={{ fill: 'var(--color-primary)', r: 4 }}
+            dot={{ fill: 'var(--color-brand)', stroke: 'var(--bg-card)', strokeWidth: 2, r: 4 }}
             activeDot={{ r: 6 }}
           />
           <Line
             type="monotone"
             dataKey="idle"
-            stroke="#22c55e"
-            strokeWidth={2.5}
-            dot={{ fill: '#22c55e', r: 4 }}
-            activeDot={{ r: 6 }}
+            stroke="var(--color-success)"
+            strokeWidth={2}
+            dot={{ fill: 'var(--color-success)', stroke: 'var(--bg-card)', strokeWidth: 2, r: 3 }}
+            activeDot={{ r: 5 }}
             connectNulls={false}
           />
         </LineChart>

@@ -216,7 +216,7 @@ export default function CycleEditor() {
         </button>
         <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month)} Cycle</h1>
-          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
             {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
           </div>
         </div>
@@ -359,22 +359,12 @@ export default function CycleEditor() {
       </div>
 
       {/* Items tabs */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--color-border)', marginBottom: '1rem' }}>
+      <div className="tabs" style={{ marginBottom: 'var(--space-4)' }}>
         {[['expenses', 'Expenses'], ['distributions', 'Distributions']].map(([key, label]) => (
           <button
             key={key}
+            className={`tab-btn${activeTab === key ? ' active' : ''}`}
             onClick={() => setActiveTab(key)}
-            style={{
-              padding: '0.4rem 1rem',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === key ? '2px solid var(--color-primary)' : '2px solid transparent',
-              color: activeTab === key ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              fontWeight: activeTab === key ? 600 : 400,
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              marginBottom: '-1px',
-            }}
           >
             {label}
           </button>
