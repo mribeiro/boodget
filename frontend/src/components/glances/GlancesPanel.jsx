@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import CapitalGlance from './CapitalGlance';
 import CycleGlance from './CycleGlance';
@@ -20,6 +21,7 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
   const [currentCycleDetail, setCurrentCycleDetail] = useState(null);
   const [goals, setGoals] = useState([]);
   const today = new Date();
+  const navigate = useNavigate();
 
   useEffect(() => {
     Promise.all([
@@ -67,7 +69,9 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
         currentCycleDetail={currentCycleDetail}
         settings={settings}
         today={today}
-        onClick={() => onNavigate('expenses')}
+        onClick={currentCycleDetail
+          ? () => navigate(`/dossiers/${dossierId}/cycles/${currentCycleDetail.id}`)
+          : () => onNavigate('expenses')}
       />
       <GoalsGlance
         goals={goals}
