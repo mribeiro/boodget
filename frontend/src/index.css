@@ -1011,8 +1011,9 @@ textarea {
 }
 
 .tab-btn-icon {
-  font-size: 14px;
-  line-height: 1;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .coming-soon-badge {
@@ -1560,8 +1561,8 @@ tr:hover td {
 }
 
 .bottom-nav-item-icon {
-  font-size: 20px;
-  line-height: 1;
+  width: 20px;
+  height: 20px;
 }
 
 /* ── Drawer (mobile) ─────────────────────────────────────── */
@@ -1643,7 +1644,8 @@ tr:hover td {
   }
 
   .tabs--dossier .tab-btn-icon {
-    font-size: 18px;
+    width: 18px;
+    height: 18px;
   }
 
   .modal {

@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faChartLine,
+  faCalendarDays,
+  faScaleBalanced,
+  faBullseye,
+  faGear,
+} from '@fortawesome/free-solid-svg-icons';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 
 const BOTTOM_NAV_TABS = [
-  { key: 'capital',   icon: '€',  label: 'Capital' },
-  { key: 'expenses',  icon: '📅', label: 'Expenses' },
-  { key: 'workbench', icon: '⚖', label: 'Workbench' },
-  { key: 'goals',     icon: '◎', label: 'Goals' },
-  { key: 'settings',  icon: '⚙', label: 'Settings' },
+  { key: 'capital',   icon: faChartLine,       label: 'Capital' },
+  { key: 'expenses',  icon: faCalendarDays,    label: 'Expenses' },
+  { key: 'workbench', icon: faScaleBalanced,   label: 'Workbench' },
+  { key: 'goals',     icon: faBullseye,        label: 'Goals' },
+  { key: 'settings',  icon: faGear,            label: 'Settings' },
 ];
 
 function getDossierIdFromPath(pathname) {
@@ -72,7 +80,7 @@ export default function AppShell({ children }) {
               className={`bottom-nav-item${activeTab === item.key ? ' active' : ''}`}
               onClick={() => navToTab(item.key)}
             >
-              <span className="bottom-nav-item-icon">{item.icon}</span>
+              <FontAwesomeIcon icon={item.icon} className="bottom-nav-item-icon" />
               <span>{item.label}</span>
             </button>
           ))}

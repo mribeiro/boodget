@@ -1,5 +1,13 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faChartLine,
+  faCalendarDays,
+  faScaleBalanced,
+  faBullseye,
+  faGear,
+} from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext, AppContext } from '../App';
 import CapitalChart from './CapitalChart';
@@ -156,18 +164,18 @@ export default function DossierView() {
 
       <div className="tabs tabs--dossier">
         {[
-          { key: 'capital',   icon: '€',  label: 'Capital' },
-          { key: 'expenses',  icon: '📅', label: 'Monthly Expenses' },
-          { key: 'workbench', icon: '⚖',  label: 'Workbench' },
-          { key: 'goals',     icon: '◎',  label: 'Goals' },
-          { key: 'settings',  icon: '⚙',  label: 'Settings' },
+          { key: 'capital',   icon: faChartLine,     label: 'Capital' },
+          { key: 'expenses',  icon: faCalendarDays,  label: 'Monthly Expenses' },
+          { key: 'workbench', icon: faScaleBalanced, label: 'Workbench' },
+          { key: 'goals',     icon: faBullseye,      label: 'Goals' },
+          { key: 'settings',  icon: faGear,          label: 'Settings' },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
             className={`tab-btn${activeTab === key ? ' active' : ''}`}
             onClick={() => setActiveTab(key)}
           >
-            <span className="tab-btn-icon">{icon}</span>
+            <FontAwesomeIcon icon={icon} className="tab-btn-icon" />
             <span className="tab-btn-label">{label}</span>
           </button>
         ))}
