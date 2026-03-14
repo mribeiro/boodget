@@ -27,8 +27,9 @@ Current version: **v0.1** (tagged in git). Both `backend/package.json` and `fron
 capital-tracker/
 ├── backend/          # Node.js + Express REST API (CommonJS)
 │   ├── src/
-│   │   ├── index.js          # App entry: middleware, routes, OIDC init, static serving
+│   │   ├── index.js          # App entry: middleware, routes, OIDC init, static serving, seeding
 │   │   ├── db/index.js       # SQLite schema, migrations, db singleton
+│   │   ├── db/seed.js        # Baseline seed data for preview environments (SEED_ON_EMPTY)
 │   │   ├── middleware/auth.js # requireAuth middleware
 │   │   └── routes/
 │   │       ├── auth.js       # Login, logout, OIDC, change-password
@@ -66,10 +67,15 @@ capital-tracker/
 │   │           ├── GoalFormModal.jsx       # Create/edit goal modal
 │   │           └── GoalDetail.jsx          # Goal detail view (progress bar, chart, cycle contributions, historical contributions)
 ├── ai-spec/
-│   ├── SPECIFICATION.md                  # Core product specification (Capital section)
-│   ├── SPECIFICATION_MONTHLY_EXPENSES.md # Monthly Expenses specification
-│   ├── SPECIFICATION_WORKBENCH.md        # Workbench specification
-│   └── SPECIFICATION_GOALS.md            # Goals specification
+│   ├── SPECIFICATION.md                    # Core product specification (Capital section)
+│   ├── SPECIFICATION_MONTHLY_EXPENSES.md   # Monthly Expenses specification
+│   ├── SPECIFICATION_WORKBENCH.md          # Workbench specification
+│   ├── SPECIFICATION_GOALS.md              # Goals specification
+│   └── SPECIFICATION_PREVIEW_ENVIRONMENTS.md # Preview environments infrastructure
+├── preview-index/            # Lightweight service listing all running preview environments
+│   ├── server.js             # Plain Node.js HTTP server (no deps); queries Docker socket
+│   ├── Dockerfile            # node:20-alpine + curl; runs server.js
+│   └── docker-compose.yml    # Persistent stack: mounts Docker socket, routes via Traefik
 ├── .github/
 │   └── workflows/
 │       ├── deploy.yml          # CI/CD: build Docker image and deploy to self-hosted runner
@@ -130,11 +136,30 @@ The `SESSION_SECRET` environment variable in `docker-compose.yml` **must be chan
 cd frontend && npm run build   # outputs to frontend/dist/
 ```
 
-The backend serves the built frontend from `frontend-dist/` (inside the Docker image — the Dockerfile copies `frontend/dist/` to `./frontend-dist` in the container) when `NODE_ENV=production`.
+The backend serves the built frontend from `frontend-dist/` (inside the Docker image — the Dockerfile copies `frontend/dist/` to `./frontend-dist` in the container) whenever that directory **exists** at startup (checked via `fs.existsSync`). Static file serving is no longer gated on `NODE_ENV=production`; it works in any environment (production, dev, ephemeral) as long as the built assets are present.
 
 ### Git Commit SHA in Navbar
 
 The Dockerfile accepts a `GIT_COMMIT` build arg (set by the CI/CD workflow to `github.sha`). It is exposed to Vite as `VITE_GIT_COMMIT`. The Navbar in `App.jsx` displays the first 7 characters of this SHA in the header for build identification. In local dev it shows `unknown`.
+
+### Environment-Based Navbar Styling
+
+At request time, `backend/src/index.js` injects `window.__APP_ENV__` into `index.html` before sending it to the browser:
+
+```js
+const appEnv = process.env.NODE_ENV || 'production';
+const injected = html.replace('<head>', `<head><script>window.__APP_ENV__="${appEnv}";</script>`);
+```
+
+The `Navbar` component in `App.jsx` reads this value and applies a background colour:
+
+| `NODE_ENV` value | Navbar colour |
+|---|---|
+| `dev` | `#f0fdfa` (light teal) — `--color-navbar-dev` |
+| `ephemeral` | `#fff1f2` (light rose) — `--color-navbar-ephemeral` |
+| `production` / unset | default (no override) |
+
+Preview environments are deployed with `NODE_ENV=ephemeral`, giving them a visually distinct rose-tinted navbar so users can immediately tell they are on a preview instance.
 
 ### CI/CD Pipeline
 
@@ -391,7 +416,8 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 |---|---|---|
 | `SESSION_SECRET` | Yes | Secret for signing session cookies. Change before production use. |
 | `DB_PATH` | No | SQLite file path. Default: `./capital-tracker.db` |
-| `NODE_ENV` | No | Set to `production` to enable static file serving from `frontend/dist/`. |
+| `NODE_ENV` | No | Controls navbar tint injected at request time: `production` (default, no tint), `dev` (light teal), `ephemeral` (light rose). Static file serving is enabled whenever `frontend-dist/` exists, regardless of this value. |
+| `SEED_ON_EMPTY` | No | Set to `"true"` to seed baseline data (user, dossier, accounts, months, templates, cycle, snapshot) on first startup when the database is empty. Used in preview environments. |
 | `OIDC_ENABLED` | No | Set to `true` to enable OIDC SSO. |
 | `OIDC_ISSUER_URL` | If OIDC | OIDC provider issuer URL. |
 | `OIDC_CLIENT_ID` | If OIDC | OIDC client ID. |
