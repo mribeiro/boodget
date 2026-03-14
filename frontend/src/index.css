@@ -1583,9 +1583,10 @@ tr:hover td {
      browsers that don't support svh yet. */
   .app-shell {
     flex-direction: column;
+    min-height: 0;    /* clear base min-height:100vh — otherwise it beats height:100svh */
     height: 100vh;    /* fallback */
-    height: 100svh;   /* iOS 15.4+ / Chrome 108+ */
-    overflow: hidden; /* prevent body from scrolling alongside .app-shell-main */
+    height: 100svh;   /* iOS: small viewport height excludes browser chrome */
+    overflow: hidden;
   }
 
   .sidebar {
