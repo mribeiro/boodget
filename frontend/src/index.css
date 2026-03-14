@@ -1010,6 +1010,11 @@ textarea {
   color: var(--text-primary);
 }
 
+.tab-btn-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
 .coming-soon-badge {
   font-size: 10px;
   background: var(--border-default);
@@ -1613,9 +1618,10 @@ tr:hover td {
     padding: var(--space-4);
   }
 
-  /* Dossier tab bar: scrolls horizontally instead of overflowing the viewport */
+  /* Dossier tab bar: icon-only on mobile so all 5 tabs fit without scrolling */
   .tabs--dossier {
     overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     flex-wrap: nowrap;
@@ -1627,6 +1633,17 @@ tr:hover td {
 
   .tabs--dossier .tab-btn {
     flex-shrink: 0;
+    flex: 1;
+    justify-content: center;
+    padding: 10px var(--space-2);
+  }
+
+  .tabs--dossier .tab-btn-label {
+    display: none;
+  }
+
+  .tabs--dossier .tab-btn-icon {
+    font-size: 18px;
   }
 
   .modal {

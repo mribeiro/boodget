@@ -155,36 +155,22 @@ export default function DossierView() {
       />
 
       <div className="tabs tabs--dossier">
-        <button
-          className={`tab-btn ${activeTab === 'capital' ? 'active' : ''}`}
-          onClick={() => setActiveTab('capital')}
-        >
-          Capital
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'expenses' ? 'active' : ''}`}
-          onClick={() => setActiveTab('expenses')}
-        >
-          Monthly Expenses
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'workbench' ? 'active' : ''}`}
-          onClick={() => setActiveTab('workbench')}
-        >
-          Workbench
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'goals' ? 'active' : ''}`}
-          onClick={() => setActiveTab('goals')}
-        >
-          Goals
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
-          onClick={() => setActiveTab('settings')}
-        >
-          Settings
-        </button>
+        {[
+          { key: 'capital',   icon: '€',  label: 'Capital' },
+          { key: 'expenses',  icon: '📅', label: 'Monthly Expenses' },
+          { key: 'workbench', icon: '⚖',  label: 'Workbench' },
+          { key: 'goals',     icon: '◎',  label: 'Goals' },
+          { key: 'settings',  icon: '⚙',  label: 'Settings' },
+        ].map(({ key, icon, label }) => (
+          <button
+            key={key}
+            className={`tab-btn${activeTab === key ? ' active' : ''}`}
+            onClick={() => setActiveTab(key)}
+          >
+            <span className="tab-btn-icon">{icon}</span>
+            <span className="tab-btn-label">{label}</span>
+          </button>
+        ))}
       </div>
 
       {activeTab === 'capital' && (
