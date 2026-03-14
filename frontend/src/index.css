@@ -1576,10 +1576,16 @@ tr:hover td {
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 767px) {
-  /* Lock the shell to the viewport and stack vertically */
+  /* Lock the shell to the viewport and stack vertically.
+     100svh = "small viewport height" (visible area when browser chrome is fully shown).
+     This avoids the classic iOS 100vh bug where the layout viewport includes the
+     browser toolbar, pushing the bottom nav off-screen. Fallback to 100vh for
+     browsers that don't support svh yet. */
   .app-shell {
     flex-direction: column;
-    height: 100vh;
+    height: 100vh;    /* fallback */
+    height: 100svh;   /* iOS 15.4+ / Chrome 108+ */
+    overflow: hidden; /* prevent body from scrolling alongside .app-shell-main */
   }
 
   .sidebar {
