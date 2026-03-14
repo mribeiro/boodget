@@ -38,45 +38,41 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
       if (curCycle) {
         api.getCycle(dossierId, curCycle.id).then(setCurrentCycleDetail).catch(() => {});
       }
-    }).catch(() => {
-      // fail silently — glances are non-critical
-    });
+    }).catch(() => {});
   }, [dossierId]);
 
   if (!settings) return null;
 
   return (
-    <div style={{
-      display: 'flex',
-      gap: '0.75rem',
-      flexWrap: 'wrap',
-      marginBottom: '1.25rem',
-    }}>
-      <CapitalGlance
-        months={months}
-        settings={settings}
-        today={today}
-        onClick={() => onNavigate('capital')}
-      />
-      <CycleGlance
-        cyclesList={cyclesList}
-        currentCycleDetail={currentCycleDetail}
-        settings={settings}
-        today={today}
-        onClick={() => onNavigate('expenses')}
-      />
-      <NextExpenseGlance
-        currentCycleDetail={currentCycleDetail}
-        settings={settings}
-        today={today}
-        onClick={currentCycleDetail
-          ? () => navigate(`/dossiers/${dossierId}/cycles/${currentCycleDetail.id}`)
-          : () => onNavigate('expenses')}
-      />
-      <GoalsGlance
-        goals={goals}
-        onClick={() => onNavigate('goals')}
-      />
+    <div className="glances-panel">
+      <div className="glances-label">Glances</div>
+      <div className="glances-grid">
+        <CapitalGlance
+          months={months}
+          settings={settings}
+          today={today}
+          onClick={() => onNavigate('capital')}
+        />
+        <CycleGlance
+          cyclesList={cyclesList}
+          currentCycleDetail={currentCycleDetail}
+          settings={settings}
+          today={today}
+          onClick={() => onNavigate('expenses')}
+        />
+        <NextExpenseGlance
+          currentCycleDetail={currentCycleDetail}
+          settings={settings}
+          today={today}
+          onClick={currentCycleDetail
+            ? () => navigate(`/dossiers/${dossierId}/cycles/${currentCycleDetail.id}`)
+            : () => onNavigate('expenses')}
+        />
+        <GoalsGlance
+          goals={goals}
+          onClick={() => onNavigate('goals')}
+        />
+      </div>
     </div>
   );
 }

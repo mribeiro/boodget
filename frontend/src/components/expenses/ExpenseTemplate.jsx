@@ -129,22 +129,12 @@ export default function ExpenseTemplate({ dossierId }) {
     <div>
       {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
 
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--color-border)', marginBottom: '1rem' }}>
+      <div className="tabs" style={{ marginBottom: 'var(--space-4)' }}>
         {['expense', 'distribution'].map((tab) => (
           <button
             key={tab}
+            className={`tab-btn${activeTab === tab ? ' active' : ''}`}
             onClick={() => setActiveTab(tab)}
-            style={{
-              padding: '0.4rem 1rem',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === tab ? '2px solid var(--color-primary)' : '2px solid transparent',
-              color: activeTab === tab ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              fontWeight: activeTab === tab ? 600 : 400,
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              marginBottom: '-1px',
-            }}
           >
             {tab === 'expense' ? 'Expenses' : 'Distributions'}
           </button>

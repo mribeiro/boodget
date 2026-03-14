@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
-import { AuthContext } from '../App';
+import { AuthContext, AppContext } from '../App';
 import CapitalChart from './CapitalChart';
 import CapitalCompareTable from './CapitalCompareTable';
 import AccountManager from './AccountManager';
@@ -38,6 +38,7 @@ export default function DossierView() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useContext(AuthContext);
+  const { setCurrentDossier } = useContext(AppContext);
   const autoOpened = location.state?.autoOpened === true;
 
   const [dossier, setDossier] = useState(null);
@@ -55,6 +56,7 @@ export default function DossierView() {
       .then(([d, m]) => {
         setDossier(d);
         setMonths(m);
+        setCurrentDossier(d);
       })
       .catch(() => setError('Failed to load dossier'));
   }, [id]);

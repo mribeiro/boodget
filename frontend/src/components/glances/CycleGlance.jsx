@@ -40,7 +40,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   const prevCycle = cyclesList.find((c) => c.year === prev.year && c.month === prev.month);
   const nextCycle = cyclesList.find((c) => c.year === next.year && c.month === next.month);
 
-  // Red: previous cycle not closed (highest priority)
+  // Red: previous cycle not closed
   if (prevCycle && !prevCycle.is_closed && todayDay >= prevCloseWarningDay) {
     return (
       <GlanceCard title={`Cycle of ${MONTH_NAMES[prev.month - 1]} ${prev.year}`} color="red" onClick={onClick}>
@@ -67,7 +67,6 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
     );
   }
 
-  // Normal state — use detail if available for balance, otherwise show just the cycle title
   const title = `Cycle of ${MONTH_NAMES[current.month - 1]} ${current.year}`;
 
   if (!currentCycleDetail) {
@@ -97,16 +96,20 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   const doneDistributions = distributions.filter((i) => i.done).reduce((s, i) => s + (i.value || 0), 0);
   const currentBalance = totalAvailable - paidExpenses - doneDistributions;
 
+  const balanceColor = currentBalance < 0 ? 'var(--color-value-negative)' : 'var(--text-primary)';
+
   return (
     <GlanceCard title={title} color="neutral" onClick={onClick}>
-      <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.1rem' }}>
-        Balance: <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{formatEur(currentBalance)}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Balance</span>
+        <span className="text-md tabular" style={{ color: balanceColor }}>{formatEur(currentBalance)}</span>
       </div>
-      <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-        Expected: <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{formatEur(expectedLeftover)}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Expected</span>
+        <span className="text-sm tabular" style={{ color: 'var(--text-secondary)' }}>{formatEur(expectedLeftover)}</span>
       </div>
     </GlanceCard>
   );
 }
 
-const msgStyle = { margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)' };
+const msgStyle = { margin: 0, fontSize: 13, color: 'var(--text-muted)' };
