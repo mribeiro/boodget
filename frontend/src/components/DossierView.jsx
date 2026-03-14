@@ -6,6 +6,7 @@ import {
   faCalendarDays,
   faScaleBalanced,
   faBullseye,
+  faShieldHalved,
   faGear,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
@@ -18,6 +19,7 @@ import ExpensesTab from './expenses/ExpensesTab';
 import DossierSettingsTab from './DossierSettingsTab';
 import WorkbenchTab from './workbench/WorkbenchTab';
 import GoalsTab from './goals/GoalsTab';
+import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import GlancesPanel from './glances/GlancesPanel';
 
 const MONTH_NAMES = [
@@ -164,11 +166,12 @@ export default function DossierView() {
 
       <div className="tabs tabs--dossier">
         {[
-          { key: 'capital',   icon: faChartLine,     label: 'Capital' },
-          { key: 'expenses',  icon: faCalendarDays,  label: 'Monthly Expenses' },
-          { key: 'workbench', icon: faScaleBalanced, label: 'Workbench' },
-          { key: 'goals',     icon: faBullseye,      label: 'Goals' },
-          { key: 'settings',  icon: faGear,          label: 'Settings' },
+          { key: 'capital',        icon: faChartLine,     label: 'Capital' },
+          { key: 'expenses',       icon: faCalendarDays,  label: 'Monthly Expenses' },
+          { key: 'workbench',      icon: faScaleBalanced, label: 'Workbench' },
+          { key: 'goals',          icon: faBullseye,      label: 'Goals' },
+          { key: 'emergency-fund', icon: faShieldHalved,  label: 'Emergency Fund' },
+          { key: 'settings',       icon: faGear,          label: 'Settings' },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
@@ -318,6 +321,10 @@ export default function DossierView() {
 
       {activeTab === 'goals' && (
         <GoalsTab dossierId={id} />
+      )}
+
+      {activeTab === 'emergency-fund' && (
+        <EmergencyFundTab dossierId={id} />
       )}
 
       {activeTab === 'settings' && (

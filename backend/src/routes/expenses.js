@@ -62,13 +62,15 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
     capital_snapshot_warning_day: dossier.capital_snapshot_warning_day ?? 7,
     next_cycle_warning_day: dossier.next_cycle_warning_day ?? 22,
     previous_cycle_close_warning_day: dossier.previous_cycle_close_warning_day ?? 25,
+    emergency_fund_months_multiplier: dossier.emergency_fund_months_multiplier ?? 6,
+    emergency_fund_cycles_to_average: dossier.emergency_fund_cycles_to_average ?? 6,
   });
 });
 
@@ -79,7 +81,14 @@ function isValidDay(v) {
 // PATCH /settings
 router.patch('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day } = req.body;
+  const {
+    cycle_start_day,
+    capital_snapshot_warning_day,
+    next_cycle_warning_day,
+    previous_cycle_close_warning_day,
+    emergency_fund_months_multiplier,
+    emergency_fund_cycles_to_average,
+  } = req.body;
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
     return res.status(400).json({ error: 'cycle_start_day must be an integer between 1 and 28' });
@@ -93,6 +102,14 @@ router.patch('/settings', (req, res) => {
   if (previous_cycle_close_warning_day !== undefined && !isValidDay(previous_cycle_close_warning_day)) {
     return res.status(400).json({ error: 'previous_cycle_close_warning_day must be an integer between 1 and 28' });
   }
+  if (emergency_fund_months_multiplier !== undefined) {
+    const v = emergency_fund_months_multiplier;
+    if (!Number.isInteger(v) || v < 1) return res.status(400).json({ error: 'emergency_fund_months_multiplier must be an integer ≥ 1' });
+  }
+  if (emergency_fund_cycles_to_average !== undefined) {
+    const v = emergency_fund_cycles_to_average;
+    if (!Number.isInteger(v) || v < 1) return res.status(400).json({ error: 'emergency_fund_cycles_to_average must be an integer ≥ 1' });
+  }
 
   const updates = [];
   const params = [];
@@ -100,6 +117,8 @@ router.patch('/settings', (req, res) => {
   if (capital_snapshot_warning_day !== undefined) { updates.push('capital_snapshot_warning_day = ?'); params.push(capital_snapshot_warning_day); }
   if (next_cycle_warning_day !== undefined) { updates.push('next_cycle_warning_day = ?'); params.push(next_cycle_warning_day); }
   if (previous_cycle_close_warning_day !== undefined) { updates.push('previous_cycle_close_warning_day = ?'); params.push(previous_cycle_close_warning_day); }
+  if (emergency_fund_months_multiplier !== undefined) { updates.push('emergency_fund_months_multiplier = ?'); params.push(emergency_fund_months_multiplier); }
+  if (emergency_fund_cycles_to_average !== undefined) { updates.push('emergency_fund_cycles_to_average = ?'); params.push(emergency_fund_cycles_to_average); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -107,13 +126,15 @@ router.patch('/settings', (req, res) => {
   db.prepare(`UPDATE dossiers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
     capital_snapshot_warning_day: updated.capital_snapshot_warning_day ?? 7,
     next_cycle_warning_day: updated.next_cycle_warning_day ?? 22,
     previous_cycle_close_warning_day: updated.previous_cycle_close_warning_day ?? 25,
+    emergency_fund_months_multiplier: updated.emergency_fund_months_multiplier ?? 6,
+    emergency_fund_cycles_to_average: updated.emergency_fund_cycles_to_average ?? 6,
   });
 });
 
