@@ -166,15 +166,15 @@ Preview containers use `NODE_ENV=ephemeral`, so the rose navbar gives a visual c
 
 ## 6. Database Seeding
 
-### 5.1 Mechanism
+### 6.1 Mechanism
 
-The backend must support a `SEED_ON_EMPTY` environment variable. When set to `"true"`, the application calls the seed function at startup, **before** the HTTP server begins accepting requests.
+The backend supports a `SEED_ON_EMPTY` environment variable. When set to `"true"`, the application calls the seed function at startup, **before** the HTTP server begins accepting requests.
 
-The seed function must be **idempotent**: it checks whether any users exist in the database before doing anything. If users already exist, it does nothing and returns immediately.
+The seed function is **idempotent**: it checks whether any users exist in the database before doing anything. If users already exist, it does nothing and returns immediately.
 
-### 5.2 Integration point
+### 6.2 Integration point
 
-In `backend/src/index.js`, after the database module is initialised and migrations have run, add:
+In `backend/src/index.js`, after the database module is initialised and migrations have run:
 
 ```js
 if (process.env.SEED_ON_EMPTY === 'true') {
@@ -182,119 +182,91 @@ if (process.env.SEED_ON_EMPTY === 'true') {
 }
 ```
 
-This must run before `app.listen(...)`.
+### 6.3 Seed file
 
-### 5.3 Seed file
+`backend/src/db/seed.js` uses the `db` singleton from `backend/src/db/index.js`. All inserts run inside a single transaction.
 
-Create `backend/src/db/seed.js`. It must use the same `db` singleton from `backend/src/db/index.js` and run all inserts inside a single transaction.
+The seed uses internal helper functions (`mkDossier`, `mkAccounts`, `mkMonth`, `mkCycle`, `mkGoal`) to keep each dossier declaration concise and DRY.
 
-### 5.4 Baseline data
+### 6.4 Dynamic date computation
 
-The seed must create the following in a single transaction:
+All dates are computed relative to **today at seed time** (`new Date()`). This keeps the seeded data current regardless of when a preview environment is deployed.
+
+Key computed values:
+- `curCycleYear / curCycleMonth` — the cycle whose date range covers today (same logic as the frontend's `cycleYearMonth()`)
+- `prevCycleYear / prevCycleMonth` — one cycle before
+- `calYear / calMonth` — current calendar month
+- `prevCalYear / prevCalMonth` — previous calendar month
+- `warningOn = todayDay` — a warning threshold that always fires today (`todayDay >= warningOn`)
+- `warningOff = min(28, todayDay + 1)` — a threshold that never fires today (edge case: day 28)
+- `overdueDay = 25` (= `CYCLE_START`) — a `day_of_payment` that maps to the previous calendar month in the current cycle, so it is always in the past
+- `futureDay = 24` (= `CYCLE_START - 1`) — maps to the last day of the cycle's second segment, always upcoming
+
+### 6.5 Seeded data
 
 #### User
+
 | Field | Value |
 |---|---|
 | username | `preview` |
 | password | `Preview@Capital2024!` |
 | is_oidc | `0` |
 
-Password must be hashed with `bcrypt` (same as the rest of the application).
+#### Dossiers (5 total)
 
-#### Dossier
-| Field | Value |
-|---|---|
-| name | `My Finances` |
-| currency | `EUR` |
-| cycle_start_day | `25` |
+All dossiers use `cycle_start_day = 25` and `currency = EUR`.
 
-The user must be added to `dossier_access` for this dossier.
+---
 
-#### Accounts (4 total)
+**Dossier 0 — "My Finances"** (full-featured preview dossier, all Glances neutral)
 
-| Group | Name | Type | is_idle_money | position |
-|---|---|---|---|---|
-| Main Bank | Current Account | Current Account | true | 1 |
-| Main Bank | Savings | Guaranteed Investment | false | 2 |
-| Broker | Stock Portfolio | Risk Investment | false | 3 |
-| Broker | Index Funds | Risk Investment | false | 4 |
+- `capital_snapshot_warning_day = warningOff`, `next_cycle_warning_day = warningOff`, `previous_cycle_close_warning_day = warningOff`
+- 4 accounts: Current Account (idle), Savings, Stock Portfolio, Index Funds
+- 3 filled months: two months ago, last month, current month
+- Monthly expense template: 5 fixed + 3 budget expenses, 2 distributions
+- Annual expense template: Car Insurance, Home Insurance, Holiday Budget, Tech Subscriptions
+- Previous cycle (closed) + current cycle (open, partial progress)
+- Workbench snapshot: "Base Scenario"
 
-#### Months (3 filled months)
+---
 
-| Year | Month | Values (acc1–4) | Comment |
-|---|---|---|---|
-| 2025 | 1 | 3200, 8500, 4100, 6200 | January snapshot |
-| 2025 | 2 | 3450, 8800, 4400, 6600 | February snapshot |
-| 2025 | 3 | 3600, 9200, 4250, 7100 | March snapshot |
+**Dossier A — "Glances — All Good"** (all four Glances cards in neutral/positive state)
 
-Each month must populate `month_account_snapshot` (all 4 accounts) and `month_entries` with the values above. `filled` must be `1`.
+- All warning thresholds: `warningOff`
+- 2 accounts: Current Account (idle), Index Funds
+- 2 filled months: previous + current calendar month → Capital shows variation and idle money
+- Cycles: previous cycle closed; current cycle open with 1 paid expense (`overdueDay`), 1 unpaid upcoming expense (`futureDay`), 1 budget, 1 distribution
+- Goals: 1 active (target >> current Index Funds value), 1 completed (target ≤ current Current Account value)
 
-#### Monthly Expense Template
+---
 
-Expenses:
+**Dossier B — "Glances — Capital Snapshot Missing"** (Capital card: amber)
 
-| Name | Type | Value | day_of_payment | classification |
-|---|---|---|---|---|
-| Rent | Fixed | 900 | 1 | must |
-| Electricity | Fixed | 65 | 10 | must |
-| Internet | Fixed | 35 | 15 | must |
-| Gym | Fixed | 45 | 5 | want |
-| Streaming | Fixed | 18 | 20 | want |
-| Groceries | Budget | 350 | — | must |
-| Restaurants | Budget | 120 | — | want |
-| Transport | Budget | 80 | — | must |
+- `capital_snapshot_warning_day = warningOn`; other thresholds: `warningOff`
+- 2 accounts: Savings, Stock Portfolio
+- **Only 2 older filled months** — no snapshot for the current calendar month → Capital amber
+- Cycles: previous cycle closed; current cycle open with 1 unpaid future expense
+- Goals: none → "No goals defined"
 
-Distributions:
+---
 
-| Name | Value | must_amount | want_amount | save_amount |
-|---|---|---|---|---|
-| Emergency Fund | 200 | 0 | 0 | 200 |
-| Investment Top-up | 300 | 0 | 0 | 300 |
+**Dossier C — "Glances — Red Alerts"** (Cycle: red · Next Expense: amber · Goals: red)
 
-#### Annual Expense Template
+- `previous_cycle_close_warning_day = warningOn`; other thresholds: `warningOff`
+- 2 accounts: Current Account (idle), Bonds
+- 2 filled months: previous + current → Capital normal
+- Cycles: previous cycle **not closed** (`is_closed = false`) → Cycle card **red**; current cycle open with 1 overdue unpaid expense (`overdueDay`, `paid = false`) → Next Expense card **amber**
+- Goals: 1 failed (target_date already passed, current value << target_value) → Goals card **red**
 
-| Name | Value | day_of_payment | month_of_payment | classification |
-|---|---|---|---|---|
-| Car Insurance | 720 | 15 | 3 | must |
-| Home Insurance | 280 | 1 | 1 | must |
-| Holiday Budget | 1200 | 1 | 7 | want |
-| Tech Subscriptions | 150 | 1 | 1 | want |
+---
 
-#### Expense Cycle (open, March 2025)
+**Dossier D — "Glances — Next Cycle Not Opened"** (Cycle card: amber · Next Expense: all paid · Goals: completed)
 
-| Field | Value |
-|---|---|
-| year | 2025 |
-| month | 3 |
-| salary | 1950 |
-| previous_balance | 230 |
-| is_closed | 0 |
-
-Cycle items:
-
-| Name | Type | Section | Value | day_of_payment | paid | spent | done |
-|---|---|---|---|---|---|---|---|
-| Rent | Fixed | expense | 900 | 1 | true | — | — |
-| Electricity | Fixed | expense | 65 | 10 | true | — | — |
-| Internet | Fixed | expense | 35 | 15 | false | — | — |
-| Gym | Fixed | expense | 45 | 5 | false | — | — |
-| Streaming | Fixed | expense | 18 | 20 | false | — | — |
-| Groceries | Budget | expense | 350 | — | — | 180 | — |
-| Restaurants | Budget | expense | 120 | — | — | 45 | — |
-| Transport | Budget | expense | 80 | — | — | 32 | — |
-| Emergency Fund | — | distribution | 200 | — | — | — | false |
-| Investment Top-up | — | distribution | 300 | — | — | — | false |
-
-#### Workbench Snapshot
-
-One snapshot named `Base Scenario`. The `data` field is a JSON string with the full workbench state, containing:
-
-- `income`: two entries — `{ name: 'Salary', value: 1950 }` and `{ name: 'Freelance', value: 200 }`
-- `monthlyExpenses`: all 8 template entries with `fromTemplate: true` and their respective classifications
-- `annualExpenses`: all 4 template entries with `fromTemplate: true` and their respective classifications
-- `distributions`: both template entries with `fromTemplate: true` and their `mustAmount`/`wantAmount`/`saveAmount` decomposition
-
-Each entry must have a stable string `id` (e.g. `inc-1`, `me-1`, `ae-1`, `di-1`).
+- `next_cycle_warning_day = warningOn`; other thresholds: `warningOff`
+- 2 accounts: Savings, Index Funds
+- 2 filled months: previous + current → Capital normal
+- Cycles: previous cycle **closed** (prevents red override); current cycle open with **all fixed expenses paid**; next cycle not created → Cycle card **amber**
+- Goals: 1 completed (current Savings value ≥ target_value)
 
 ---
 
@@ -340,21 +312,16 @@ preview-index/
 
 ## 8. File Summary
 
-Files to **create**:
+All files described in this specification have been created and are in place:
 
 | File | Description |
 |---|---|
 | `.github/workflows/preview.yml` | Preview deploy/destroy workflow |
-| `backend/src/db/seed.js` | Baseline seed data for preview environments |
+| `backend/src/db/seed.js` | Multi-dossier seed for Glances scenario testing |
+| `backend/src/index.js` | Calls `seed()` at startup when `SEED_ON_EMPTY=true` |
 | `preview-index/server.js` | Index service HTTP server |
 | `preview-index/Dockerfile` | Image for index service |
 | `preview-index/docker-compose.yml` | Persistent index stack |
-
-Files to **modify**:
-
-| File | Change |
-|---|---|
-| `backend/src/index.js` | Call `seed()` at startup when `SEED_ON_EMPTY=true` |
 
 ---
 

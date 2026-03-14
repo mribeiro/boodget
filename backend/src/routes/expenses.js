@@ -61,24 +61,60 @@ function computeSummary(cycle, items) {
 // GET /settings
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const dossier = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
-  res.json({ cycle_start_day: dossier.cycle_start_day ?? 25 });
+  const dossier = db
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day FROM dossiers WHERE id = ?')
+    .get(req.params.id);
+  res.json({
+    cycle_start_day: dossier.cycle_start_day ?? 25,
+    capital_snapshot_warning_day: dossier.capital_snapshot_warning_day ?? 7,
+    next_cycle_warning_day: dossier.next_cycle_warning_day ?? 22,
+    previous_cycle_close_warning_day: dossier.previous_cycle_close_warning_day ?? 25,
+  });
 });
+
+function isValidDay(v) {
+  return v != null && Number.isInteger(v) && v >= 1 && v <= 28;
+}
 
 // PATCH /settings
 router.patch('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { cycle_start_day } = req.body;
-  if (
-    cycle_start_day == null ||
-    !Number.isInteger(cycle_start_day) ||
-    cycle_start_day < 1 ||
-    cycle_start_day > 28
-  ) {
+  const { cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day } = req.body;
+
+  if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
     return res.status(400).json({ error: 'cycle_start_day must be an integer between 1 and 28' });
   }
-  db.prepare('UPDATE dossiers SET cycle_start_day = ? WHERE id = ?').run(cycle_start_day, req.params.id);
-  res.json({ cycle_start_day });
+  if (capital_snapshot_warning_day !== undefined && !isValidDay(capital_snapshot_warning_day)) {
+    return res.status(400).json({ error: 'capital_snapshot_warning_day must be an integer between 1 and 28' });
+  }
+  if (next_cycle_warning_day !== undefined && !isValidDay(next_cycle_warning_day)) {
+    return res.status(400).json({ error: 'next_cycle_warning_day must be an integer between 1 and 28' });
+  }
+  if (previous_cycle_close_warning_day !== undefined && !isValidDay(previous_cycle_close_warning_day)) {
+    return res.status(400).json({ error: 'previous_cycle_close_warning_day must be an integer between 1 and 28' });
+  }
+
+  const updates = [];
+  const params = [];
+  if (cycle_start_day !== undefined) { updates.push('cycle_start_day = ?'); params.push(cycle_start_day); }
+  if (capital_snapshot_warning_day !== undefined) { updates.push('capital_snapshot_warning_day = ?'); params.push(capital_snapshot_warning_day); }
+  if (next_cycle_warning_day !== undefined) { updates.push('next_cycle_warning_day = ?'); params.push(next_cycle_warning_day); }
+  if (previous_cycle_close_warning_day !== undefined) { updates.push('previous_cycle_close_warning_day = ?'); params.push(previous_cycle_close_warning_day); }
+
+  if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+
+  params.push(req.params.id);
+  db.prepare(`UPDATE dossiers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+  const updated = db
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day FROM dossiers WHERE id = ?')
+    .get(req.params.id);
+  res.json({
+    cycle_start_day: updated.cycle_start_day ?? 25,
+    capital_snapshot_warning_day: updated.capital_snapshot_warning_day ?? 7,
+    next_cycle_warning_day: updated.next_cycle_warning_day ?? 22,
+    previous_cycle_close_warning_day: updated.previous_cycle_close_warning_day ?? 25,
+  });
 });
 
 // GET /expense-template

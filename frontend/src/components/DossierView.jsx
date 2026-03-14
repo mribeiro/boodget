@@ -10,6 +10,7 @@ import ExpensesTab from './expenses/ExpensesTab';
 import DossierSettingsTab from './DossierSettingsTab';
 import WorkbenchTab from './workbench/WorkbenchTab';
 import GoalsTab from './goals/GoalsTab';
+import GlancesPanel from './glances/GlancesPanel';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -144,6 +145,12 @@ export default function DossierView() {
           ) : null}
         </div>
       </div>
+
+      <GlancesPanel
+        dossierId={id}
+        months={months}
+        onNavigate={setActiveTab}
+      />
 
       <div className="tabs">
         <button

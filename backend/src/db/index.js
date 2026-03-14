@@ -298,6 +298,21 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '016_add_glance_warning_days',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'capital_snapshot_warning_day')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN capital_snapshot_warning_day INTEGER DEFAULT 7');
+      }
+      if (!cols.find((c) => c.name === 'next_cycle_warning_day')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN next_cycle_warning_day INTEGER DEFAULT 22');
+      }
+      if (!cols.find((c) => c.name === 'previous_cycle_close_warning_day')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN previous_cycle_close_warning_day INTEGER DEFAULT 25');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
