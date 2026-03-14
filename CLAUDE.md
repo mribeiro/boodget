@@ -16,7 +16,8 @@ Key concepts:
 - **Annual Expense Template**: A per-dossier list of annual expenses (separate from the monthly expense template). Each entry has `name`, `value`, `day_of_payment`, `month_of_payment`, `classification`. Used by the Workbench to compute monthly averages (value / 12).
 - **Workbench**: A scenario calculator within a dossier. Users model income vs. expenses vs. distributions with Must/Want/Save breakdowns. State is ephemeral per session. Can be saved as named **snapshots** (persisted). If exactly one snapshot exists, it is auto-loaded on open. A "New from scratch" button resets to the template-based working state.
 - **Goal**: A financial objective with a name, target value, and target date, scoped to a dossier. Tracks progress via contributing accounts (current value) and monthly contributions (via distribution template items, a fixed manual amount, or ad-hoc). Supports historical contributions for months before cycle tracking began. State is auto-computed: `active`, `completed`, or `failed`.
-- **Glances**: A read-only summary panel rendered above the tab bar in `DossierView`. Shows four cards (Capital, Current Cycle, Next Expense, Goals) with colour-coded states (neutral / amber / red). Clicking the Next Expense card navigates directly to the current cycle's `CycleEditor` page; other cards navigate to their respective tab. Three per-dossier warning day thresholds control when amber/red states activate.
+- **Glances**: A read-only summary panel rendered above the tab bar in `DossierView`. Shows up to five cards (Emergency Fund, Capital, Current Cycle, Next Expense, Goals) with colour-coded states (neutral / amber / red). The Emergency Fund card only appears when the fund is underfunded. Clicking the Next Expense card navigates directly to the current cycle's `CycleEditor` page; other cards navigate to their respective tab. Three per-dossier warning day thresholds control when amber/red states activate.
+- **Emergency Fund**: A per-dossier target savings buffer. Configured by selecting contributing accounts and optional extra monthly values (expenses not captured in cycles). The target is computed as `multiplier × effective_monthly_base`, where `effective_monthly_base = avg_monthly_expense (from Y most recent cycles) + sum(extra_monthly_values)`. For open cycles, budget items use their `max` value; for closed cycles, they use `spent`. The status is `healthy`, `underfunded`, or `no_data` (no cycles exist yet). Settings (multiplier X and cycles-to-average Y) are stored on the dossier and editable in the Settings tab.
 
 ## Versioning
 
@@ -33,15 +34,16 @@ capital-tracker/
 │   │   ├── db/seed.js        # Baseline seed data for preview environments (SEED_ON_EMPTY)
 │   │   ├── middleware/auth.js # requireAuth middleware
 │   │   └── routes/
-│   │       ├── auth.js       # Login, logout, OIDC, change-password
-│   │       ├── setup.js      # First-launch setup
-│   │       ├── users.js      # User CRUD
-│   │       ├── dossiers.js   # Dossier CRUD, sharing, import/export (v4); mounts expenses + goals sub-routers
-│   │       ├── accounts.js   # Account CRUD (nested under dossiers)
-│   │       ├── months.js     # Month snapshots and entries (nested under dossiers)
-│   │       ├── expenses.js   # Expense settings, monthly template, annual template, cycles,
-│   │       │                 # cycle items, workbench snapshots (nested under dossiers)
-│   │       └── goals.js      # Goals CRUD, cycle contributions, historical contributions (nested under dossiers)
+│   │       ├── auth.js           # Login, logout, OIDC, change-password
+│   │       ├── setup.js          # First-launch setup
+│   │       ├── users.js          # User CRUD
+│   │       ├── dossiers.js       # Dossier CRUD, sharing, import/export (v5); mounts sub-routers
+│   │       ├── accounts.js       # Account CRUD (nested under dossiers)
+│   │       ├── months.js         # Month snapshots and entries (nested under dossiers)
+│   │       ├── expenses.js       # Expense settings, monthly template, annual template, cycles,
+│   │       │                     # cycle items, workbench snapshots (nested under dossiers)
+│   │       ├── goals.js          # Goals CRUD, cycle contributions, historical contributions (nested under dossiers)
+│   │       └── emergency-fund.js # Emergency fund accounts, extra values, status (nested under dossiers)
 │   ├── scripts/
 │   │   ├── reset-password.js # Node.js tool for emergency password reset
 │   │   └── reset-password.sh # Shell wrapper (made executable in Docker image)
@@ -52,14 +54,21 @@ capital-tracker/
 │   │   ├── App.jsx           # AuthContext, routing, setup/login gates; navbar shows 7-char git SHA
 │   │   ├── services/api.js   # Fetch-based API client wrapper
 │   │   └── components/
-│   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Workbench / Settings tabs
-│   │       ├── DossierSettingsTab.jsx  # Settings tab: cycle start day, monthly template, annual template
+│   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Workbench / Goals / Emergency Fund / Settings tabs
+│   │       ├── DossierSettingsTab.jsx  # Settings tab: cycle start day, monthly template, annual template, emergency fund settings
+│   │       ├── layout/
+│   │       │   ├── AppShell.jsx        # App layout: sidebar + navbar + main content area
+│   │       │   ├── Navbar.jsx          # Top navbar (git SHA, theme, hamburger)
+│   │       │   └── Sidebar.jsx         # Collapsible sidebar (Users link only; no dossier-specific nav)
 │   │       ├── glances/
 │   │       │   ├── GlancesPanel.jsx        # Glances panel (rendered above tab bar in DossierView)
+│   │       │   ├── EmergencyFundGlance.jsx # Emergency Fund card (red; only shown when underfunded)
 │   │       │   ├── CapitalGlance.jsx       # Capital card (total, variation, idle money)
 │   │       │   ├── CycleGlance.jsx         # Current Cycle card (balance, warnings)
 │   │       │   ├── NextExpenseGlance.jsx   # Next Expense card (next unpaid fixed expense)
 │   │       │   └── GoalsGlance.jsx         # Goals card (active/completed/failed counts)
+│   │       ├── emergency-fund/
+│   │       │   └── EmergencyFundTab.jsx    # Emergency Fund tab (summary card, account picker, extra values)
 │   │       ├── expenses/
 │   │       │   ├── ExpensesTab.jsx         # Monthly Expenses tab (renders CycleList)
 │   │       │   ├── CycleList.jsx           # List of cycles with placeholder rows
@@ -79,6 +88,7 @@ capital-tracker/
 │   ├── SPECIFICATION_WORKBENCH.md          # Workbench specification
 │   ├── SPECIFICATION_GOALS.md              # Goals specification
 │   ├── SPECIFICATION_GLANCES.md            # Glances panel specification
+│   ├── SPECIFICATION_EMERGENCY_FUND.md     # Emergency Fund specification
 │   └── SPECIFICATION_PREVIEW_ENVIRONMENTS.md # Preview environments infrastructure
 ├── preview-index/            # Lightweight service listing all running preview environments
 │   ├── server.js             # Plain Node.js HTTP server (no deps); queries Docker socket
@@ -215,7 +225,7 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 |---|---|
 | `users` | User accounts. `is_oidc=1` for SSO users (no password). |
 | `sessions` | Express session store. |
-| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25) and three Glances warning thresholds: `capital_snapshot_warning_day` (default 7), `next_cycle_warning_day` (default 22), `previous_cycle_close_warning_day` (default 25). All warning thresholds are integers 1–28. |
+| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds: `capital_snapshot_warning_day` (default 7), `next_cycle_warning_day` (default 22), `previous_cycle_close_warning_day` (default 25), and two Emergency Fund settings: `emergency_fund_months_multiplier` (default 6), `emergency_fund_cycles_to_average` (default 6). All warning thresholds are integers 1–28. |
 | `dossier_access` | Many-to-many sharing: `(dossier_id, user_id)` PK. |
 | `accounts` | Tracked accounts. `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived` hides from new months. `is_idle_money` flags liquid cash. `position` controls display order. |
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool marks completion. |
@@ -231,6 +241,8 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 | `goal_distributions` | Many-to-many: distribution template items selected for `via_distributions` mode. Composite PK `(goal_id, distribution_template_id)`. Cascades on goal or template item delete. |
 | `goal_cycle_contributions` | Real contribution per cycle for `manual` mode goals. Composite PK `(goal_id, cycle_id)`. `real_contribution` is upserted. Cascades on goal or cycle delete. |
 | `goal_historical_contributions` | Pre-cycle historical contributions (year/month/amount) for the chart. Composite PK `(goal_id, year, month)`. Managed via bulk-replace. Cascades on goal delete. |
+| `emergency_fund_accounts` | Accounts whose current value counts toward the emergency fund. Composite PK `(dossier_id, account_id)`. Cascades on dossier or account delete. Current value sourced from the most recent filled Capital snapshot. |
+| `emergency_fund_extra_values` | Per-dossier list of extra monthly amounts to add to the expense average (e.g. rent paid outside cycles). Fields: `id`, `dossier_id`, `name`, `value`, `position`. Cascades on dossier delete. |
 
 ### Migration System
 
@@ -241,21 +253,22 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - IDs follow the pattern `NNN_description`, e.g. `003_add_foo_to_bar`.
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
 
-The last applied migration is `016_add_glance_warning_days`. The next migration id must be `017_...`.
+The last applied migration is `017_emergency_fund`. The next migration id must be `018_...`.
 
-Migrations 011–016:
+Migrations 011–017:
 - `011_create_goals` — `goals` table
 - `012_create_goal_accounts` — `goal_accounts` join table
 - `013_create_goal_distributions` — `goal_distributions` join table
 - `014_create_goal_cycle_contributions` — `goal_cycle_contributions` table
 - `015_create_goal_historical_contributions` — `goal_historical_contributions` table
 - `016_add_glance_warning_days` — adds `capital_snapshot_warning_day`, `next_cycle_warning_day`, `previous_cycle_close_warning_day` columns to `dossiers`
+- `017_emergency_fund` — adds `emergency_fund_months_multiplier`, `emergency_fund_cycles_to_average` to `dossiers`; creates `emergency_fund_accounts` and `emergency_fund_extra_values` tables
 
 **To add a new migration**, append an entry to the `migrations` array:
 
 ```js
 {
-  id: '017_your_description',
+  id: '018_your_description',
   up() {
     const cols = db.prepare('PRAGMA table_info(your_table)').all();
     if (!cols.find((c) => c.name === 'your_column')) {
@@ -265,7 +278,7 @@ Migrations 011–016:
 },
 ```
 
-Migration `003` added `cycle_start_day` to `dossiers`. Migration `016` added the three Glances warning thresholds.
+Migration `003` added `cycle_start_day` to `dossiers`. Migration `016` added the three Glances warning thresholds. Migration `017` added Emergency Fund support.
 
 Never modify or remove existing migration entries — only append new ones.
 
@@ -320,7 +333,9 @@ POST   /api/dossiers/:id/months/:monthId/sync-accounts
 POST   /api/dossiers/:id/months/:monthId/reset
 
 GET    /api/dossiers/:id/settings
-PATCH  /api/dossiers/:id/settings             { cycle_start_day?, capital_snapshot_warning_day?, next_cycle_warning_day?, previous_cycle_close_warning_day? }
+PATCH  /api/dossiers/:id/settings   { cycle_start_day?, capital_snapshot_warning_day?,
+                                       next_cycle_warning_day?, previous_cycle_close_warning_day?,
+                                       emergency_fund_months_multiplier?, emergency_fund_cycles_to_average? }
 
 GET    /api/dossiers/:id/expense-template
 POST   /api/dossiers/:id/expense-template     { section, name, type?, value, day_of_payment?, classification?, must_amount?, want_amount?, save_amount? }
@@ -357,7 +372,37 @@ DELETE /api/dossiers/:id/goals/:goalId
 
 PUT    /api/dossiers/:id/goals/:goalId/cycle-contributions/:cycleId  { real_contribution }  # manual mode only
 POST   /api/dossiers/:id/goals/:goalId/historical-contributions/bulk-replace  { items: [{year, month, amount}] }
+
+GET    /api/dossiers/:id/emergency-fund/accounts         # returns all dossier accounts with selected flag
+PUT    /api/dossiers/:id/emergency-fund/accounts         { account_ids: [] }  # replaces selection atomically
+GET    /api/dossiers/:id/emergency-fund/extra-values
+POST   /api/dossiers/:id/emergency-fund/extra-values     { name, value }
+PATCH  /api/dossiers/:id/emergency-fund/extra-values/:itemId  { name?, value? }
+DELETE /api/dossiers/:id/emergency-fund/extra-values/:itemId
+GET    /api/dossiers/:id/emergency-fund/status           # returns status object (see below)
 ```
+
+#### Emergency Fund Status Response
+
+```json
+{
+  "current_value": 2000,
+  "target_value": 6360,
+  "deficit": 4360,
+  "average_monthly_expense": 660,
+  "extra_monthly_total": 400,
+  "effective_monthly_base": 1060,
+  "months_covered": 1.89,
+  "cycles_considered": 2,
+  "cycles_requested": 6,
+  "status": "underfunded",
+  "contributing_accounts": [
+    { "id": "...", "name": "Emergency Savings", "group_name": "Bank", "current_value": 2000 }
+  ]
+}
+```
+
+`status` is one of `"healthy"` | `"underfunded"` | `"no_data"` (no cycles exist yet).
 
 ### Error Handling
 
@@ -369,6 +414,7 @@ Routes return `{ error: "message" }` with an appropriate HTTP status code on fai
 
 No global state library. State lives in:
 - `AuthContext` (App.jsx) — current user, `setupRequired`, `loading`
+- `AppContext` (App.jsx) — `currentDossier`, `setCurrentDossier` (set by DossierView on load)
 - Component-local `useState` / `useEffect` hooks for page data
 
 ### API Client
@@ -385,12 +431,16 @@ Always add new API helper functions to `api.js` rather than calling `fetch` dire
 React Router v6. All routes defined in `App.jsx`. Route params: `dossierId`, `monthId`, `cycleId`, `goalId`.
 
 Key routes:
-- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Workbench, Goals, Settings)
+- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Workbench, Goals, Emergency Fund, Settings)
 - `/dossiers/:id/months/:monthId` → month detail
 - `/dossiers/:id/cycles/:cycleId` → `CycleEditor`
 - `/dossiers/:id/goals/:goalId` → `GoalDetail`
 
 `DossierView` tab state can be restored via router location state: `navigate('/dossiers/:id', { state: { tab: 'expenses' } })`.
+
+### Layout
+
+The app uses a three-column shell (`AppShell`): a collapsible sidebar on the left, a top navbar, and the main content area. The sidebar contains only the **Users** link (and the collapse toggle) — dossier-specific navigation is intentionally not in the sidebar. All dossier navigation is done via the tab bar rendered inside `DossierView`.
 
 ### Component Patterns
 
@@ -417,7 +467,8 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 8. **Cycle start day**: Stored on the dossier (`cycle_start_day`, default 25). A cycle for month M runs from day `cycle_start_day` of M to day `cycle_start_day - 1` of M+1. Use `new Date(year, month - 1, startDay)` / `new Date(year, month, startDay - 1)` for date range computation (JS Date handles month overflow automatically).
 9. **Template → cycle copy**: When a new cycle is created, all template items are copied into `cycle_items`. `day_of_payment` values are clamped to the last day of the cycle's calendar month at copy time (e.g., day 30 becomes day 28 for February).
 10. **Expense sorting**: Fixed expenses sort by day within the cycle: days ≥ `cycle_start_day` first (ascending), then days < `cycle_start_day` (ascending). Budget items always sort last. This applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format version**: The export JSON is now `version: 4`. Includes `dossier.cycle_start_day`, `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`), `annual_expense_template[]`, `workbench_snapshots[]`, `cycles[]` (each with `items[]`), and `goals[]` (each with `account_names[]`, `distribution_names[]`, `cycle_contributions[]`, `historical_contributions[]`). Import accepts versions 1, 2, 3, and 4. Goals are re-linked by account name and distribution template item name.
+11. **Export format version**: The export JSON is `version: 5`. Includes `dossier.cycle_start_day`, `dossier.emergency_fund_months_multiplier`, `dossier.emergency_fund_cycles_to_average`, `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`), `annual_expense_template[]`, `workbench_snapshots[]`, `cycles[]` (each with `items[]`), `goals[]` (each with `account_names[]`, `distribution_names[]`, `cycle_contributions[]`, `historical_contributions[]`), `emergency_fund_accounts[]` (account names), and `emergency_fund_extra_values[]` (`{name, value, position}`). Import accepts versions 1–5. Goals and EF accounts are re-linked by account name on import.
+12. **Emergency Fund calculation**: `target = emergency_fund_months_multiplier × effective_monthly_base`. `effective_monthly_base = avg_monthly_expense + extra_monthly_total`. Average expense is computed from the Y (`emergency_fund_cycles_to_average`) most recent cycles: fixed items use `value`, budget items use `spent` if cycle is closed or `value` (max) if open. Archived accounts are excluded from the contributing account list and from the current value lookup (most recent filled Capital snapshot).
 
 ## Environment Variables
 
@@ -426,7 +477,7 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 | `SESSION_SECRET` | Yes | Secret for signing session cookies. Change before production use. |
 | `DB_PATH` | No | SQLite file path. Default: `./capital-tracker.db` |
 | `NODE_ENV` | No | Controls navbar tint injected at request time: `production` (default, no tint), `dev` (light teal), `ephemeral` (light rose). Static file serving is enabled whenever `frontend-dist/` exists, regardless of this value. |
-| `SEED_ON_EMPTY` | No | Set to `"true"` to seed baseline data on first startup when the database is empty. Creates one `preview` user and five dossiers: a full-featured "My Finances" dossier plus four Glances scenario dossiers ("All Good", "Capital Snapshot Missing", "Red Alerts", "Next Cycle Not Opened"). All dates are computed relative to today at seed time. Used in preview environments. |
+| `SEED_ON_EMPTY` | No | Set to `"true"` to seed baseline data on first startup when the database is empty. Creates one `preview` user and six dossiers: a full-featured "My Finances" dossier, four Glances scenario dossiers ("All Good", "Capital Snapshot Missing", "Red Alerts", "Next Cycle Not Opened"), and a dedicated "Emergency Fund — Underfunded" showcase dossier. All dates are computed relative to today at seed time. Used in preview environments. |
 | `OIDC_ENABLED` | No | Set to `true` to enable OIDC SSO. |
 | `OIDC_ISSUER_URL` | If OIDC | OIDC provider issuer URL. |
 | `OIDC_CLIENT_ID` | If OIDC | OIDC client ID. |
@@ -441,7 +492,7 @@ Do not implement the following unless the specification is explicitly updated:
 - PWA or mobile app
 - Multi-currency conversion
 
-The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import), and Glances (read-only summary panel with four colour-coded cards above the tab bar) are fully implemented.
+The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import), Glances (read-only summary panel with up to five colour-coded cards above the tab bar), and Emergency Fund (savings buffer target with account selection, extra monthly values, and status tracking) are fully implemented.
 
 ## No Test Suite
 
