@@ -13,18 +13,13 @@ function cycleYearMonth(today, cycleStartDay) {
   return { year: next.getFullYear(), month: next.getMonth() + 1 };
 }
 
-// Returns actual Date for a day_of_payment within a given cycle (year M, month M).
-// Cycle for month M: cycleStartDay of M-1 → cycleStartDay-1 of M.
 function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay) {
   if (dayOfPayment >= cycleStartDay) {
-    // Falls in month M-1 (previous calendar month)
     return new Date(cycleYear, cycleMonth - 2, dayOfPayment);
   }
-  // Falls in month M
   return new Date(cycleYear, cycleMonth - 1, dayOfPayment);
 }
 
-// Sort fixed expenses by cycle day: days >= cycleStartDay first (asc), then < cycleStartDay (asc)
 function sortByCycleDay(items, cycleStartDay) {
   return [...items].sort((a, b) => {
     const aDay = a.day_of_payment ?? 0;
@@ -70,6 +65,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   let whenLabel = '';
   let color = 'neutral';
+  let whenColor = 'var(--text-secondary)';
 
   if (expenseDate) {
     const diffDays = Math.round((expenseDate - todayMidnight) / (1000 * 60 * 60 * 24));
@@ -78,6 +74,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     } else if (diffDays < 0) {
       whenLabel = `Overdue (day ${next.day_of_payment})`;
       color = 'amber';
+      whenColor = 'var(--color-warning-text)';
     } else {
       whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (day ${next.day_of_payment})`;
     }
@@ -85,19 +82,17 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   return (
     <GlanceCard title="Next Expense" color={color} onClick={onClick}>
-      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.15rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <div className="text-base" style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {next.name}
       </div>
-      <div style={{ fontSize: '0.8rem', marginBottom: '0.1rem' }}>
+      <div className="text-sm tabular" style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
         {formatEur(next.value || 0)}
+        {whenLabel && (
+          <span style={{ color: whenColor, marginLeft: 6 }}>· {whenLabel}</span>
+        )}
       </div>
-      {whenLabel && (
-        <div style={{ fontSize: '0.75rem', color: color === 'amber' ? '#b45309' : 'var(--color-text-muted)' }}>
-          {whenLabel}
-        </div>
-      )}
     </GlanceCard>
   );
 }
 
-const msgStyle = { margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)' };
+const msgStyle = { margin: 0, fontSize: 13, color: 'var(--text-muted)' };

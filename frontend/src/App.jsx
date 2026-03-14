@@ -1,6 +1,8 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { api } from './services/api';
+import { ThemeProvider } from './contexts/ThemeContext';
+import AppShell from './components/layout/AppShell';
 import SetupWizard from './components/SetupWizard';
 import LoginPage from './components/LoginPage';
 import DossierList from './components/DossierList';
@@ -9,8 +11,10 @@ import MonthEditor from './components/MonthEditor';
 import CycleEditor from './components/expenses/CycleEditor';
 import UserManager from './components/UserManager';
 import PasswordChange from './components/PasswordChange';
+import GoalDetail from './components/goals/GoalDetail';
 
 export const AuthContext = createContext(null);
+export const AppContext = createContext({ currentDossier: null, setCurrentDossier: () => {} });
 
 export default function App() {
   const [authState, setAuthState] = useState({ loading: true, needsSetup: false, user: null });
@@ -35,16 +39,19 @@ export default function App() {
   if (authState.loading) return <div className="loading">Loading...</div>;
 
   return (
-    <AuthContext.Provider value={{ ...authState, setAuthState }}>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </AuthContext.Provider>
+    <ThemeProvider>
+      <AuthContext.Provider value={{ ...authState, setAuthState }}>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthContext.Provider>
+    </ThemeProvider>
   );
 }
 
 function AppRoutes() {
   const { needsSetup, user, setAuthState } = useContext(AuthContext);
+  const [currentDossier, setCurrentDossier] = useState(null);
 
   if (needsSetup) {
     return (
@@ -74,63 +81,19 @@ function AppRoutes() {
   }
 
   return (
-    <div className="app">
-      <Navbar />
-      <main className="main-content">
+    <AppContext.Provider value={{ currentDossier, setCurrentDossier }}>
+      <AppShell>
         <Routes>
           <Route path="/" element={<DossierList />} />
           <Route path="/dossiers/:id" element={<DossierView />} />
           <Route path="/dossiers/:id/months/:monthId" element={<MonthEditor />} />
           <Route path="/dossiers/:id/cycles/:cycleId" element={<CycleEditor />} />
+          <Route path="/dossiers/:id/goals/:goalId" element={<GoalDetail />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </main>
-    </div>
-  );
-}
-
-function Navbar() {
-  const { user, setAuthState } = useContext(AuthContext);
-  const navigate = useNavigate();
-
-  const appEnv = window.__APP_ENV__;
-  const navbarBg =
-    appEnv === 'dev' ? 'var(--color-navbar-dev)' :
-    appEnv === 'ephemeral' ? 'var(--color-navbar-ephemeral)' :
-    undefined;
-
-  async function handleLogout() {
-    await api.logout().catch(() => {});
-    setAuthState((s) => ({ ...s, user: null }));
-  }
-
-  return (
-    <nav className="navbar" style={navbarBg ? { backgroundColor: navbarBg } : undefined}>
-      <span className="nav-brand" onClick={() => navigate('/', { state: { explicit: true } })}>
-        Capital Tracker
-      </span>
-      <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontFamily: 'monospace', opacity: 0.6 }}>
-        {(import.meta.env.VITE_GIT_COMMIT || 'unknown').slice(0, 7)}
-      </span>
-      <div className="nav-links">
-        <button className="nav-link" onClick={() => navigate('/', { state: { explicit: true } })}>
-          Dossiers
-        </button>
-        <button className="nav-link" onClick={() => navigate('/users')}>
-          Users
-        </button>
-        {!user.is_oidc && (
-          <button className="nav-link" onClick={() => navigate('/change-password')}>
-            Password
-          </button>
-        )}
-        <span className="nav-user">{user.username}</span>
-        <button className="nav-link logout" onClick={handleLogout}>
-          Logout
-        </button>
-      </div>
-    </nav>
+      </AppShell>
+    </AppContext.Provider>
   );
 }

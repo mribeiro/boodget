@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import GoalFormModal from './GoalFormModal';
-import GoalDetail from './GoalDetail';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -22,18 +22,28 @@ function formatYM(ym) {
   return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
 }
 
-function stateBadgeStyle(state) {
-  if (state === 'completed') return { background: '#d1fae5', color: '#065f46', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' };
-  if (state === 'failed') return { background: '#fee2e2', color: '#991b1b', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' };
-  return { background: 'var(--color-surface-elevated)', color: 'var(--color-text-muted)', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' };
+function ProgressBar({ pct, state, infeasible }) {
+  const fillColor =
+    state === 'completed' ? 'var(--color-success)' :
+    state === 'failed'    ? 'var(--color-danger)'  :
+    infeasible            ? 'var(--color-warning)'  :
+    pct < 25              ? 'var(--color-danger)'   :
+    pct < 75              ? 'var(--color-warning)'  :
+    'var(--color-success)';
+
+  return (
+    <div className="progress-track" style={{ marginBottom: 'var(--space-2)' }}>
+      <div className="progress-fill" style={{ width: `${pct}%`, background: fillColor }} />
+    </div>
+  );
 }
 
 export default function GoalsTab({ dossierId }) {
+  const navigate = useNavigate();
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedGoalId, setSelectedGoalId] = useState(null);
 
   useEffect(() => {
     loadGoals();
@@ -55,39 +65,18 @@ export default function GoalsTab({ dossierId }) {
   function handleGoalCreated(newGoal) {
     setGoals((prev) => [...prev, newGoal]);
     setShowCreate(false);
-    setSelectedGoalId(newGoal.id);
-  }
-
-  function handleGoalUpdated(updated) {
-    setGoals((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
-  }
-
-  function handleGoalDeleted() {
-    setGoals((prev) => prev.filter((g) => g.id !== selectedGoalId));
-    setSelectedGoalId(null);
-  }
-
-  if (selectedGoalId) {
-    return (
-      <GoalDetail
-        dossierId={dossierId}
-        goalId={selectedGoalId}
-        onBack={() => setSelectedGoalId(null)}
-        onGoalUpdated={handleGoalUpdated}
-        onGoalDeleted={handleGoalDeleted}
-      />
-    );
+    navigate(`/dossiers/${dossierId}/goals/${newGoal.id}`);
   }
 
   if (loading) return <div className="loading">Loading…</div>;
 
   return (
     <div>
-      {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+      {error && <div className="alert alert-error" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
 
-      <div className="section-header" style={{ marginBottom: '1.25rem' }}>
+      <div className="section-header" style={{ marginBottom: 'var(--space-5)' }}>
         <h2 style={{ margin: 0 }}>Goals</h2>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>
+        <button className="btn-primary btn-sm" onClick={() => setShowCreate(true)}>
           New goal
         </button>
       </div>
@@ -100,65 +89,50 @@ export default function GoalsTab({ dossierId }) {
           </button>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {goals.map((goal) => {
             const progressPct = Math.min(100, (goal.total_current_progress / goal.target_value) * 100);
             const infeasible = goal.feasible === false;
+            const dimmed = goal.state !== 'active';
+            const badgeVariant = goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand';
             return (
               <div
                 key={goal.id}
-                className="month-row"
-                style={{ flexDirection: 'column', alignItems: 'stretch', cursor: 'pointer', padding: '1rem' }}
-                onClick={() => setSelectedGoalId(goal.id)}
+                className="card card--clickable"
+                style={{ opacity: dimmed ? 0.8 : 1, padding: 'var(--space-4)' }}
+                onClick={() => navigate(`/dossiers/${dossierId}/goals/${goal.id}`)}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.6rem' }}>
-                  <span style={{ fontWeight: 600, flex: 1 }}>{goal.name}</span>
-                  <span style={stateBadgeStyle(goal.state)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+                  <span style={{ fontWeight: 600, fontSize: 15, flex: 1 }}>{goal.name}</span>
+                  <span className={`badge badge-${badgeVariant}`}>
                     {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
                   </span>
                   {infeasible && goal.state === 'active' && (
-                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      ⚠ Infeasible
-                    </span>
+                    <span className="badge badge-warning">⚠ Infeasible</span>
                   )}
-                </div>
-
-                {/* Progress bar */}
-                <div style={{ marginBottom: '0.6rem' }}>
-                  <div style={{ height: '8px', background: 'var(--color-border)', borderRadius: '999px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${progressPct}%`,
-                        height: '100%',
-                        background: goal.state === 'completed'
-                          ? '#10b981'
-                          : goal.state === 'failed'
-                          ? '#ef4444'
-                          : infeasible
-                          ? '#f59e0b'
-                          : 'var(--color-primary)',
-                        borderRadius: '999px',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8rem', color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
-                  <span>
-                    <strong style={{ color: 'var(--color-text)' }}>{formatEur(goal.total_current_progress)}</strong>
-                    {' '}/ {formatEur(goal.target_value)}
+                  <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {formatYM(goal.target_date)}
                   </span>
-                  <span>Target: {formatYM(goal.target_date)}</span>
+                </div>
+
+                <ProgressBar pct={progressPct} state={goal.state} infeasible={infeasible} />
+
+                <div style={{ display: 'flex', gap: 'var(--space-5)', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                  <span className="tabular">
+                    <strong style={{ color: 'var(--text-primary)' }}>{formatEur(goal.total_current_progress)}</strong>
+                    {' / '}{formatEur(goal.target_value)}
+                  </span>
                   {goal.contribution_mode !== 'ad_hoc' && (
-                    <span>Expected: {formatEur(goal.expected_monthly_contribution)}/mo</span>
+                    <span className="tabular">Expected: {formatEur(goal.expected_monthly_contribution)}/mo</span>
                   )}
                   {goal.remaining_amount > 0 && (
-                    <span>Remaining: {formatEur(goal.remaining_amount)}</span>
+                    <span className="tabular">Remaining: {formatEur(goal.remaining_amount)}</span>
                   )}
+                  <span className="tabular" style={{ marginLeft: 'auto' }}>{progressPct.toFixed(0)}%</span>
                 </div>
 
                 {infeasible && goal.state === 'active' && (
-                  <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#b45309', fontWeight: 500 }}>
+                  <div style={{ marginTop: 'var(--space-2)', fontSize: 12, color: 'var(--color-warning-text)', fontWeight: 500 }}>
                     ⚠ Goal cannot be reached with current settings.
                   </div>
                 )}
