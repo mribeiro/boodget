@@ -119,6 +119,20 @@ export const api = {
   deleteWorkbenchSnapshot: (dossierId, snapshotId) =>
     request('DELETE', `/dossiers/${dossierId}/workbench-snapshots/${snapshotId}`),
 
+  // Emergency Fund
+  getEmergencyFundStatus: (dossierId) => request('GET', `/dossiers/${dossierId}/emergency-fund/status`),
+  getEmergencyFundAccounts: (dossierId) => request('GET', `/dossiers/${dossierId}/emergency-fund/accounts`),
+  setEmergencyFundAccounts: (dossierId, account_ids) =>
+    request('PUT', `/dossiers/${dossierId}/emergency-fund/accounts`, { account_ids }),
+  getEmergencyFundExtraValues: (dossierId) =>
+    request('GET', `/dossiers/${dossierId}/emergency-fund/extra-values`),
+  createEmergencyFundExtraValue: (dossierId, data) =>
+    request('POST', `/dossiers/${dossierId}/emergency-fund/extra-values`, data),
+  updateEmergencyFundExtraValue: (dossierId, itemId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/emergency-fund/extra-values/${itemId}`, data),
+  deleteEmergencyFundExtraValue: (dossierId, itemId) =>
+    request('DELETE', `/dossiers/${dossierId}/emergency-fund/extra-values/${itemId}`),
+
   // Goals
   getGoals: (dossierId) => request('GET', `/dossiers/${dossierId}/goals`),
   createGoal: (dossierId, data) => request('POST', `/dossiers/${dossierId}/goals`, data),

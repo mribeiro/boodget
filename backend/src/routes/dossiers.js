@@ -7,6 +7,7 @@ const accountsRouter = require('./accounts');
 const monthsRouter = require('./months');
 const expensesRouter = require('./expenses');
 const goalsRouter = require('./goals');
+const emergencyFundRouter = require('./emergency-fund');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -42,7 +43,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || (data.version !== 1 && data.version !== 2 && data.version !== 3 && data.version !== 4)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -56,8 +57,12 @@ router.post('/import', (req, res) => {
   const dossierId = uuidv4();
 
   const doImport = db.transaction(() => {
-    db.prepare('INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day) VALUES (?, ?, ?, ?, ?)').run(
-      dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25
+    db.prepare(
+      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25,
+      data.dossier.emergency_fund_months_multiplier ?? 6,
+      data.dossier.emergency_fund_cycles_to_average ?? 6
     );
 
     const accountIdMap = {};
@@ -169,6 +174,23 @@ router.post('/import', (req, res) => {
         insertGoalHistorical.run(goalId, hc.year, hc.month, hc.amount ?? 0);
       }
     }
+
+    // Emergency fund accounts (re-linked by account name)
+    const insertEFAccount = db.prepare(
+      'INSERT OR IGNORE INTO emergency_fund_accounts (dossier_id, account_id) VALUES (?, ?)'
+    );
+    for (const name of (data.emergency_fund_accounts || [])) {
+      const accId = accountNameToId[name];
+      if (accId) insertEFAccount.run(dossierId, accId);
+    }
+
+    // Emergency fund extra values
+    const insertEFExtra = db.prepare(
+      'INSERT INTO emergency_fund_extra_values (id, dossier_id, name, value, position) VALUES (?, ?, ?, ?, ?)'
+    );
+    for (const ev of (data.emergency_fund_extra_values || [])) {
+      insertEFExtra.run(uuidv4(), dossierId, ev.name, ev.value ?? 0, ev.position ?? 0);
+    }
   });
 
   doImport();
@@ -199,7 +221,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency, cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, is_idle_money, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -281,11 +303,32 @@ router.get('/:id/export', (req, res) => {
     };
   });
 
+  const efAccountNames = db
+    .prepare(
+      `SELECT a.name FROM emergency_fund_accounts efa
+       JOIN accounts a ON a.id = efa.account_id
+       WHERE efa.dossier_id = ?`
+    )
+    .all(req.params.id)
+    .map((r) => r.name);
+
+  const efExtraValues = db
+    .prepare(
+      'SELECT name, value, position FROM emergency_fund_extra_values WHERE dossier_id = ? ORDER BY position, rowid'
+    )
+    .all(req.params.id);
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 4,
-    dossier: { name: dossier.name, currency: dossier.currency, cycle_start_day: dossier.cycle_start_day },
+    version: 5,
+    dossier: {
+      name: dossier.name,
+      currency: dossier.currency,
+      cycle_start_day: dossier.cycle_start_day,
+      emergency_fund_months_multiplier: dossier.emergency_fund_months_multiplier ?? 6,
+      emergency_fund_cycles_to_average: dossier.emergency_fund_cycles_to_average ?? 6,
+    },
     accounts,
     months: months.map((m) => ({
       year: m.year,
@@ -308,6 +351,8 @@ router.get('/:id/export', (req, res) => {
       items: cycleItemsByCycleId[c.id] || [],
     })),
     goals: goalsExport,
+    emergency_fund_accounts: efAccountNames,
+    emergency_fund_extra_values: efExtraValues,
   });
 });
 
@@ -371,5 +416,7 @@ router.delete('/:id/access/:userId', (req, res) => {
 router.use('/:id', expensesRouter);
 // Goals sub-router
 router.use('/:id', goalsRouter);
+// Emergency fund sub-router
+router.use('/:id', emergencyFundRouter);
 
 module.exports = router;

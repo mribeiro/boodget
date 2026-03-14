@@ -5,6 +5,7 @@ import CapitalGlance from './CapitalGlance';
 import CycleGlance from './CycleGlance';
 import NextExpenseGlance from './NextExpenseGlance';
 import GoalsGlance from './GoalsGlance';
+import EmergencyFundGlance from './EmergencyFundGlance';
 
 function cycleYearMonth(today, cycleStartDay) {
   const d = today.getDate();
@@ -20,6 +21,7 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
   const [cyclesList, setCyclesList] = useState([]);
   const [currentCycleDetail, setCurrentCycleDetail] = useState(null);
   const [goals, setGoals] = useState([]);
+  const [efStatus, setEfStatus] = useState(null);
   const today = new Date();
   const navigate = useNavigate();
 
@@ -28,10 +30,12 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
       api.getDossierSettings(dossierId),
       api.getCycles(dossierId),
       api.getGoals(dossierId),
-    ]).then(([s, c, g]) => {
+      api.getEmergencyFundStatus(dossierId),
+    ]).then(([s, c, g, ef]) => {
       setSettings(s);
       setCyclesList(c);
       setGoals(g);
+      setEfStatus(ef);
 
       const cur = cycleYearMonth(today, s.cycle_start_day ?? 25);
       const curCycle = c.find((cy) => cy.year === cur.year && cy.month === cur.month);
@@ -47,6 +51,10 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
     <div className="glances-panel">
       <div className="glances-label">Glances</div>
       <div className="glances-grid">
+        <EmergencyFundGlance
+          efStatus={efStatus}
+          onClick={() => onNavigate('emergency-fund')}
+        />
         <CapitalGlance
           months={months}
           settings={settings}

@@ -313,6 +313,34 @@ const migrations = [
       }
     },
   },
+  {
+    id: '017_emergency_fund',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'emergency_fund_months_multiplier')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN emergency_fund_months_multiplier INTEGER DEFAULT 6');
+      }
+      if (!cols.find((c) => c.name === 'emergency_fund_cycles_to_average')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN emergency_fund_cycles_to_average INTEGER DEFAULT 6');
+      }
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS emergency_fund_accounts (
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          PRIMARY KEY (dossier_id, account_id)
+        )
+      `);
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS emergency_fund_extra_values (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          value REAL NOT NULL DEFAULT 0,
+          position INTEGER DEFAULT 0
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {

@@ -66,18 +66,34 @@ function mkDossier(userId, name, opts = {}) {
     `INSERT INTO dossiers
        (id, name, currency, cycle_start_day,
         capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day,
+        emergency_fund_months_multiplier, emergency_fund_cycles_to_average,
         creator_id)
-     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?)`
+     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, name,
     opts.cycle_start_day ?? CYCLE_START,
     opts.capital_snapshot_warning_day  ?? 7,
     opts.next_cycle_warning_day        ?? 22,
     opts.previous_cycle_close_warning_day ?? 25,
+    opts.emergency_fund_months_multiplier ?? 6,
+    opts.emergency_fund_cycles_to_average ?? 6,
     userId
   );
   db.prepare('INSERT INTO dossier_access (dossier_id, user_id) VALUES (?, ?)').run(id, userId);
   return id;
+}
+
+function mkEmergencyFund(dossierId, accountIds, extraValues = []) {
+  if (accountIds.length > 0) {
+    const stmt = db.prepare('INSERT INTO emergency_fund_accounts (dossier_id, account_id) VALUES (?, ?)');
+    for (const id of accountIds) stmt.run(dossierId, id);
+  }
+  if (extraValues.length > 0) {
+    const stmt = db.prepare(
+      'INSERT INTO emergency_fund_extra_values (id, dossier_id, name, value, position) VALUES (?, ?, ?, ?, ?)'
+    );
+    extraValues.forEach((ev, i) => stmt.run(uuidv4(), dossierId, ev.name, ev.value, i + 1));
+  }
 }
 
 function mkAccounts(dossierId, defs) {
@@ -172,6 +188,9 @@ module.exports = function seed() {
       capital_snapshot_warning_day:    warningOff,
       next_cycle_warning_day:          warningOff,
       previous_cycle_close_warning_day: warningOff,
+      // EF: multiplier=3, avg≈1467 → target≈4400; Savings=9200 → HEALTHY
+      emergency_fund_months_multiplier: 3,
+      emergency_fund_cycles_to_average: 6,
     });
 
     const d0Accs = mkAccounts(d0, [
@@ -283,6 +302,9 @@ module.exports = function seed() {
       'INSERT INTO workbench_snapshots (id, dossier_id, name, data) VALUES (?, ?, ?, ?)'
     ).run(uuidv4(), d0, 'Base Scenario', JSON.stringify(workbenchData));
 
+    // Emergency fund: Savings account → HEALTHY (9200 > ~4400)
+    mkEmergencyFund(d0, [d0Accs[1]]); // Savings
+
 
     // ══════════════════════════════════════════════════════════════════════
     // DOSSIER A — "Glances — All Good"
@@ -295,6 +317,9 @@ module.exports = function seed() {
       capital_snapshot_warning_day:     warningOff,
       next_cycle_warning_day:           warningOff,
       previous_cycle_close_warning_day: warningOff,
+      // EF: multiplier=6, avg≈995 → target≈5970; Index Funds=8200 → HEALTHY
+      emergency_fund_months_multiplier: 6,
+      emergency_fund_cycles_to_average: 6,
     });
 
     const dAAccs = mkAccounts(dA, [
@@ -321,6 +346,9 @@ module.exports = function seed() {
     // Completed goal: target <= current Current Account value (3100)
     mkGoal(dA, [dAAccs[0]], { name: 'Emergency Buffer', target_value: 1000, target_date: nextMonthYM });
 
+    // Emergency fund: Index Funds → HEALTHY (8200 > ~5970)
+    mkEmergencyFund(dA, [dAAccs[1]]); // Index Funds
+
 
     // ══════════════════════════════════════════════════════════════════════
     // DOSSIER B — "Glances — Capital Snapshot Missing"
@@ -333,6 +361,9 @@ module.exports = function seed() {
       capital_snapshot_warning_day:     warningOn,   // ← triggers amber
       next_cycle_warning_day:           warningOff,
       previous_cycle_close_warning_day: warningOff,
+      // EF: avg≈75 → target≈450; Stock Portfolio (prev month)=12500 → HEALTHY
+      emergency_fund_months_multiplier: 6,
+      emergency_fund_cycles_to_average: 6,
     });
 
     const dBAccs = mkAccounts(dB, [
@@ -353,6 +384,9 @@ module.exports = function seed() {
     ]);
     // No goals → "No goals defined"
 
+    // Emergency fund: Stock Portfolio (from prev month, 12500) → HEALTHY vs target ~450
+    mkEmergencyFund(dB, [dBAccs[1]]); // Stock Portfolio
+
 
     // ══════════════════════════════════════════════════════════════════════
     // DOSSIER C — "Glances — Red Alerts"
@@ -365,6 +399,9 @@ module.exports = function seed() {
       capital_snapshot_warning_day:     warningOff,
       next_cycle_warning_day:           warningOff,
       previous_cycle_close_warning_day: warningOn,   // ← triggers red
+      // EF: avg≈598 → target≈3585; Current Account=1500 → UNDERFUNDED (adds to red glance)
+      emergency_fund_months_multiplier: 6,
+      emergency_fund_cycles_to_average: 6,
     });
 
     const dCAccs = mkAccounts(dC, [
@@ -391,6 +428,9 @@ module.exports = function seed() {
     // Failed goal: target_date already past, value far above current Bonds value (3100)
     mkGoal(dC, [dCAccs[1]], { name: 'House Down Payment', target_value: 50000, target_date: prevMonthYM });
 
+    // Emergency fund: Current Account (1500) → UNDERFUNDED vs target ~3585
+    mkEmergencyFund(dC, [dCAccs[0]]); // Current Account
+
 
     // ══════════════════════════════════════════════════════════════════════
     // DOSSIER D — "Glances — Next Cycle Not Opened"
@@ -403,6 +443,9 @@ module.exports = function seed() {
       capital_snapshot_warning_day:     warningOff,
       next_cycle_warning_day:           warningOn,   // ← triggers amber
       previous_cycle_close_warning_day: warningOff,
+      // EF: avg≈1015 → target≈6090; Index Funds=15500 → HEALTHY
+      emergency_fund_months_multiplier: 6,
+      emergency_fund_cycles_to_average: 6,
     });
 
     const dDAccs = mkAccounts(dD, [
@@ -430,6 +473,49 @@ module.exports = function seed() {
 
     // Completed goal: target_value <= current Savings value (5500)
     mkGoal(dD, [dDAccs[0]], { name: 'Emergency Fund', target_value: 5000, target_date: nextMonthYM });
+
+    // Emergency fund: Index Funds (15500) → HEALTHY vs target ~6090
+    mkEmergencyFund(dD, [dDAccs[1]]); // Index Funds
+
+
+    // ══════════════════════════════════════════════════════════════════════
+    // DOSSIER E — "Emergency Fund — Underfunded"
+    // Dedicated showcase for the underfunded EF glance card.
+    // avg≈660; extra=400; effective_base=1060; target=6360; current=2000 → UNDERFUNDED
+    // ══════════════════════════════════════════════════════════════════════
+    const dE = mkDossier(userId, 'Emergency Fund — Underfunded', {
+      capital_snapshot_warning_day:     warningOff,
+      next_cycle_warning_day:           warningOff,
+      previous_cycle_close_warning_day: warningOff,
+      emergency_fund_months_multiplier: 6,
+      emergency_fund_cycles_to_average: 6,
+    });
+
+    const dEAccs = mkAccounts(dE, [
+      { group_name: 'Bank', name: 'Current Account',   type: 'Current Account',       is_idle_money: true  },
+      { group_name: 'Bank', name: 'Emergency Savings', type: 'Guaranteed Investment',  is_idle_money: false },
+    ]);
+
+    mkMonth(dE, dEAccs, prevCalYear, prevCalMonth, [500, 1800]);
+    mkMonth(dE, dEAccs, calYear,     calMonth,     [800, 2000]);
+
+    // Prev cycle (closed): Rent=500 fixed paid + Groceries budget spent=120 → total=620
+    mkCycle(dE, prevCycleYear, prevCycleMonth, 1600, 0, true, [
+      { section: 'expense', name: 'Rent',      type: 'Fixed',  value: 500, day_of_payment: 1,    paid: 1,    spent: null, done: null },
+      { section: 'expense', name: 'Groceries', type: 'Budget', value: 200, day_of_payment: null, paid: null, spent: 120,  done: null },
+    ]);
+
+    // Current cycle (open): Rent=500 + Groceries budget max=200 (open→uses max) → total=700
+    mkCycle(dE, curCycleYear, curCycleMonth, 1600, 0, false, [
+      { section: 'expense', name: 'Rent',      type: 'Fixed',  value: 500, day_of_payment: overdueDay, paid: 1,    spent: null, done: null },
+      { section: 'expense', name: 'Groceries', type: 'Budget', value: 200, day_of_payment: null,       paid: null, spent: 80,   done: null },
+    ]);
+
+    // avg=(620+700)/2=660; extra=400; effective_base=1060; target=6×1060=6360
+    // Emergency Savings (2000) → UNDERFUNDED, deficit≈4360
+    mkEmergencyFund(dE, [dEAccs[1]], [  // Emergency Savings
+      { name: 'Rent (external)', value: 400 },
+    ]);
 
   });
 
