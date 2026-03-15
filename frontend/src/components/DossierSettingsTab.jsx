@@ -21,8 +21,6 @@ function SettingsCard({ title, description, children, defaultOpen = false }) {
       className="card card--flat"
       style={{
         marginBottom: 'var(--space-5)',
-        paddingBottom: open ? 'var(--space-5)' : 0,
-        transition: 'padding-bottom 0.3s ease',
       }}
     >
       <button
@@ -39,7 +37,6 @@ function SettingsCard({ title, description, children, defaultOpen = false }) {
           paddingBottom: open ? 'var(--space-3)' : 0,
           borderBottom: open ? '1px solid var(--border-default)' : 'none',
           textAlign: 'left',
-          transition: 'padding-bottom 0.3s ease',
         }}
       >
         <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{title}</h2>
