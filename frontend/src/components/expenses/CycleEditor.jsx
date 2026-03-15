@@ -358,7 +358,7 @@ export default function CycleEditor() {
           {/* Expenses */}
           <div>
             <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Expenses</div>
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Total</div>
                 <div style={{ fontWeight: 500 }}>{fmt(summary.total_expenses)}</div>
@@ -377,7 +377,7 @@ export default function CycleEditor() {
           {/* Distributions */}
           <div>
             <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Distributions</div>
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Total</div>
                 <div style={{ fontWeight: 500 }}>{fmt(summary.total_distributions)}</div>
@@ -397,7 +397,7 @@ export default function CycleEditor() {
           {!!cycle.is_closed && (
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem' }}>
               <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Closing</div>
-              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Final real balance</div>
                   <div style={{ fontWeight: 600 }}>{fmt(summary.final_real_balance)}</div>
