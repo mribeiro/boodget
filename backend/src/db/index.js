@@ -341,6 +341,32 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '018_paperless_integration',
+    up() {
+      const dossierCols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!dossierCols.find((c) => c.name === 'paperless_url')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN paperless_url TEXT');
+      }
+      if (!dossierCols.find((c) => c.name === 'paperless_token')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN paperless_token TEXT');
+      }
+      if (!dossierCols.find((c) => c.name === 'paperless_date_field_id')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN paperless_date_field_id INTEGER');
+      }
+      if (!dossierCols.find((c) => c.name === 'paperless_amount_field_id')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN paperless_amount_field_id INTEGER');
+      }
+      const templateCols = db.prepare('PRAGMA table_info(expense_template_items)').all();
+      if (!templateCols.find((c) => c.name === 'paperless_tag_id')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN paperless_tag_id INTEGER');
+      }
+      const cycleCols = db.prepare('PRAGMA table_info(cycle_items)').all();
+      if (!cycleCols.find((c) => c.name === 'paperless_tag_id')) {
+        db.exec('ALTER TABLE cycle_items ADD COLUMN paperless_tag_id INTEGER');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

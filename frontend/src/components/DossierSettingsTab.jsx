@@ -6,6 +6,8 @@ import {
   faChevronDown,
   faFileExport,
   faTrash,
+  faEye,
+  faEyeSlash,
 } from '@fortawesome/free-solid-svg-icons';
 import DossierSettings from './expenses/DossierSettings';
 import ExpenseTemplate from './expenses/ExpenseTemplate';
@@ -154,6 +156,123 @@ function EmergencyFundSettings({ dossierId }) {
   );
 }
 
+function PaperlessSettings({ dossierId }) {
+  const [settings, setSettings] = useState({
+    paperless_url: null,
+    paperless_token_set: false,
+    paperless_date_field_id: null,
+    paperless_amount_field_id: null,
+  });
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState('');
+  const [showToken, setShowToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
+  }, [dossierId]);
+
+  function startEdit(key) {
+    setEditing(key);
+    setDraft(key === 'paperless_token' ? '' : String(settings[key] ?? ''));
+    setError('');
+  }
+
+  function cancelEdit() { setEditing(null); setDraft(''); setError(''); }
+
+  async function handleSave(key) {
+    setError('');
+    let val;
+    if (key === 'paperless_date_field_id' || key === 'paperless_amount_field_id') {
+      if (draft === '') { val = null; }
+      else {
+        val = Number(draft);
+        if (!Number.isInteger(val) || val < 1) { setError('Must be a positive integer'); return; }
+      }
+    } else if (key === 'paperless_token') {
+      val = draft.trim() || null;
+    } else {
+      val = draft.trim() || null;
+    }
+    setSaving(true);
+    try {
+      const updated = await api.updateDossierSettings(dossierId, { [key]: val });
+      setSettings(updated);
+      setEditing(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fields = [
+    { key: 'paperless_url',             label: 'Paperless-ngx URL',            type: 'text',     placeholder: 'https://paperless.example.com', isToken: false },
+    { key: 'paperless_token',           label: 'API Token',                    type: 'password', placeholder: 'Token value',                   isToken: true  },
+    { key: 'paperless_date_field_id',   label: 'Payment date custom field ID', type: 'number',   placeholder: '',                              isToken: false },
+    { key: 'paperless_amount_field_id', label: 'Amount custom field ID',       type: 'number',   placeholder: '',                              isToken: false },
+  ];
+
+  function displayValue(key) {
+    if (key === 'paperless_token') return settings.paperless_token_set ? '••••••••' : 'Not set';
+    const v = settings[key];
+    if (v == null || v === '') return <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
+    return String(v);
+  }
+
+  return (
+    <div>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 0, marginBottom: '1rem' }}>
+        All four fields must be set for the integration to be active.
+      </p>
+      {fields.map(({ key, label, type, placeholder, isToken }) => (
+        <div key={key} style={{ marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', minWidth: '14rem' }}>{label}</span>
+            {editing === key ? (
+              <>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type={isToken && !showToken ? 'password' : (type === 'password' ? 'text' : type)}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={placeholder}
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem', width: isToken ? '16rem' : type === 'number' ? '6rem' : '20rem', paddingRight: isToken ? '2rem' : undefined }}
+                  />
+                  {isToken && (
+                    <button
+                      onClick={() => setShowToken((v) => !v)}
+                      style={{ position: 'absolute', right: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
+                      type="button"
+                    >
+                      <FontAwesomeIcon icon={showToken ? faEyeSlash : faEye} />
+                    </button>
+                  )}
+                </div>
+                <button className="btn-primary" onClick={() => handleSave(key)} disabled={saving} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button className="btn-secondary" onClick={cancelEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{displayValue(key)}</span>
+                <button className="btn-secondary" onClick={() => startEdit(key)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
+                  <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
+                </button>
+              </>
+            )}
+          </div>
+          {editing === key && error && (
+            <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DossierSettingsTab({ dossierId, dossier }) {
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
@@ -221,6 +340,13 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         description="Configure how the emergency fund target is calculated. The target = multiplier × average monthly expense (computed from recent cycles)."
       >
         <EmergencyFundSettings dossierId={dossierId} />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Paperless-ngx Integration"
+        description="Link fixed expenses to Paperless-ngx document tags to auto-fill values and payment days from scanned documents."
+      >
+        <PaperlessSettings dossierId={dossierId} />
       </SettingsCard>
 
       <SettingsCard title="Accounts" description="Add, reorder, and archive accounts tracked in this dossier.">

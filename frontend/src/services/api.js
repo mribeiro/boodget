@@ -147,4 +147,8 @@ export const api = {
     request('PUT', `/dossiers/${dossierId}/goals/${goalId}/cycle-contributions/${cycleId}`, data),
   bulkReplaceGoalHistoricalContributions: (dossierId, goalId, items) =>
     request('POST', `/dossiers/${dossierId}/goals/${goalId}/historical-contributions/bulk-replace`, { items }),
+  fetchPaperlessDocuments: (dossierId, cycleId) =>
+    request('GET', `/dossiers/${dossierId}/cycles/${cycleId}/paperless-fetch`),
+  applyPaperlessDocuments: (dossierId, cycleId, items) =>
+    request('POST', `/dossiers/${dossierId}/cycles/${cycleId}/paperless-apply`, { items }),
 };
