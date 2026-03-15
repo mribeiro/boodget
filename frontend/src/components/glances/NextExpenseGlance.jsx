@@ -17,9 +17,9 @@ function cycleYearMonth(today, cycleStartDay) {
 
 function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay) {
   if (dayOfPayment >= cycleStartDay) {
-    return new Date(cycleYear, cycleMonth - 2, dayOfPayment);
+    return new Date(cycleYear, cycleMonth - 1, dayOfPayment); // same calendar month as cycle start
   }
-  return new Date(cycleYear, cycleMonth - 1, dayOfPayment);
+  return new Date(cycleYear, cycleMonth, dayOfPayment); // next calendar month
 }
 
 function sortByCycleDay(items, cycleStartDay) {
