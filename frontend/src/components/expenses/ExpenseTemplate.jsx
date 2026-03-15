@@ -59,6 +59,15 @@ export default function ExpenseTemplate({ dossierId }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [error, setError] = useState('');
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  function toggleRow(id) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     load();
@@ -148,7 +157,7 @@ export default function ExpenseTemplate({ dossierId }) {
           No {activeTab === 'expense' ? 'expenses' : 'distributions'} in template yet.
         </p>
       ) : activeTab === 'expense' ? (
-        <div className="table-container" style={{ marginBottom: '0.75rem' }}>
+        <div className="mobile-cards table-container" style={{ marginBottom: '0.75rem' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
@@ -162,20 +171,23 @@ export default function ExpenseTemplate({ dossierId }) {
             </thead>
             <tbody>
               {tabItems.map((item) => (
-                <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '0.4rem 0.5rem' }}>{item.name}</td>
-                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
-                  <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
+                <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
+                  <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
+                    <span>{item.name}</span>
+                    <button className="card-expand-btn" tabIndex={-1}>›</button>
+                  </td>
+                  <td data-label="Value" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                  <td data-label="Type" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
+                  <td data-label="Day" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
                     {item.type === 'Fixed' ? item.day_of_payment : '—'}
                   </td>
-                  <td style={{ padding: '0.3rem 0.5rem' }}>
+                  <td data-label="Class" className="mobile-detail" style={{ padding: '0.3rem 0.5rem' }}>
                     <ClassificationPills
                       value={item.classification}
                       onChange={(v) => handleClassificationChange(item, v)}
                     />
                   </td>
-                  <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button
                       className="btn-secondary"
                       onClick={() => { setEditingItem(item); setShowAddModal(true); }}
@@ -197,7 +209,7 @@ export default function ExpenseTemplate({ dossierId }) {
           </table>
         </div>
       ) : (
-        <div className="table-container" style={{ marginBottom: '0.75rem' }}>
+        <div className="mobile-cards table-container" style={{ marginBottom: '0.75rem' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
@@ -215,11 +227,14 @@ export default function ExpenseTemplate({ dossierId }) {
                 const anySet = item.must_amount != null || item.want_amount != null || item.save_amount != null;
                 const mismatch = anySet && Math.abs(sumDecomp - item.value) > 0.005;
                 return (
-                  <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '0.4rem 0.5rem' }}>{item.name}</td>
-                    <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                    {['must_amount', 'want_amount', 'save_amount'].map((field) => (
-                      <td key={field} style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
+                  <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
+                    <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
+                      <span>{item.name}</span>
+                      <button className="card-expand-btn" tabIndex={-1}>›</button>
+                    </td>
+                    <td data-label="Value" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                    {['must_amount', 'want_amount', 'save_amount'].map((field, fi) => (
+                      <td key={field} data-label={['Must', 'Want', 'Save'][fi]} className="mobile-detail" style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
                         <input
                           type="number"
                           min={0}
@@ -236,7 +251,7 @@ export default function ExpenseTemplate({ dossierId }) {
                         />
                       </td>
                     ))}
-                    <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {mismatch && (
                         <span style={{ fontSize: '0.7rem', color: 'var(--color-danger)', marginRight: '0.4rem' }}>
                           sum ≠ {formatValue(item.value)}

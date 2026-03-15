@@ -12,6 +12,15 @@ export default function UserManager() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  function toggleRow(id) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     api
@@ -125,7 +134,7 @@ export default function UserManager() {
         </div>
       )}
 
-      <div className="table-container">
+      <div className="mobile-cards table-container">
         <table>
           <thead>
             <tr>
@@ -137,24 +146,27 @@ export default function UserManager() {
           </thead>
           <tbody>
             {users.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  <span style={{ fontWeight: 500 }}>{u.username}</span>
-                  {u.id === currentUser.id && (
-                    <span className="badge badge-brand" style={{ marginLeft: 8 }}>You</span>
-                  )}
+              <tr key={u.id} className={expandedRows.has(u.id) ? 'mobile-expanded' : ''}>
+                <td className="mobile-card-title" onClick={() => toggleRow(u.id)}>
+                  <span>
+                    <span style={{ fontWeight: 500 }}>{u.username}</span>
+                    {u.id === currentUser.id && (
+                      <span className="badge badge-brand" style={{ marginLeft: 8 }}>You</span>
+                    )}
+                  </span>
+                  <button className="card-expand-btn" tabIndex={-1}>›</button>
                 </td>
-                <td>
-                  <span className={`badge ${u.is_oidc ? 'badge-neutral' : 'badge-neutral'}`}>
+                <td data-label="Type">
+                  <span className="badge badge-neutral">
                     {u.is_oidc ? 'SSO' : 'Local'}
                   </span>
                 </td>
-                <td className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                <td data-label="Created" className="mobile-detail text-sm" style={{ color: 'var(--text-muted)' }}>
                   {new Date(u.created_at).toLocaleDateString('en-US', {
                     year: 'numeric', month: 'short', day: 'numeric',
                   })}
                 </td>
-                <td style={{ textAlign: 'right' }}>
+                <td data-label="" className="mobile-detail">
                   {u.id !== currentUser.id && (
                     <button
                       className="btn-ghost btn-sm"

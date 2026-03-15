@@ -84,7 +84,7 @@ export default function ShareManager({ dossierId, onClose }) {
               This dossier is not shared with anyone.
             </p>
           ) : (
-            <div className="table-container">
+            <div className="mobile-cards table-container">
               <table>
                 <thead>
                   <tr>
@@ -95,8 +95,8 @@ export default function ShareManager({ dossierId, onClose }) {
                 <tbody>
                   {sharedUsers.map((u) => (
                     <tr key={u.id}>
-                      <td>{u.username}</td>
-                      <td>
+                      <td className="mobile-card-title" style={{ cursor: 'default' }}>{u.username}</td>
+                      <td data-label="">
                         <button
                           className="btn-ghost"
                           style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}

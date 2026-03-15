@@ -50,7 +50,7 @@ export default function CapitalCompareTable({ dossierId }) {
 
   return (
     <div className="table-container">
-      <table>
+      <table className="table-sticky-first-col">
         <thead>
           <tr>
             <th style={{ minWidth: 160 }}>Account</th>
