@@ -61,6 +61,7 @@ export default function CycleEditor() {
   const [savingClose, setSavingClose] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditPeriod, setShowEditPeriod] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
 
   useEffect(() => {
@@ -190,6 +191,25 @@ export default function CycleEditor() {
     });
   }
 
+  function handleDeleteCycle() {
+    const startDay = cycle.cycle_start_day ?? 25;
+    const label = cycleLabel(cycle.year, cycle.month, startDay);
+    setConfirmState({
+      title: 'Delete cycle',
+      message: `Permanently delete the ${label} cycle and all its items? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteCycle(dossierId, cycleId);
+          navigate(`/dossiers/${dossierId}`, { state: { tab: 'expenses' } });
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
+  }
+
   async function handleEditItem(item, data) {
     try {
       await api.updateCycleItem(dossierId, cycleId, item.id, data);
@@ -234,6 +254,14 @@ export default function CycleEditor() {
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
             {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn-secondary" onClick={() => setShowEditPeriod(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+            <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Period
+          </button>
+          <button className="btn-danger" onClick={handleDeleteCycle} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+            <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
+          </button>
         </div>
       </div>
 
@@ -415,6 +443,110 @@ export default function CycleEditor() {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      {showEditPeriod && (
+        <EditPeriodModal
+          cycle={cycle}
+          dossierId={dossierId}
+          onSave={async (year, month) => {
+            await api.updateCycle(dossierId, cycleId, { year, month });
+            setShowEditPeriod(false);
+            await load();
+          }}
+          onClose={() => setShowEditPeriod(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+const MONTH_NAMES_MODAL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
+  const startDay = cycle.cycle_start_day ?? 25;
+  const [year, setYear] = useState(cycle.year);
+  const [month, setMonth] = useState(cycle.month);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [allCycles, setAllCycles] = useState([]);
+
+  useEffect(() => {
+    api.getCycles(dossierId).then(setAllCycles).catch(() => {});
+  }, [dossierId]);
+
+  const now = new Date();
+  const baseYear = now.getFullYear();
+  const minYear = Math.min(baseYear - 3, cycle.year);
+  const maxYear = Math.max(baseYear + 3, cycle.year);
+  const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
+
+  function isTaken(y, m) {
+    return allCycles.some((c) => c.year === y && c.month === m && c.id !== cycle.id);
+  }
+
+  const endDate = new Date(year, month, startDay - 1);
+  const cycleDisplayLabel = `${MONTH_NAMES_MODAL[endDate.getMonth()]} ${endDate.getFullYear()}`;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (isTaken(year, month)) { setError('A cycle for that period already exists'); return; }
+    setSaving(true);
+    try {
+      await onSave(year, month);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  const startFmt = new Date(year, month - 1, startDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const endFmt = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Period</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Cycle</label>
+                <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                    const end = new Date(year, m, startDay - 1);
+                    const label = `${MONTH_NAMES_MODAL[end.getMonth()]} ${end.getFullYear()}`;
+                    return (
+                      <option key={m} value={m} disabled={isTaken(year, m)}>
+                        {label}{isTaken(year, m) ? ' (exists)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Start year</label>
+                <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+                  {years.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '-0.25rem' }}>
+              {startFmt} – {endFmt}
+            </div>
+            {isTaken(year, month) && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>This period already has a cycle.</div>}
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving || isTaken(year, month)}>
+              {saving ? 'Saving…' : `Move to ${cycleDisplayLabel}`}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
