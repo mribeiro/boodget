@@ -9,11 +9,11 @@ import EmergencyFundGlance from './EmergencyFundGlance';
 
 function cycleYearMonth(today, cycleStartDay) {
   const d = today.getDate();
-  if (d < cycleStartDay) {
+  if (d >= cycleStartDay) {
     return { year: today.getFullYear(), month: today.getMonth() + 1 };
   }
-  const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  return { year: next.getFullYear(), month: next.getMonth() + 1 };
+  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
 }
 
 export default function GlancesPanel({ dossierId, months, onNavigate }) {
@@ -47,14 +47,12 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
 
   if (!settings) return null;
 
+  const showEF = efStatus?.status === 'underfunded';
+
   return (
     <div className="glances-panel">
       <div className="glances-label">Glances</div>
-      <div className="glances-grid">
-        <EmergencyFundGlance
-          efStatus={efStatus}
-          onClick={() => onNavigate('emergency-fund')}
-        />
+      <div className={`glances-grid${showEF ? ' glances-grid--5' : ''}`}>
         <CapitalGlance
           months={months}
           settings={settings}
@@ -79,6 +77,10 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
         <GoalsGlance
           goals={goals}
           onClick={() => onNavigate('goals')}
+        />
+        <EmergencyFundGlance
+          efStatus={efStatus}
+          onClick={() => onNavigate('emergency-fund')}
         />
       </div>
     </div>
