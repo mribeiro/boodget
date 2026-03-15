@@ -1,3 +1,5 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faClock, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 
 function formatEur(value) {
@@ -36,7 +38,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   if (!currentCycleDetail) {
     return (
-      <GlanceCard title="Next Expense" color="neutral" onClick={onClick}>
+      <GlanceCard title="Next Expense" icon={faClock} color="neutral" onClick={onClick}>
         <p style={msgStyle}>No cycle in progress</p>
       </GlanceCard>
     );
@@ -49,7 +51,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   if (unpaid.length === 0) {
     return (
-      <GlanceCard title="Next Expense" color="neutral" onClick={onClick}>
+      <GlanceCard title="Next Expense" icon={faCircleCheck} color="neutral" onClick={onClick}>
         <p style={msgStyle}>All fixed expenses paid</p>
       </GlanceCard>
     );
@@ -81,7 +83,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
   }
 
   return (
-    <GlanceCard title="Next Expense" color={color} onClick={onClick}>
+    <GlanceCard title="Next Expense" icon={faClock} color={color} onClick={onClick}>
       <div className="text-base" style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {next.name}
       </div>
