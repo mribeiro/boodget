@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChartLine,
   faCalendarDays,
+  faCalendarCheck,
   faScaleBalanced,
   faBullseye,
   faShieldHalved,
@@ -21,6 +22,7 @@ import DossierSettingsTab from './DossierSettingsTab';
 import WorkbenchTab from './workbench/WorkbenchTab';
 import GoalsTab from './goals/GoalsTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
+import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
 import GlancesPanel from './glances/GlancesPanel';
 
 const MONTH_NAMES = [
@@ -118,12 +120,13 @@ export default function DossierView() {
 
       <div className="tabs tabs--dossier">
         {[
-          { key: 'capital',        icon: faChartLine,     label: 'Capital' },
-          { key: 'expenses',       icon: faCalendarDays,  label: 'Monthly Expenses' },
-          { key: 'workbench',      icon: faScaleBalanced, label: 'Workbench' },
-          { key: 'goals',          icon: faBullseye,      label: 'Goals' },
-          { key: 'emergency-fund', icon: faShieldHalved,  label: 'Emergency Fund' },
-          { key: 'settings',       icon: faGear,          label: 'Settings' },
+          { key: 'capital',          icon: faChartLine,     label: 'Capital' },
+          { key: 'expenses',         icon: faCalendarDays,  label: 'Monthly Expenses' },
+          { key: 'annual-expenses',  icon: faCalendarCheck, label: 'Annual Expenses' },
+          { key: 'workbench',        icon: faScaleBalanced, label: 'Workbench' },
+          { key: 'goals',            icon: faBullseye,      label: 'Goals' },
+          { key: 'emergency-fund',   icon: faShieldHalved,  label: 'Emergency Fund' },
+          { key: 'settings',         icon: faGear,          label: 'Settings' },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
@@ -266,6 +269,10 @@ export default function DossierView() {
 
       {activeTab === 'expenses' && (
         <ExpensesTab dossierId={id} />
+      )}
+
+      {activeTab === 'annual-expenses' && (
+        <AnnualExpensesTab dossierId={id} />
       )}
 
       {activeTab === 'workbench' && (

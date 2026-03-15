@@ -7,6 +7,82 @@ function daysInMonth(year, month) {
   return new Date(year, month, 0).getDate();
 }
 
+// Create an annual expense year from the current template for a given calendar year
+function createAnnualYearFromTemplate(dossierId, calYear) {
+  const yearId = uuidv4();
+  db.prepare('INSERT INTO annual_expense_years (id, dossier_id, year, carryover) VALUES (?, ?, ?, 0)')
+    .run(yearId, dossierId, calYear);
+
+  const templateItems = db
+    .prepare('SELECT * FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+    .all(dossierId);
+  const insertItem = db.prepare(
+    'INSERT INTO annual_expense_year_items (id, year_id, name, budgeted_value, classification, num_installments, from_template, position) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
+  );
+  const insertInst = db.prepare(
+    'INSERT INTO annual_expense_year_installments (id, year_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
+  );
+
+  for (const ti of templateItems) {
+    const itemId = uuidv4();
+    const numInst = ti.num_installments ?? 1;
+    insertItem.run(itemId, yearId, ti.name, ti.value, ti.classification, numInst, ti.position ?? 0);
+
+    const templateInsts = db
+      .prepare('SELECT * FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number')
+      .all(ti.id);
+
+    if (templateInsts.length > 0) {
+      for (const inst of templateInsts) {
+        insertInst.run(uuidv4(), itemId, inst.installment_number, inst.month, inst.day);
+      }
+    } else if (ti.day_of_payment != null && ti.month_of_payment != null) {
+      insertInst.run(uuidv4(), itemId, 1, ti.month_of_payment, ti.day_of_payment);
+    }
+  }
+
+  return yearId;
+}
+
+// Create payment records for a cycle based on annual expense year installments
+function createAnnualPaymentsForCycle(dossierId, cycleId, cycleYear, cycleMonth, startDay) {
+  const cycleStartDate = new Date(cycleYear, cycleMonth - 1, startDay);
+  const cycleEndDate = new Date(cycleYear, cycleMonth, startDay - 1);
+  const startCalYear = cycleStartDate.getFullYear();
+  const endCalYear = cycleEndDate.getFullYear();
+  const calYears = startCalYear === endCalYear ? [startCalYear] : [startCalYear, endCalYear];
+
+  const insertPayment = db.prepare(
+    'INSERT OR IGNORE INTO annual_expense_payments (id, installment_id, cycle_id, real_value, paid) VALUES (?, ?, ?, ?, 0)'
+  );
+
+  for (const calYear of calYears) {
+    let annualYear = db
+      .prepare('SELECT id FROM annual_expense_years WHERE dossier_id = ? AND year = ?')
+      .get(dossierId, calYear);
+    if (!annualYear) {
+      const yearId = createAnnualYearFromTemplate(dossierId, calYear);
+      annualYear = { id: yearId };
+    }
+
+    const installments = db.prepare(`
+      SELECT ayii.id as installment_id, ayii.month, ayii.day,
+             ayi.budgeted_value, ayi.num_installments
+      FROM annual_expense_year_items ayi
+      JOIN annual_expense_year_installments ayii ON ayii.year_item_id = ayi.id
+      WHERE ayi.year_id = ?
+    `).all(annualYear.id);
+
+    for (const inst of installments) {
+      const instDate = new Date(calYear, inst.month - 1, inst.day);
+      if (instDate >= cycleStartDate && instDate <= cycleEndDate) {
+        const expectedValue = inst.budgeted_value / (inst.num_installments || 1);
+        insertPayment.run(uuidv4(), inst.installment_id, cycleId, expectedValue);
+      }
+    }
+  }
+}
+
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
   if (!dossier) return false;
@@ -335,6 +411,9 @@ router.post('/cycles', (req, res) => {
 
   const id = uuidv4();
 
+  const dossierSettings = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
+  const startDay = dossierSettings?.cycle_start_day ?? 25;
+
   const createCycle = db.transaction(() => {
     db.prepare(
       'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance) VALUES (?, ?, ?, ?, ?, ?)'
@@ -352,6 +431,9 @@ router.post('/cycles', (req, res) => {
       const clampedDay = ti.day_of_payment != null ? Math.min(ti.day_of_payment, maxDay) : null;
       insertItem.run(uuidv4(), id, ti.id, ti.section, ti.name, ti.type, ti.value, clampedDay, ti.position, ti.paperless_tag_id ?? null);
     }
+
+    // Auto-create annual years and payment records for this cycle's date range
+    createAnnualPaymentsForCycle(req.params.id, id, year, month, startDay);
   });
 
   createCycle();
@@ -376,8 +458,21 @@ router.get('/cycles/:cycleId', (req, res) => {
     .prepare('SELECT * FROM cycle_items WHERE cycle_id = ? ORDER BY section, position, created_at')
     .all(req.params.cycleId);
 
+  const annualPayments = db.prepare(`
+    SELECT p.id, p.real_value, p.paid,
+           ayi.name, ayi.num_installments, ayi.budgeted_value, ayi.position as item_position,
+           ayii.installment_number, ayii.month, ayii.day,
+           aey.year as expense_year
+    FROM annual_expense_payments p
+    JOIN annual_expense_year_installments ayii ON ayii.id = p.installment_id
+    JOIN annual_expense_year_items ayi ON ayi.id = ayii.year_item_id
+    JOIN annual_expense_years aey ON aey.id = ayi.year_id
+    WHERE p.cycle_id = ?
+    ORDER BY ayi.position, ayii.installment_number
+  `).all(req.params.cycleId);
+
   const summary = computeSummary(cycle, items);
-  res.json({ ...cycle, items, summary });
+  res.json({ ...cycle, items, annual_payments: annualPayments, summary });
 });
 
 // PATCH /cycles/:cycleId
@@ -729,19 +824,28 @@ router.post('/cycles/:cycleId/paperless-apply', (req, res) => {
 
 // ── Annual Expense Template ──────────────────────────────────────────────────
 
+function attachTemplateInstallments(items) {
+  return items.map((item) => ({
+    ...item,
+    installments: db
+      .prepare('SELECT * FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number')
+      .all(item.id),
+  }));
+}
+
 // GET /annual-expense-template
 router.get('/annual-expense-template', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const items = db
     .prepare('SELECT * FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position, created_at')
     .all(req.params.id);
-  res.json(items);
+  res.json(attachTemplateInstallments(items));
 });
 
 // POST /annual-expense-template
 router.post('/annual-expense-template', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { name, value, day_of_payment, month_of_payment, classification } = req.body;
+  const { name, value, day_of_payment, month_of_payment, classification, num_installments, installments } = req.body;
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
   if (value == null || isNaN(Number(value)) || Number(value) < 0) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
@@ -754,23 +858,31 @@ router.post('/annual-expense-template', (req, res) => {
     .prepare('SELECT MAX(position) as mp FROM annual_expense_template_items WHERE dossier_id = ?')
     .get(req.params.id);
   const position = (maxPos.mp ?? -1) + 1;
+  const numInst = num_installments != null ? Math.max(1, Number(num_installments)) : 1;
 
   const id = uuidv4();
-  db.prepare(
-    'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(
-    id,
-    req.params.id,
-    String(name).trim(),
-    Number(value),
-    day_of_payment != null ? day_of_payment : null,
-    month_of_payment != null ? month_of_payment : null,
-    classification || null,
-    position
-  );
+  const createItem = db.transaction(() => {
+    db.prepare(
+      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      id, req.params.id, String(name).trim(), Number(value),
+      day_of_payment != null ? day_of_payment : null,
+      month_of_payment != null ? month_of_payment : null,
+      classification || null, position, numInst
+    );
+    if (Array.isArray(installments)) {
+      const insertInst = db.prepare('INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)');
+      installments.forEach((inst, idx) => {
+        insertInst.run(uuidv4(), id, inst.installment_number ?? (idx + 1), inst.month, inst.day);
+      });
+    } else if (month_of_payment != null && day_of_payment != null) {
+      db.prepare('INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, 1, ?, ?)').run(uuidv4(), id, month_of_payment, day_of_payment);
+    }
+  });
+  createItem();
 
   const item = db.prepare('SELECT * FROM annual_expense_template_items WHERE id = ?').get(id);
-  res.status(201).json(item);
+  res.status(201).json({ ...item, installments: db.prepare('SELECT * FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number').all(id) });
 });
 
 // PUT /annual-expense-template/:itemId
@@ -781,7 +893,7 @@ router.put('/annual-expense-template/:itemId', (req, res) => {
     .get(req.params.itemId, req.params.id);
   if (!item) return res.status(404).json({ error: 'Template item not found' });
 
-  const { name, value, day_of_payment, month_of_payment, classification } = req.body;
+  const { name, value, day_of_payment, month_of_payment, classification, num_installments, installments } = req.body;
   if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'name cannot be empty' });
   if (value !== undefined && (isNaN(Number(value)) || Number(value) < 0)) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
@@ -795,13 +907,25 @@ router.put('/annual-expense-template/:itemId', (req, res) => {
   const newDop = day_of_payment !== undefined ? day_of_payment : item.day_of_payment;
   const newMop = month_of_payment !== undefined ? month_of_payment : item.month_of_payment;
   const newClassification = classification !== undefined ? classification : item.classification;
+  const newNumInst = num_installments !== undefined ? Math.max(1, Number(num_installments)) : item.num_installments ?? 1;
 
-  db.prepare(
-    'UPDATE annual_expense_template_items SET name = ?, value = ?, day_of_payment = ?, month_of_payment = ?, classification = ? WHERE id = ?'
-  ).run(newName, newValue, newDop, newMop, newClassification, req.params.itemId);
+  const doUpdate = db.transaction(() => {
+    db.prepare(
+      'UPDATE annual_expense_template_items SET name = ?, value = ?, day_of_payment = ?, month_of_payment = ?, classification = ?, num_installments = ? WHERE id = ?'
+    ).run(newName, newValue, newDop, newMop, newClassification, newNumInst, req.params.itemId);
+
+    if (Array.isArray(installments)) {
+      db.prepare('DELETE FROM annual_expense_template_installments WHERE template_item_id = ?').run(req.params.itemId);
+      const insertInst = db.prepare('INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)');
+      installments.forEach((inst, idx) => {
+        insertInst.run(uuidv4(), req.params.itemId, inst.installment_number ?? (idx + 1), inst.month, inst.day);
+      });
+    }
+  });
+  doUpdate();
 
   const updated = db.prepare('SELECT * FROM annual_expense_template_items WHERE id = ?').get(req.params.itemId);
-  res.json(updated);
+  res.json({ ...updated, installments: db.prepare('SELECT * FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number').all(req.params.itemId) });
 });
 
 // DELETE /annual-expense-template/:itemId
@@ -824,19 +948,25 @@ router.post('/annual-expense-template/bulk-replace', (req, res) => {
   const replace = db.transaction(() => {
     db.prepare('DELETE FROM annual_expense_template_items WHERE dossier_id = ?').run(req.params.id);
     const insert = db.prepare(
-      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
+    const insertInst = db.prepare('INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)');
     items.forEach((item, idx) => {
+      const itemId = uuidv4();
+      const numInst = item.num_installments != null ? Math.max(1, Number(item.num_installments)) : 1;
       insert.run(
-        uuidv4(),
-        req.params.id,
-        String(item.name).trim(),
-        Number(item.value) || 0,
+        itemId, req.params.id, String(item.name).trim(), Number(item.value) || 0,
         item.day_of_payment != null ? item.day_of_payment : null,
         item.month_of_payment != null ? item.month_of_payment : null,
-        item.classification || null,
-        idx
+        item.classification || null, idx, numInst
       );
+      if (Array.isArray(item.installments)) {
+        item.installments.forEach((inst, iIdx) => {
+          insertInst.run(uuidv4(), itemId, inst.installment_number ?? (iIdx + 1), inst.month, inst.day);
+        });
+      } else if (item.day_of_payment != null && item.month_of_payment != null) {
+        insertInst.run(uuidv4(), itemId, 1, item.month_of_payment, item.day_of_payment);
+      }
     });
   });
 
@@ -844,7 +974,7 @@ router.post('/annual-expense-template/bulk-replace', (req, res) => {
   const newItems = db
     .prepare('SELECT * FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
     .all(req.params.id);
-  res.json(newItems);
+  res.json(attachTemplateInstallments(newItems));
 });
 
 // ── Workbench Snapshots ──────────────────────────────────────────────────────

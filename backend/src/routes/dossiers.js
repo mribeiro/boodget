@@ -8,6 +8,7 @@ const monthsRouter = require('./months');
 const expensesRouter = require('./expenses');
 const goalsRouter = require('./goals');
 const emergencyFundRouter = require('./emergency-fund');
+const annualExpensesRouter = require('./annual-expenses');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -43,7 +44,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -106,10 +107,20 @@ router.post('/import', (req, res) => {
     }
 
     const insertAnnualTemplateItem = db.prepare(
-      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
+    const insertAnnualTemplateInstallment = db.prepare(
+      'INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
+    );
+    const annualTemplateNameToId = {};
     for (const ti of (data.annual_expense_template || [])) {
-      insertAnnualTemplateItem.run(uuidv4(), dossierId, ti.name, ti.value ?? 0, ti.day_of_payment ?? null, ti.month_of_payment ?? null, ti.classification ?? null, ti.position ?? 0);
+      const tiId = uuidv4();
+      annualTemplateNameToId[ti.name] = tiId;
+      const numInst = ti.num_installments ?? 1;
+      insertAnnualTemplateItem.run(tiId, dossierId, ti.name, ti.value ?? 0, ti.day_of_payment ?? null, ti.month_of_payment ?? null, ti.classification ?? null, ti.position ?? 0, numInst);
+      for (const inst of (ti.installments || [])) {
+        insertAnnualTemplateInstallment.run(uuidv4(), tiId, inst.installment_number, inst.month, inst.day);
+      }
     }
 
     const insertWorkbenchSnapshot = db.prepare(
@@ -194,6 +205,58 @@ router.post('/import', (req, res) => {
     for (const ev of (data.emergency_fund_extra_values || [])) {
       insertEFExtra.run(uuidv4(), dossierId, ev.name, ev.value ?? 0, ev.position ?? 0);
     }
+
+    // Annual expense years (v7+)
+    if (data.annual_expense_years && data.annual_expense_years.length > 0) {
+      const insertAnnualYear = db.prepare(
+        'INSERT INTO annual_expense_years (id, dossier_id, year, carryover) VALUES (?, ?, ?, ?)'
+      );
+      const insertAnnualYearItem = db.prepare(
+        'INSERT INTO annual_expense_year_items (id, year_id, name, budgeted_value, classification, num_installments, from_template, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      );
+      const insertAnnualYearInst = db.prepare(
+        'INSERT INTO annual_expense_year_installments (id, year_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
+      );
+      const insertAnnualPayment = db.prepare(
+        'INSERT OR IGNORE INTO annual_expense_payments (id, installment_id, cycle_id, real_value, paid) VALUES (?, ?, ?, ?, ?)'
+      );
+
+      for (const ay of data.annual_expense_years) {
+        const yearId = uuidv4();
+        insertAnnualYear.run(yearId, dossierId, ay.year, ay.carryover ?? 0);
+
+        for (const item of (ay.items || [])) {
+          const itemId = uuidv4();
+          insertAnnualYearItem.run(itemId, yearId, item.name, item.budgeted_value ?? 0, item.classification ?? null, item.num_installments ?? 1, item.from_template ? 1 : 0, item.position ?? 0);
+
+          for (const inst of (item.installments || [])) {
+            const instId = uuidv4();
+            insertAnnualYearInst.run(instId, itemId, inst.installment_number, inst.month, inst.day);
+
+            if (inst.payment) {
+              const cycleId = cycleYMToId[`${inst.payment.cycle_year}-${inst.payment.cycle_month}`];
+              if (cycleId) {
+                insertAnnualPayment.run(uuidv4(), instId, cycleId, inst.payment.real_value ?? 0, inst.payment.paid ? 1 : 0);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Annual expense contributing accounts (re-linked by account name)
+    const insertAEAccount = db.prepare('INSERT OR IGNORE INTO annual_expense_accounts (dossier_id, account_id) VALUES (?, ?)');
+    for (const name of (data.annual_expense_accounts || [])) {
+      const accId = accountNameToId[name];
+      if (accId) insertAEAccount.run(dossierId, accId);
+    }
+
+    // Annual expense contributing distributions (re-linked by template item name)
+    const insertAEDist = db.prepare('INSERT OR IGNORE INTO annual_expense_distributions (dossier_id, distribution_template_id) VALUES (?, ?)');
+    for (const name of (data.annual_expense_distributions || [])) {
+      const distId = templateNameToId[name];
+      if (distId) insertAEDist.run(dossierId, distId);
+    }
   });
 
   doImport();
@@ -248,9 +311,19 @@ router.get('/:id/export', (req, res) => {
     .prepare('SELECT section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
     .all(req.params.id);
 
-  const annualExpenseTemplate = db
-    .prepare('SELECT name, value, day_of_payment, month_of_payment, classification, position FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+  const annualExpenseTemplateRaw = db
+    .prepare('SELECT id, name, value, day_of_payment, month_of_payment, classification, position, num_installments FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
     .all(req.params.id);
+  const annualExpenseTemplate = annualExpenseTemplateRaw.map((ti) => ({
+    name: ti.name,
+    value: ti.value,
+    day_of_payment: ti.day_of_payment,
+    month_of_payment: ti.month_of_payment,
+    classification: ti.classification,
+    position: ti.position,
+    num_installments: ti.num_installments ?? 1,
+    installments: db.prepare('SELECT installment_number, month, day FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number').all(ti.id),
+  }));
 
   const workbenchSnapshots = db
     .prepare('SELECT name, data, created_at, updated_at FROM workbench_snapshots WHERE dossier_id = ? ORDER BY created_at')
@@ -321,10 +394,54 @@ router.get('/:id/export', (req, res) => {
     )
     .all(req.params.id);
 
+  // Annual expense years
+  const annualYearsRaw = db
+    .prepare('SELECT * FROM annual_expense_years WHERE dossier_id = ? ORDER BY year')
+    .all(req.params.id);
+
+  const annualExpenseYears = annualYearsRaw.map((ay) => {
+    const yearItems = db
+      .prepare('SELECT * FROM annual_expense_year_items WHERE year_id = ? ORDER BY position')
+      .all(ay.id);
+
+    return {
+      year: ay.year,
+      carryover: ay.carryover,
+      items: yearItems.map((item) => {
+        const insts = db
+          .prepare('SELECT ayii.*, p.id as pay_id, p.real_value as pay_real, p.paid as pay_paid, ec.year as cy, ec.month as cm FROM annual_expense_year_installments ayii LEFT JOIN annual_expense_payments p ON p.installment_id = ayii.id LEFT JOIN expense_cycles ec ON ec.id = p.cycle_id WHERE ayii.year_item_id = ? ORDER BY ayii.installment_number')
+          .all(item.id);
+        return {
+          name: item.name,
+          budgeted_value: item.budgeted_value,
+          classification: item.classification,
+          num_installments: item.num_installments,
+          from_template: item.from_template,
+          position: item.position,
+          installments: insts.map((inst) => ({
+            installment_number: inst.installment_number,
+            month: inst.month,
+            day: inst.day,
+            payment: inst.pay_id ? { real_value: inst.pay_real, paid: !!inst.pay_paid, cycle_year: inst.cy, cycle_month: inst.cm } : null,
+          })),
+        };
+      }),
+    };
+  });
+
+  // Annual expense contributing accounts/distributions
+  const aeAccountNames = db
+    .prepare('SELECT a.name FROM annual_expense_accounts aea JOIN accounts a ON a.id = aea.account_id WHERE aea.dossier_id = ?')
+    .all(req.params.id).map((r) => r.name);
+
+  const aeDistributionNames = db
+    .prepare('SELECT eti.name FROM annual_expense_distributions aed JOIN expense_template_items eti ON eti.id = aed.distribution_template_id WHERE aed.dossier_id = ?')
+    .all(req.params.id).map((r) => r.name);
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 6,
+    version: 7,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
@@ -359,6 +476,9 @@ router.get('/:id/export', (req, res) => {
     goals: goalsExport,
     emergency_fund_accounts: efAccountNames,
     emergency_fund_extra_values: efExtraValues,
+    annual_expense_years: annualExpenseYears,
+    annual_expense_accounts: aeAccountNames,
+    annual_expense_distributions: aeDistributionNames,
   });
 });
 
@@ -424,5 +544,7 @@ router.use('/:id', expensesRouter);
 router.use('/:id', goalsRouter);
 // Emergency fund sub-router
 router.use('/:id', emergencyFundRouter);
+// Annual expenses sub-router
+router.use('/:id', annualExpensesRouter);
 
 module.exports = router;

@@ -497,6 +497,15 @@ export default function CycleEditor() {
         <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add {activeTab === 'expenses' ? 'expense' : 'distribution'}
       </button>
 
+      {/* Annual payments section */}
+      {cycle.annual_payments && cycle.annual_payments.length > 0 && (
+        <AnnualPaymentsSection
+          payments={cycle.annual_payments}
+          dossierId={dossierId}
+          onUpdated={load}
+        />
+      )}
+
       {showAddModal && (
         <AddCycleItemModal
           section={activeTab === 'expenses' ? 'expense' : 'distribution'}
@@ -1065,6 +1074,95 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+const ANNUAL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function AnnualPaymentsSection({ payments, dossierId, onUpdated }) {
+  const [localPayments, setLocalPayments] = useState(payments);
+  const [editingValues, setEditingValues] = useState({});
+
+  useEffect(() => { setLocalPayments(payments); }, [payments]);
+
+  async function handleTogglePaid(p) {
+    try {
+      const updated = await api.updateAnnualPayment(dossierId, p.id, { paid: !p.paid });
+      setLocalPayments((prev) => prev.map((x) => x.id === updated.id ? { ...x, ...updated } : x));
+      onUpdated();
+    } catch (e) { /* ignore */ }
+  }
+
+  async function handleUpdateRealValue(p, newVal) {
+    const v = parseFloat(newVal);
+    if (isNaN(v) || v < 0) return;
+    try {
+      await api.updateAnnualPayment(dossierId, p.id, { real_value: v });
+      setLocalPayments((prev) => prev.map((x) => x.id === p.id ? { ...x, real_value: v } : x));
+    } catch (e) { /* ignore */ }
+  }
+
+  return (
+    <div style={{ marginTop: '1.5rem' }}>
+      <h3 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
+        Annual Expenses
+      </h3>
+      <div className="card" style={{ padding: '0.75rem' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+          <thead>
+            <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
+              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Expense</th>
+              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Install.</th>
+              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Date</th>
+              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Expected</th>
+              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Real</th>
+              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {localPayments.map((p) => {
+              const expected = p.budgeted_value / (p.num_installments || 1);
+              return (
+                <tr key={p.id} style={{ borderTop: '1px solid var(--color-border)' }}>
+                  <td style={{ padding: '0.4rem 0.5rem' }}>
+                    {p.name}
+                    <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 'var(--radius-full)', background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}>
+                      Annual
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
+                    {p.installment_number}/{p.num_installments}
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+                    {ANNUAL_MONTHS[p.month - 1]} {p.day}
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-muted)' }}>
+                    {fmt(expected)}
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>
+                    <input
+                      type="number"
+                      value={editingValues[p.id] !== undefined ? editingValues[p.id] : String(p.real_value ?? '')}
+                      onChange={(e) => setEditingValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      onBlur={(e) => {
+                        handleUpdateRealValue(p, e.target.value);
+                        setEditingValues((prev) => { const next = { ...prev }; delete next[p.id]; return next; });
+                      }}
+                      step="0.01"
+                      min="0"
+                      style={{ width: '5rem', fontSize: '0.8rem', textAlign: 'right' }}
+                    />
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem' }}>
+                    <Checkbox checked={!!p.paid} onChange={() => handleTogglePaid(p)} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
