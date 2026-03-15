@@ -1791,9 +1791,12 @@ tr:hover td {
     font-weight: 600;
     font-size: 14px;
     background: var(--bg-table-group-header);
-    border-bottom: 1px solid var(--border-default);
+    border-bottom: none;
     cursor: pointer;
     justify-content: space-between;
+  }
+  .mobile-cards tr.mobile-expanded td.mobile-card-title {
+    border-bottom: 1px solid var(--border-default);
   }
   .mobile-cards td.mobile-card-title::before { display: none; }
 
