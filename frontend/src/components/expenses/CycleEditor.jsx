@@ -478,11 +478,15 @@ export default function CycleEditor() {
       {activeTab === 'expenses' ? (
         <ExpensesList
           expenses={expenses}
+          annualPayments={cycle.annual_payments ?? []}
+          cycleStartDay={cycle.cycle_start_day ?? 25}
           paperlessActive={paperlessActive}
           onTogglePaid={handleTogglePaid}
           onUpdateSpent={handleUpdateSpent}
           onDelete={handleDeleteItem}
           onEdit={handleEditItem}
+          dossierId={dossierId}
+          onAnnualPaymentUpdated={load}
         />
       ) : (
         <DistributionsList
@@ -496,15 +500,6 @@ export default function CycleEditor() {
       <button className="btn-primary" onClick={() => setShowAddModal(true)} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
         <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add {activeTab === 'expenses' ? 'expense' : 'distribution'}
       </button>
-
-      {/* Annual payments section */}
-      {cycle.annual_payments && cycle.annual_payments.length > 0 && (
-        <AnnualPaymentsSection
-          payments={cycle.annual_payments}
-          dossierId={dossierId}
-          onUpdated={load}
-        />
-      )}
 
       {showAddModal && (
         <AddCycleItemModal
@@ -644,12 +639,13 @@ function SummaryRow({ label, value, highlight, bold }) {
   );
 }
 
-function ExpensesList({ expenses, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit }) {
+function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated }) {
   const [spentDrafts, setSpentDrafts] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [editDay, setEditDay] = useState('');
   const [editTagId, setEditTagId] = useState('');
+  const [annualRealDrafts, setAnnualRealDrafts] = useState({});
 
   function startEdit(item) {
     setEditingId(item.id);
@@ -670,13 +666,106 @@ function ExpensesList({ expenses, paperlessActive, onTogglePaid, onUpdateSpent, 
     setEditingId(null);
   }
 
-  if (expenses.length === 0) {
+  async function handleAnnualTogglePaid(p) {
+    try {
+      await api.updateAnnualPayment(dossierId, p.id, { paid: !p.paid });
+      onAnnualPaymentUpdated();
+    } catch (e) { /* ignore */ }
+  }
+
+  async function handleAnnualRealValueBlur(p, val) {
+    const v = parseFloat(val);
+    if (!isNaN(v) && v >= 0) {
+      try {
+        await api.updateAnnualPayment(dossierId, p.id, { real_value: v });
+        onAnnualPaymentUpdated();
+      } catch (e) { /* ignore */ }
+    }
+    setAnnualRealDrafts((prev) => { const n = { ...prev }; delete n[p.id]; return n; });
+  }
+
+  // Merge annual payments into the sorted expenses list
+  // Tag annual items so we can render them differently
+  const annualItems = annualPayments.map((p) => ({ ...p, _annual: true }));
+
+  // Re-sort fixed + annual together by the same cycle-day ordering
+  const fixedExpenses = expenses.filter((e) => e.type === 'Fixed');
+  const budgetExpenses = expenses.filter((e) => e.type === 'Budget');
+
+  const fixedAndAnnual = [...fixedExpenses, ...annualItems].sort((a, b) => {
+    const aDay = a._annual ? (a.day ?? 0) : (a.day_of_payment ?? 0);
+    const bDay = b._annual ? (b.day ?? 0) : (b.day_of_payment ?? 0);
+    const aLate = aDay < cycleStartDay ? 1 : 0;
+    const bLate = bDay < cycleStartDay ? 1 : 0;
+    if (aLate !== bLate) return aLate - bLate;
+    return aDay - bDay;
+  });
+
+  const allItems = [...fixedAndAnnual, ...budgetExpenses];
+
+  if (allItems.length === 0) {
     return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>No expenses yet.</p>;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      {expenses.map((item) => {
+      {allItems.map((item) => {
+        // ── Annual payment row ──
+        if (item._annual) {
+          const p = item;
+          const typeLabel = p.num_installments > 1
+            ? `Annual ${p.installment_number}/${p.num_installments}`
+            : 'Annual';
+          const realDraft = annualRealDrafts[p.id];
+          const displayValue = realDraft !== undefined ? realDraft : String(p.real_value ?? '');
+          return (
+            <div
+              key={`annual-${p.id}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.6rem 0.75rem',
+                background: 'var(--color-surface)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--color-border)',
+                flexWrap: 'wrap',
+                opacity: p.paid ? 0.6 : 1,
+              }}
+            >
+              <Checkbox
+                checked={!!p.paid}
+                onChange={() => handleAnnualTogglePaid(p)}
+                title={p.paid ? 'Mark as unpaid' : 'Mark as paid'}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontWeight: 500, textDecoration: p.paid ? 'line-through' : 'none' }}>
+                  {p.name}
+                </span>
+                {p.day != null && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                    day {p.day}
+                  </span>
+                )}
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                  {typeLabel}
+                </span>
+              </div>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={displayValue}
+                onChange={(e) => setAnnualRealDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                onBlur={(e) => handleAnnualRealValueBlur(p, e.target.value)}
+                style={{ width: '5rem', textAlign: 'right', fontSize: '0.875rem' }}
+                title="Real value paid"
+              />
+            </div>
+          );
+        }
+
+        // ── Regular expense row ──
         const isEditing = editingId === item.id;
         return (
           <div
@@ -1079,91 +1168,3 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
   );
 }
 
-const ANNUAL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function AnnualPaymentsSection({ payments, dossierId, onUpdated }) {
-  const [localPayments, setLocalPayments] = useState(payments);
-  const [editingValues, setEditingValues] = useState({});
-
-  useEffect(() => { setLocalPayments(payments); }, [payments]);
-
-  async function handleTogglePaid(p) {
-    try {
-      const updated = await api.updateAnnualPayment(dossierId, p.id, { paid: !p.paid });
-      setLocalPayments((prev) => prev.map((x) => x.id === updated.id ? { ...x, ...updated } : x));
-      onUpdated();
-    } catch (e) { /* ignore */ }
-  }
-
-  async function handleUpdateRealValue(p, newVal) {
-    const v = parseFloat(newVal);
-    if (isNaN(v) || v < 0) return;
-    try {
-      await api.updateAnnualPayment(dossierId, p.id, { real_value: v });
-      setLocalPayments((prev) => prev.map((x) => x.id === p.id ? { ...x, real_value: v } : x));
-    } catch (e) { /* ignore */ }
-  }
-
-  return (
-    <div style={{ marginTop: '1.5rem' }}>
-      <h3 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
-        Annual Expenses
-      </h3>
-      <div className="card" style={{ padding: '0.75rem' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-          <thead>
-            <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
-              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Expense</th>
-              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Install.</th>
-              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Date</th>
-              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Expected</th>
-              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Real</th>
-              <th style={{ padding: '0.25rem 0.5rem', fontWeight: 500 }}>Paid</th>
-            </tr>
-          </thead>
-          <tbody>
-            {localPayments.map((p) => {
-              const expected = p.budgeted_value / (p.num_installments || 1);
-              return (
-                <tr key={p.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '0.4rem 0.5rem' }}>
-                    {p.name}
-                    <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 'var(--radius-full)', background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}>
-                      Annual
-                    </span>
-                  </td>
-                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
-                    {p.installment_number}/{p.num_installments}
-                  </td>
-                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
-                    {ANNUAL_MONTHS[p.month - 1]} {p.day}
-                  </td>
-                  <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-muted)' }}>
-                    {fmt(expected)}
-                  </td>
-                  <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>
-                    <input
-                      type="number"
-                      value={editingValues[p.id] !== undefined ? editingValues[p.id] : String(p.real_value ?? '')}
-                      onChange={(e) => setEditingValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                      onBlur={(e) => {
-                        handleUpdateRealValue(p, e.target.value);
-                        setEditingValues((prev) => { const next = { ...prev }; delete next[p.id]; return next; });
-                      }}
-                      step="0.01"
-                      min="0"
-                      style={{ width: '5rem', fontSize: '0.8rem', textAlign: 'right' }}
-                    />
-                  </td>
-                  <td style={{ padding: '0.4rem 0.5rem' }}>
-                    <Checkbox checked={!!p.paid} onChange={() => handleTogglePaid(p)} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
