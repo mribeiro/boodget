@@ -10,7 +10,7 @@ Key concepts:
 - **Dossier**: A named container for a set of accounts, monthly snapshots, and expense cycles. Owned by one user, shareable with others.
 - **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier.
 - **Month**: A monthly snapshot capturing the value of all accounts at a point in time.
-- **Expense Cycle**: A monthly budget/expense tracking period. Has a salary, previous balance, and a list of expense/distribution items. Cycles are independent — multiple can be open at the same time; the only uniqueness constraint is `(dossier_id, year, month)`.
+- **Expense Cycle**: A monthly budget/expense tracking period. Has a salary, previous balance, and a list of expense/distribution items. Cycles are independent — multiple can be open at the same time; the only uniqueness constraint is `(dossier_id, year, month)`. A cycle stored as `(year, month)` runs from `cycle_start_day` of that calendar month to `cycle_start_day − 1` of the following month, and is **named after the month it ends in** — e.g. a cycle stored as `month=3` (March start) with `cycle_start_day=25` runs Mar 25 – Apr 24 and is displayed as "April".
 - **Cycle Item**: An expense or distribution within a cycle. Expenses are either `Fixed` (with a `day_of_payment` and paid checkbox) or `Budget` (with a max and a `spent` amount). Distributions have a `done` checkbox.
 - **Expense Template**: A per-dossier list of template items (expenses and distributions) that are automatically copied into each new cycle when it is created. Payment days are clamped to the last day of the cycle's month at copy time. Each expense entry also carries a `classification` (`must`/`want`). Distribution entries carry `must_amount`, `want_amount`, `save_amount` decomposition fields.
 - **Annual Expense Template**: A per-dossier list of annual expenses (separate from the monthly expense template). Each entry has `name`, `value`, `day_of_payment`, `month_of_payment`, `classification`. Used by the Workbench to compute monthly averages (value / 12).
@@ -54,8 +54,9 @@ capital-tracker/
 │   │   ├── App.jsx           # AuthContext, routing, setup/login gates; navbar shows 7-char git SHA
 │   │   ├── services/api.js   # Fetch-based API client wrapper
 │   │   └── components/
-│   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Workbench / Goals / Emergency Fund / Settings tabs
+│   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Workbench / Goals / Emergency Fund / Settings tabs; uses key={activeTab} on tab wrapper for entrance animation
 │   │       ├── DossierSettingsTab.jsx  # Settings tab: cycle start day, monthly template, annual template, emergency fund settings
+│   │       ├── ConfirmModal.jsx        # Reusable animated confirmation modal (danger/primary variants); replaces all native confirm() dialogs
 │   │       ├── layout/
 │   │       │   ├── AppShell.jsx        # App layout: sidebar + navbar + main content area
 │   │       │   ├── Navbar.jsx          # Top navbar (git SHA, theme, hamburger)
@@ -71,11 +72,17 @@ capital-tracker/
 │   │       │   └── EmergencyFundTab.jsx    # Emergency Fund tab (summary card, account picker, extra values)
 │   │       ├── expenses/
 │   │       │   ├── ExpensesTab.jsx         # Monthly Expenses tab (renders CycleList)
-│   │       │   ├── CycleList.jsx           # List of cycles with placeholder rows
-│   │       │   ├── CycleEditor.jsx         # Single cycle view (items, summary, close/reopen)
+│   │       │   ├── CycleList.jsx           # List of cycles with placeholder rows; OpenCycleModal
+│   │       │   ├── CycleEditor.jsx         # Single cycle view (items, summary, close/reopen, edit period, delete)
 │   │       │   ├── ExpenseTemplate.jsx     # Monthly expense template editor (with classification)
 │   │       │   ├── AnnualExpenseTemplate.jsx # Annual expense template editor
 │   │       │   └── DossierSettings.jsx     # Cycle start day setting
+│   │       ├── ui/
+│   │       │   ├── Checkbox.jsx            # Custom checkbox component (20px, dark-mode-aware, keyboard-accessible; replaces all native <input type="checkbox">)
+│   │       │   ├── Badge.jsx               # Badge component
+│   │       │   ├── Button.jsx              # Button component
+│   │       │   ├── Card.jsx                # Card component
+│   │       │   └── Modal.jsx               # Modal component
 │   │       ├── workbench/
 │   │       │   └── WorkbenchTab.jsx        # Workbench scenario calculator (income, expenses, distributions, summary, snapshots)
 │   │       └── goals/
@@ -358,7 +365,9 @@ DELETE /api/dossiers/:id/workbench-snapshots/:snapshotId
 GET    /api/dossiers/:id/cycles
 POST   /api/dossiers/:id/cycles               { year, month, salary, previous_balance }
 GET    /api/dossiers/:id/cycles/:cycleId
-PATCH  /api/dossiers/:id/cycles/:cycleId      { salary?, previous_balance?, is_closed?, final_real_balance? }
+PATCH  /api/dossiers/:id/cycles/:cycleId      { year?, month?, salary?, previous_balance?, is_closed?, final_real_balance? }
+                                              # year/month change → 409 if another cycle already occupies that period
+DELETE /api/dossiers/:id/cycles/:cycleId      # deletes cycle and all its items
 
 POST   /api/dossiers/:id/cycles/:cycleId/items          { section, name, type?, value, day_of_payment? }
 PATCH  /api/dossiers/:id/cycles/:cycleId/items/:itemId  { value?, day_of_payment?, paid?, spent?, done? }
@@ -450,6 +459,17 @@ The app uses a three-column shell (`AppShell`): a collapsible sidebar on the lef
 - Drag-and-drop reordering uses native HTML5 `draggable` + `onDragStart`/`onDrop` events.
 - The `modalPreset` pattern is used for pre-filling modals: `null` = closed, `{}` = open with defaults, `{ year, month }` = open with those values pre-filled.
 - CSS only styles `input[type='text']`, `input[type='password']`, `input[type='number']`, `select`, `textarea`. Always include an explicit `type` attribute on inputs or they won't pick up the base styles.
+- **ConfirmModal pattern**: all destructive actions use `ConfirmModal` (never `window.confirm()`). Components hold `const [confirmState, setConfirmState] = useState(null)` and render `{confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}`. Trigger via `setConfirmState({ title, message, confirmLabel, danger, onConfirm: async () => { ... } })`.
+- **Custom checkboxes**: use `<Checkbox checked={...} onChange={...} />` from `frontend/src/components/ui/Checkbox.jsx` — never native `<input type="checkbox">`. The component is keyboard-accessible (`role="checkbox"`, `tabIndex={0}`, Space/Enter keys) and dark-mode-aware via CSS variables.
+
+### Animations
+
+Page and component entrance animations are implemented with CSS classes:
+
+- `.page-fade-in` — applied to the outermost div of full pages (LoginPage, DossierList, DossierView, CycleEditor). Triggers `fadeIn` animation (opacity 0→1, 300ms).
+- `.tab-content` — wrapper with `key={activeTab}` in DossierView; forces remount on tab switch to re-trigger the `fadeIn` entrance animation (200ms). **Must use `fadeIn`, not `slideUp`** — `translateY` on a container makes it a CSS containing block for `position: fixed` descendants, which breaks modal stacking.
+- `.glance-card` — Glances cards animate in with `slideUp` (opacity + translateY), staggered via `nth-child` delays (0–200ms).
+- Body scroll is locked while any modal is open via `body:has(.modal-overlay) { overflow: hidden }` — no JS needed.
 
 ### Styling
 
@@ -463,8 +483,8 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 4. **Dossier access**: Only the `creator_id` can share/unshare or delete a dossier. Shared users have full edit rights.
 5. **OIDC users**: When `OIDC_ENABLED=true`, SSO users are auto-created on first login. They have `is_oidc=1` and cannot use local login or change-password.
 6. **Currency**: Stored per-dossier, defaulting to `EUR`. Only `EUR` is used in practice; multi-currency support is out of scope.
-7. **Expense cycles**: Multiple cycles can be open simultaneously. The only uniqueness constraint is `(dossier_id, year, month)` — one cycle per calendar month.
-8. **Cycle start day**: Stored on the dossier (`cycle_start_day`, default 25). A cycle for month M runs from day `cycle_start_day` of M to day `cycle_start_day - 1` of M+1. Use `new Date(year, month - 1, startDay)` / `new Date(year, month, startDay - 1)` for date range computation (JS Date handles month overflow automatically).
+7. **Expense cycles**: Multiple cycles can be open simultaneously. The only uniqueness constraint is `(dossier_id, year, month)` — one cycle per calendar month. Cycles can be deleted (cascade-deletes all `cycle_items`). The stored `(year, month)` is the **start** month; the display name uses the **end** month (see rule 8).
+8. **Cycle start day**: Stored on the dossier (`cycle_start_day`, default 25). A cycle stored as `(year, month)` runs from day `cycle_start_day` of that month to day `cycle_start_day − 1` of the following month. The **display name** uses the end month: `new Date(year, month, startDay - 1)` (JS Date handles overflow). For the date range: start = `new Date(year, month - 1, startDay)`, end = `new Date(year, month, startDay - 1)`. Example: stored as `month=3`, `startDay=25` → runs Mar 25 – Apr 24 → displayed as "April 2025".
 9. **Template → cycle copy**: When a new cycle is created, all template items are copied into `cycle_items`. `day_of_payment` values are clamped to the last day of the cycle's calendar month at copy time (e.g., day 30 becomes day 28 for February).
 10. **Expense sorting**: Fixed expenses sort by day within the cycle: days ≥ `cycle_start_day` first (ascending), then days < `cycle_start_day` (ascending). Budget items always sort last. This applies in both `CycleEditor` and `ExpenseTemplate`.
 11. **Export format version**: The export JSON is `version: 5`. Includes `dossier.cycle_start_day`, `dossier.emergency_fund_months_multiplier`, `dossier.emergency_fund_cycles_to_average`, `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`), `annual_expense_template[]`, `workbench_snapshots[]`, `cycles[]` (each with `items[]`), `goals[]` (each with `account_names[]`, `distribution_names[]`, `cycle_contributions[]`, `historical_contributions[]`), `emergency_fund_accounts[]` (account names), and `emergency_fund_extra_values[]` (`{name, value, position}`). Import accepts versions 1–5. Goals and EF accounts are re-linked by account name on import.
@@ -476,7 +496,7 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 |---|---|---|
 | `SESSION_SECRET` | Yes | Secret for signing session cookies. Change before production use. |
 | `DB_PATH` | No | SQLite file path. Default: `./capital-tracker.db` |
-| `NODE_ENV` | No | Controls navbar tint injected at request time: `production` (default, no tint), `dev` (light teal), `ephemeral` (light rose). Static file serving is enabled whenever `frontend-dist/` exists, regardless of this value. |
+| `NODE_ENV` | No | Controls navbar tint injected at request time: `production` (default, no tint), `dev` (light teal), `ephemeral` (light rose). Static file serving is enabled whenever `frontend-dist/` exists, regardless of this value. When `ephemeral`, the SQLite database is **wiped on every process start** (before `require('./db')`) so the service always boots with a fresh seed. |
 | `SEED_ON_EMPTY` | No | Set to `"true"` to seed baseline data on first startup when the database is empty. Creates one `preview` user and six dossiers: a full-featured "My Finances" dossier, four Glances scenario dossiers ("All Good", "Capital Snapshot Missing", "Red Alerts", "Next Cycle Not Opened"), and a dedicated "Emergency Fund — Underfunded" showcase dossier. All dates are computed relative to today at seed time. Used in preview environments. |
 | `OIDC_ENABLED` | No | Set to `true` to enable OIDC SSO. |
 | `OIDC_ISSUER_URL` | If OIDC | OIDC provider issuer URL. |
