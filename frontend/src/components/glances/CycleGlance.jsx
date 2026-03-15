@@ -2,13 +2,16 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarDays } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function formatEur(value) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + ' €';
+}
+
+// Returns the display name for a cycle stored as (year, month), using the end month.
+function cycleDisplayName(year, month, startDay) {
+  const end = new Date(year, month, startDay - 1);
+  return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
 }
 
 function cycleYearMonth(today, cycleStartDay) {
@@ -45,7 +48,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   // Red: previous cycle not closed
   if (prevCycle && !prevCycle.is_closed && todayDay >= prevCloseWarningDay) {
     return (
-      <GlanceCard title={`Cycle of ${MONTH_NAMES[prev.month - 1]} ${prev.year}`} icon={faCalendarDays} color="red" onClick={onClick}>
+      <GlanceCard title={`Cycle of ${cycleDisplayName(prev.year, prev.month, cycleStartDay)}`} icon={faCalendarDays} color="red" onClick={onClick}>
         <p style={msgStyle}>Previous cycle has not been closed yet</p>
       </GlanceCard>
     );
@@ -54,7 +57,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   // Amber: next cycle not opened
   if (!nextCycle && todayDay >= nextCycleWarningDay) {
     return (
-      <GlanceCard title={`Cycle of ${MONTH_NAMES[next.month - 1]} ${next.year}`} icon={faCalendarDays} color="amber" onClick={onClick}>
+      <GlanceCard title={`Cycle of ${cycleDisplayName(next.year, next.month, cycleStartDay)}`} icon={faCalendarDays} color="amber" onClick={onClick}>
         <p style={msgStyle}>Next cycle has not been opened yet</p>
       </GlanceCard>
     );
@@ -69,7 +72,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
     );
   }
 
-  const title = `Cycle of ${MONTH_NAMES[current.month - 1]} ${current.year}`;
+  const title = `Cycle of ${cycleDisplayName(current.year, current.month, cycleStartDay)}`;
 
   if (!currentCycleDetail) {
     return (

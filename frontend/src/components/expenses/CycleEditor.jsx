@@ -11,8 +11,11 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function cycleLabel(year, month) {
-  return `${MONTH_NAMES[month - 1]} ${year}`;
+// A cycle stored as (year, month) runs to startDay-1 of the following month.
+// The conventional name is the END month.
+function cycleLabel(year, month, startDay) {
+  const end = new Date(year, month, startDay - 1);
+  return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
 }
 
 function fmt(v) {
@@ -227,7 +230,7 @@ export default function CycleEditor() {
           <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
         </button>
         <div style={{ flex: 1 }}>
-          <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month)} Cycle</h1>
+          <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
             {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
           </div>

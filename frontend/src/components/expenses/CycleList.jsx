@@ -9,8 +9,11 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function cycleLabel(year, month) {
-  return `${MONTH_NAMES[month - 1]} ${year}`;
+// A cycle stored as (year, month) runs from startDay of that month to
+// startDay-1 of the following month. The conventional name is the END month.
+function cycleLabel(year, month, startDay) {
+  const end = new Date(year, month, startDay - 1);
+  return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
 }
 
 function cycleDateRange(year, month, startDay) {
@@ -95,7 +98,7 @@ export default function CycleList({ dossierId }) {
                 onClick={() => setModalPreset(next)}
                 style={{ marginBottom: '0.25rem' }}
               >
-                <span className="month-row-name">Open {cycleLabel(next.year, next.month)}</span>
+                <span className="month-row-name">Open {cycleLabel(next.year, next.month, cycleStartDay)}</span>
               </div>
             );
           })()}
@@ -107,7 +110,7 @@ export default function CycleList({ dossierId }) {
               onClick={() => navigate(`/dossiers/${dossierId}/cycles/${cycle.id}`)}
               style={{ cursor: 'pointer', marginBottom: '0.25rem' }}
             >
-              <span className="month-row-name">{cycleLabel(cycle.year, cycle.month)}</span>
+              <span className="month-row-name">{cycleLabel(cycle.year, cycle.month, cycleStartDay)}</span>
               <span
                 className={`badge ${cycle.is_closed ? 'badge-filled' : 'badge-empty'}`}
                 style={{ marginLeft: 'auto' }}
@@ -125,7 +128,7 @@ export default function CycleList({ dossierId }) {
                 className="month-row month-row-placeholder"
                 onClick={() => setModalPreset(prev)}
               >
-                <span className="month-row-name">Open {cycleLabel(prev.year, prev.month)}</span>
+                <span className="month-row-name">Open {cycleLabel(prev.year, prev.month, cycleStartDay)}</span>
               </div>
             );
           })()}
@@ -195,14 +198,17 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
             {error && <div className="alert alert-error">{error}</div>}
             <div style={{ display: 'flex', gap: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
-                <label>Month</label>
+                <label>Cycle</label>
                 <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <option key={m} value={m} disabled={isTaken(year, m)}>
-                      {new Date(year, m - 1).toLocaleString('en-US', { month: 'long' })}
-                      {isTaken(year, m) ? ' (exists)' : ''}
-                    </option>
-                  ))}
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                    const endDate = new Date(year, m, cycleStartDay - 1);
+                    const endLabel = endDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                    return (
+                      <option key={m} value={m} disabled={isTaken(year, m)}>
+                        {endLabel}{isTaken(year, m) ? ' (exists)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div className="form-group" style={{ flex: 1 }}>
