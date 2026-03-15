@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGripVertical, faXmark, faPlus, faBoxArchive } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
+import ConfirmModal from './ConfirmModal';
+import Checkbox from './ui/Checkbox';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
 
@@ -13,6 +15,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
   const [dragOver, setDragOver] = useState(null);
   const dragSrc = useRef(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [confirmState, setConfirmState] = useState(null);
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -84,16 +87,23 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     }
   }
 
-  async function handleArchive(account) {
-    if (!confirm(`Archive account "${account.name}"? It will no longer appear in new months.`)) return;
-    try {
-      await api.deleteAccount(dossierId, account.id);
-      setAccounts((prev) =>
-        prev.map((a) => (a.id === account.id ? { ...a, archived: 1 } : a))
-      );
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleArchive(account) {
+    setConfirmState({
+      title: 'Archive account',
+      message: `Archive account "${account.name}"? It will no longer appear in new months.`,
+      confirmLabel: 'Archive',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteAccount(dossierId, account.id);
+          setAccounts((prev) =>
+            prev.map((a) => (a.id === account.id ? { ...a, archived: 1 } : a))
+          );
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   const active = accounts.filter((a) => !a.archived);
@@ -168,10 +178,9 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="checkbox-label">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={form.is_idle_money}
-                      onChange={(e) => setForm((f) => ({ ...f, is_idle_money: e.target.checked }))}
+                      onChange={() => setForm((f) => ({ ...f, is_idle_money: !f.is_idle_money }))}
                     />
                     Idle money
                   </label>
@@ -285,7 +294,12 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     </>
   );
 
-  if (inline) return <div>{body}</div>;
+  if (inline) return (
+    <div>
+      {body}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+    </div>
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -301,6 +315,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
           <button className="btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

@@ -68,7 +68,7 @@ export default function DossierList() {
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
-    <div>
+    <div className="page-fade-in">
       <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportFile} />
       <div className="page-header">
         <h1>Dossiers</h1>

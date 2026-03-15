@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPencil, faTrash, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
 
 function formatValue(v) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' €';
@@ -60,6 +61,7 @@ export default function ExpenseTemplate({ dossierId }) {
   const [editingItem, setEditingItem] = useState(null);
   const [error, setError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [confirmState, setConfirmState] = useState(null);
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -86,14 +88,21 @@ export default function ExpenseTemplate({ dossierId }) {
     }
   }
 
-  async function handleDelete(item) {
-    if (!confirm(`Delete "${item.name}" from the template?`)) return;
-    try {
-      await api.deleteTemplateItem(dossierId, item.id);
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDelete(item) {
+    setConfirmState({
+      title: 'Delete template item',
+      message: `Delete "${item.name}" from the template?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteTemplateItem(dossierId, item.id);
+          setItems((prev) => prev.filter((i) => i.id !== item.id));
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleClassificationChange(item, classification) {
@@ -298,6 +307,7 @@ export default function ExpenseTemplate({ dossierId }) {
           onClose={() => { setShowAddModal(false); setEditingItem(null); }}
         />
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

@@ -194,6 +194,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Prevent background scroll while any modal is open */
+body:has(.modal-overlay) {
+  overflow: hidden;
+}
+
 /* Type scale utilities */
 .text-xs   { font-size: 11px; font-weight: 400; }
 .text-sm   { font-size: 12px; font-weight: 400; }
@@ -1000,7 +1005,8 @@ textarea {
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: 0;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast),
+              background var(--transition-fast);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -1013,6 +1019,7 @@ textarea {
 
 .tab-btn:hover:not(:disabled):not(.active) {
   color: var(--text-primary);
+  background: var(--bg-table-row-hover);
 }
 
 .tab-btn-icon {
@@ -1122,6 +1129,19 @@ tr:hover td {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Tab content: fade in each time the active tab changes.
+   Using fadeIn (opacity only) instead of slideUp so that no transform
+   is held by fill-mode: both — a persisted transform would make this
+   element the containing block for position:fixed descendants (modals). */
+.tab-content {
+  animation: fadeIn var(--transition-normal) both;
+}
+
+/* Page-level entrance when navigating to a dossier */
+.page-fade-in {
+  animation: fadeIn var(--transition-slow) both;
 }
 
 .modal-header {
@@ -1352,26 +1372,47 @@ tr:hover td {
 }
 
 .checkbox-custom {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
   border: 2px solid var(--border-strong);
   border-radius: var(--radius-xs);
   background: var(--bg-input);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
   flex-shrink: 0;
   user-select: none;
+  vertical-align: middle;
+  line-height: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: transparent;
+  gap: 0.5rem;
+}
+
+.checkbox-custom:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-brand-light), 0 0 0 5px var(--color-brand);
+}
+
+.checkbox-custom:hover:not(.checked) {
+  border-color: var(--color-brand);
 }
 
 .checkbox-custom.checked {
   background: var(--color-success);
   border-color: var(--color-success);
   color: #fff;
-  font-size: 12px;
-  font-weight: 700;
+}
+
+.checkbox-custom__label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 400;
+  white-space: nowrap;
 }
 
 /* ── Progress bar ────────────────────────────────────────── */
@@ -1476,16 +1517,25 @@ tr:hover td {
   padding: var(--space-4);
   min-height: 90px;
   cursor: pointer;
-  transition: box-shadow var(--transition-fast), background var(--transition-fast);
+  transition: box-shadow var(--transition-fast), background var(--transition-fast),
+              transform var(--transition-fast);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  animation: slideUp var(--transition-normal) both;
 }
 
 .glance-card:hover {
   box-shadow: var(--shadow-lg);
   background: var(--bg-card-hover);
+  transform: translateY(-2px);
 }
+
+/* Staggered entrance for glance cards */
+.glances-grid > *:nth-child(2) { animation-delay: 50ms; }
+.glances-grid > *:nth-child(3) { animation-delay: 100ms; }
+.glances-grid > *:nth-child(4) { animation-delay: 150ms; }
+.glances-grid > *:nth-child(5) { animation-delay: 200ms; }
 
 .glance-card-header {
   display: flex;

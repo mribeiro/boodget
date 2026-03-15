@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { api } from '../../services/api';
 import GoalFormModal from './GoalFormModal';
+import ConfirmModal from '../ConfirmModal';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -57,6 +58,7 @@ export default function GoalDetail() {
   const [histError, setHistError] = useState('');
   const [savingHist, setSavingHist] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
 
   useEffect(() => {
     load();
@@ -75,14 +77,21 @@ export default function GoalDetail() {
     }
   }
 
-  async function handleDelete() {
-    if (!confirm(`Delete goal "${goal.name}"? This cannot be undone.`)) return;
-    try {
-      await api.deleteGoal(dossierId, goal.id);
-      navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } });
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDelete() {
+    setConfirmState({
+      title: 'Delete goal',
+      message: `Delete goal "${goal.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteGoal(dossierId, goal.id);
+          navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } });
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleAddHistorical() {
@@ -467,6 +476,7 @@ export default function GoalDetail() {
           onClose={() => setShowEdit(false)}
         />
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

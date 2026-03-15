@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
+import ConfirmModal from './ConfirmModal';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -25,6 +26,7 @@ export default function MonthEditor() {
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [confirmState, setConfirmState] = useState(null);
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -95,27 +97,34 @@ export default function MonthEditor() {
     }
   }
 
-  async function handleReset() {
-    if (!confirm('Reset this month? All values and comments will be cleared.')) return;
-    setError('');
-    setSuccess('');
-    try {
-      await api.resetMonth(dossierId, monthId);
-      const data = await api.getMonth(dossierId, monthId);
-      setMonthData(data);
-      setOverallComment('');
-      const v = {};
-      const c = {};
-      for (const entry of data.entries) {
-        v[entry.id] = '';
-        c[entry.id] = '';
-      }
-      setValues(v);
-      setComments(c);
-      setSuccess('Month has been reset');
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleReset() {
+    setConfirmState({
+      title: 'Reset month',
+      message: 'Reset this month? All values and comments will be cleared.',
+      confirmLabel: 'Reset',
+      danger: true,
+      onConfirm: async () => {
+        setError('');
+        setSuccess('');
+        try {
+          await api.resetMonth(dossierId, monthId);
+          const data = await api.getMonth(dossierId, monthId);
+          setMonthData(data);
+          setOverallComment('');
+          const v = {};
+          const c = {};
+          for (const entry of data.entries) {
+            v[entry.id] = '';
+            c[entry.id] = '';
+          }
+          setValues(v);
+          setComments(c);
+          setSuccess('Month has been reset');
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   function focusValueAt(index) {
@@ -313,6 +322,7 @@ export default function MonthEditor() {
           )}
         </div>
       </form>
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }
