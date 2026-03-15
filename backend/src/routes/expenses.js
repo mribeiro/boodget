@@ -574,7 +574,12 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
     .prepare("SELECT * FROM cycle_items WHERE cycle_id = ? AND section = 'expense' AND type = 'Fixed' AND paperless_tag_id IS NOT NULL")
     .all(req.params.cycleId);
 
-  if (linkedItems.length === 0) return res.json({ results: [], warnings: [] });
+  const prefix = `[paperless] dossier=${req.params.id} cycle=${req.params.cycleId}`;
+
+  if (linkedItems.length === 0) {
+    console.log(`${prefix} no linked items — skipping fetch`);
+    return res.json({ results: [], warnings: [] });
+  }
 
   const startDay = dossier.cycle_start_day ?? 25;
   const { year, month } = cycle;
@@ -586,6 +591,8 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
   const query = JSON.stringify(['AND', [[dossier.paperless_date_field_id, 'gte', startDate], [dossier.paperless_date_field_id, 'lte', endDate]]]);
   const url = `${dossier.paperless_url}/api/documents/?tags__id__in=${tagIds}&custom_field_query=${encodeURIComponent(query)}&page_size=100`;
 
+  console.log(`${prefix} fetching — url=${url} tags=[${tagIds}] range=${startDate}..${endDate} linked_items=${linkedItems.length}`);
+
   let paperlessData;
   try {
     const controller = new AbortController();
@@ -595,11 +602,15 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
       signal: controller.signal,
     });
     clearTimeout(timeout);
+    console.log(`${prefix} response status=${resp.status}`);
     if (!resp.ok) {
+      console.error(`${prefix} error — Paperless returned HTTP ${resp.status}`);
       return res.status(502).json({ error: `Paperless-ngx returned an error: ${resp.status}` });
     }
     paperlessData = await resp.json();
+    console.log(`${prefix} received ${paperlessData.results?.length ?? 0} document(s)`);
   } catch (err) {
+    console.error(`${prefix} connection failed — ${err.message}`);
     return res.status(502).json({ error: 'Could not connect to Paperless-ngx' });
   }
 
@@ -612,25 +623,36 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
     const docTags = doc.tags ?? [];
     const matchingItems = linkedItems.filter((i) => docTags.includes(i.paperless_tag_id));
 
+    if (matchingItems.length === 0) {
+      console.log(`${prefix} doc id=${doc.id} title="${doc.title}" tags=[${docTags.join(',')}] — no matching cycle items`);
+      continue;
+    }
+
     for (const ci of matchingItems) {
       const cfValues = doc.custom_field_values ?? [];
       const amountEntry = cfValues.find((f) => f.field === dossier.paperless_amount_field_id);
       const dateEntry = cfValues.find((f) => f.field === dossier.paperless_date_field_id);
 
       if (!amountEntry) {
-        warnings.push(`Document "${doc.title}" (id ${doc.id}): amount field not found`);
+        const warn = `Document "${doc.title}" (id ${doc.id}): amount field not found`;
+        console.warn(`${prefix} ${warn}`);
+        warnings.push(warn);
         continue;
       }
 
       const rawAmount = String(amountEntry.value ?? '').replace(/^[A-Za-z]*/, '');
       const parsedAmount = parseFloat(rawAmount);
       if (isNaN(parsedAmount)) {
-        warnings.push(`Document "${doc.title}" (id ${doc.id}): could not parse amount "${amountEntry.value}"`);
+        const warn = `Document "${doc.title}" (id ${doc.id}): could not parse amount "${amountEntry.value}"`;
+        console.warn(`${prefix} ${warn}`);
+        warnings.push(warn);
         continue;
       }
 
       const dateStr = dateEntry ? String(dateEntry.value) : null;
       const dayOfPayment = dateStr ? new Date(dateStr).getDate() : null;
+
+      console.log(`${prefix} doc id=${doc.id} title="${doc.title}" matched item="${ci.name}" amount=${parsedAmount} date=${dateStr}`);
 
       if (!byItem[ci.id]) {
         byItem[ci.id] = { item: ci, docs: [] };
@@ -660,6 +682,7 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
     };
   });
 
+  console.log(`${prefix} done — ${results.length} result(s) ${warnings.length} warning(s)`);
   res.json({ results, warnings });
 });
 
