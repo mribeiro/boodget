@@ -4,7 +4,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPencil,
   faChevronDown,
-  faChevronRight,
   faFileExport,
   faTrash,
 } from '@fortawesome/free-solid-svg-icons';
@@ -15,10 +14,17 @@ import AccountManager from './AccountManager';
 import ShareManager from './ShareManager';
 import { api } from '../services/api';
 
-function SettingsCard({ title, description, children, defaultOpen = true }) {
+function SettingsCard({ title, description, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="card card--flat" style={{ marginBottom: 'var(--space-5)' }}>
+    <div
+      className="card card--flat"
+      style={{
+        marginBottom: 'var(--space-5)',
+        paddingBottom: open ? 'var(--space-5)' : 0,
+        transition: 'padding-bottom 0.3s ease',
+      }}
+    >
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
@@ -32,26 +38,42 @@ function SettingsCard({ title, description, children, defaultOpen = true }) {
           cursor: 'pointer',
           paddingBottom: open ? 'var(--space-3)' : 0,
           borderBottom: open ? '1px solid var(--border-default)' : 'none',
-          marginBottom: open ? 'var(--space-4)' : 0,
           textAlign: 'left',
+          transition: 'padding-bottom 0.3s ease',
         }}
       >
         <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{title}</h2>
         <FontAwesomeIcon
-          icon={open ? faChevronDown : faChevronRight}
-          style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0, marginLeft: 8 }}
+          icon={faChevronDown}
+          style={{
+            color: 'var(--text-muted)',
+            fontSize: 12,
+            flexShrink: 0,
+            marginLeft: 8,
+            transition: 'transform 0.3s ease',
+            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+          }}
         />
       </button>
-      {open && (
-        <>
-          {description && (
-            <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 'var(--space-4)' }}>
-              {description}
-            </p>
-          )}
-          {children}
-        </>
-      )}
+      {/* grid-template-rows animates to actual content height — no fixed max-height needed */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateRows: open ? '1fr' : '0fr',
+          transition: 'grid-template-rows 0.3s ease',
+        }}
+      >
+        <div style={{ overflow: 'hidden' }}>
+          <div style={{ paddingTop: 'var(--space-4)' }}>
+            {description && (
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 'var(--space-4)', marginTop: 0 }}>
+                {description}
+              </p>
+            )}
+            {children}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -177,7 +199,6 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
       <SettingsCard
         title="Monthly Expense Template"
         description="Template entries are copied into each new cycle. Changes here do not affect existing cycles. Use the Classification column to set Must/Want for Workbench calculations."
-        defaultOpen={false}
       >
         <ExpenseTemplate dossierId={dossierId} />
       </SettingsCard>
@@ -185,7 +206,6 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
       <SettingsCard
         title="Annual Expense Template"
         description="Annual expenses are used in the Workbench (as monthly averages). They are not copied into cycles."
-        defaultOpen={false}
       >
         <AnnualExpenseTemplate dossierId={dossierId} />
       </SettingsCard>
