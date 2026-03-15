@@ -645,8 +645,6 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
   const [editValue, setEditValue] = useState('');
   const [editDay, setEditDay] = useState('');
   const [editTagId, setEditTagId] = useState('');
-  const [annualRealDrafts, setAnnualRealDrafts] = useState({});
-
   function startEdit(item) {
     setEditingId(item.id);
     setEditValue(String(item.value));
@@ -671,17 +669,6 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
       await api.updateAnnualPayment(dossierId, p.id, { paid: !p.paid });
       onAnnualPaymentUpdated();
     } catch (e) { /* ignore */ }
-  }
-
-  async function handleAnnualRealValueBlur(p, val) {
-    const v = parseFloat(val);
-    if (!isNaN(v) && v >= 0) {
-      try {
-        await api.updateAnnualPayment(dossierId, p.id, { real_value: v });
-        onAnnualPaymentUpdated();
-      } catch (e) { /* ignore */ }
-    }
-    setAnnualRealDrafts((prev) => { const n = { ...prev }; delete n[p.id]; return n; });
   }
 
   // Merge annual payments into the sorted expenses list
@@ -716,8 +703,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
           const typeLabel = p.num_installments > 1
             ? `Annual ${p.installment_number}/${p.num_installments}`
             : 'Annual';
-          const realDraft = annualRealDrafts[p.id];
-          const displayValue = realDraft !== undefined ? realDraft : String(p.real_value ?? '');
+          const expectedValue = (p.budgeted_value ?? 0) / (p.num_installments || 1);
           return (
             <div
               key={`annual-${p.id}`}
@@ -751,16 +737,9 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                   {typeLabel}
                 </span>
               </div>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={displayValue}
-                onChange={(e) => setAnnualRealDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                onBlur={(e) => handleAnnualRealValueBlur(p, e.target.value)}
-                style={{ width: '5rem', textAlign: 'right', fontSize: '0.875rem' }}
-                title="Real value paid"
-              />
+              <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                {fmt(expectedValue)}
+              </span>
             </div>
           );
         }

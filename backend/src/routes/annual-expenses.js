@@ -325,11 +325,30 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
     ).run(newName, newBv, newClass, newNumInst, req.params.itemId);
 
     if (Array.isArray(installments)) {
-      // Delete installments that are being removed (those with payments will cascade-delete payments)
-      db.prepare('DELETE FROM annual_expense_year_installments WHERE year_item_id = ?').run(req.params.itemId);
+      // Update installments in-place by installment_number to preserve IDs and cascade payments.
+      // Only delete installments that are no longer in the new list.
+      const existingInsts = db
+        .prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ?')
+        .all(req.params.itemId);
+      const existingByNum = {};
+      for (const e of existingInsts) existingByNum[e.installment_number] = e;
+
+      const newNumbers = new Set(installments.map((inst, idx) => inst.installment_number ?? (idx + 1)));
+      for (const e of existingInsts) {
+        if (!newNumbers.has(e.installment_number)) {
+          db.prepare('DELETE FROM annual_expense_year_installments WHERE id = ?').run(e.id);
+        }
+      }
+
+      const updateInst = db.prepare('UPDATE annual_expense_year_installments SET month = ?, day = ? WHERE id = ?');
       const insertInst = db.prepare('INSERT INTO annual_expense_year_installments (id, year_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)');
       installments.forEach((inst, idx) => {
-        insertInst.run(uuidv4(), req.params.itemId, inst.installment_number ?? (idx + 1), inst.month, inst.day);
+        const num = inst.installment_number ?? (idx + 1);
+        if (existingByNum[num]) {
+          updateInst.run(inst.month, inst.day, existingByNum[num].id);
+        } else {
+          insertInst.run(uuidv4(), req.params.itemId, num, inst.month, inst.day);
+        }
       });
     }
   });
