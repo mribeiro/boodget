@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark, faFileArrowDown, faSpinner, faFileLines } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
@@ -64,8 +64,13 @@ export default function CycleEditor() {
   const [showEditPeriod, setShowEditPeriod] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
 
+  const [paperlessSettings, setPaperlessSettings] = useState(null);
+  const [fetchingPaperless, setFetchingPaperless] = useState(false);
+  const [paperlessModal, setPaperlessModal] = useState(null);
+
   useEffect(() => {
     load();
+    api.getDossierSettings(dossierId).then(setPaperlessSettings).catch(() => {});
   }, [cycleId]);
 
   async function load() {
@@ -220,6 +225,29 @@ export default function CycleEditor() {
     }
   }
 
+  async function handleFetchPaperless() {
+    setError('');
+    setFetchingPaperless(true);
+    try {
+      const result = await api.fetchPaperlessDocuments(dossierId, cycleId);
+      setPaperlessModal(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setFetchingPaperless(false);
+    }
+  }
+
+  async function handleApplyPaperless(items) {
+    try {
+      await api.applyPaperlessDocuments(dossierId, cycleId, items);
+      setPaperlessModal(null);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleAddItem(data) {
     try {
       await api.createCycleItem(dossierId, cycleId, { ...data, section: activeTab === 'expenses' ? 'expense' : 'distribution' });
@@ -238,6 +266,8 @@ export default function CycleEditor() {
     cycle.cycle_start_day
   );
   const distributions = cycle.items.filter((i) => i.section === 'distribution');
+  const paperlessActive = !!(paperlessSettings?.paperless_url && paperlessSettings?.paperless_token_set && paperlessSettings?.paperless_date_field_id && paperlessSettings?.paperless_amount_field_id);
+  const hasPaperlessItems = expenses.some((e) => e.type === 'Fixed' && e.paperless_tag_id != null);
   const { summary } = cycle;
   const expectedCurrentBalance = summary.total_available - summary.total_expenses_paid - summary.total_distributions_done;
 
@@ -427,9 +457,28 @@ export default function CycleEditor() {
         ))}
       </div>
 
+      {activeTab === 'expenses' && paperlessActive && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+          <button
+            className="btn-secondary"
+            onClick={handleFetchPaperless}
+            disabled={fetchingPaperless}
+            style={{ fontSize: '0.8rem', padding: '0.3rem 0.75rem' }}
+          >
+            <FontAwesomeIcon
+              icon={fetchingPaperless ? faSpinner : faFileArrowDown}
+              spin={fetchingPaperless}
+              style={{ marginRight: '0.4rem' }}
+            />
+            {fetchingPaperless ? 'Fetching…' : 'Fetch from Paperless'}
+          </button>
+        </div>
+      )}
+
       {activeTab === 'expenses' ? (
         <ExpensesList
           expenses={expenses}
+          paperlessActive={paperlessActive}
           onTogglePaid={handleTogglePaid}
           onUpdateSpent={handleUpdateSpent}
           onDelete={handleDeleteItem}
@@ -456,6 +505,14 @@ export default function CycleEditor() {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      {paperlessModal && (
+        <PaperlessFetchModal
+          results={paperlessModal.results}
+          warnings={paperlessModal.warnings}
+          onApply={handleApplyPaperless}
+          onClose={() => setPaperlessModal(null)}
+        />
+      )}
       {showEditPeriod && (
         <EditPeriodModal
           cycle={cycle}
@@ -578,21 +635,28 @@ function SummaryRow({ label, value, highlight, bold }) {
   );
 }
 
-function ExpensesList({ expenses, onTogglePaid, onUpdateSpent, onDelete, onEdit }) {
+function ExpensesList({ expenses, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit }) {
   const [spentDrafts, setSpentDrafts] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [editDay, setEditDay] = useState('');
+  const [editTagId, setEditTagId] = useState('');
 
   function startEdit(item) {
     setEditingId(item.id);
     setEditValue(String(item.value));
     setEditDay(item.day_of_payment != null ? String(item.day_of_payment) : '');
+    setEditTagId(item.paperless_tag_id != null ? String(item.paperless_tag_id) : '');
   }
 
   async function confirmEdit(item) {
     const data = { value: Number(editValue) };
-    if (item.type === 'Fixed') data.day_of_payment = Number(editDay);
+    if (item.type === 'Fixed') {
+      data.day_of_payment = Number(editDay);
+      if (paperlessActive) {
+        data.paperless_tag_id = editTagId.trim() !== '' ? Number(editTagId) : null;
+      }
+    }
     await onEdit(item, data);
     setEditingId(null);
   }
@@ -633,6 +697,13 @@ function ExpensesList({ expenses, onTogglePaid, onUpdateSpent, onDelete, onEdit 
               <span style={{ fontWeight: 500, textDecoration: !isEditing && item.type === 'Fixed' && item.paid ? 'line-through' : 'none' }}>
                 {item.name}
               </span>
+              {paperlessActive && item.type === 'Fixed' && item.paperless_tag_id != null && (
+                <FontAwesomeIcon
+                  icon={faFileLines}
+                  title={`Linked to Paperless tag ${item.paperless_tag_id}`}
+                  style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginLeft: '0.4rem' }}
+                />
+              )}
               {!isEditing && item.type === 'Fixed' && item.day_of_payment != null && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
                   day {item.day_of_payment}
@@ -669,6 +740,20 @@ function ExpensesList({ expenses, onTogglePaid, onUpdateSpent, onDelete, onEdit 
                       value={editDay}
                       onChange={(e) => setEditDay(e.target.value)}
                       style={{ width: '3.5rem' }}
+                    />
+                  </div>
+                )}
+                {item.type === 'Fixed' && paperlessActive && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Tag ID</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editTagId}
+                      onChange={(e) => setEditTagId(e.target.value)}
+                      placeholder="—"
+                      style={{ width: '4rem' }}
+                      title="Paperless tag ID"
                     />
                   </div>
                 )}
@@ -884,6 +969,102 @@ function AddCycleItemModal({ section, onSave, onClose }) {
             <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add'}</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
+  const [applying, setApplying] = useState(false);
+
+  async function handleApply() {
+    setApplying(true);
+    const items = results.map((r) => ({
+      cycle_item_id: r.cycle_item_id,
+      value: r.proposed_value,
+      day_of_payment: r.proposed_day_of_payment,
+    }));
+    await onApply(items);
+    setApplying(false);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Paperless-ngx — Fetched Documents</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <div className="modal-body">
+          {results.length === 0 ? (
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+              No matching documents found in Paperless-ngx for this cycle's date range.
+            </p>
+          ) : (
+            <div className="table-container" style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <thead>
+                  <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
+                    <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>Expense</th>
+                    <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Current</th>
+                    <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Proposed</th>
+                    <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500, textAlign: 'center' }}>Day</th>
+                    <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>Documents</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((r) => {
+                    const valueChanged = r.proposed_value !== r.current_value;
+                    const dayChanged = r.proposed_day_of_payment !== r.current_day_of_payment;
+                    return (
+                      <tr key={r.cycle_item_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <td style={{ padding: '0.5rem 0.5rem', fontWeight: 500 }}>{r.expense_name}</td>
+                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                          {fmt(r.current_value)}
+                        </td>
+                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'right', fontWeight: valueChanged ? 700 : 400, color: valueChanged ? 'var(--color-primary, #2563eb)' : 'inherit' }}>
+                          {fmt(r.proposed_value)}
+                        </td>
+                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'center', color: dayChanged ? 'var(--color-primary, #2563eb)' : 'inherit', fontWeight: dayChanged ? 700 : 400 }}>
+                          {dayChanged ? `${r.current_day_of_payment} → ${r.proposed_day_of_payment}` : r.proposed_day_of_payment}
+                        </td>
+                        <td style={{ padding: '0.5rem 0.5rem' }}>
+                          {r.documents.map((doc) => (
+                            <div key={doc.id} style={{ marginBottom: '0.2rem' }}>
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: 'var(--color-primary, #2563eb)' }}>
+                                <FontAwesomeIcon icon={faFileLines} style={{ marginRight: '0.25rem' }} />
+                                {doc.title}
+                              </a>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.35rem' }}>
+                                ({fmt(doc.value)}, {doc.date})
+                              </span>
+                            </div>
+                          ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#fef3c7', borderRadius: 'var(--radius)', border: '1px solid #f59e0b' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: '0.25rem', color: '#92400e' }}>Warnings</div>
+              {warnings.map((w, i) => (
+                <div key={i} style={{ fontSize: '0.8rem', color: '#92400e' }}>{w}</div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+          {results.length > 0 && (
+            <button type="button" className="btn-primary" onClick={handleApply} disabled={applying}>
+              {applying ? 'Applying…' : 'Apply'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

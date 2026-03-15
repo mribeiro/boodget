@@ -62,7 +62,7 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
@@ -71,6 +71,10 @@ router.get('/settings', (req, res) => {
     previous_cycle_close_warning_day: dossier.previous_cycle_close_warning_day ?? 25,
     emergency_fund_months_multiplier: dossier.emergency_fund_months_multiplier ?? 6,
     emergency_fund_cycles_to_average: dossier.emergency_fund_cycles_to_average ?? 6,
+    paperless_url: dossier.paperless_url ?? null,
+    paperless_token_set: !!dossier.paperless_token,
+    paperless_date_field_id: dossier.paperless_date_field_id ?? null,
+    paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
   });
 });
 
@@ -88,6 +92,10 @@ router.patch('/settings', (req, res) => {
     previous_cycle_close_warning_day,
     emergency_fund_months_multiplier,
     emergency_fund_cycles_to_average,
+    paperless_url,
+    paperless_token,
+    paperless_date_field_id,
+    paperless_amount_field_id,
   } = req.body;
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
@@ -110,6 +118,12 @@ router.patch('/settings', (req, res) => {
     const v = emergency_fund_cycles_to_average;
     if (!Number.isInteger(v) || v < 1) return res.status(400).json({ error: 'emergency_fund_cycles_to_average must be an integer ≥ 1' });
   }
+  if (paperless_date_field_id !== undefined && paperless_date_field_id !== null && !Number.isInteger(paperless_date_field_id)) {
+    return res.status(400).json({ error: 'paperless_date_field_id must be an integer' });
+  }
+  if (paperless_amount_field_id !== undefined && paperless_amount_field_id !== null && !Number.isInteger(paperless_amount_field_id)) {
+    return res.status(400).json({ error: 'paperless_amount_field_id must be an integer' });
+  }
 
   const updates = [];
   const params = [];
@@ -119,6 +133,10 @@ router.patch('/settings', (req, res) => {
   if (previous_cycle_close_warning_day !== undefined) { updates.push('previous_cycle_close_warning_day = ?'); params.push(previous_cycle_close_warning_day); }
   if (emergency_fund_months_multiplier !== undefined) { updates.push('emergency_fund_months_multiplier = ?'); params.push(emergency_fund_months_multiplier); }
   if (emergency_fund_cycles_to_average !== undefined) { updates.push('emergency_fund_cycles_to_average = ?'); params.push(emergency_fund_cycles_to_average); }
+  if (paperless_url !== undefined) { updates.push('paperless_url = ?'); params.push(paperless_url || null); }
+  if (paperless_token !== undefined) { updates.push('paperless_token = ?'); params.push(paperless_token || null); }
+  if (paperless_date_field_id !== undefined) { updates.push('paperless_date_field_id = ?'); params.push(paperless_date_field_id); }
+  if (paperless_amount_field_id !== undefined) { updates.push('paperless_amount_field_id = ?'); params.push(paperless_amount_field_id); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -126,7 +144,7 @@ router.patch('/settings', (req, res) => {
   db.prepare(`UPDATE dossiers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
@@ -135,6 +153,10 @@ router.patch('/settings', (req, res) => {
     previous_cycle_close_warning_day: updated.previous_cycle_close_warning_day ?? 25,
     emergency_fund_months_multiplier: updated.emergency_fund_months_multiplier ?? 6,
     emergency_fund_cycles_to_average: updated.emergency_fund_cycles_to_average ?? 6,
+    paperless_url: updated.paperless_url ?? null,
+    paperless_token_set: !!updated.paperless_token,
+    paperless_date_field_id: updated.paperless_date_field_id ?? null,
+    paperless_amount_field_id: updated.paperless_amount_field_id ?? null,
   });
 });
 
@@ -150,7 +172,7 @@ router.get('/expense-template', (req, res) => {
 // POST /expense-template
 router.post('/expense-template', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { section, name, type, value, day_of_payment } = req.body;
+  const { section, name, type, value, day_of_payment, paperless_tag_id } = req.body;
 
   if (!section || !['expense', 'distribution'].includes(section)) {
     return res.status(400).json({ error: 'section must be "expense" or "distribution"' });
@@ -179,9 +201,11 @@ router.post('/expense-template', (req, res) => {
     .get(req.params.id, section);
   const position = (maxPos.mp ?? -1) + 1;
 
+  const tagId = section === 'expense' && type === 'Fixed' && paperless_tag_id != null ? Number(paperless_tag_id) : null;
+
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, paperless_tag_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     id,
     req.params.id,
@@ -190,7 +214,8 @@ router.post('/expense-template', (req, res) => {
     type || null,
     Number(value),
     section === 'expense' && type === 'Fixed' ? day_of_payment : null,
-    position
+    position,
+    tagId
   );
 
   const item = db.prepare('SELECT * FROM expense_template_items WHERE id = ?').get(id);
@@ -205,7 +230,7 @@ router.put('/expense-template/:itemId', (req, res) => {
     .get(req.params.itemId, req.params.id);
   if (!item) return res.status(404).json({ error: 'Template item not found' });
 
-  const { name, value, day_of_payment, classification, must_amount, want_amount, save_amount } = req.body;
+  const { name, value, day_of_payment, classification, must_amount, want_amount, save_amount, paperless_tag_id } = req.body;
   if (name !== undefined && !name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
   if (value !== undefined && (isNaN(Number(value)) || Number(value) < 0)) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
@@ -221,10 +246,11 @@ router.put('/expense-template/:itemId', (req, res) => {
   const newMustAmount = must_amount !== undefined ? (must_amount !== null ? Number(must_amount) : null) : item.must_amount;
   const newWantAmount = want_amount !== undefined ? (want_amount !== null ? Number(want_amount) : null) : item.want_amount;
   const newSaveAmount = save_amount !== undefined ? (save_amount !== null ? Number(save_amount) : null) : item.save_amount;
+  const newTagId = paperless_tag_id !== undefined ? (paperless_tag_id !== null ? Number(paperless_tag_id) : null) : item.paperless_tag_id;
 
   db.prepare(
-    'UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ?, classification = ?, must_amount = ?, want_amount = ?, save_amount = ? WHERE id = ?'
-  ).run(newName, newValue, newDop, newClassification, newMustAmount, newWantAmount, newSaveAmount, req.params.itemId);
+    'UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ?, classification = ?, must_amount = ?, want_amount = ?, save_amount = ?, paperless_tag_id = ? WHERE id = ?'
+  ).run(newName, newValue, newDop, newClassification, newMustAmount, newWantAmount, newSaveAmount, newTagId, req.params.itemId);
 
   const updated = db.prepare('SELECT * FROM expense_template_items WHERE id = ?').get(req.params.itemId);
   res.json(updated);
@@ -242,9 +268,10 @@ router.post('/expense-template/bulk-replace', (req, res) => {
   const replace = db.transaction(() => {
     db.prepare('DELETE FROM expense_template_items WHERE dossier_id = ? AND section = ?').run(req.params.id, section);
     const insert = db.prepare(
-      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position, paperless_tag_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     items.forEach((item, idx) => {
+      const tagId = section === 'expense' && item.type === 'Fixed' && item.paperless_tag_id != null ? Number(item.paperless_tag_id) : null;
       insert.run(
         uuidv4(),
         req.params.id,
@@ -257,7 +284,8 @@ router.post('/expense-template/bulk-replace', (req, res) => {
         item.must_amount != null ? Number(item.must_amount) : null,
         item.want_amount != null ? Number(item.want_amount) : null,
         item.save_amount != null ? Number(item.save_amount) : null,
-        idx
+        idx,
+        tagId
       );
     });
   });
@@ -317,12 +345,12 @@ router.post('/cycles', (req, res) => {
       .all(req.params.id);
 
     const insertItem = db.prepare(
-      'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position, paperless_tag_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const maxDay = daysInMonth(year, month);
     for (const ti of templateItems) {
       const clampedDay = ti.day_of_payment != null ? Math.min(ti.day_of_payment, maxDay) : null;
-      insertItem.run(uuidv4(), id, ti.id, ti.section, ti.name, ti.type, ti.value, clampedDay, ti.position);
+      insertItem.run(uuidv4(), id, ti.id, ti.section, ti.name, ti.type, ti.value, clampedDay, ti.position, ti.paperless_tag_id ?? null);
     }
   });
 
@@ -410,7 +438,7 @@ router.post('/cycles/:cycleId/items', (req, res) => {
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
-  const { section, name, type, value, day_of_payment } = req.body;
+  const { section, name, type, value, day_of_payment, paperless_tag_id } = req.body;
   if (!section || !['expense', 'distribution'].includes(section)) {
     return res.status(400).json({ error: 'section must be "expense" or "distribution"' });
   }
@@ -438,9 +466,11 @@ router.post('/cycles/:cycleId/items', (req, res) => {
     .get(req.params.cycleId, section);
   const position = (maxPos.mp ?? -1) + 1;
 
+  const tagId = section === 'expense' && type === 'Fixed' && paperless_tag_id != null ? Number(paperless_tag_id) : null;
+
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position, paperless_tag_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     id,
     req.params.cycleId,
@@ -450,7 +480,8 @@ router.post('/cycles/:cycleId/items', (req, res) => {
     type || null,
     Number(value),
     section === 'expense' && type === 'Fixed' ? day_of_payment : null,
-    position
+    position,
+    tagId
   );
 
   const item = db.prepare('SELECT * FROM cycle_items WHERE id = ?').get(id);
@@ -470,7 +501,7 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
     .get(req.params.itemId, req.params.cycleId);
   if (!item) return res.status(404).json({ error: 'Item not found' });
 
-  const { name, value, day_of_payment, paid, spent, done } = req.body;
+  const { name, value, day_of_payment, paid, spent, done, paperless_tag_id } = req.body;
 
   let newValue = item.value;
   if (value !== undefined) {
@@ -495,10 +526,11 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
   const newDop = day_of_payment !== undefined ? day_of_payment : item.day_of_payment;
   const newPaid = paid !== undefined ? (paid ? 1 : 0) : item.paid;
   const newDone = done !== undefined ? (done ? 1 : 0) : item.done;
+  const newTagId = paperless_tag_id !== undefined ? (paperless_tag_id !== null ? Number(paperless_tag_id) : null) : item.paperless_tag_id;
 
   db.prepare(
-    'UPDATE cycle_items SET name = ?, value = ?, day_of_payment = ?, paid = ?, spent = ?, done = ? WHERE id = ?'
-  ).run(newName, newValue, newDop, newPaid, newSpent, newDone, req.params.itemId);
+    'UPDATE cycle_items SET name = ?, value = ?, day_of_payment = ?, paid = ?, spent = ?, done = ?, paperless_tag_id = ? WHERE id = ?'
+  ).run(newName, newValue, newDop, newPaid, newSpent, newDone, newTagId, req.params.itemId);
 
   const updated = db.prepare('SELECT * FROM cycle_items WHERE id = ?').get(req.params.itemId);
   res.json(updated);
@@ -519,6 +551,180 @@ router.delete('/cycles/:cycleId/items/:itemId', (req, res) => {
 
   db.prepare('DELETE FROM cycle_items WHERE id = ?').run(req.params.itemId);
   res.status(204).end();
+});
+
+// GET /cycles/:cycleId/paperless-fetch
+router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+
+  const dossier = db
+    .prepare('SELECT cycle_start_day, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
+    .get(req.params.id);
+
+  if (!dossier.paperless_url || !dossier.paperless_token || !dossier.paperless_date_field_id || !dossier.paperless_amount_field_id) {
+    return res.status(400).json({ error: 'Paperless-ngx integration is not configured' });
+  }
+
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+
+  const linkedItems = db
+    .prepare("SELECT * FROM cycle_items WHERE cycle_id = ? AND section = 'expense' AND type = 'Fixed' AND paperless_tag_id IS NOT NULL")
+    .all(req.params.cycleId);
+
+  const prefix = `[paperless] dossier=${req.params.id} cycle=${req.params.cycleId}`;
+
+  if (linkedItems.length === 0) {
+    console.log(`${prefix} no linked items — skipping fetch`);
+    return res.json({ results: [], warnings: [] });
+  }
+
+  const startDay = dossier.cycle_start_day ?? 25;
+  const { year, month } = cycle;
+  const startDate = `${year}-${String(month).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+  const endDateObj = new Date(year, month, startDay - 1);
+  const endDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+
+  const tagIds = [...new Set(linkedItems.map((i) => i.paperless_tag_id))].join(',');
+  const query = JSON.stringify(['AND', [[dossier.paperless_date_field_id, 'gte', startDate], [dossier.paperless_date_field_id, 'lte', endDate]]]);
+  const url = `${dossier.paperless_url}/api/documents/?tags__id__in=${tagIds}&custom_field_query=${encodeURIComponent(query)}&page_size=100`;
+
+  console.log(`${prefix} fetching — url=${url} tags=[${tagIds}] range=${startDate}..${endDate} linked_items=${linkedItems.length}`);
+
+  let paperlessData;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const resp = await fetch(url, {
+      headers: { Authorization: `Token ${dossier.paperless_token}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    console.log(`${prefix} response status=${resp.status}`);
+    if (!resp.ok) {
+      console.error(`${prefix} error — Paperless returned HTTP ${resp.status}`);
+      return res.status(502).json({ error: `Paperless-ngx returned an error: ${resp.status}` });
+    }
+    paperlessData = await resp.json();
+    console.log(`${prefix} received ${paperlessData.results?.length ?? 0} document(s)`);
+  } catch (err) {
+    console.error(`${prefix} connection failed — ${err.message}`);
+    return res.status(502).json({ error: 'Could not connect to Paperless-ngx' });
+  }
+
+  const documents = paperlessData.results ?? [];
+  const warnings = [];
+
+  // Group matched documents by cycle_item_id
+  const byItem = {};
+  for (const doc of documents) {
+    const docTags = doc.tags ?? [];
+    const matchingItems = linkedItems.filter((i) => docTags.includes(i.paperless_tag_id));
+
+    if (matchingItems.length === 0) {
+      console.log(`${prefix} doc id=${doc.id} title="${doc.title}" tags=[${docTags.join(',')}] — no matching cycle items`);
+      continue;
+    }
+
+    for (const ci of matchingItems) {
+      const cfValues = doc.custom_fields ?? [];
+      const amountEntry = cfValues.find((f) => f.field === dossier.paperless_amount_field_id);
+      const dateEntry = cfValues.find((f) => f.field === dossier.paperless_date_field_id);
+
+      if (!amountEntry) {
+        const warn = `Document "${doc.title}" (id ${doc.id}): amount field not found`;
+        console.warn(`${prefix} ${warn}`);
+        warnings.push(warn);
+        continue;
+      }
+
+      const rawAmount = String(amountEntry.value ?? '').replace(/^[A-Za-z]*/, '');
+      const parsedAmount = parseFloat(rawAmount);
+      if (isNaN(parsedAmount)) {
+        const warn = `Document "${doc.title}" (id ${doc.id}): could not parse amount "${amountEntry.value}"`;
+        console.warn(`${prefix} ${warn}`);
+        warnings.push(warn);
+        continue;
+      }
+
+      const dateStr = dateEntry ? String(dateEntry.value) : null;
+      const dayOfPayment = dateStr ? new Date(dateStr).getDate() : null;
+
+      console.log(`${prefix} doc id=${doc.id} title="${doc.title}" matched item="${ci.name}" amount=${parsedAmount} date=${dateStr}`);
+
+      if (!byItem[ci.id]) {
+        byItem[ci.id] = { item: ci, docs: [] };
+      }
+      byItem[ci.id].docs.push({ doc, amount: parsedAmount, date: dateStr, day: dayOfPayment });
+    }
+  }
+
+  const results = Object.values(byItem).map(({ item, docs }) => {
+    const totalAmount = docs.reduce((s, d) => s + d.amount, 0);
+    const mostRecent = docs.reduce((a, b) => (!a || (b.date && b.date > a.date) ? b : a), null);
+    const proposedDay = mostRecent ? mostRecent.day : item.day_of_payment;
+    return {
+      cycle_item_id: item.id,
+      expense_name: item.name,
+      current_value: item.value,
+      current_day_of_payment: item.day_of_payment,
+      proposed_value: Math.round(totalAmount * 100) / 100,
+      proposed_day_of_payment: proposedDay,
+      documents: docs.map((d) => ({
+        id: d.doc.id,
+        title: d.doc.title,
+        value: d.amount,
+        date: d.date,
+        url: `${dossier.paperless_url}/documents/${d.doc.id}/details`,
+      })),
+    };
+  });
+
+  console.log(`${prefix} done — ${results.length} result(s) ${warnings.length} warning(s)`);
+  res.json({ results, warnings });
+});
+
+// POST /cycles/:cycleId/paperless-apply
+router.post('/cycles/:cycleId/paperless-apply', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items must be a non-empty array' });
+  }
+
+  let updated = 0;
+  const updateStmt = db.prepare('UPDATE cycle_items SET value = ?, day_of_payment = ? WHERE id = ?');
+
+  const applyAll = db.transaction(() => {
+    for (const entry of items) {
+      const { cycle_item_id, value, day_of_payment } = entry;
+      if (!cycle_item_id) continue;
+
+      const ci = db
+        .prepare("SELECT * FROM cycle_items WHERE id = ? AND cycle_id = ? AND section = 'expense' AND type = 'Fixed'")
+        .get(cycle_item_id, req.params.cycleId);
+      if (!ci) continue;
+
+      const v = Number(value);
+      const d = Number(day_of_payment);
+      if (isNaN(v) || v <= 0) continue;
+      if (!Number.isInteger(d) || d < 1 || d > 31) continue;
+
+      updateStmt.run(v, d, cycle_item_id);
+      updated++;
+    }
+  });
+
+  applyAll();
+  res.json({ updated });
 });
 
 // ── Annual Expense Template ──────────────────────────────────────────────────

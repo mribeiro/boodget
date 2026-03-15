@@ -67,8 +67,9 @@ function mkDossier(userId, name, opts = {}) {
        (id, name, currency, cycle_start_day,
         capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day,
         emergency_fund_months_multiplier, emergency_fund_cycles_to_average,
+        paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id,
         creator_id)
-     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, name,
     opts.cycle_start_day ?? CYCLE_START,
@@ -77,6 +78,10 @@ function mkDossier(userId, name, opts = {}) {
     opts.previous_cycle_close_warning_day ?? 25,
     opts.emergency_fund_months_multiplier ?? 6,
     opts.emergency_fund_cycles_to_average ?? 6,
+    opts.paperless_url ?? null,
+    opts.paperless_token ?? null,
+    opts.paperless_date_field_id ?? null,
+    opts.paperless_amount_field_id ?? null,
     userId
   );
   db.prepare('INSERT INTO dossier_access (dossier_id, user_id) VALUES (?, ?)').run(id, userId);
@@ -191,6 +196,11 @@ module.exports = function seed() {
       // EF: multiplier=3, avg≈1467 → target≈4400; Savings=9200 → HEALTHY
       emergency_fund_months_multiplier: 3,
       emergency_fund_cycles_to_average: 6,
+      // Paperless integration (demo — not a real instance)
+      paperless_url: 'https://paperless.example.com',
+      paperless_token: 'preview-token-not-real',
+      paperless_date_field_id: 2,
+      paperless_amount_field_id: 1,
     });
 
     const d0Accs = mkAccounts(d0, [
@@ -206,21 +216,21 @@ module.exports = function seed() {
 
     // Monthly expense template
     const templateItems = [
-      { section: 'expense',      name: 'Rent',           type: 'Fixed',  value: 900,  day_of_payment: 1,    classification: 'must', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'expense',      name: 'Electricity',    type: 'Fixed',  value: 65,   day_of_payment: 10,   classification: 'must', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'expense',      name: 'Internet',       type: 'Fixed',  value: 35,   day_of_payment: 15,   classification: 'must', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'expense',      name: 'Gym',            type: 'Fixed',  value: 45,   day_of_payment: 5,    classification: 'want', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'expense',      name: 'Streaming',      type: 'Fixed',  value: 18,   day_of_payment: 20,   classification: 'want', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'expense',      name: 'Groceries',      type: 'Budget', value: 350,  day_of_payment: null, classification: 'must', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'expense',      name: 'Restaurants',    type: 'Budget', value: 120,  day_of_payment: null, classification: 'want', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'expense',      name: 'Transport',      type: 'Budget', value: 80,   day_of_payment: null, classification: 'must', must_amount: null, want_amount: null, save_amount: null },
-      { section: 'distribution', name: 'Emergency Fund', type: null,     value: 200,  day_of_payment: null, classification: null,   must_amount: 0,    want_amount: 0,    save_amount: 200  },
-      { section: 'distribution', name: 'Investment Top-up', type: null,  value: 300,  day_of_payment: null, classification: null,   must_amount: 0,    want_amount: 0,    save_amount: 300  },
+      { section: 'expense',      name: 'Rent',           type: 'Fixed',  value: 900,  day_of_payment: 1,    classification: 'must', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
+      { section: 'expense',      name: 'Electricity',    type: 'Fixed',  value: 65,   day_of_payment: 10,   classification: 'must', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: 15   },
+      { section: 'expense',      name: 'Internet',       type: 'Fixed',  value: 35,   day_of_payment: 15,   classification: 'must', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: 2    },
+      { section: 'expense',      name: 'Gym',            type: 'Fixed',  value: 45,   day_of_payment: 5,    classification: 'want', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
+      { section: 'expense',      name: 'Streaming',      type: 'Fixed',  value: 18,   day_of_payment: 20,   classification: 'want', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
+      { section: 'expense',      name: 'Groceries',      type: 'Budget', value: 350,  day_of_payment: null, classification: 'must', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
+      { section: 'expense',      name: 'Restaurants',    type: 'Budget', value: 120,  day_of_payment: null, classification: 'want', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
+      { section: 'expense',      name: 'Transport',      type: 'Budget', value: 80,   day_of_payment: null, classification: 'must', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
+      { section: 'distribution', name: 'Emergency Fund', type: null,     value: 200,  day_of_payment: null, classification: null,   must_amount: 0,    want_amount: 0,    save_amount: 200,  paperless_tag_id: null },
+      { section: 'distribution', name: 'Investment Top-up', type: null,  value: 300,  day_of_payment: null, classification: null,   must_amount: 0,    want_amount: 0,    save_amount: 300,  paperless_tag_id: null },
     ];
     const insertTemplate = db.prepare(
       `INSERT INTO expense_template_items
-         (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, paperless_tag_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const templateIds = [];
     for (const item of templateItems) {
@@ -228,7 +238,7 @@ module.exports = function seed() {
       templateIds.push(itemId);
       insertTemplate.run(
         itemId, d0, item.section, item.name, item.type, item.value,
-        item.day_of_payment, item.classification, item.must_amount, item.want_amount, item.save_amount
+        item.day_of_payment, item.classification, item.must_amount, item.want_amount, item.save_amount, item.paperless_tag_id
       );
     }
 
