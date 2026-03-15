@@ -354,49 +354,62 @@ export default function CycleEditor() {
       {/* Summary */}
       <div className="card" style={{ padding: '1rem', marginBottom: '1.25rem', background: 'var(--color-surface)' }}>
         <h3 style={{ margin: '0 0 0.9rem 0', fontSize: '0.95rem' }}>Summary</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '9rem repeat(3, minmax(7rem, 1fr))', rowGap: '0.2rem', columnGap: '0.5rem', fontSize: '0.875rem' }}>
-          {/* Expenses header */}
-          <div />
-          {['Total', 'Paid', 'Unpaid'].map((h) => (
-            <div key={h} style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', paddingBottom: '0.1rem' }}>{h}</div>
-          ))}
-          {/* Expenses values */}
-          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', alignSelf: 'center' }}>Expenses</div>
-          <div style={{ fontWeight: 500 }}>{fmt(summary.total_expenses)}</div>
-          <div style={{ fontWeight: 500 }}>{fmt(summary.total_expenses_paid)}</div>
-          <div style={{ fontWeight: 500, color: summary.total_expenses_unpaid > 0 ? 'var(--color-warning, #d97706)' : 'inherit' }}>{fmt(summary.total_expenses_unpaid)}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
+          {/* Expenses */}
+          <div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Expenses</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Total</div>
+                <div style={{ fontWeight: 500 }}>{fmt(summary.total_expenses)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Paid</div>
+                <div style={{ fontWeight: 500 }}>{fmt(summary.total_expenses_paid)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Unpaid</div>
+                <div style={{ fontWeight: 500, color: summary.total_expenses_unpaid > 0 ? 'var(--color-warning, #d97706)' : 'inherit' }}>{fmt(summary.total_expenses_unpaid)}</div>
+              </div>
+            </div>
+          </div>
 
-          {/* Spacer */}
-          <div style={{ gridColumn: '1 / -1', height: '0.6rem' }} />
-
-          {/* Distributions header */}
-          <div />
-          {['Total', 'Done', 'Pending'].map((h) => (
-            <div key={h} style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', paddingBottom: '0.1rem' }}>{h}</div>
-          ))}
-          {/* Distributions values */}
-          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', alignSelf: 'center' }}>Distributions</div>
-          <div style={{ fontWeight: 500 }}>{fmt(summary.total_distributions)}</div>
-          <div style={{ fontWeight: 500 }}>{fmt(summary.total_distributions_done)}</div>
-          <div style={{ fontWeight: 500, color: summary.total_distributions_not_done > 0 ? 'var(--color-warning, #d97706)' : 'inherit' }}>{fmt(summary.total_distributions_not_done)}</div>
+          {/* Distributions */}
+          <div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Distributions</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Total</div>
+                <div style={{ fontWeight: 500 }}>{fmt(summary.total_distributions)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Done</div>
+                <div style={{ fontWeight: 500 }}>{fmt(summary.total_distributions_done)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Pending</div>
+                <div style={{ fontWeight: 500, color: summary.total_distributions_not_done > 0 ? 'var(--color-warning, #d97706)' : 'inherit' }}>{fmt(summary.total_distributions_not_done)}</div>
+              </div>
+            </div>
+          </div>
 
           {/* Closing row (only when closed) */}
           {!!cycle.is_closed && (
-            <>
-              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--color-border)', margin: '0.5rem 0 0.4rem' }} />
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', alignSelf: 'center' }}>Closing</div>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', paddingBottom: '0.1rem' }}>Final real balance</div>
-                <div style={{ fontWeight: 600 }}>{fmt(summary.final_real_balance)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', paddingBottom: '0.1rem' }}>Difference</div>
-                <div style={{ fontWeight: 600, color: summary.balance_difference > 0 ? 'var(--color-success)' : summary.balance_difference < 0 ? 'var(--color-danger)' : 'inherit' }}>
-                  {fmt(summary.balance_difference)}
+            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Closing</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Final real balance</div>
+                  <div style={{ fontWeight: 600 }}>{fmt(summary.final_real_balance)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Difference</div>
+                  <div style={{ fontWeight: 600, color: summary.balance_difference > 0 ? 'var(--color-success)' : summary.balance_difference < 0 ? 'var(--color-danger)' : 'inherit' }}>
+                    {fmt(summary.balance_difference)}
+                  </div>
                 </div>
               </div>
-              <div />
-            </>
+            </div>
           )}
         </div>
       </div>
