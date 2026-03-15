@@ -98,7 +98,7 @@ export default function DossierView() {
   if (!dossier) return <div className="loading">Loading...</div>;
 
   return (
-    <div>
+    <div className="page-fade-in">
       {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
       <div className="page-header">
@@ -136,6 +136,7 @@ export default function DossierView() {
         ))}
       </div>
 
+      <div key={activeTab} className="tab-content">
       {activeTab === 'capital' && (
         <div>
           <CapitalChart months={months} />
@@ -282,6 +283,7 @@ export default function DossierView() {
       {activeTab === 'settings' && (
         <DossierSettingsTab dossierId={id} dossier={dossier} />
       )}
+      </div>
 
       {showAddMonth && (
         <AddMonthModal
