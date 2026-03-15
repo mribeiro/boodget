@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import Checkbox from '../ui/Checkbox';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -189,8 +190,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     {distributions.map((d) => (
                       <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 'normal' }}>
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={selectedDistIds.includes(d.id)}
                           onChange={() => toggleDist(d.id)}
                         />
@@ -213,8 +213,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                   {accounts.map((a) => (
                     <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 'normal' }}>
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedAccountIds.includes(a.id)}
                         onChange={() => toggleAccount(a.id)}
                       />

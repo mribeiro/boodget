@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faTriangleExclamation, faListCheck, faPlus, faPencil, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
+import Checkbox from '../ui/Checkbox';
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -324,11 +325,9 @@ export default function EmergencyFundTab({ dossierId }) {
                     {accounts.map((a) => (
                       <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => togglePicker(a.id)}>
                         <td>
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={pickerSelection.includes(a.id)}
-                            onChange={() => togglePicker(a.id)}
-                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => { e.stopPropagation(); togglePicker(a.id); }}
                           />
                         </td>
                         <td style={{ color: 'var(--text-muted)' }}>{a.group_name}</td>

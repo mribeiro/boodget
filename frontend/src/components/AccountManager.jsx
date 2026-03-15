@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGripVertical, faXmark, faPlus, faBoxArchive } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import Checkbox from './ui/Checkbox';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
 
@@ -177,10 +178,9 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="checkbox-label">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={form.is_idle_money}
-                      onChange={(e) => setForm((f) => ({ ...f, is_idle_money: e.target.checked }))}
+                      onChange={() => setForm((f) => ({ ...f, is_idle_money: !f.is_idle_money }))}
                     />
                     Idle money
                   </label>

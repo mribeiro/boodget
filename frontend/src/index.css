@@ -1372,26 +1372,47 @@ tr:hover td {
 }
 
 .checkbox-custom {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
   border: 2px solid var(--border-strong);
   border-radius: var(--radius-xs);
   background: var(--bg-input);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
   flex-shrink: 0;
   user-select: none;
+  vertical-align: middle;
+  line-height: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: transparent;
+  gap: 0.5rem;
+}
+
+.checkbox-custom:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-brand-light), 0 0 0 5px var(--color-brand);
+}
+
+.checkbox-custom:hover:not(.checked) {
+  border-color: var(--color-brand);
 }
 
 .checkbox-custom.checked {
   background: var(--color-success);
   border-color: var(--color-success);
   color: #fff;
-  font-size: 12px;
-  font-weight: 700;
+}
+
+.checkbox-custom__label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 400;
+  white-space: nowrap;
 }
 
 /* ── Progress bar ────────────────────────────────────────── */

@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
+import Checkbox from '../ui/Checkbox';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -473,12 +474,10 @@ function ExpensesList({ expenses, onTogglePaid, onUpdateSpent, onDelete, onEdit 
           >
             {/* Paid toggle for Fixed */}
             {item.type === 'Fixed' && !isEditing && (
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={!!item.paid}
                 onChange={() => onTogglePaid(item)}
                 title={item.paid ? 'Mark as unpaid' : 'Mark as paid'}
-                style={{ cursor: 'pointer', width: '1rem', height: '1rem', flexShrink: 0 }}
               />
             )}
 
@@ -617,12 +616,10 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
             }}
           >
             {!isEditing && (
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={!!item.done}
                 onChange={() => onToggleDone(item)}
                 title={item.done ? 'Mark as not done' : 'Mark as done'}
-                style={{ cursor: 'pointer', width: '1rem', height: '1rem', flexShrink: 0 }}
               />
             )}
             <span style={{ flex: 1, fontWeight: 500, textDecoration: !isEditing && item.done ? 'line-through' : 'none' }}>
