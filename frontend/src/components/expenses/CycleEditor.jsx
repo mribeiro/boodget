@@ -457,7 +457,7 @@ export default function CycleEditor() {
         ))}
       </div>
 
-      {activeTab === 'expenses' && paperlessActive && hasPaperlessItems && (
+      {activeTab === 'expenses' && paperlessActive && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
           <button
             className="btn-secondary"
@@ -640,16 +640,23 @@ function ExpensesList({ expenses, paperlessActive, onTogglePaid, onUpdateSpent, 
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [editDay, setEditDay] = useState('');
+  const [editTagId, setEditTagId] = useState('');
 
   function startEdit(item) {
     setEditingId(item.id);
     setEditValue(String(item.value));
     setEditDay(item.day_of_payment != null ? String(item.day_of_payment) : '');
+    setEditTagId(item.paperless_tag_id != null ? String(item.paperless_tag_id) : '');
   }
 
   async function confirmEdit(item) {
     const data = { value: Number(editValue) };
-    if (item.type === 'Fixed') data.day_of_payment = Number(editDay);
+    if (item.type === 'Fixed') {
+      data.day_of_payment = Number(editDay);
+      if (paperlessActive) {
+        data.paperless_tag_id = editTagId.trim() !== '' ? Number(editTagId) : null;
+      }
+    }
     await onEdit(item, data);
     setEditingId(null);
   }
@@ -733,6 +740,20 @@ function ExpensesList({ expenses, paperlessActive, onTogglePaid, onUpdateSpent, 
                       value={editDay}
                       onChange={(e) => setEditDay(e.target.value)}
                       style={{ width: '3.5rem' }}
+                    />
+                  </div>
+                )}
+                {item.type === 'Fixed' && paperlessActive && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Tag ID</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editTagId}
+                      onChange={(e) => setEditTagId(e.target.value)}
+                      placeholder="—"
+                      style={{ width: '4rem' }}
+                      title="Paperless tag ID"
                     />
                   </div>
                 )}
