@@ -1,3 +1,5 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCalendarDays } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 
 const MONTH_NAMES = [
@@ -11,11 +13,11 @@ function formatEur(value) {
 
 function cycleYearMonth(today, cycleStartDay) {
   const d = today.getDate();
-  if (d < cycleStartDay) {
+  if (d >= cycleStartDay) {
     return { year: today.getFullYear(), month: today.getMonth() + 1 };
   }
-  const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  return { year: next.getFullYear(), month: next.getMonth() + 1 };
+  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
 }
 
 function prevYearMonth(year, month) {
@@ -43,7 +45,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   // Red: previous cycle not closed
   if (prevCycle && !prevCycle.is_closed && todayDay >= prevCloseWarningDay) {
     return (
-      <GlanceCard title={`Cycle of ${MONTH_NAMES[prev.month - 1]} ${prev.year}`} color="red" onClick={onClick}>
+      <GlanceCard title={`Cycle of ${MONTH_NAMES[prev.month - 1]} ${prev.year}`} icon={faCalendarDays} color="red" onClick={onClick}>
         <p style={msgStyle}>Previous cycle has not been closed yet</p>
       </GlanceCard>
     );
@@ -52,7 +54,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   // Amber: next cycle not opened
   if (!nextCycle && todayDay >= nextCycleWarningDay) {
     return (
-      <GlanceCard title={`Cycle of ${MONTH_NAMES[next.month - 1]} ${next.year}`} color="amber" onClick={onClick}>
+      <GlanceCard title={`Cycle of ${MONTH_NAMES[next.month - 1]} ${next.year}`} icon={faCalendarDays} color="amber" onClick={onClick}>
         <p style={msgStyle}>Next cycle has not been opened yet</p>
       </GlanceCard>
     );
@@ -61,7 +63,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   // No current cycle
   if (!currentCycleMeta) {
     return (
-      <GlanceCard title="Current Cycle" color="amber" onClick={onClick}>
+      <GlanceCard title="Current Cycle" icon={faCalendarDays} color="amber" onClick={onClick}>
         <p style={msgStyle}>No cycle is currently open</p>
       </GlanceCard>
     );
@@ -71,7 +73,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
 
   if (!currentCycleDetail) {
     return (
-      <GlanceCard title={title} color="neutral" onClick={onClick}>
+      <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={onClick}>
         <p style={{ ...msgStyle, fontStyle: 'italic' }}>Loading…</p>
       </GlanceCard>
     );
@@ -99,7 +101,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   const balanceColor = currentBalance < 0 ? 'var(--color-value-negative)' : 'var(--text-primary)';
 
   return (
-    <GlanceCard title={title} color="neutral" onClick={onClick}>
+    <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={onClick}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Balance</span>
         <span className="text-md tabular" style={{ color: balanceColor }}>{formatEur(currentBalance)}</span>

@@ -1,3 +1,5 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faClock, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 
 function formatEur(value) {
@@ -6,18 +8,18 @@ function formatEur(value) {
 
 function cycleYearMonth(today, cycleStartDay) {
   const d = today.getDate();
-  if (d < cycleStartDay) {
+  if (d >= cycleStartDay) {
     return { year: today.getFullYear(), month: today.getMonth() + 1 };
   }
-  const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  return { year: next.getFullYear(), month: next.getMonth() + 1 };
+  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
 }
 
 function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay) {
   if (dayOfPayment >= cycleStartDay) {
-    return new Date(cycleYear, cycleMonth - 2, dayOfPayment);
+    return new Date(cycleYear, cycleMonth - 1, dayOfPayment); // same calendar month as cycle start
   }
-  return new Date(cycleYear, cycleMonth - 1, dayOfPayment);
+  return new Date(cycleYear, cycleMonth, dayOfPayment); // next calendar month
 }
 
 function sortByCycleDay(items, cycleStartDay) {
@@ -36,7 +38,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   if (!currentCycleDetail) {
     return (
-      <GlanceCard title="Next Expense" color="neutral" onClick={onClick}>
+      <GlanceCard title="Next Expense" icon={faClock} color="neutral" onClick={onClick}>
         <p style={msgStyle}>No cycle in progress</p>
       </GlanceCard>
     );
@@ -49,7 +51,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   if (unpaid.length === 0) {
     return (
-      <GlanceCard title="Next Expense" color="neutral" onClick={onClick}>
+      <GlanceCard title="Next Expense" icon={faCircleCheck} color="neutral" onClick={onClick}>
         <p style={msgStyle}>All fixed expenses paid</p>
       </GlanceCard>
     );
@@ -81,7 +83,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
   }
 
   return (
-    <GlanceCard title="Next Expense" color={color} onClick={onClick}>
+    <GlanceCard title="Next Expense" icon={faClock} color={color} onClick={onClick}>
       <div className="text-base" style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {next.name}
       </div>

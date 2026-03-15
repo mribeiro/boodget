@@ -1,3 +1,6 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTriangleExclamation, faChartLine, faArrowTrendUp, faArrowTrendDown } from '@fortawesome/free-solid-svg-icons';
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -7,7 +10,7 @@ function formatEur(value) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + ' €';
 }
 
-export function GlanceCard({ title, color = 'neutral', onClick, children }) {
+export function GlanceCard({ title, icon, color = 'neutral', onClick, children }) {
   const accentColor =
     color === 'amber' ? 'var(--color-warning)' :
     color === 'red'   ? 'var(--color-danger)'  :
@@ -28,10 +31,15 @@ export function GlanceCard({ title, color = 'neutral', onClick, children }) {
       onClick={onClick}
     >
       <div className="glance-card-header">
+        {icon && (
+          <span className="glance-card-icon" style={{ color: accentColor, marginRight: '0.4rem', opacity: 0.75 }}>
+            <FontAwesomeIcon icon={icon} />
+          </span>
+        )}
         <span className="glance-card-title">{title}</span>
         {showWarningIcon && (
-          <span className="glance-card-icon" style={{ color: color === 'red' ? 'var(--color-danger)' : 'var(--color-warning)' }}>
-            ⚠
+          <span className="glance-card-icon" style={{ color: color === 'red' ? 'var(--color-danger)' : 'var(--color-warning)', marginLeft: 'auto' }}>
+            <FontAwesomeIcon icon={faTriangleExclamation} />
           </span>
         )}
       </div>
@@ -49,7 +57,7 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
 
   if (filledMonths.length === 0) {
     return (
-      <GlanceCard title="Capital" color="neutral" onClick={onClick}>
+      <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={onClick}>
         <p style={msgStyle}>No records yet</p>
       </GlanceCard>
     );
@@ -63,7 +71,7 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
 
   if (!currentMonthFilled && todayDay >= warningDay) {
     return (
-      <GlanceCard title="Capital" color="amber" onClick={onClick}>
+      <GlanceCard title="Capital" icon={faChartLine} color="amber" onClick={onClick}>
         <p style={msgStyle}>{MONTH_NAMES[todayMonth - 1]} snapshot not yet recorded</p>
       </GlanceCard>
     );
@@ -84,13 +92,14 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
     'var(--text-muted)';
 
   return (
-    <GlanceCard title="Capital" color="neutral" onClick={onClick}>
+    <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={onClick}>
       <div className="text-2xl tabular" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
         {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
       </div>
       {variation != null && (
         <div className="text-sm" style={{ color: variationColor, marginBottom: 2 }}>
-          {variation > 0 ? '↑ +' : variation < 0 ? '↓ ' : ''}{variation.toFixed(1)}% vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
+          <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.3rem' }} />
+          {variation > 0 ? '+' : ''}{variation.toFixed(1)}% vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
         </div>
       )}
       {latest.idle_total != null && latest.idle_total > 0 && (

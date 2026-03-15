@@ -2,6 +2,16 @@ const express = require('express');
 const fs = require('fs');
 const session = require('express-session');
 const path = require('path');
+
+// Wipe DB on every restart in ephemeral environments so seed data stays fresh
+if (process.env.NODE_ENV === 'ephemeral') {
+  const dbPath = process.env.DB_PATH || './capital-tracker.db';
+  if (fs.existsSync(dbPath)) {
+    fs.unlinkSync(dbPath);
+    console.log('[ephemeral] Database wiped — will re-seed on startup.');
+  }
+}
+
 const { db, SQLiteSessionStore } = require('./db');
 
 const app = express();

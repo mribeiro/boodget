@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faFileImport, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 
 export default function DossierList() {
@@ -72,10 +74,15 @@ export default function DossierList() {
         <h1>Dossiers</h1>
         <div className="page-header-actions">
           <button className="btn-secondary btn-sm" onClick={() => importRef.current.click()} disabled={importing}>
+            <FontAwesomeIcon icon={faFileImport} style={{ marginRight: '0.4rem' }} />
             {importing ? 'Importing…' : 'Import'}
           </button>
           <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : 'New dossier'}
+            {showForm ? (
+              <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
+            ) : (
+              <><FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />New dossier</>
+            )}
           </button>
         </div>
       </div>

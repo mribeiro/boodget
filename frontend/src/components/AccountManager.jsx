@@ -1,15 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGripVertical, faXmark, faPlus, faBoxArchive } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
 
-export default function AccountManager({ dossierId, onClose }) {
+export default function AccountManager({ dossierId, onClose, inline = false }) {
   const [accounts, setAccounts] = useState([]);
   const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false });
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(null);
   const dragSrc = useRef(null);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  function toggleRow(id) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     api
@@ -88,22 +99,16 @@ export default function AccountManager({ dossierId, onClose }) {
   const active = accounts.filter((a) => !a.archived);
   const archived = accounts.filter((a) => a.archived);
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 700 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Manage Accounts</h2>
-          <button className="close-btn" onClick={onClose}>
-            &times;
-          </button>
-        </div>
-        <div className="modal-body">
-          {error && <div className="alert alert-error">{error}</div>}
+  const body = (
+    <>
+      {error && <div className="alert alert-error">{error}</div>}
 
           <div className="section-header">
             <h3 style={{ fontWeight: 600, fontSize: '0.875rem' }}>Active accounts</h3>
             <button className="btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }} onClick={() => setShowForm((v) => !v)}>
-              {showForm ? 'Cancel' : 'Add account'}
+              {showForm
+                ? <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
+                : <><FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add account</>}
             </button>
           </div>
 
@@ -188,7 +193,7 @@ export default function AccountManager({ dossierId, onClose }) {
           )}
 
           {active.length > 0 && (
-            <div className="table-container" style={{ marginBottom: '1.5rem' }}>
+            <div className="mobile-cards table-container" style={{ marginBottom: '1.5rem' }}>
               <table>
                 <thead>
                   <tr>
@@ -209,16 +214,23 @@ export default function AccountManager({ dossierId, onClose }) {
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDragLeave={() => setDragOver(null)}
                       onDrop={() => handleDrop(index)}
+                      className={expandedRows.has(a.id) ? 'mobile-expanded' : ''}
                       style={{
                         cursor: 'grab',
                         outline: dragOver === index ? '2px solid var(--color-primary)' : undefined,
                       }}
                     >
-                      <td className="text-muted" style={{ userSelect: 'none' }}>⠿</td>
-                      <td className="text-muted">{a.group_name}</td>
-                      <td>{a.name}</td>
-                      <td style={{ fontSize: '0.8rem' }}>{a.type}</td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td className="mobile-drag-col text-muted" style={{ userSelect: 'none' }}><FontAwesomeIcon icon={faGripVertical} /></td>
+                      <td className="mobile-card-title" onClick={() => toggleRow(a.id)}>
+                        <span>
+                          <span>{a.name}</span>
+                          <span className="text-muted" style={{ fontSize: '0.8rem', marginLeft: '0.4rem' }}>{a.group_name}</span>
+                        </span>
+                        <button className="card-expand-btn" tabIndex={-1}>›</button>
+                      </td>
+                      <td data-label="Group" className="mobile-detail text-muted">{a.group_name}</td>
+                      <td data-label="Type" className="mobile-detail" style={{ fontSize: '0.8rem' }}>{a.type}</td>
+                      <td data-label="Idle" className="mobile-detail" style={{ textAlign: 'center' }}>
                         <button
                           className="btn-ghost"
                           style={{ fontSize: '0.8rem', color: a.is_idle_money ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
@@ -227,13 +239,13 @@ export default function AccountManager({ dossierId, onClose }) {
                           {a.is_idle_money ? 'Yes' : 'No'}
                         </button>
                       </td>
-                      <td>
+                      <td data-label="" className="mobile-detail">
                         <button
                           className="btn-ghost"
                           style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}
                           onClick={() => handleArchive(a)}
                         >
-                          Archive
+                          <FontAwesomeIcon icon={faBoxArchive} style={{ marginRight: '0.35rem' }} />Archive
                         </button>
                       </td>
                     </tr>
@@ -248,7 +260,7 @@ export default function AccountManager({ dossierId, onClose }) {
               <h3 style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem', color: 'var(--color-text-muted)' }}>
                 Archived accounts
               </h3>
-              <div className="table-container">
+              <div className="mobile-cards table-container">
                 <table>
                   <thead>
                     <tr>
@@ -260,9 +272,9 @@ export default function AccountManager({ dossierId, onClose }) {
                   <tbody>
                     {archived.map((a) => (
                       <tr key={a.id} style={{ opacity: 0.6 }}>
-                        <td className="text-muted">{a.group_name}</td>
-                        <td>{a.name}</td>
-                        <td style={{ fontSize: '0.8rem' }}>{a.type}</td>
+                        <td className="mobile-card-title" style={{ cursor: 'default' }}>{a.name}</td>
+                        <td data-label="Group" className="text-muted">{a.group_name}</td>
+                        <td data-label="Type" style={{ fontSize: '0.8rem' }}>{a.type}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -270,11 +282,23 @@ export default function AccountManager({ dossierId, onClose }) {
               </div>
             </>
           )}
-        </div>
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>
-            Close
+    </>
+  );
+
+  if (inline) return <div>{body}</div>;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 700 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Manage Accounts</h2>
+          <button className="close-btn" onClick={onClose}>
+            <FontAwesomeIcon icon={faXmark} />
           </button>
+        </div>
+        <div className="modal-body">{body}</div>
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

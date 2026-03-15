@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faXmark, faUserMinus } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 
-export default function ShareManager({ dossierId, onClose }) {
+export default function ShareManager({ dossierId, onClose, inline = false }) {
   const [sharedUsers, setSharedUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -45,17 +47,9 @@ export default function ShareManager({ dossierId, onClose }) {
     }
   }
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Share Dossier</h2>
-          <button className="close-btn" onClick={onClose}>
-            &times;
-          </button>
-        </div>
-        <div className="modal-body">
-          {error && <div className="alert alert-error">{error}</div>}
+  const body = (
+    <>
+      {error && <div className="alert alert-error">{error}</div>}
 
           {availableUsers.length > 0 && (
             <form onSubmit={handleShare} style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
@@ -82,7 +76,7 @@ export default function ShareManager({ dossierId, onClose }) {
               This dossier is not shared with anyone.
             </p>
           ) : (
-            <div className="table-container">
+            <div className="mobile-cards table-container">
               <table>
                 <thead>
                   <tr>
@@ -93,14 +87,14 @@ export default function ShareManager({ dossierId, onClose }) {
                 <tbody>
                   {sharedUsers.map((u) => (
                     <tr key={u.id}>
-                      <td>{u.username}</td>
-                      <td>
+                      <td className="mobile-card-title" style={{ cursor: 'default' }}>{u.username}</td>
+                      <td data-label="">
                         <button
                           className="btn-ghost"
                           style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}
                           onClick={() => handleRevoke(u.id)}
                         >
-                          Revoke
+                          <FontAwesomeIcon icon={faUserMinus} style={{ marginRight: '0.35rem' }} />Revoke
                         </button>
                       </td>
                     </tr>
@@ -109,11 +103,23 @@ export default function ShareManager({ dossierId, onClose }) {
               </table>
             </div>
           )}
-        </div>
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>
-            Close
+    </>
+  );
+
+  if (inline) return <div>{body}</div>;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Share Dossier</h2>
+          <button className="close-btn" onClick={onClose}>
+            <FontAwesomeIcon icon={faXmark} />
           </button>
+        </div>
+        <div className="modal-body">{body}</div>
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

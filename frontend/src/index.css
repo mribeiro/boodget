@@ -1431,6 +1431,16 @@ tr:hover td {
 .stat-delta.positive { color: var(--color-value-positive); }
 .stat-delta.negative { color: var(--color-value-negative); }
 
+/* ── Mobile card-expand button (hidden on desktop) ─────────── */
+.card-expand-btn {
+  display: none;
+}
+
+/* ── Mobile inline summary value (hidden on desktop) ───────── */
+.mobile-card-inline-value {
+  display: none;
+}
+
 /* ── Glances panel ───────────────────────────────────────── */
 
 .glances-panel {
@@ -1446,9 +1456,14 @@ tr:hover td {
 }
 
 .glances-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: nowrap;
   gap: var(--space-4);
+}
+
+.glances-grid > * {
+  flex: 1;
+  min-width: 0;
 }
 
 .glance-card {
@@ -1617,7 +1632,18 @@ tr:hover td {
   }
 
   .glances-grid {
+    display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* 5 cards (EF underfunded): 3 columns → 3+2 = 2 rows */
+  .glances-grid--5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* Last card in a 3-col row that only has 2 items: span remaining column */
+  .glances-grid--5 > :last-child:nth-child(3n+2) {
+    grid-column: span 2;
   }
 
   .page-body {
@@ -1662,6 +1688,163 @@ tr:hover td {
     padding: 6px 10px;
   }
 
+  /* ── Mobile expandable table cards ─────────────────────── */
+
+  /* Card-expand chevron: hidden on desktop, visible on mobile */
+  .card-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+    line-height: 1;
+    transition: transform 0.2s ease;
+    transform: rotate(0deg);
+  }
+  .mobile-expanded .card-expand-btn {
+    transform: rotate(90deg);
+  }
+
+  /* Inline value shown inside title row; standalone summary td hidden */
+  .mobile-card-inline-value {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: auto;
+    margin-right: var(--space-2);
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .mobile-cards td.mobile-summary-in-title {
+    display: none;
+  }
+
+  /* Container: remove border/overflow, act as a plain block */
+  .mobile-cards.table-container,
+  .mobile-cards > .table-container {
+    overflow-x: unset;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .mobile-cards table  { display: block; }
+  .mobile-cards thead  { display: none; }
+  .mobile-cards tbody  { display: flex; flex-direction: column; gap: var(--space-3); }
+
+  /* Each row → bordered card */
+  .mobile-cards tbody tr {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Group-header rows: section separator, not a card */
+  .mobile-cards tbody tr.group-header {
+    background: var(--bg-table-group-header);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--color-primary, #6366f1);
+    box-shadow: none;
+  }
+  .mobile-cards tbody tr.group-header td { border-bottom: none; }
+  .mobile-cards tbody tr.group-header td::before { display: none; }
+
+  /* Each cell → label + value row */
+  .mobile-cards td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border-subtle, var(--border-default));
+    font-size: 13px;
+  }
+  .mobile-cards td:last-child { border-bottom: none; }
+
+  /* Label from data-label attribute */
+  .mobile-cards td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    min-width: 80px;
+    text-align: left;
+  }
+  .mobile-cards td[data-label='']::before { display: none; }
+  .mobile-cards td[data-label='']         { justify-content: flex-end; }
+
+  /* Card title row: bold, slightly tinted bg, acts as expand toggle */
+  .mobile-cards td.mobile-card-title {
+    font-weight: 600;
+    font-size: 14px;
+    background: var(--bg-table-group-header);
+    border-bottom: none;
+    cursor: pointer;
+    justify-content: space-between;
+  }
+  .mobile-cards tr.mobile-expanded td.mobile-card-title {
+    border-bottom: 1px solid var(--border-default);
+  }
+  .mobile-cards td.mobile-card-title::before { display: none; }
+
+  /* Detail cells: slide down/up via max-height + opacity */
+  .mobile-cards td.mobile-detail {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border-bottom: none;
+    transition:
+      max-height 0.25s ease,
+      opacity    0.2s  ease,
+      padding    0.25s ease;
+  }
+  .mobile-cards tr.mobile-expanded td.mobile-detail {
+    max-height: 120px;
+    opacity: 1;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle, var(--border-default));
+  }
+  .mobile-cards tr.mobile-expanded td.mobile-detail:last-child {
+    border-bottom: none;
+  }
+
+  /* Drag-handle column: pointless on mobile, hide it */
+  .mobile-cards td.mobile-drag-col { display: none; }
+
+  /* ── Sticky first column (CapitalCompareTable) ──────────── */
+  .table-sticky-first-col th:first-child,
+  .table-sticky-first-col td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: inherit;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
+  }
+  .table-sticky-first-col th:first-child {
+    z-index: 3;
+    background: var(--bg-table-header);
+  }
+  .table-sticky-first-col tr.group-header td:first-child {
+    background: var(--bg-table-group-header);
+  }
+
   .value-input {
     width: 100px;
   }
@@ -1687,10 +1870,6 @@ tr:hover td {
 
   .app-shell-main {
     margin-left: 0 !important;
-  }
-
-  .glances-grid {
-    grid-template-columns: 1fr 1fr;
   }
 
   .navbar-hamburger {

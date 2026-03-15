@@ -1,6 +1,8 @@
 import { useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../App';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUser, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
 export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChange }) {
   const { user } = useContext(AuthContext);
@@ -39,14 +41,14 @@ export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChan
           data-tooltip="Users"
           onClick={() => navToPath('/users')}
         >
-          <span className="sidebar-nav-icon">👤</span>
+          <span className="sidebar-nav-icon"><FontAwesomeIcon icon={faUser} /></span>
           <span className="sidebar-nav-label">Users</span>
         </button>
       </nav>
 
       {/* Collapse toggle */}
       <button className="sidebar-collapse-btn" onClick={toggleCollapse} title={collapsed ? 'Expand' : 'Collapse'}>
-        {collapsed ? '›' : '‹'}
+        <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronLeft} />
       </button>
     </aside>
   );

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPencil } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 
 const WARNING_FIELDS = [
@@ -98,7 +100,7 @@ export default function DossierSettings({ dossierId }) {
               <strong>{value}</strong>
               <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>of the month</span>
               <button className="btn-secondary" onClick={() => startEdit(key)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                Edit
+                <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
               </button>
             </>
           )}
@@ -139,7 +141,7 @@ export default function DossierSettings({ dossierId }) {
             <>
               <strong>{settings.cycle_start_day}</strong>
               <button className="btn-secondary" onClick={() => startEdit('cycle_start_day')} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                Edit
+                <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
               </button>
             </>
           )}

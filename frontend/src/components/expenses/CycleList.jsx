@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 
 const MONTH_NAMES = [
@@ -78,7 +80,7 @@ export default function CycleList({ dossierId }) {
           onClick={() => setModalPreset({})}
           style={{ fontSize: '0.875rem' }}
         >
-          Open new cycle
+          <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Open new cycle
         </button>
       </div>
 
@@ -186,7 +188,7 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Open New Cycle</h2>
-          <button className="close-btn" onClick={onClose}>&times;</button>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
