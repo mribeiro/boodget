@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCheck, faTriangleExclamation, faListCheck, faPlus, faPencil, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
+import Checkbox from '../ui/Checkbox';
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -41,6 +45,7 @@ export default function EmergencyFundTab({ dossierId }) {
   const [extraValues, setExtraValues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirmState, setConfirmState] = useState(null);
 
   // Account picker dialog state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -139,15 +144,22 @@ export default function EmergencyFundTab({ dossierId }) {
     }
   }
 
-  async function deleteExtra(ev) {
-    if (!confirm(`Delete "${ev.name}"?`)) return;
-    try {
-      await api.deleteEmergencyFundExtraValue(dossierId, ev.id);
-      setExtraValues((prev) => prev.filter((x) => x.id !== ev.id));
-      await refreshStatus();
-    } catch (e) {
-      setError(e.message);
-    }
+  function deleteExtra(ev) {
+    setConfirmState({
+      title: 'Delete extra value',
+      message: `Delete "${ev.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteEmergencyFundExtraValue(dossierId, ev.id);
+          setExtraValues((prev) => prev.filter((x) => x.id !== ev.id));
+          await refreshStatus();
+        } catch (e) {
+          setError(e.message);
+        }
+      },
+    });
   }
 
   if (loading) return <div className="loading">Loading…</div>;
@@ -182,7 +194,9 @@ export default function EmergencyFundTab({ dossierId }) {
               color: isHealthy ? 'var(--color-success-text)' : 'var(--color-danger-text)',
               border: `1px solid ${isHealthy ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
             }}>
-              {isHealthy ? '✓ Healthy' : '⚠ Underfunded'}
+              {isHealthy
+                ? <><FontAwesomeIcon icon={faCheck} style={{ marginRight: '0.35rem' }} />Healthy</>
+                : <><FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.35rem' }} />Underfunded</>}
             </div>
 
             <ProgressBar current={status.current_value} target={status.target_value} />
@@ -218,7 +232,7 @@ export default function EmergencyFundTab({ dossierId }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-default)', paddingBottom: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Contributing Accounts</h2>
           <button className="btn-secondary" style={{ fontSize: 13 }} onClick={openAccountPicker}>
-            Select accounts
+            <FontAwesomeIcon icon={faListCheck} style={{ marginRight: '0.4rem' }} />Select accounts
           </button>
         </div>
 
@@ -256,7 +270,7 @@ export default function EmergencyFundTab({ dossierId }) {
             </p>
           </div>
           <button className="btn-primary" style={{ fontSize: 13 }} onClick={openAddExtra}>
-            + Add
+            <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add
           </button>
         </div>
 
@@ -277,8 +291,8 @@ export default function EmergencyFundTab({ dossierId }) {
                   <td>{ev.name}</td>
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatEur(ev.value)}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn-ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => openEditExtra(ev)}>Edit</button>
-                    <button className="btn-ghost" style={{ fontSize: 12, padding: '2px 8px', color: 'var(--color-danger)' }} onClick={() => deleteExtra(ev)}>Delete</button>
+                    <button className="btn-ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => openEditExtra(ev)}><FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.3rem' }} />Edit</button>
+                    <button className="btn-ghost" style={{ fontSize: 12, padding: '2px 8px', color: 'var(--color-danger)' }} onClick={() => deleteExtra(ev)}><FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.3rem' }} />Delete</button>
                   </td>
                 </tr>
               ))}
@@ -293,7 +307,7 @@ export default function EmergencyFundTab({ dossierId }) {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Select Contributing Accounts</h2>
-              <button className="close-btn" onClick={() => setShowAccountPicker(false)}>&times;</button>
+              <button className="close-btn" onClick={() => setShowAccountPicker(false)}><FontAwesomeIcon icon={faXmark} /></button>
             </div>
             <div className="modal-body">
               {accounts.length === 0 ? (
@@ -311,11 +325,9 @@ export default function EmergencyFundTab({ dossierId }) {
                     {accounts.map((a) => (
                       <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => togglePicker(a.id)}>
                         <td>
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={pickerSelection.includes(a.id)}
-                            onChange={() => togglePicker(a.id)}
-                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => { e.stopPropagation(); togglePicker(a.id); }}
                           />
                         </td>
                         <td style={{ color: 'var(--text-muted)' }}>{a.group_name}</td>
@@ -340,7 +352,7 @@ export default function EmergencyFundTab({ dossierId }) {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingExtra ? 'Edit Extra Value' : 'Add Extra Monthly Value'}</h2>
-              <button className="close-btn" onClick={() => setShowExtraForm(false)}>&times;</button>
+              <button className="close-btn" onClick={() => setShowExtraForm(false)}><FontAwesomeIcon icon={faXmark} /></button>
             </div>
             <form onSubmit={saveExtraForm}>
               <div className="modal-body">
@@ -361,6 +373,7 @@ export default function EmergencyFundTab({ dossierId }) {
           </div>
         </div>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

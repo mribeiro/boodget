@@ -84,6 +84,8 @@ export const api = {
   getCycle: (dossierId, cycleId) => request('GET', `/dossiers/${dossierId}/cycles/${cycleId}`),
   updateCycle: (dossierId, cycleId, data) =>
     request('PATCH', `/dossiers/${dossierId}/cycles/${cycleId}`, data),
+  deleteCycle: (dossierId, cycleId) =>
+    request('DELETE', `/dossiers/${dossierId}/cycles/${cycleId}`),
   createCycleItem: (dossierId, cycleId, data) =>
     request('POST', `/dossiers/${dossierId}/cycles/${cycleId}/items`, data),
   updateCycleItem: (dossierId, cycleId, itemId, data) =>

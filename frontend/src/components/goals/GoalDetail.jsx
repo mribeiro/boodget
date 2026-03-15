@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowLeft, faPencil, faTrash, faTriangleExclamation, faChevronDown, faChevronRight, faPlus } from '@fortawesome/free-solid-svg-icons';
 import {
   LineChart,
   Line,
@@ -12,6 +14,7 @@ import {
 } from 'recharts';
 import { api } from '../../services/api';
 import GoalFormModal from './GoalFormModal';
+import ConfirmModal from '../ConfirmModal';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -55,6 +58,7 @@ export default function GoalDetail() {
   const [histError, setHistError] = useState('');
   const [savingHist, setSavingHist] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
 
   useEffect(() => {
     load();
@@ -73,14 +77,21 @@ export default function GoalDetail() {
     }
   }
 
-  async function handleDelete() {
-    if (!confirm(`Delete goal "${goal.name}"? This cannot be undone.`)) return;
-    try {
-      await api.deleteGoal(dossierId, goal.id);
-      navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } });
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDelete() {
+    setConfirmState({
+      title: 'Delete goal',
+      message: `Delete goal "${goal.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteGoal(dossierId, goal.id);
+          navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } });
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleAddHistorical() {
@@ -182,20 +193,20 @@ export default function GoalDetail() {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
-        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}>&larr; Back to Goals</button>
+        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}><FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back to Goals</button>
         <h1 style={{ flex: 1, margin: 0 }}>{goal.name}</h1>
         <span className={`badge badge-${goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand'}`}>
           {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
         </span>
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button className="btn-secondary btn-sm" onClick={() => setShowEdit(true)}>Edit</button>
-          <button className="btn-danger btn-sm" onClick={handleDelete}>Delete</button>
+          <button className="btn-secondary btn-sm" onClick={() => setShowEdit(true)}><FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit</button>
+          <button className="btn-danger btn-sm" onClick={handleDelete}><FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete</button>
         </div>
       </div>
 
       {infeasible && (
         <div className="alert alert-error" style={{ marginBottom: '1.5rem', fontWeight: 600 }}>
-          ⚠ This goal cannot be reached with the current monthly contribution by the target date. Consider increasing the monthly contribution or extending the target date.
+          <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.4rem' }} />This goal cannot be reached with the current monthly contribution by the target date. Consider increasing the monthly contribution or extending the target date.
         </div>
       )}
 
@@ -286,7 +297,7 @@ export default function GoalDetail() {
             onClick={() => setHistOpen((o) => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', fontWeight: 600, padding: '0', marginBottom: histOpen ? '0.75rem' : 0 }}
           >
-            <span style={{ fontSize: '0.75rem' }}>{histOpen ? '▼' : '▶'}</span>
+            <FontAwesomeIcon icon={histOpen ? faChevronDown : faChevronRight} style={{ fontSize: '0.75rem' }} />
             Historical contributions
           </button>
           {histOpen && <>
@@ -315,7 +326,7 @@ export default function GoalDetail() {
                         style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
                         onClick={() => handleDeleteHistorical(h.year, h.month)}
                       >
-                        ×
+                        <FontAwesomeIcon icon={faTrash} />
                       </button>
                     </td>
                   </tr>
@@ -341,7 +352,7 @@ export default function GoalDetail() {
               <input type="number" step="0.01" min="0" value={newHistAmount} onChange={(e) => setNewHistAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
             </div>
             <button className="btn-secondary" onClick={handleAddHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
-              Add entry
+              <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.35rem' }} />Add entry
             </button>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -372,7 +383,7 @@ export default function GoalDetail() {
               <input type="number" step="0.01" min="0" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
             </div>
             <button className="btn-secondary" onClick={handleAddBatchHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
-              Add range
+              <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.35rem' }} />Add range
             </button>
           </div>
           {histError && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{histError}</div>}
@@ -442,7 +453,7 @@ export default function GoalDetail() {
                           setCycleContribValue(String(c.real_contribution));
                         }}
                       >
-                        Edit
+                        <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
                       </button>
                     </>
                   )}
@@ -465,6 +476,7 @@ export default function GoalDetail() {
           onClose={() => setShowEdit(false)}
         />
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

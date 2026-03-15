@@ -1,20 +1,16 @@
-import { useContext, useState } from 'react';
+import { useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../App';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUser, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
-export default function Sidebar({ mobileOpen, onClose }) {
+export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChange }) {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [collapsed, setCollapsed] = useState(() => {
-    return localStorage.getItem('ct-sidebar-collapsed') === 'true';
-  });
-
   function toggleCollapse() {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem('ct-sidebar-collapsed', String(next));
+    onCollapseChange(!collapsed);
   }
 
   function navToPath(path) {
@@ -45,14 +41,14 @@ export default function Sidebar({ mobileOpen, onClose }) {
           data-tooltip="Users"
           onClick={() => navToPath('/users')}
         >
-          <span className="sidebar-nav-icon">👤</span>
+          <span className="sidebar-nav-icon"><FontAwesomeIcon icon={faUser} /></span>
           <span className="sidebar-nav-label">Users</span>
         </button>
       </nav>
 
       {/* Collapse toggle */}
       <button className="sidebar-collapse-btn" onClick={toggleCollapse} title={collapsed ? 'Expand' : 'Collapse'}>
-        {collapsed ? '›' : '‹'}
+        <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronLeft} />
       </button>
     </aside>
   );

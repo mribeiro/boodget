@@ -360,7 +360,18 @@ router.patch('/cycles/:cycleId', (req, res) => {
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
-  const { salary, previous_balance, is_closed, final_real_balance } = req.body;
+  const { year, month, salary, previous_balance, is_closed, final_real_balance } = req.body;
+
+  // If year/month are being changed, enforce uniqueness
+  const newYear = year !== undefined ? Number(year) : cycle.year;
+  const newMonth = month !== undefined ? Number(month) : cycle.month;
+  if ((newYear !== cycle.year || newMonth !== cycle.month)) {
+    const conflict = db
+      .prepare('SELECT id FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ? AND id != ?')
+      .get(req.params.id, newYear, newMonth, req.params.cycleId);
+    if (conflict) return res.status(409).json({ error: 'A cycle for that period already exists' });
+  }
+
   const newSalary = salary !== undefined ? Number(salary) : cycle.salary;
   const newPrevBalance = previous_balance !== undefined ? Number(previous_balance) : cycle.previous_balance;
   const newIsClosed = is_closed !== undefined ? (is_closed ? 1 : 0) : cycle.is_closed;
@@ -371,11 +382,24 @@ router.patch('/cycles/:cycleId', (req, res) => {
   }
 
   db.prepare(
-    'UPDATE expense_cycles SET salary = ?, previous_balance = ?, is_closed = ?, final_real_balance = ? WHERE id = ?'
-  ).run(newSalary, newPrevBalance, newIsClosed, newFinalRealBalance, req.params.cycleId);
+    'UPDATE expense_cycles SET year = ?, month = ?, salary = ?, previous_balance = ?, is_closed = ?, final_real_balance = ? WHERE id = ?'
+  ).run(newYear, newMonth, newSalary, newPrevBalance, newIsClosed, newFinalRealBalance, req.params.cycleId);
 
   const updated = db.prepare('SELECT * FROM expense_cycles WHERE id = ?').get(req.params.cycleId);
   res.json(updated);
+});
+
+// DELETE /cycles/:cycleId
+router.delete('/cycles/:cycleId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+
+  db.prepare('DELETE FROM cycle_items WHERE cycle_id = ?').run(req.params.cycleId);
+  db.prepare('DELETE FROM expense_cycles WHERE id = ?').run(req.params.cycleId);
+  res.status(204).end();
 });
 
 // POST /cycles/:cycleId/items

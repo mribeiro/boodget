@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
+import Checkbox from '../ui/Checkbox';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function cycleLabel(year, month) {
-  return `${MONTH_NAMES[month - 1]} ${year}`;
+// A cycle stored as (year, month) runs to startDay-1 of the following month.
+// The conventional name is the END month.
+function cycleLabel(year, month, startDay) {
+  const end = new Date(year, month, startDay - 1);
+  return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
 }
 
 function fmt(v) {
@@ -54,6 +61,8 @@ export default function CycleEditor() {
   const [savingClose, setSavingClose] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditPeriod, setShowEditPeriod] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
 
   useEffect(() => {
     load();
@@ -164,15 +173,41 @@ export default function CycleEditor() {
     }
   }
 
-  async function handleDeleteItem(item) {
-    if (!confirm(`Delete "${item.name}"?`)) return;
-    try {
-      await api.deleteCycleItem(dossierId, cycleId, item.id);
-      const fresh = await api.getCycle(dossierId, cycleId);
-      setCycle(fresh);
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDeleteItem(item) {
+    setConfirmState({
+      title: 'Delete item',
+      message: `Delete "${item.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteCycleItem(dossierId, cycleId, item.id);
+          const fresh = await api.getCycle(dossierId, cycleId);
+          setCycle(fresh);
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
+  }
+
+  function handleDeleteCycle() {
+    const startDay = cycle.cycle_start_day ?? 25;
+    const label = cycleLabel(cycle.year, cycle.month, startDay);
+    setConfirmState({
+      title: 'Delete cycle',
+      message: `Permanently delete the ${label} cycle and all its items? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteCycle(dossierId, cycleId);
+          navigate(`/dossiers/${dossierId}`, { state: { tab: 'expenses' } });
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleEditItem(item, data) {
@@ -207,18 +242,26 @@ export default function CycleEditor() {
   const expectedCurrentBalance = summary.total_available - summary.total_expenses_paid - summary.total_distributions_done;
 
   return (
-    <div>
+    <div className="page-fade-in">
       {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
       <div className="page-header">
         <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'expenses' } })}>
-          &larr; Back
+          <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
         </button>
         <div style={{ flex: 1 }}>
-          <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month)} Cycle</h1>
+          <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
             {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn-secondary" onClick={() => setShowEditPeriod(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+            <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Period
+          </button>
+          <button className="btn-danger" onClick={handleDeleteCycle} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+            <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
+          </button>
         </div>
       </div>
 
@@ -266,7 +309,7 @@ export default function CycleEditor() {
                   <div style={{ fontWeight: 600, color: expectedCurrentBalance < 0 ? 'var(--color-danger)' : 'inherit' }}>{fmt(expectedCurrentBalance)}</div>
                 </div>
                 <button className="btn-secondary" onClick={() => setEditingInfo(true)} style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem' }}>
-                  Edit
+                  <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
                 </button>
               </div>
             )}
@@ -283,7 +326,7 @@ export default function CycleEditor() {
                   Update
                 </button>
                 <button className="btn-secondary" onClick={handleReopen} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
-                  Reopen
+                  <FontAwesomeIcon icon={faLockOpen} style={{ marginRight: '0.35rem' }} />Reopen
                 </button>
               </div>
             ) : showCloseForm ? (
@@ -301,7 +344,7 @@ export default function CycleEditor() {
               </div>
             ) : (
               <button className="btn-secondary" onClick={() => setShowCloseForm(true)} style={{ fontSize: '0.875rem' }}>
-                Close cycle
+                <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.4rem' }} />Close cycle
               </button>
             )}
           </div>
@@ -389,7 +432,7 @@ export default function CycleEditor() {
       )}
 
       <button className="btn-primary" onClick={() => setShowAddModal(true)} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
-        + Add {activeTab === 'expenses' ? 'expense' : 'distribution'}
+        <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add {activeTab === 'expenses' ? 'expense' : 'distribution'}
       </button>
 
       {showAddModal && (
@@ -399,6 +442,111 @@ export default function CycleEditor() {
           onClose={() => setShowAddModal(false)}
         />
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      {showEditPeriod && (
+        <EditPeriodModal
+          cycle={cycle}
+          dossierId={dossierId}
+          onSave={async (year, month) => {
+            await api.updateCycle(dossierId, cycleId, { year, month });
+            setShowEditPeriod(false);
+            await load();
+          }}
+          onClose={() => setShowEditPeriod(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+const MONTH_NAMES_MODAL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
+  const startDay = cycle.cycle_start_day ?? 25;
+  const [year, setYear] = useState(cycle.year);
+  const [month, setMonth] = useState(cycle.month);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [allCycles, setAllCycles] = useState([]);
+
+  useEffect(() => {
+    api.getCycles(dossierId).then(setAllCycles).catch(() => {});
+  }, [dossierId]);
+
+  const now = new Date();
+  const baseYear = now.getFullYear();
+  const minYear = Math.min(baseYear - 3, cycle.year);
+  const maxYear = Math.max(baseYear + 3, cycle.year);
+  const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
+
+  function isTaken(y, m) {
+    return allCycles.some((c) => c.year === y && c.month === m && c.id !== cycle.id);
+  }
+
+  const endDate = new Date(year, month, startDay - 1);
+  const cycleDisplayLabel = `${MONTH_NAMES_MODAL[endDate.getMonth()]} ${endDate.getFullYear()}`;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (isTaken(year, month)) { setError('A cycle for that period already exists'); return; }
+    setSaving(true);
+    try {
+      await onSave(year, month);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  const startFmt = new Date(year, month - 1, startDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const endFmt = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Period</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Cycle</label>
+                <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                    const end = new Date(year, m, startDay - 1);
+                    const label = `${MONTH_NAMES_MODAL[end.getMonth()]} ${end.getFullYear()}`;
+                    return (
+                      <option key={m} value={m} disabled={isTaken(year, m)}>
+                        {label}{isTaken(year, m) ? ' (exists)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Start year</label>
+                <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+                  {years.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '-0.25rem' }}>
+              {startFmt} – {endFmt}
+            </div>
+            {isTaken(year, month) && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>This period already has a cycle.</div>}
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving || isTaken(year, month)}>
+              {saving ? 'Saving…' : `Move to ${cycleDisplayLabel}`}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -461,12 +609,10 @@ function ExpensesList({ expenses, onTogglePaid, onUpdateSpent, onDelete, onEdit 
           >
             {/* Paid toggle for Fixed */}
             {item.type === 'Fixed' && !isEditing && (
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={!!item.paid}
                 onChange={() => onTogglePaid(item)}
                 title={item.paid ? 'Mark as unpaid' : 'Mark as paid'}
-                style={{ cursor: 'pointer', width: '1rem', height: '1rem', flexShrink: 0 }}
               />
             )}
 
@@ -549,14 +695,14 @@ function ExpensesList({ expenses, onTogglePaid, onUpdateSpent, onDelete, onEdit 
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Edit"
                 >
-                  ✎
+                  <FontAwesomeIcon icon={faPencil} />
                 </button>
                 <button
                   onClick={() => onDelete(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '1rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Delete"
                 >
-                  &times;
+                  <FontAwesomeIcon icon={faTrash} />
                 </button>
               </>
             )}
@@ -605,12 +751,10 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
             }}
           >
             {!isEditing && (
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={!!item.done}
                 onChange={() => onToggleDone(item)}
                 title={item.done ? 'Mark as not done' : 'Mark as done'}
-                style={{ cursor: 'pointer', width: '1rem', height: '1rem', flexShrink: 0 }}
               />
             )}
             <span style={{ flex: 1, fontWeight: 500, textDecoration: !isEditing && item.done ? 'line-through' : 'none' }}>
@@ -638,14 +782,14 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Edit"
                 >
-                  ✎
+                  <FontAwesomeIcon icon={faPencil} />
                 </button>
                 <button
                   onClick={() => onDelete(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '1rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Delete"
                 >
-                  &times;
+                  <FontAwesomeIcon icon={faTrash} />
                 </button>
               </>
             )}
@@ -693,7 +837,7 @@ function AddCycleItemModal({ section, onSave, onClose }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Add {section === 'expense' ? 'Expense' : 'Distribution'}</h2>
-          <button className="close-btn" onClick={onClose}>&times;</button>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">

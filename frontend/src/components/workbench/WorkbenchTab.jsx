@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faFolderOpen, faCopy, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -194,6 +197,7 @@ export default function WorkbenchTab({ dossierId }) {
   const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [saveNameInput, setSaveNameInput] = useState('');
   const [showSavePrompt, setShowSavePrompt] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -259,25 +263,45 @@ export default function WorkbenchTab({ dossierId }) {
 
   // ── Snapshot operations ──
 
-  async function handleLoadSnapshot(snapshot) {
-    if (isDirty) {
-      if (!confirm('You have unsaved changes in the working state. Load snapshot anyway and discard changes?')) return;
+  function handleLoadSnapshot(snapshot) {
+    function doLoad() {
+      setLoadedSnapshot({ id: snapshot.id, name: snapshot.name });
+      setState(stateFromSnapshot(snapshot.data));
+      setIsDirty(false);
     }
-    setLoadedSnapshot({ id: snapshot.id, name: snapshot.name });
-    setState(stateFromSnapshot(snapshot.data));
-    setIsDirty(false);
+    if (isDirty) {
+      setConfirmState({
+        title: 'Discard changes?',
+        message: 'You have unsaved changes in the working state. Load snapshot anyway and discard changes?',
+        confirmLabel: 'Load snapshot',
+        danger: false,
+        onConfirm: doLoad,
+      });
+      return;
+    }
+    doLoad();
   }
 
   function handleNewFromScratch() {
-    if (isDirty) {
-      if (!confirm('You have unsaved changes. Discard them and start a new working state?')) return;
+    function doNew() {
+      const monthly = monthlyTemplate.filter((i) => i.section === 'expense');
+      const dists = monthlyTemplate.filter((i) => i.section === 'distribution');
+      setState(buildWorkingStateFromTemplates(monthly, annualTemplate, dists));
+      setLoadedSnapshot(null);
+      setIsDirty(false);
+      setShowSavePrompt(false);
     }
-    const monthly = monthlyTemplate.filter((i) => i.section === 'expense');
-    const dists = monthlyTemplate.filter((i) => i.section === 'distribution');
-    setState(buildWorkingStateFromTemplates(monthly, annualTemplate, dists));
-    setLoadedSnapshot(null);
-    setIsDirty(false);
-    setShowSavePrompt(false);
+    if (isDirty) {
+      setConfirmState({
+        title: 'Discard changes?',
+        message: 'You have unsaved changes. Discard them and start a new working state?',
+        confirmLabel: 'Start fresh',
+        danger: false,
+        onConfirm: doNew,
+      });
+      return;
+    }
+    doNew();
   }
 
   async function handleSave() {
@@ -329,17 +353,24 @@ export default function WorkbenchTab({ dossierId }) {
     }
   }
 
-  async function handleDeleteSnapshot(snapshot) {
-    if (!confirm(`Delete snapshot "${snapshot.name}"?`)) return;
-    try {
-      await api.deleteWorkbenchSnapshot(dossierId, snapshot.id);
-      setSnapshots((prev) => prev.filter((s) => s.id !== snapshot.id));
-      if (loadedSnapshot?.id === snapshot.id) {
-        setLoadedSnapshot(null);
-      }
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDeleteSnapshot(snapshot) {
+    setConfirmState({
+      title: 'Delete snapshot',
+      message: `Delete snapshot "${snapshot.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteWorkbenchSnapshot(dossierId, snapshot.id);
+          setSnapshots((prev) => prev.filter((s) => s.id !== snapshot.id));
+          if (loadedSnapshot?.id === snapshot.id) {
+            setLoadedSnapshot(null);
+          }
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   // ── Sync operations ──
@@ -556,6 +587,7 @@ export default function WorkbenchTab({ dossierId }) {
           <GlobalSummarySection summary={summary} />
         </div>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }
@@ -573,11 +605,11 @@ function SnapshotPanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <h3 style={{ margin: 0, fontSize: '0.95rem' }}>Workbench</h3>
           {loadedSnapshot ? (
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               {loadedSnapshot.name}{isDirty ? ' *' : ''}
             </span>
           ) : (
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               [working state{isDirty ? ' — unsaved' : ''}]
             </span>
           )}
@@ -626,7 +658,7 @@ function SnapshotPanel({
 
       {snapshots.length > 0 && (
         <div>
-          <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
             Saved snapshots
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -639,14 +671,14 @@ function SnapshotPanel({
                   gap: '0.5rem',
                   padding: '0.4rem 0.6rem',
                   borderRadius: 'var(--radius)',
-                  background: loadedSnapshot?.id === s.id ? 'var(--color-primary-light, #eff6ff)' : 'var(--color-surface)',
-                  border: `1px solid ${loadedSnapshot?.id === s.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                  background: loadedSnapshot?.id === s.id ? 'var(--color-brand-light)' : 'var(--bg-card)',
+                  border: `1px solid ${loadedSnapshot?.id === s.id ? 'var(--color-brand)' : 'var(--border-default)'}`,
                 }}
               >
                 <span style={{ flex: 1, fontSize: '0.875rem', fontWeight: loadedSnapshot?.id === s.id ? 600 : 400 }}>
                   {s.name}
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   {new Date(s.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
                 <button
@@ -654,21 +686,21 @@ function SnapshotPanel({
                   onClick={() => onLoad(s)}
                   style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
                 >
-                  Load
+                  <FontAwesomeIcon icon={faFolderOpen} style={{ marginRight: '0.35rem' }} />Load
                 </button>
                 <button
                   className="btn-secondary"
                   onClick={() => onDuplicate(s)}
                   style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
                 >
-                  Duplicate
+                  <FontAwesomeIcon icon={faCopy} style={{ marginRight: '0.35rem' }} />Duplicate
                 </button>
                 <button
                   className="btn-danger"
                   onClick={() => onDelete(s)}
                   style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
                 >
-                  Delete
+                  <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
                 </button>
               </div>
             ))}
@@ -1002,24 +1034,32 @@ function DistributionsSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom, 
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [collapsed, setCollapsed] = useState(true);
+  const [confirmState, setConfirmState] = useState(null);
 
   const totalDist = sum(entries, (e) => e.value);
   const totalMust = sum(entries, (e) => e.must_amount || 0);
   const totalWant = sum(entries, (e) => e.want_amount || 0);
   const totalSave = sum(entries, (e) => e.save_amount || 0);
 
-  async function doSyncTo() {
-    if (!confirm('This will discard and replace the entire Distributions template with the current Workbench entries. Proceed?')) return;
-    setSyncing(true);
-    setSyncError('');
-    try {
-      await onSyncTo('distributions', {});
-      setShowSyncToModal(false);
-    } catch (err) {
-      setSyncError(err.message);
-    } finally {
-      setSyncing(false);
-    }
+  function doSyncTo() {
+    setConfirmState({
+      title: 'Sync to template',
+      message: 'This will discard and replace the entire Distributions template with the current Workbench entries. Proceed?',
+      confirmLabel: 'Sync',
+      danger: true,
+      onConfirm: async () => {
+        setSyncing(true);
+        setSyncError('');
+        try {
+          await onSyncTo('distributions', {});
+          setShowSyncToModal(false);
+        } catch (err) {
+          setSyncError(err.message);
+        } finally {
+          setSyncing(false);
+        }
+      },
+    });
   }
 
   return (
@@ -1080,6 +1120,7 @@ function DistributionsSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom, 
           )}
         </>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }
@@ -1447,7 +1488,6 @@ function SyncToTemplateModal({ title, warning, entries, needsDay, dayFieldLabel,
     setLocalError('');
     const err = validate();
     if (err) { setLocalError(err); return; }
-    if (!confirm(`${warning}\n\nThis cannot be undone. Continue?`)) return;
 
     const overrides = {};
     for (const e of adHocNeedingDay) {

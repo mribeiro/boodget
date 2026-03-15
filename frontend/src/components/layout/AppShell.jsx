@@ -1,19 +1,27 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 
 export default function AppShell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const location = useLocation();
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem('ct-sidebar-collapsed') === 'true'
+  );
 
-  // Read collapsed state from localStorage (mirrored from Sidebar)
-  const collapsed = localStorage.getItem('ct-sidebar-collapsed') === 'true';
+  function handleCollapseChange(next) {
+    setCollapsed(next);
+    localStorage.setItem('ct-sidebar-collapsed', String(next));
+  }
 
   return (
     <div className="app-shell">
       {/* Sidebar */}
-      <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <Sidebar
+        mobileOpen={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        collapsed={collapsed}
+        onCollapseChange={handleCollapseChange}
+      />
 
       {/* Mobile overlay */}
       {mobileOpen && (

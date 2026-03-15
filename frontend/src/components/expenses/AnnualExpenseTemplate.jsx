@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPencil, faTrash, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -48,6 +51,16 @@ export default function AnnualExpenseTemplate({ dossierId }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [error, setError] = useState('');
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [confirmState, setConfirmState] = useState(null);
+
+  function toggleRow(id) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     load();
@@ -62,14 +75,21 @@ export default function AnnualExpenseTemplate({ dossierId }) {
     }
   }
 
-  async function handleDelete(item) {
-    if (!confirm(`Delete "${item.name}" from the annual template?`)) return;
-    try {
-      await api.deleteAnnualTemplateItem(dossierId, item.id);
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDelete(item) {
+    setConfirmState({
+      title: 'Delete template item',
+      message: `Delete "${item.name}" from the annual template?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteAnnualTemplateItem(dossierId, item.id);
+          setItems((prev) => prev.filter((i) => i.id !== item.id));
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleSaveItem(data, itemId) {
@@ -108,7 +128,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
           No annual expenses in template yet.
         </p>
       ) : (
-        <div className="table-container" style={{ marginBottom: '0.75rem' }}>
+        <div className="mobile-cards table-container" style={{ marginBottom: '0.75rem' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
           <thead>
             <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
@@ -122,37 +142,41 @@ export default function AnnualExpenseTemplate({ dossierId }) {
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '0.4rem 0.5rem' }}>{item.name}</td>
-                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+              <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
+                <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
+                  <span>{item.name}</span>
+                  <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
+                  <button className="card-expand-btn" tabIndex={-1}>›</button>
+                </td>
+                <td data-label="Annual" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                <td data-label="Monthly" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
                   {formatValue(item.value / 12)}
                 </td>
-                <td style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+                <td data-label="Payment" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
                   {item.day_of_payment && item.month_of_payment
                     ? `${item.day_of_payment} ${MONTHS[item.month_of_payment - 1]}`
                     : '—'}
                 </td>
-                <td style={{ padding: '0.3rem 0.5rem' }}>
+                <td data-label="Class" className="mobile-detail" style={{ padding: '0.3rem 0.5rem' }}>
                   <ClassificationPills
                     value={item.classification}
                     onChange={(v) => handleClassificationChange(item, v)}
                   />
                 </td>
-                <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <button
                     className="btn-secondary"
                     onClick={() => { setEditingItem(item); setShowAddModal(true); }}
                     style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
                   >
-                    Edit
+                    <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
                   </button>
                   <button
                     className="btn-danger"
                     onClick={() => handleDelete(item)}
                     style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
                   >
-                    Delete
+                    <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
                   </button>
                 </td>
               </tr>
@@ -167,7 +191,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
         onClick={() => { setEditingItem(null); setShowAddModal(true); }}
         style={{ fontSize: '0.875rem' }}
       >
-        + Add annual expense
+        <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add annual expense
       </button>
 
       {showAddModal && (
@@ -177,6 +201,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
           onClose={() => { setShowAddModal(false); setEditingItem(null); }}
         />
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }
@@ -227,7 +252,7 @@ function AnnualTemplateItemModal({ item, onSave, onClose }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{item ? 'Edit' : 'Add'} Annual Expense</h2>
-          <button className="close-btn" onClick={onClose}>&times;</button>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">

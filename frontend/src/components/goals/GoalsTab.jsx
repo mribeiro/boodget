@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlus, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import GoalFormModal from './GoalFormModal';
 
@@ -77,7 +79,7 @@ export default function GoalsTab({ dossierId }) {
       <div className="section-header" style={{ marginBottom: 'var(--space-5)' }}>
         <h2 style={{ margin: 0 }}>Goals</h2>
         <button className="btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-          New goal
+          <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />New goal
         </button>
       </div>
 
@@ -108,7 +110,7 @@ export default function GoalsTab({ dossierId }) {
                     {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
                   </span>
                   {infeasible && goal.state === 'active' && (
-                    <span className="badge badge-warning">⚠ Infeasible</span>
+                    <span className="badge badge-warning"><FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.3rem' }} />Infeasible</span>
                   )}
                   <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {formatYM(goal.target_date)}
@@ -133,7 +135,7 @@ export default function GoalsTab({ dossierId }) {
 
                 {infeasible && goal.state === 'active' && (
                   <div style={{ marginTop: 'var(--space-2)', fontSize: 12, color: 'var(--color-warning-text)', fontWeight: 500 }}>
-                    ⚠ Goal cannot be reached with current settings.
+                    <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.3rem' }} />Goal cannot be reached with current settings.
                   </div>
                 )}
               </div>

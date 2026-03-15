@@ -3,8 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext, AppContext } from '../../App';
 import { useTheme } from '../../contexts/ThemeContext';
 import { api } from '../../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faA, faMoon, faSun, faBars } from '@fortawesome/free-solid-svg-icons';
 
-const THEME_ICONS = { system: '◑', light: '☀', dark: '☽' };
+const THEME_ICONS = { system: faA, light: faSun, dark: faMoon };
 const THEME_LABELS = { system: 'Following system', light: 'Light mode', dark: 'Dark mode' };
 const THEME_ORDER = ['system', 'light', 'dark'];
 
@@ -29,10 +31,6 @@ export default function Navbar({ onHamburger }) {
   const dropdownRef = useRef(null);
 
   const appEnv = window.__APP_ENV__;
-  const navbarBg =
-    appEnv === 'dev' ? 'var(--color-navbar-dev)' :
-    appEnv === 'ephemeral' ? 'var(--color-navbar-ephemeral)' :
-    undefined;
 
   const dossierId = getDossierIdFromPath(location.pathname);
   const sha = (import.meta.env.VITE_GIT_COMMIT || 'unknown').slice(0, 7);
@@ -70,10 +68,10 @@ export default function Navbar({ onHamburger }) {
   }, []);
 
   return (
-    <nav className="navbar" style={navbarBg ? { backgroundColor: navbarBg } : undefined}>
+    <nav className="navbar">
       <div className="navbar-left">
         <button className="navbar-hamburger" onClick={onHamburger} aria-label="Menu">
-          ☰
+          <FontAwesomeIcon icon={faBars} />
         </button>
         {breadcrumb}
       </div>
@@ -96,7 +94,7 @@ export default function Navbar({ onHamburger }) {
           onClick={cycleTheme}
           title={THEME_LABELS[theme]}
         >
-          {THEME_ICONS[theme]}
+          <FontAwesomeIcon icon={THEME_ICONS[theme]} />
         </button>
 
         {/* User menu */}
