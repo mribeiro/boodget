@@ -711,20 +711,25 @@ GOALS
 ### 9.1 Cycle list
 
 - Each cycle is a `.card.card--clickable`.
-- Shows: cycle name (e.g. “March 2025”), date range, open/closed badge, expected balance.
-- Closed badge: `neutral` variant. Open badge: `success` variant.
+- Shows: cycle **display name** (end month, e.g. “April 2025”), open/closed badge.
+- Closed badge: `badge-filled`. Open badge: `badge-empty`.
+- Placeholder rows above (next cycle) and below (previous cycle) use the same end-month naming.
+- The **Open Cycle modal** selector shows end-month labels (e.g. “April 2025”) while storing the start month internally. The date range hint below the selector shows the full span.
 - “Open new cycle” button: primary, top of the list.
 
 ### 9.2 Cycle Editor (CycleEditor)
 
-- Page header: cycle name + date range + open/close action button.
-- Two summary stat rows at top (inside a `.card`):
-  - Row 1: Total available | Total expenses | Total expenses paid | Total expenses unpaid
-  - Row 2: Total distributions | Total distributions done | Expected balance | Final real balance (if closed)
-  - Each stat uses the **Stat/KPI display** (Section 6.10).
+- Page header: cycle **display name** (end month, e.g. "April 2025 Cycle") + date range subtitle + three header actions: **Period** button (pencil icon, opens `EditPeriodModal` to change the stored start month/year), **Delete** button (danger, opens `ConfirmModal`, then navigates back), **open/close action button**.
+- The **EditPeriodModal** shows a Cycle selector (dropdown of end-month labels derived from `new Date(year, m, startDay - 1)`) and a Start year selector. The date range hint updates live. Submitting sends `PATCH /cycles/:id { year, month }`. A 409 conflict is shown inline.
+- **Summary card** (`.card`) directly below the header info card:
+  - Section title "Summary" at top.
+  - **Expenses** subsection: uppercase label above a `repeat(3, 1fr)` grid → Total | Paid | Unpaid.
+  - **Distributions** subsection: uppercase label above a `repeat(3, 1fr)` grid → Total | Done | Pending.
+  - **Closing** subsection (only when closed): divider + uppercase label + `repeat(3, 1fr)` grid → Final real balance | Difference.
+  - Each data point: small muted label above, value in `fontWeight: 500` (600 for Closing).
 - Below: **Expenses** section and **Distributions** section, each in a `.card`.
 - Expenses use the `.table`. Fixed expense rows: name | value | day | paid checkbox | actions. Budget expense rows: name | max | spent (inline editable number) | progress bar | actions.
-- The paid checkbox: custom styled checkbox (see Section 9.4).
+- The paid checkbox and done checkbox: use `<Checkbox>` component (see Section 9.4).
 - Distributions table: name | value | done checkbox | actions.
 
 ### 9.3 Expense Template
@@ -736,26 +741,39 @@ GOALS
 
 ### 9.4 Checkboxes
 
-Custom styled checkboxes used for paid/done states:
+All checkboxes use the `<Checkbox>` React component (`frontend/src/components/ui/Checkbox.jsx`). Native `<input type="checkbox">` is **never used** — it breaks dark mode on iOS/Chrome and produces tiny tap targets.
+
+The component renders a `<span>` with `role="checkbox"`, `tabIndex={0}`, and keyboard handling (Space/Enter toggles). It uses the `.checkbox-custom` CSS class.
 
 ```css
 .checkbox-custom {
-  width: 18px; height: 18px;
+  width: 20px; height: 20px; min-width: 20px;
   border: 2px solid var(--border-strong);
   border-radius: var(--radius-xs);
   background: var(--bg-input);
   cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+              box-shadow var(--transition-fast);
+  flex-shrink: 0;
+  user-select: none;
+  font-size: 13px; font-weight: 700; color: transparent;
 }
+.checkbox-custom:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-brand-light), 0 0 0 5px var(--color-brand);
+}
+.checkbox-custom:hover:not(.checked) { border-color: var(--color-brand); }
 .checkbox-custom.checked {
   background: var(--color-success);
   border-color: var(--color-success);
-}
-.checkbox-custom.checked::after {
-  content: '✓'; color: white; font-size: 12px; font-weight: 700;
+  color: #fff;
 }
 ```
+
+Usage: `<Checkbox checked={value} onChange={handler} title="..." />`
+
+Files using `<Checkbox>`: `CycleEditor` (paid/done toggles), `AccountManager` (idle money), `EmergencyFundTab` (account picker), `GoalFormModal` (distribution and account multi-select).
 
 -----
 
@@ -847,10 +865,20 @@ All breakpoints implemented via `@media` queries in `index.css`.
 - Cards that are clickable use `cursor: pointer` and a subtle lift shadow on hover.
 - Modal entrance: fade + slide up (see Section 6.5).
 - Sidebar collapse: smooth width transition.
-- Tab switching: instant (no animation needed).
 - Number values in tables use `font-variant-numeric: tabular-nums` to prevent layout shifts.
 - Negative values in financial displays are always coloured `var(--color-value-negative)` (red). Positive values use `var(--color-value-positive)` (green).
 - Zero or neutral values use `var(--color-value-neutral)` (default text colour).
+
+### 15.1 Page entrance animations
+
+- `.page-fade-in` — applied to the outermost wrapper of full pages (LoginPage, DossierList, DossierView, CycleEditor). Triggers `@keyframes fadeIn` (opacity 0→1), duration `var(--transition-slow)` (300ms), `animation-fill-mode: both`.
+- `.tab-content` — wraps tab body in DossierView; `key={activeTab}` forces React to remount on tab switch, re-triggering the entrance animation. Uses `fadeIn` at 200ms. **Must NOT use `slideUp` (translateY)** — a persisted CSS transform makes the element a containing block for `position: fixed` descendants, which breaks modal overlay stacking.
+- `.glance-card` — Glances cards use `slideUp` (`@keyframes slideUp`: opacity + translateY) with `nth-child` stagger delays: child 1 = 0ms, child 2 = 50ms, child 3 = 100ms, child 4 = 150ms, child 5 = 200ms.
+- Body scroll lock: `body:has(.modal-overlay) { overflow: hidden }` — applied automatically whenever any modal with `.modal-overlay` is mounted. No JS required.
+
+### 15.2 Confirmation dialogs
+
+All destructive or irreversible actions use `<ConfirmModal>` (`frontend/src/components/ConfirmModal.jsx`) instead of `window.confirm()`. The modal is animated (entrance via `.modal` CSS), shows a title, message, and Cancel / Confirm buttons. The Confirm button is styled as `btn-danger` for destructive actions and `btn-primary` otherwise. Clicking the overlay cancels. The `confirmState` pattern (see CLAUDE.md Component Patterns) is used in every component that needs confirmation.
 
 -----
 
