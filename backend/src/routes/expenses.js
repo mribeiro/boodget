@@ -629,7 +629,7 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
     }
 
     for (const ci of matchingItems) {
-      const cfValues = doc.custom_field_values ?? [];
+      const cfValues = doc.custom_fields ?? [];
       const amountEntry = cfValues.find((f) => f.field === dossier.paperless_amount_field_id);
       const dateEntry = cfValues.find((f) => f.field === dossier.paperless_date_field_id);
 
