@@ -154,9 +154,12 @@ export default function UserManager() {
                       <span className="badge badge-brand" style={{ marginLeft: 8 }}>You</span>
                     )}
                   </span>
+                  <span className="mobile-card-inline-value">
+                    <span className="badge badge-neutral">{u.is_oidc ? 'SSO' : 'Local'}</span>
+                  </span>
                   <button className="card-expand-btn" tabIndex={-1}>›</button>
                 </td>
-                <td data-label="Type">
+                <td data-label="Type" className="mobile-summary-in-title">
                   <span className="badge badge-neutral">
                     {u.is_oidc ? 'SSO' : 'Local'}
                   </span>

@@ -136,9 +136,10 @@ export default function AnnualExpenseTemplate({ dossierId }) {
               <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
                 <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                   <span>{item.name}</span>
+                  <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
                   <button className="card-expand-btn" tabIndex={-1}>›</button>
                 </td>
-                <td data-label="Annual" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                <td data-label="Annual" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
                 <td data-label="Monthly" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', color: 'var(--color-text-muted)' }}>
                   {formatValue(item.value / 12)}
                 </td>

@@ -174,9 +174,10 @@ export default function ExpenseTemplate({ dossierId }) {
                 <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
                   <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                     <span>{item.name}</span>
+                    <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
                     <button className="card-expand-btn" tabIndex={-1}>›</button>
                   </td>
-                  <td data-label="Value" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                  <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
                   <td data-label="Type" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
                   <td data-label="Day" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
                     {item.type === 'Fixed' ? item.day_of_payment : '—'}
@@ -230,9 +231,10 @@ export default function ExpenseTemplate({ dossierId }) {
                   <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
                     <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                       <span>{item.name}</span>
+                      <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
                       <button className="card-expand-btn" tabIndex={-1}>›</button>
                     </td>
-                    <td data-label="Value" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                    <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
                     {['must_amount', 'want_amount', 'save_amount'].map((field, fi) => (
                       <td key={field} data-label={['Must', 'Want', 'Save'][fi]} className="mobile-detail" style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
                         <input

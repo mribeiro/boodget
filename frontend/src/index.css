@@ -1436,6 +1436,11 @@ tr:hover td {
   display: none;
 }
 
+/* ── Mobile inline summary value (hidden on desktop) ───────── */
+.mobile-card-inline-value {
+  display: none;
+}
+
 /* ── Glances panel ───────────────────────────────────────── */
 
 .glances-panel {
@@ -1703,6 +1708,21 @@ tr:hover td {
   }
   .mobile-expanded .card-expand-btn {
     transform: rotate(90deg);
+  }
+
+  /* Inline value shown inside title row; standalone summary td hidden */
+  .mobile-card-inline-value {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: auto;
+    margin-right: var(--space-2);
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .mobile-cards td.mobile-summary-in-title {
+    display: none;
   }
 
   /* Container: remove border/overflow, act as a plain block */
