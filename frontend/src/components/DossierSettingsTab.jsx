@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPencil } from '@fortawesome/free-solid-svg-icons';
 import DossierSettings from './expenses/DossierSettings';
 import ExpenseTemplate from './expenses/ExpenseTemplate';
 import AnnualExpenseTemplate from './expenses/AnnualExpenseTemplate';
@@ -90,7 +92,7 @@ function EmergencyFundSettings({ dossierId }) {
               <>
                 <strong>{settings[key]}</strong>
                 <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{suffix}</span>
-                <button className="btn-secondary" onClick={() => startEdit(key)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>Edit</button>
+                <button className="btn-secondary" onClick={() => startEdit(key)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}><FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit</button>
               </>
             )}
           </div>

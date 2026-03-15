@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGripVertical, faXmark, faPlus, faBoxArchive } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
@@ -94,7 +96,7 @@ export default function AccountManager({ dossierId, onClose }) {
         <div className="modal-header">
           <h2>Manage Accounts</h2>
           <button className="close-btn" onClick={onClose}>
-            &times;
+            <FontAwesomeIcon icon={faXmark} />
           </button>
         </div>
         <div className="modal-body">
@@ -103,7 +105,9 @@ export default function AccountManager({ dossierId, onClose }) {
           <div className="section-header">
             <h3 style={{ fontWeight: 600, fontSize: '0.875rem' }}>Active accounts</h3>
             <button className="btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }} onClick={() => setShowForm((v) => !v)}>
-              {showForm ? 'Cancel' : 'Add account'}
+              {showForm
+                ? <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
+                : <><FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add account</>}
             </button>
           </div>
 
@@ -214,7 +218,7 @@ export default function AccountManager({ dossierId, onClose }) {
                         outline: dragOver === index ? '2px solid var(--color-primary)' : undefined,
                       }}
                     >
-                      <td className="text-muted" style={{ userSelect: 'none' }}>⠿</td>
+                      <td className="text-muted" style={{ userSelect: 'none' }}><FontAwesomeIcon icon={faGripVertical} /></td>
                       <td className="text-muted">{a.group_name}</td>
                       <td>{a.name}</td>
                       <td style={{ fontSize: '0.8rem' }}>{a.type}</td>
@@ -233,7 +237,7 @@ export default function AccountManager({ dossierId, onClose }) {
                           style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}
                           onClick={() => handleArchive(a)}
                         >
-                          Archive
+                          <FontAwesomeIcon icon={faBoxArchive} style={{ marginRight: '0.35rem' }} />Archive
                         </button>
                       </td>
                     </tr>

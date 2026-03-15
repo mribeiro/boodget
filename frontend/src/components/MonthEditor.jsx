@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 
 const MONTH_NAMES = [
@@ -140,7 +142,7 @@ export default function MonthEditor() {
     <div>
       <div className="page-header">
         <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`)}>
-          &larr; Back
+          <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
         </button>
         <h1 style={{ flex: 1 }}>
           {monthLabel(monthData.year, monthData.month)}
@@ -164,7 +166,7 @@ export default function MonthEditor() {
             {monthData.missing_accounts} account{monthData.missing_accounts > 1 ? 's' : ''} exist{monthData.missing_accounts === 1 ? 's' : ''} that {monthData.missing_accounts === 1 ? 'is' : 'are'} not part of this month yet.
           </span>
           <button className="btn-secondary" style={{ marginLeft: '1rem', whiteSpace: 'nowrap' }} onClick={handleSyncAccounts}>
-            Add to month
+            <FontAwesomeIcon icon={faArrowsRotate} style={{ marginRight: '0.4rem' }} />Add to month
           </button>
         </div>
       )}
@@ -290,10 +292,10 @@ export default function MonthEditor() {
           {monthData.entries.length > 0 && (
             <div className="month-editor-footer">
               <button type="button" className="btn-secondary" onClick={handleReset}>
-                Reset
+                <FontAwesomeIcon icon={faRotateLeft} style={{ marginRight: '0.4rem' }} />Reset
               </button>
               <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? 'Saving...' : <><FontAwesomeIcon icon={faFloppyDisk} style={{ marginRight: '0.4rem' }} />Save</>}
               </button>
             </div>
           )}

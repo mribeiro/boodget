@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faFolderOpen, faCopy, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 
 // ── Utilities ────────────────────────────────────────────────────────────────
@@ -654,21 +656,21 @@ function SnapshotPanel({
                   onClick={() => onLoad(s)}
                   style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
                 >
-                  Load
+                  <FontAwesomeIcon icon={faFolderOpen} style={{ marginRight: '0.35rem' }} />Load
                 </button>
                 <button
                   className="btn-secondary"
                   onClick={() => onDuplicate(s)}
                   style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
                 >
-                  Duplicate
+                  <FontAwesomeIcon icon={faCopy} style={{ marginRight: '0.35rem' }} />Duplicate
                 </button>
                 <button
                   className="btn-danger"
                   onClick={() => onDelete(s)}
                   style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
                 >
-                  Delete
+                  <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
                 </button>
               </div>
             ))}

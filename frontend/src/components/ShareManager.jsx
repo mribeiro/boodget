@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faXmark, faUserMinus } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 
 export default function ShareManager({ dossierId, onClose }) {
@@ -51,7 +53,7 @@ export default function ShareManager({ dossierId, onClose }) {
         <div className="modal-header">
           <h2>Share Dossier</h2>
           <button className="close-btn" onClick={onClose}>
-            &times;
+            <FontAwesomeIcon icon={faXmark} />
           </button>
         </div>
         <div className="modal-body">
@@ -100,7 +102,7 @@ export default function ShareManager({ dossierId, onClose }) {
                           style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}
                           onClick={() => handleRevoke(u.id)}
                         >
-                          Revoke
+                          <FontAwesomeIcon icon={faUserMinus} style={{ marginRight: '0.35rem' }} />Revoke
                         </button>
                       </td>
                     </tr>

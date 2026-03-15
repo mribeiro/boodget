@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPencil, faTrash, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 
 function formatValue(v) {
@@ -179,14 +181,14 @@ export default function ExpenseTemplate({ dossierId }) {
                       onClick={() => { setEditingItem(item); setShowAddModal(true); }}
                       style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
                     >
-                      Edit
+                      <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
                     </button>
                     <button
                       className="btn-danger"
                       onClick={() => handleDelete(item)}
                       style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
                     >
-                      Delete
+                      <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
                     </button>
                   </td>
                 </tr>
@@ -268,7 +270,7 @@ export default function ExpenseTemplate({ dossierId }) {
         onClick={() => { setEditingItem(null); setShowAddModal(true); }}
         style={{ fontSize: '0.875rem' }}
       >
-        + Add {activeTab === 'expense' ? 'expense' : 'distribution'}
+        <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add {activeTab === 'expense' ? 'expense' : 'distribution'}
       </button>
 
       {showAddModal && (
@@ -320,7 +322,7 @@ function TemplateItemModal({ section, item, onSave, onClose }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{item ? 'Edit' : 'Add'} {section === 'expense' ? 'Expense' : 'Distribution'}</h2>
-          <button className="close-btn" onClick={onClose}>&times;</button>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">

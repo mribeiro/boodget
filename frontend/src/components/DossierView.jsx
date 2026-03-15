@@ -8,6 +8,13 @@ import {
   faBullseye,
   faShieldHalved,
   faGear,
+  faArrowLeft,
+  faFileExport,
+  faShareNodes,
+  faTrash,
+  faCalendarPlus,
+  faXmark,
+  faLayerGroup,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext, AppContext } from '../App';
@@ -134,24 +141,25 @@ export default function DossierView() {
       <div className="page-header">
         {!autoOpened && (
           <button className="btn-ghost" onClick={() => navigate('/')}>
-            &larr; Back
+            <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
           </button>
         )}
         <h1 style={{ flex: 1 }}>{dossier.name}</h1>
         <div className="page-header-actions">
           <button className="btn-secondary" onClick={() => setShowAccountManager(true)}>
-            Accounts
+            <FontAwesomeIcon icon={faLayerGroup} style={{ marginRight: '0.4rem' }} />Accounts
           </button>
           <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
+            <FontAwesomeIcon icon={faFileExport} style={{ marginRight: '0.4rem' }} />
             {exporting ? 'Exporting…' : 'Export'}
           </button>
           {dossier.is_creator ? (
             <>
               <button className="btn-secondary" onClick={() => setShowShareManager(true)}>
-                Share
+                <FontAwesomeIcon icon={faShareNodes} style={{ marginRight: '0.4rem' }} />Share
               </button>
               <button className="btn-danger" onClick={handleDeleteDossier}>
-                Delete
+                <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.4rem' }} />Delete
               </button>
             </>
           ) : null}
@@ -207,7 +215,7 @@ export default function DossierView() {
                   </button>
                 </div>
                 <button className="btn-primary" onClick={() => setShowAddMonth(true)}>
-                  Add month
+                  <FontAwesomeIcon icon={faCalendarPlus} style={{ marginRight: '0.4rem' }} />Add month
                 </button>
               </div>
             </div>
@@ -384,7 +392,7 @@ function AddMonthModal({ existingMonths, onAdd, onClose, error, setError }) {
         <div className="modal-header">
           <h2>Add Month</h2>
           <button className="close-btn" onClick={onClose}>
-            &times;
+            <FontAwesomeIcon icon={faXmark} />
           </button>
         </div>
         <form onSubmit={handleSubmit}>

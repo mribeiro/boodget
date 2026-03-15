@@ -1,4 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUserPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
 
@@ -59,7 +61,9 @@ export default function UserManager() {
         <h1>Users</h1>
         <div className="page-header-actions">
           <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : 'Add user'}
+            {showForm
+              ? <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
+              : <><FontAwesomeIcon icon={faUserPlus} style={{ marginRight: '0.4rem' }} />Add user</>}
           </button>
         </div>
       </div>
@@ -157,7 +161,7 @@ export default function UserManager() {
                       style={{ color: 'var(--color-danger)' }}
                       onClick={() => handleDelete(u)}
                     >
-                      Delete
+                      <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
                     </button>
                   )}
                 </td>

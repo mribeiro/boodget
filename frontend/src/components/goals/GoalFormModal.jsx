@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 
 const MONTH_NAMES = [
@@ -104,7 +106,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
       <div className="modal" style={{ maxWidth: '560px', width: '100%' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{isEdit ? 'Edit Goal' : 'New Goal'}</h2>
-          <button className="close-btn" onClick={onClose}>&times;</button>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
