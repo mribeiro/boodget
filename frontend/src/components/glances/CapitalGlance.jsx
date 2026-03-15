@@ -1,3 +1,6 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -31,7 +34,7 @@ export function GlanceCard({ title, color = 'neutral', onClick, children }) {
         <span className="glance-card-title">{title}</span>
         {showWarningIcon && (
           <span className="glance-card-icon" style={{ color: color === 'red' ? 'var(--color-danger)' : 'var(--color-warning)' }}>
-            ⚠
+            <FontAwesomeIcon icon={faTriangleExclamation} />
           </span>
         )}
       </div>

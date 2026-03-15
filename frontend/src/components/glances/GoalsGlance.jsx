@@ -1,3 +1,5 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 
 export default function GoalsGlance({ goals, onClick }) {
@@ -29,7 +31,7 @@ export default function GoalsGlance({ goals, onClick }) {
       )}
       {failed > 0 && (
         <div className="text-sm" style={{ color: 'var(--color-danger-text)', fontWeight: 600 }}>
-          {failed} failed ⚠
+          {failed} failed <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginLeft: '0.3rem' }} />
         </div>
       )}
     </GlanceCard>
