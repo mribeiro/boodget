@@ -194,6 +194,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Prevent background scroll while any modal is open */
+body:has(.modal-overlay) {
+  overflow: hidden;
+}
+
 /* Type scale utilities */
 .text-xs   { font-size: 11px; font-weight: 400; }
 .text-sm   { font-size: 12px; font-weight: 400; }
@@ -1126,9 +1131,12 @@ tr:hover td {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Tab content: fade + slide up each time the active tab changes */
+/* Tab content: fade in each time the active tab changes.
+   Using fadeIn (opacity only) instead of slideUp so that no transform
+   is held by fill-mode: both — a persisted transform would make this
+   element the containing block for position:fixed descendants (modals). */
 .tab-content {
-  animation: slideUp var(--transition-normal) both;
+  animation: fadeIn var(--transition-normal) both;
 }
 
 /* Page-level entrance when navigating to a dossier */
