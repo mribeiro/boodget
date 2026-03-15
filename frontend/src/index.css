@@ -178,6 +178,10 @@
   padding: 0;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 /* ── Base Typography ─────────────────────────────────────── */
 
 body {
@@ -608,6 +612,7 @@ body {
   flex: 1;
   padding: var(--space-6);
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 /* ── Loading ─────────────────────────────────────────────── */

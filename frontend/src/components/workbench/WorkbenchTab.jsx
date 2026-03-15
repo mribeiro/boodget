@@ -573,11 +573,11 @@ function SnapshotPanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <h3 style={{ margin: 0, fontSize: '0.95rem' }}>Workbench</h3>
           {loadedSnapshot ? (
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               {loadedSnapshot.name}{isDirty ? ' *' : ''}
             </span>
           ) : (
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               [working state{isDirty ? ' — unsaved' : ''}]
             </span>
           )}
@@ -626,7 +626,7 @@ function SnapshotPanel({
 
       {snapshots.length > 0 && (
         <div>
-          <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
             Saved snapshots
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -639,14 +639,14 @@ function SnapshotPanel({
                   gap: '0.5rem',
                   padding: '0.4rem 0.6rem',
                   borderRadius: 'var(--radius)',
-                  background: loadedSnapshot?.id === s.id ? 'var(--color-primary-light, #eff6ff)' : 'var(--color-surface)',
-                  border: `1px solid ${loadedSnapshot?.id === s.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                  background: loadedSnapshot?.id === s.id ? 'var(--color-brand-light)' : 'var(--bg-card)',
+                  border: `1px solid ${loadedSnapshot?.id === s.id ? 'var(--color-brand)' : 'var(--border-default)'}`,
                 }}
               >
                 <span style={{ flex: 1, fontSize: '0.875rem', fontWeight: loadedSnapshot?.id === s.id ? 600 : 400 }}>
                   {s.name}
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   {new Date(s.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
                 <button

@@ -1,20 +1,14 @@
-import { useContext, useState } from 'react';
+import { useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../App';
 
-export default function Sidebar({ mobileOpen, onClose }) {
+export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChange }) {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [collapsed, setCollapsed] = useState(() => {
-    return localStorage.getItem('ct-sidebar-collapsed') === 'true';
-  });
-
   function toggleCollapse() {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem('ct-sidebar-collapsed', String(next));
+    onCollapseChange(!collapsed);
   }
 
   function navToPath(path) {

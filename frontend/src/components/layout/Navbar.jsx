@@ -3,8 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext, AppContext } from '../../App';
 import { useTheme } from '../../contexts/ThemeContext';
 import { api } from '../../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faA, faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
 
-const THEME_ICONS = { system: '◑', light: '☀', dark: '☽' };
+const THEME_ICONS = { system: faA, light: faSun, dark: faMoon };
 const THEME_LABELS = { system: 'Following system', light: 'Light mode', dark: 'Dark mode' };
 const THEME_ORDER = ['system', 'light', 'dark'];
 
@@ -96,7 +98,7 @@ export default function Navbar({ onHamburger }) {
           onClick={cycleTheme}
           title={THEME_LABELS[theme]}
         >
-          {THEME_ICONS[theme]}
+          <FontAwesomeIcon icon={THEME_ICONS[theme]} />
         </button>
 
         {/* User menu */}
