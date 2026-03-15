@@ -56,6 +56,7 @@ function sortTemplateExpenses(expenses, cycleStartDay) {
 export default function ExpenseTemplate({ dossierId }) {
   const [items, setItems] = useState([]);
   const [cycleStartDay, setCycleStartDay] = useState(25);
+  const [paperlessActive, setPaperlessActive] = useState(false);
   const [activeTab, setActiveTab] = useState('expense');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -83,6 +84,9 @@ export default function ExpenseTemplate({ dossierId }) {
       ]);
       setItems(data);
       setCycleStartDay(settings.cycle_start_day ?? 25);
+      setPaperlessActive(
+        !!(settings.paperless_url && settings.paperless_token_set && settings.paperless_date_field_id && settings.paperless_amount_field_id)
+      );
     } catch (err) {
       setError(err.message);
     }
@@ -175,6 +179,7 @@ export default function ExpenseTemplate({ dossierId }) {
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value / Max</th>
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Day</th>
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
+                {paperlessActive && <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Paperless Tag ID</th>}
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
               </tr>
             </thead>
@@ -197,6 +202,11 @@ export default function ExpenseTemplate({ dossierId }) {
                       onChange={(v) => handleClassificationChange(item, v)}
                     />
                   </td>
+                  {paperlessActive && (
+                    <td data-label="Paperless Tag ID" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+                      {item.type === 'Fixed' ? (item.paperless_tag_id != null ? item.paperless_tag_id : '—') : ''}
+                    </td>
+                  )}
                   <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button
                       className="btn-secondary"
@@ -303,6 +313,7 @@ export default function ExpenseTemplate({ dossierId }) {
         <TemplateItemModal
           section={activeTab}
           item={editingItem}
+          paperlessActive={paperlessActive}
           onSave={handleSaveItem}
           onClose={() => { setShowAddModal(false); setEditingItem(null); }}
         />
@@ -312,13 +323,16 @@ export default function ExpenseTemplate({ dossierId }) {
   );
 }
 
-function TemplateItemModal({ section, item, onSave, onClose }) {
+function TemplateItemModal({ section, item, paperlessActive, onSave, onClose }) {
   const [name, setName] = useState(item?.name ?? '');
   const [type, setType] = useState(item?.type ?? 'Fixed');
   const [value, setValue] = useState(item?.value != null ? String(item.value) : '');
   const [dayOfPayment, setDayOfPayment] = useState(item?.day_of_payment != null ? String(item.day_of_payment) : '');
+  const [paperlessTagId, setPaperlessTagId] = useState(item?.paperless_tag_id != null ? String(item.paperless_tag_id) : '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const isFixed = section === 'expense' && (item ? item.type === 'Fixed' : type === 'Fixed');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -336,6 +350,9 @@ function TemplateItemModal({ section, item, onSave, onClose }) {
       if (section === 'expense') {
         data.type = type;
         if (type === 'Fixed') data.day_of_payment = Number(dayOfPayment);
+        if (isFixed && paperlessActive) {
+          data.paperless_tag_id = paperlessTagId.trim() !== '' ? Number(paperlessTagId) : null;
+        }
       }
       await onSave(data, item?.id);
     } catch (err) {
@@ -371,10 +388,16 @@ function TemplateItemModal({ section, item, onSave, onClose }) {
               <label>{section === 'expense' && type === 'Budget' ? 'Maximum amount (€)' : 'Value (€)'}</label>
               <input type="number" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
             </div>
-            {section === 'expense' && (item ? item.type === 'Fixed' : type === 'Fixed') && (
+            {isFixed && (
               <div className="form-group">
                 <label>Day of payment (1–31)</label>
                 <input type="number" min={1} max={31} value={dayOfPayment} onChange={(e) => setDayOfPayment(e.target.value)} placeholder="e.g. 5" />
+              </div>
+            )}
+            {isFixed && paperlessActive && (
+              <div className="form-group">
+                <label>Paperless Tag ID</label>
+                <input type="number" min={1} value={paperlessTagId} onChange={(e) => setPaperlessTagId(e.target.value)} placeholder="e.g. 15" />
               </div>
             )}
           </div>
