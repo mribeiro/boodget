@@ -1816,8 +1816,8 @@ tr:hover td {
   .mobile-cards tr.mobile-expanded td.mobile-detail {
     max-height: 120px;
     opacity: 1;
-    padding-top: var(--space-2);
-    padding-bottom: var(--space-2);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
     border-bottom: 1px solid var(--border-subtle, var(--border-default));
   }
   .mobile-cards tr.mobile-expanded td.mobile-detail:last-child {
