@@ -209,7 +209,7 @@ export default function CycleEditor() {
   const expectedCurrentBalance = summary.total_available - summary.total_expenses_paid - summary.total_distributions_done;
 
   return (
-    <div>
+    <div className="page-fade-in">
       {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
       <div className="page-header">
