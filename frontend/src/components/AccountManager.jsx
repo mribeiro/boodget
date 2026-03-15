@@ -5,7 +5,7 @@ import { api } from '../services/api';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
 
-export default function AccountManager({ dossierId, onClose }) {
+export default function AccountManager({ dossierId, onClose, inline = false }) {
   const [accounts, setAccounts] = useState([]);
   const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false });
   const [showForm, setShowForm] = useState(false);
@@ -99,17 +99,9 @@ export default function AccountManager({ dossierId, onClose }) {
   const active = accounts.filter((a) => !a.archived);
   const archived = accounts.filter((a) => a.archived);
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 700 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Manage Accounts</h2>
-          <button className="close-btn" onClick={onClose}>
-            <FontAwesomeIcon icon={faXmark} />
-          </button>
-        </div>
-        <div className="modal-body">
-          {error && <div className="alert alert-error">{error}</div>}
+  const body = (
+    <>
+      {error && <div className="alert alert-error">{error}</div>}
 
           <div className="section-header">
             <h3 style={{ fontWeight: 600, fontSize: '0.875rem' }}>Active accounts</h3>
@@ -290,11 +282,23 @@ export default function AccountManager({ dossierId, onClose }) {
               </div>
             </>
           )}
-        </div>
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>
-            Close
+    </>
+  );
+
+  if (inline) return <div>{body}</div>;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 700 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Manage Accounts</h2>
+          <button className="close-btn" onClick={onClose}>
+            <FontAwesomeIcon icon={faXmark} />
           </button>
+        </div>
+        <div className="modal-body">{body}</div>
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

@@ -9,19 +9,13 @@ import {
   faShieldHalved,
   faGear,
   faArrowLeft,
-  faFileExport,
-  faShareNodes,
-  faTrash,
   faCalendarPlus,
   faXmark,
-  faLayerGroup,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext, AppContext } from '../App';
 import CapitalChart from './CapitalChart';
 import CapitalCompareTable from './CapitalCompareTable';
-import AccountManager from './AccountManager';
-import ShareManager from './ShareManager';
 import ExpensesTab from './expenses/ExpensesTab';
 import DossierSettingsTab from './DossierSettingsTab';
 import WorkbenchTab from './workbench/WorkbenchTab';
@@ -61,12 +55,9 @@ export default function DossierView() {
   const [dossier, setDossier] = useState(null);
   const [months, setMonths] = useState([]);
   const [activeTab, setActiveTab] = useState(location.state?.tab ?? 'capital');
-  const [showAccountManager, setShowAccountManager] = useState(false);
-  const [showShareManager, setShowShareManager] = useState(false);
   const [showAddMonth, setShowAddMonth] = useState(false);
   const [compareView, setCompareView] = useState(false);
   const [error, setError] = useState('');
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     Promise.all([api.getDossier(id), api.getMonths(id)])
@@ -77,34 +68,6 @@ export default function DossierView() {
       })
       .catch(() => setError('Failed to load dossier'));
   }, [id]);
-
-  async function handleExport() {
-    setExporting(true);
-    try {
-      const data = await api.exportDossier(id);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${dossier.name.replace(/[^a-z0-9]/gi, '_')}_export.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function handleDeleteDossier() {
-    if (!confirm(`Delete dossier "${dossier.name}"? This cannot be undone.`)) return;
-    try {
-      await api.deleteDossier(id);
-      navigate('/');
-    } catch (err) {
-      setError(err.message);
-    }
-  }
 
   async function handleAddMonth({ year, month }) {
     try {
@@ -145,25 +108,6 @@ export default function DossierView() {
           </button>
         )}
         <h1 style={{ flex: 1 }}>{dossier.name}</h1>
-        <div className="page-header-actions">
-          <button className="btn-secondary" onClick={() => setShowAccountManager(true)}>
-            <FontAwesomeIcon icon={faLayerGroup} style={{ marginRight: '0.4rem' }} />Accounts
-          </button>
-          <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
-            <FontAwesomeIcon icon={faFileExport} style={{ marginRight: '0.4rem' }} />
-            {exporting ? 'Exporting…' : 'Export'}
-          </button>
-          {dossier.is_creator ? (
-            <>
-              <button className="btn-secondary" onClick={() => setShowShareManager(true)}>
-                <FontAwesomeIcon icon={faShareNodes} style={{ marginRight: '0.4rem' }} />Share
-              </button>
-              <button className="btn-danger" onClick={handleDeleteDossier}>
-                <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.4rem' }} />Delete
-              </button>
-            </>
-          ) : null}
-        </div>
       </div>
 
       <GlancesPanel
@@ -336,7 +280,7 @@ export default function DossierView() {
       )}
 
       {activeTab === 'settings' && (
-        <DossierSettingsTab dossierId={id} />
+        <DossierSettingsTab dossierId={id} dossier={dossier} />
       )}
 
       {showAddMonth && (
@@ -349,13 +293,6 @@ export default function DossierView() {
         />
       )}
 
-      {showAccountManager && (
-        <AccountManager dossierId={id} onClose={() => setShowAccountManager(false)} />
-      )}
-
-      {showShareManager && (
-        <ShareManager dossierId={id} onClose={() => setShowShareManager(false)} />
-      )}
     </div>
   );
 }
