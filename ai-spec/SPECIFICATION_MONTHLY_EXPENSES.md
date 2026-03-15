@@ -34,16 +34,24 @@ Settings are accessible to all users with access to the dossier (same permission
 
 ### 3.1 Definition
 
-A **cycle** represents the period between two salary payments. It is named after the month it transitions **into**.
+A **cycle** represents the period between two salary payments. It is **named after the month it ends in** (i.e. the month in which the salary period concludes).
 
-**Example:** The **March cycle** runs from **25 February to 24 March** (when the cycle start day is 25).
+The cycle is stored internally as `(year, month)` representing its **start** month. The display name is derived from the **end** date: `new Date(year, month, cycle_start_day - 1)`.
+
+**Example** (cycle start day = 25):
+- Stored as `month=2` (February start) → runs **25 Feb – 24 Mar** → displayed as **"March"**
+- Stored as `month=3` (March start) → runs **25 Mar – 24 Apr** → displayed as **"April"**
+
+The date range always shows the full span (e.g. "Mar 25, 2025 – Apr 24, 2025") as a subtitle wherever the cycle name appears.
 
 ### 3.2 Rules
 
-- A dossier can have **only one open cycle at a time**.
-- The same cycle (month + year) **cannot be created twice**.
-- Cycles are displayed in **chronological order**.
+- A dossier can have **multiple open cycles simultaneously** — there is no restriction on how many cycles are open at once.
+- The same `(year, month)` start period **cannot be created twice** within a dossier (UNIQUE constraint).
+- Cycles are displayed in **reverse chronological order** in the list (newest first).
 - There is **no reset** for a cycle — once opened, it cannot be reverted to an unopened state.
+- A cycle can be **deleted** at any time; deletion permanently removes the cycle and all its items.
+- A cycle's **period (year/month)** can be changed after creation, subject to the uniqueness constraint.
 
 ### 3.3 Opening a Cycle
 
@@ -63,6 +71,18 @@ Both fields can be **updated at any time** after opening.
 - The system compares the final real balance against the **expected balance** (calculated — see Section 7).
 - A closed cycle **remains fully editable** — the user can correct values after closing.
 - There is no automatic suggestion of the previous cycle's final balance as the next cycle's previous balance — this is always entered manually.
+
+### 3.5 Editing a Cycle's Period
+
+- The `(year, month)` stored for a cycle (the **start** month) can be changed at any time via the cycle editor.
+- If another cycle in the same dossier already occupies the target period, the change is rejected (409 conflict).
+- The display name automatically updates to reflect the new end month.
+
+### 3.6 Deleting a Cycle
+
+- Any cycle can be **permanently deleted** from the cycle editor.
+- Deletion removes the cycle and all its items (`cycle_items`). This action is irreversible.
+- Users must confirm before deletion (confirmation dialog).
 
 ---
 
@@ -183,6 +203,9 @@ The following values must be displayed in a summary section for each cycle:
 - The **Settings** section is accessible from the dossier and clearly separated from functional sections.
 - The **Dossier Settings**, **Expense Template**, and **Cycles** should be clearly distinct areas in the UI.
 - Tabs for **Expenses** and **Distributions** must be visually clear and indicate they are two separate concepts within the same template.
+- The **cycle list** (`CycleList`) shows cycles newest-first, with placeholder rows above/below to open the next and previous months. Placeholder and cycle row labels both use the **end-month display name**.
+- The **cycle editor** (`CycleEditor`) header shows the cycle's display name (end month) and date range, plus **Period** (edit start month/year) and **Delete** action buttons.
+- The **cycle summary** card shows Expenses and Distributions as stacked sections, each with a section label above and three data points (Total / Paid / Unpaid; Total / Done / Pending) in a `repeat(3, 1fr)` grid for even spacing. When closed, a Closing section is appended with Final real balance and Difference.
 
 ---
 
