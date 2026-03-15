@@ -8,11 +8,11 @@ function formatEur(value) {
 
 function cycleYearMonth(today, cycleStartDay) {
   const d = today.getDate();
-  if (d < cycleStartDay) {
+  if (d >= cycleStartDay) {
     return { year: today.getFullYear(), month: today.getMonth() + 1 };
   }
-  const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  return { year: next.getFullYear(), month: next.getMonth() + 1 };
+  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
 }
 
 function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay) {
