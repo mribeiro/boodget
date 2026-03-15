@@ -140,7 +140,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
                   <button className="card-expand-btn" tabIndex={-1}>›</button>
                 </td>
                 <td data-label="Annual" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                <td data-label="Monthly" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                <td data-label="Monthly" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
                   {formatValue(item.value / 12)}
                 </td>
                 <td data-label="Payment" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>

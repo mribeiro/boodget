@@ -1782,6 +1782,7 @@ tr:hover td {
     color: var(--text-secondary);
     flex-shrink: 0;
     min-width: 80px;
+    text-align: left;
   }
   .mobile-cards td[data-label='']::before { display: none; }
   .mobile-cards td[data-label='']         { justify-content: flex-end; }
