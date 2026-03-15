@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark, faUserMinus } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
+import ConfirmModal from './ConfirmModal';
 
 export default function ShareManager({ dossierId, onClose, inline = false }) {
   const [sharedUsers, setSharedUsers] = useState([]);
@@ -17,6 +18,8 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
       })
       .catch(() => setError('Failed to load sharing info'));
   }, [dossierId]);
+
+  const [confirmState, setConfirmState] = useState(null);
 
   const sharedIds = new Set(sharedUsers.map((u) => u.id));
   const availableUsers = allUsers.filter((u) => !sharedIds.has(u.id));
@@ -37,14 +40,21 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
 
   async function handleRevoke(userId) {
     const user = sharedUsers.find((u) => u.id === userId);
-    if (!confirm(`Revoke access for "${user?.username}"?`)) return;
-    setError('');
-    try {
-      await api.revokeAccess(dossierId, userId);
-      setSharedUsers((prev) => prev.filter((u) => u.id !== userId));
-    } catch (err) {
-      setError(err.message);
-    }
+    setConfirmState({
+      title: 'Revoke access',
+      message: `Revoke access for "${user?.username}"?`,
+      confirmLabel: 'Revoke',
+      danger: true,
+      onConfirm: async () => {
+        setError('');
+        try {
+          await api.revokeAccess(dossierId, userId);
+          setSharedUsers((prev) => prev.filter((u) => u.id !== userId));
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   const body = (
@@ -106,7 +116,12 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
     </>
   );
 
-  if (inline) return <div>{body}</div>;
+  if (inline) return (
+    <div>
+      {body}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+    </div>
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -122,6 +137,7 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
           <button className="btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

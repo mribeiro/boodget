@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPencil, faTrash, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -51,6 +52,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
   const [editingItem, setEditingItem] = useState(null);
   const [error, setError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [confirmState, setConfirmState] = useState(null);
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -73,14 +75,21 @@ export default function AnnualExpenseTemplate({ dossierId }) {
     }
   }
 
-  async function handleDelete(item) {
-    if (!confirm(`Delete "${item.name}" from the annual template?`)) return;
-    try {
-      await api.deleteAnnualTemplateItem(dossierId, item.id);
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDelete(item) {
+    setConfirmState({
+      title: 'Delete template item',
+      message: `Delete "${item.name}" from the annual template?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteAnnualTemplateItem(dossierId, item.id);
+          setItems((prev) => prev.filter((i) => i.id !== item.id));
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleSaveItem(data, itemId) {
@@ -192,6 +201,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
           onClose={() => { setShowAddModal(false); setEditingItem(null); }}
         />
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

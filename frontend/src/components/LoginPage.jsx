@@ -40,7 +40,7 @@ export default function LoginPage({ onLogin }) {
   }
 
   return (
-    <div className="form-centered">
+    <div className="form-centered page-fade-in">
       <div className="form-card">
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>

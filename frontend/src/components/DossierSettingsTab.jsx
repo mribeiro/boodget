@@ -13,6 +13,7 @@ import AnnualExpenseTemplate from './expenses/AnnualExpenseTemplate';
 import AccountManager from './AccountManager';
 import ShareManager from './ShareManager';
 import { api } from '../services/api';
+import ConfirmModal from './ConfirmModal';
 
 function SettingsCard({ title, description, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -157,6 +158,7 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [confirmState, setConfirmState] = useState(null);
 
   async function handleExport() {
     setExporting(true);
@@ -177,14 +179,21 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
     }
   }
 
-  async function handleDelete() {
-    if (!confirm(`Delete dossier "${dossier.name}"? This cannot be undone.`)) return;
-    try {
-      await api.deleteDossier(dossierId);
-      navigate('/');
-    } catch (err) {
-      setActionError(err.message);
-    }
+  function handleDelete() {
+    setConfirmState({
+      title: 'Delete dossier',
+      message: `Delete dossier "${dossier.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteDossier(dossierId);
+          navigate('/');
+        } catch (err) {
+          setActionError(err.message);
+        }
+      },
+    });
   }
 
   return (
@@ -238,6 +247,7 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
           )}
         </div>
       </SettingsCard>
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

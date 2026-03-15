@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faTriangleExclamation, faListCheck, faPlus, faPencil, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -43,6 +44,7 @@ export default function EmergencyFundTab({ dossierId }) {
   const [extraValues, setExtraValues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirmState, setConfirmState] = useState(null);
 
   // Account picker dialog state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -141,15 +143,22 @@ export default function EmergencyFundTab({ dossierId }) {
     }
   }
 
-  async function deleteExtra(ev) {
-    if (!confirm(`Delete "${ev.name}"?`)) return;
-    try {
-      await api.deleteEmergencyFundExtraValue(dossierId, ev.id);
-      setExtraValues((prev) => prev.filter((x) => x.id !== ev.id));
-      await refreshStatus();
-    } catch (e) {
-      setError(e.message);
-    }
+  function deleteExtra(ev) {
+    setConfirmState({
+      title: 'Delete extra value',
+      message: `Delete "${ev.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteEmergencyFundExtraValue(dossierId, ev.id);
+          setExtraValues((prev) => prev.filter((x) => x.id !== ev.id));
+          await refreshStatus();
+        } catch (e) {
+          setError(e.message);
+        }
+      },
+    });
   }
 
   if (loading) return <div className="loading">Loading…</div>;
@@ -365,6 +374,7 @@ export default function EmergencyFundTab({ dossierId }) {
           </div>
         </div>
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

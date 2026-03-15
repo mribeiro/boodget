@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import ConfirmModal from '../ConfirmModal';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -56,6 +57,7 @@ export default function CycleEditor() {
   const [savingClose, setSavingClose] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
 
   useEffect(() => {
     load();
@@ -166,15 +168,22 @@ export default function CycleEditor() {
     }
   }
 
-  async function handleDeleteItem(item) {
-    if (!confirm(`Delete "${item.name}"?`)) return;
-    try {
-      await api.deleteCycleItem(dossierId, cycleId, item.id);
-      const fresh = await api.getCycle(dossierId, cycleId);
-      setCycle(fresh);
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDeleteItem(item) {
+    setConfirmState({
+      title: 'Delete item',
+      message: `Delete "${item.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteCycleItem(dossierId, cycleId, item.id);
+          const fresh = await api.getCycle(dossierId, cycleId);
+          setCycle(fresh);
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleEditItem(item, data) {
@@ -401,6 +410,7 @@ export default function CycleEditor() {
           onClose={() => setShowAddModal(false)}
         />
       )}
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }

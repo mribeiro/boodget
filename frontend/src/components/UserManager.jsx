@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
+import ConfirmModal from './ConfirmModal';
 
 export default function UserManager() {
   const { user: currentUser } = useContext(AuthContext);
@@ -13,6 +14,7 @@ export default function UserManager() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [confirmState, setConfirmState] = useState(null);
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -49,17 +51,24 @@ export default function UserManager() {
     }
   }
 
-  async function handleDelete(user) {
-    if (!confirm(`Delete user "${user.username}"? All their dossiers will also be deleted.`)) return;
-    setError('');
-    setSuccess('');
-    try {
-      await api.deleteUser(user.id);
-      setUsers((prev) => prev.filter((u) => u.id !== user.id));
-      setSuccess(`User "${user.username}" deleted`);
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleDelete(user) {
+    setConfirmState({
+      title: 'Delete user',
+      message: `Delete user "${user.username}"? All their dossiers will also be deleted.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        setError('');
+        setSuccess('');
+        try {
+          await api.deleteUser(user.id);
+          setUsers((prev) => prev.filter((u) => u.id !== user.id));
+          setSuccess(`User "${user.username}" deleted`);
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   if (loading) return <div className="loading">Loading...</div>;
@@ -185,6 +194,7 @@ export default function UserManager() {
           </tbody>
         </table>
       </div>
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );
 }
