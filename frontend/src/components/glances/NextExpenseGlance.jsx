@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faClock, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
@@ -17,23 +18,17 @@ function cycleYearMonth(today, cycleStartDay) {
 
 function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay) {
   if (dayOfPayment >= cycleStartDay) {
-    return new Date(cycleYear, cycleMonth - 1, dayOfPayment); // same calendar month as cycle start
+    return new Date(cycleYear, cycleMonth - 1, dayOfPayment);
   }
-  return new Date(cycleYear, cycleMonth, dayOfPayment); // next calendar month
+  return new Date(cycleYear, cycleMonth, dayOfPayment);
 }
 
-function sortByCycleDay(items, cycleStartDay) {
-  return [...items].sort((a, b) => {
-    const aDay = a.day_of_payment ?? 0;
-    const bDay = b.day_of_payment ?? 0;
-    const aLate = aDay < cycleStartDay ? 1 : 0;
-    const bLate = bDay < cycleStartDay ? 1 : 0;
-    if (aLate !== bLate) return aLate - bLate;
-    return aDay - bDay;
-  });
+function getAnnualPaymentDate(payment) {
+  // annual payments have expense_year, month, day as the installment's calendar date
+  return new Date(payment.expense_year, payment.month - 1, payment.day);
 }
 
-export default function NextExpenseGlance({ currentCycleDetail, settings, today, onClick }) {
+export default function NextExpenseGlance({ currentCycleDetail, settings, today, onClick, onMarkPaid }) {
   const cycleStartDay = settings.cycle_start_day ?? 25;
 
   if (!currentCycleDetail) {
@@ -46,10 +41,14 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   const current = cycleYearMonth(today, cycleStartDay);
   const items = currentCycleDetail.items ?? [];
-  const fixedExpenses = items.filter((i) => i.section === 'expense' && i.type === 'Fixed');
-  const unpaid = fixedExpenses.filter((i) => !i.paid);
+  const annualPayments = currentCycleDetail.annual_payments ?? [];
 
-  if (unpaid.length === 0) {
+  const fixedExpenses = items.filter((i) => i.section === 'expense' && i.type === 'Fixed');
+  const unpaidFixed = fixedExpenses.filter((i) => !i.paid);
+  const unpaidAnnual = annualPayments.filter((p) => !p.paid);
+
+  const allPaid = unpaidFixed.length === 0 && unpaidAnnual.length === 0;
+  if (allPaid) {
     return (
       <GlanceCard title="Next Expense" icon={faCircleCheck} color="neutral" onClick={onClick}>
         <p style={msgStyle}>All fixed expenses paid</p>
@@ -57,28 +56,78 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     );
   }
 
-  const sorted = sortByCycleDay(unpaid, cycleStartDay);
-  const next = sorted[0];
-
-  const expenseDate = next.day_of_payment != null
-    ? getExpenseDate(current.year, current.month, next.day_of_payment, cycleStartDay)
-    : null;
-
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  // Build unified list of unpaid items with their dates
+  const candidates = [];
+
+  for (const exp of unpaidFixed) {
+    if (exp.day_of_payment != null) {
+      candidates.push({
+        type: 'monthly',
+        name: exp.name,
+        value: exp.value || 0,
+        date: getExpenseDate(current.year, current.month, exp.day_of_payment, cycleStartDay),
+        day: exp.day_of_payment,
+        item: exp,
+      });
+    }
+  }
+
+  for (const p of unpaidAnnual) {
+    candidates.push({
+      type: 'annual',
+      name: p.name,
+      value: p.real_value ?? (p.budgeted_value / (p.num_installments || 1)),
+      date: getAnnualPaymentDate(p),
+      day: p.day,
+      installmentNumber: p.installment_number,
+      numInstallments: p.num_installments,
+      item: p,
+    });
+  }
+
+  if (candidates.length === 0) {
+    return (
+      <GlanceCard title="Next Expense" icon={faCircleCheck} color="neutral" onClick={onClick}>
+        <p style={msgStyle}>All fixed expenses paid</p>
+      </GlanceCard>
+    );
+  }
+
+  // Sort by date chronologically
+  candidates.sort((a, b) => a.date - b.date);
+  const next = candidates[0];
+
+  const diffDays = Math.round((next.date - todayMidnight) / (1000 * 60 * 60 * 24));
   let whenLabel = '';
   let color = 'neutral';
   let whenColor = 'var(--text-secondary)';
 
-  if (expenseDate) {
-    const diffDays = Math.round((expenseDate - todayMidnight) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) {
-      whenLabel = `Today (day ${next.day_of_payment})`;
-    } else if (diffDays < 0) {
-      whenLabel = `Overdue (day ${next.day_of_payment})`;
-      color = 'amber';
-      whenColor = 'var(--color-warning-text)';
-    } else {
-      whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (day ${next.day_of_payment})`;
+  const monthName = next.date.toLocaleString('default', { month: 'short' });
+  const dayLabel = `${monthName} ${next.day}`;
+
+  if (diffDays === 0) {
+    whenLabel = `Today (${dayLabel})`;
+  } else if (diffDays < 0) {
+    whenLabel = `Overdue (${dayLabel})`;
+    color = 'amber';
+    whenColor = 'var(--color-warning-text)';
+  } else {
+    whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (${dayLabel})`;
+  }
+
+  const isOverdue = diffDays < 0;
+  const [marking, setMarking] = useState(false);
+
+  async function handleMarkPaid(e) {
+    e.stopPropagation();
+    if (!onMarkPaid || marking) return;
+    setMarking(true);
+    try {
+      await onMarkPaid(next);
+    } finally {
+      setMarking(false);
     }
   }
 
@@ -86,13 +135,42 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     <GlanceCard title="Next Expense" icon={faClock} color={color} onClick={onClick}>
       <div className="text-base" style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {next.name}
+        {next.type === 'annual' && (
+          <>
+            <span style={{ fontSize: 11, marginLeft: 6, color: 'var(--text-muted)' }}>
+              ({next.installmentNumber}/{next.numInstallments})
+            </span>
+            <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 'var(--radius-full)', background: 'var(--surface-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border-default)', verticalAlign: 'middle' }}>
+              Annual
+            </span>
+          </>
+        )}
       </div>
       <div className="text-sm tabular" style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
-        {formatEur(next.value || 0)}
+        {formatEur(next.value)}
         {whenLabel && (
           <span style={{ color: whenColor, marginLeft: 6 }}>· {whenLabel}</span>
         )}
       </div>
+      {isOverdue && onMarkPaid && (
+        <button
+          onClick={handleMarkPaid}
+          disabled={marking}
+          style={{
+            marginTop: 8,
+            padding: '3px 10px',
+            fontSize: 12,
+            borderRadius: 'var(--radius-full)',
+            border: '1px solid var(--border-default)',
+            background: 'var(--surface-secondary)',
+            color: 'var(--text-secondary)',
+            cursor: marking ? 'default' : 'pointer',
+            opacity: marking ? 0.6 : 1,
+          }}
+        >
+          {marking ? 'Marking…' : 'Mark as paid'}
+        </button>
+      )}
     </GlanceCard>
   );
 }

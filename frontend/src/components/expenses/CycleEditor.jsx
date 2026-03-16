@@ -5,6 +5,7 @@ import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark, fa
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
+import { ItemFormModal } from '../annual-expenses/AnnualExpensesTab';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -63,6 +64,7 @@ export default function CycleEditor() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditPeriod, setShowEditPeriod] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
+  const [annualEditModal, setAnnualEditModal] = useState(null); // { yearId, item } | null
 
   const [paperlessSettings, setPaperlessSettings] = useState(null);
   const [fetchingPaperless, setFetchingPaperless] = useState(false);
@@ -223,6 +225,33 @@ export default function CycleEditor() {
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  async function handleAnnualEdit(p) {
+    try {
+      const yearData = await api.getAnnualYear(dossierId, p.year_id);
+      const fullItem = yearData.items.find((i) => i.id === p.year_item_id);
+      if (fullItem) setAnnualEditModal({ yearId: p.year_id, item: fullItem });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function handleAnnualDelete(p) {
+    setConfirmState({
+      title: 'Delete annual expense',
+      message: `Delete "${p.name}" from the annual expense year? All its installments and payment records will also be removed.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteAnnualYearItem(dossierId, p.year_id, p.year_item_id);
+          await load();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleFetchPaperless() {
@@ -478,11 +507,17 @@ export default function CycleEditor() {
       {activeTab === 'expenses' ? (
         <ExpensesList
           expenses={expenses}
+          annualPayments={cycle.annual_payments ?? []}
+          cycleStartDay={cycle.cycle_start_day ?? 25}
           paperlessActive={paperlessActive}
           onTogglePaid={handleTogglePaid}
           onUpdateSpent={handleUpdateSpent}
           onDelete={handleDeleteItem}
           onEdit={handleEditItem}
+          dossierId={dossierId}
+          onAnnualPaymentUpdated={load}
+          onAnnualEdit={handleAnnualEdit}
+          onAnnualDelete={handleAnnualDelete}
         />
       ) : (
         <DistributionsList
@@ -505,6 +540,15 @@ export default function CycleEditor() {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      {annualEditModal && (
+        <ItemFormModal
+          dossierId={dossierId}
+          yearId={annualEditModal.yearId}
+          item={annualEditModal.item}
+          onSave={async () => { setAnnualEditModal(null); await load(); }}
+          onClose={() => setAnnualEditModal(null)}
+        />
+      )}
       {paperlessModal && (
         <PaperlessFetchModal
           results={paperlessModal.results}
@@ -635,13 +679,12 @@ function SummaryRow({ label, value, highlight, bold }) {
   );
 }
 
-function ExpensesList({ expenses, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit }) {
+function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit }) {
   const [spentDrafts, setSpentDrafts] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [editDay, setEditDay] = useState('');
   const [editTagId, setEditTagId] = useState('');
-
   function startEdit(item) {
     setEditingId(item.id);
     setEditValue(String(item.value));
@@ -661,13 +704,103 @@ function ExpensesList({ expenses, paperlessActive, onTogglePaid, onUpdateSpent, 
     setEditingId(null);
   }
 
-  if (expenses.length === 0) {
+  async function handleAnnualTogglePaid(p) {
+    try {
+      await api.updateAnnualPayment(dossierId, p.id, { paid: p.paid ? false : true });
+      onAnnualPaymentUpdated();
+    } catch (e) {
+      console.error('Failed to toggle annual payment:', e);
+    }
+  }
+
+  // Merge annual payments into the sorted expenses list
+  // Tag annual items so we can render them differently
+  const annualItems = annualPayments.map((p) => ({ ...p, _annual: true }));
+
+  // Re-sort fixed + annual together by the same cycle-day ordering
+  const fixedExpenses = expenses.filter((e) => e.type === 'Fixed');
+  const budgetExpenses = expenses.filter((e) => e.type === 'Budget');
+
+  const fixedAndAnnual = [...fixedExpenses, ...annualItems].sort((a, b) => {
+    const aDay = a._annual ? (a.day ?? 0) : (a.day_of_payment ?? 0);
+    const bDay = b._annual ? (b.day ?? 0) : (b.day_of_payment ?? 0);
+    const aLate = aDay < cycleStartDay ? 1 : 0;
+    const bLate = bDay < cycleStartDay ? 1 : 0;
+    if (aLate !== bLate) return aLate - bLate;
+    return aDay - bDay;
+  });
+
+  const allItems = [...fixedAndAnnual, ...budgetExpenses];
+
+  if (allItems.length === 0) {
     return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>No expenses yet.</p>;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      {expenses.map((item) => {
+      {allItems.map((item) => {
+        // ── Annual payment row ──
+        if (item._annual) {
+          const p = item;
+          const typeLabel = p.num_installments > 1
+            ? `Annual ${p.installment_number}/${p.num_installments}`
+            : 'Annual';
+          const expectedValue = (p.budgeted_value ?? 0) / (p.num_installments || 1);
+          return (
+            <div
+              key={`annual-${p.id}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.6rem 0.75rem',
+                background: 'var(--color-surface)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid var(--color-border)',
+                flexWrap: 'wrap',
+                opacity: p.paid ? 0.6 : 1,
+              }}
+            >
+              <Checkbox
+                checked={!!p.paid}
+                onChange={() => handleAnnualTogglePaid(p)}
+                title={p.paid ? 'Mark as unpaid' : 'Mark as paid'}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontWeight: 500, textDecoration: p.paid ? 'line-through' : 'none' }}>
+                  {p.name}
+                </span>
+                {p.day != null && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                    day {p.day}
+                  </span>
+                )}
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                  {typeLabel}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                {fmt(expectedValue)}
+              </span>
+              <button
+                onClick={() => onAnnualEdit(p)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                title="Edit annual expense"
+              >
+                <FontAwesomeIcon icon={faPencil} />
+              </button>
+              <button
+                onClick={() => onAnnualDelete(p)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                title="Delete annual expense"
+              >
+                <FontAwesomeIcon icon={faTrash} />
+              </button>
+            </div>
+          );
+        }
+
+        // ── Regular expense row ──
         const isEditing = editingId === item.id;
         return (
           <div
@@ -1069,3 +1202,4 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
     </div>
   );
 }
+

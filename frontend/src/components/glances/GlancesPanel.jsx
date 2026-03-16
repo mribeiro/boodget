@@ -73,6 +73,15 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
           onClick={currentCycleDetail
             ? () => navigate(`/dossiers/${dossierId}/cycles/${currentCycleDetail.id}`)
             : () => onNavigate('expenses')}
+          onMarkPaid={async (next) => {
+            if (next.type === 'annual') {
+              await api.updateAnnualPayment(dossierId, next.item.id, { paid: true });
+            } else {
+              await api.updateCycleItem(dossierId, currentCycleDetail.id, next.item.id, { paid: true });
+            }
+            const updated = await api.getCycle(dossierId, currentCycleDetail.id);
+            setCurrentCycleDetail(updated);
+          }}
         />
         <GoalsGlance
           goals={goals}
