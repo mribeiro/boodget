@@ -13,14 +13,14 @@ const todayMonth = now.getMonth() + 1; // 1–12
 
 const CYCLE_START = 25;
 
-// Current cycle year/month:
-//   If todayDay < CYCLE_START → current cycle = this calendar month
-//   If todayDay >= CYCLE_START → current cycle = next calendar month
-const curCycleIsThisCalMonth = todayDay < CYCLE_START;
-const curCycleMonth = curCycleIsThisCalMonth ? todayMonth : (todayMonth % 12) + 1;
-const curCycleYear  = (curCycleIsThisCalMonth || todayMonth < 12) ? todayYear : todayYear + 1;
+// Current cycle STORED year/month (the month the cycle STARTS in):
+//   If todayDay >= CYCLE_START → cycle started this calendar month → stored month = todayMonth
+//   If todayDay < CYCLE_START  → cycle started last calendar month → stored month = prevCalMonth
+const curCycleStartedThisMonth = todayDay >= CYCLE_START;
+const curCycleMonth = curCycleStartedThisMonth ? todayMonth : prevCalMonth;
+const curCycleYear  = curCycleStartedThisMonth ? todayYear  : prevCalYear;
 
-// Previous / next cycle
+// Previous / next cycle (by stored month)
 const prevCycleMonth = curCycleMonth === 1  ? 12 : curCycleMonth - 1;
 const prevCycleYear  = curCycleMonth === 1  ? curCycleYear - 1 : curCycleYear;
 const nextCycleMonth = curCycleMonth === 12 ? 1  : curCycleMonth + 1;

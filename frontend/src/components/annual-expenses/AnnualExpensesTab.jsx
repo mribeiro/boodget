@@ -432,14 +432,14 @@ export default function AnnualExpensesTab({ dossierId }) {
                     { label: 'Total paid', value: fmt(yearData.total_paid) },
                     { label: 'Total remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
                     {
-                      label: 'Needed now',
-                      value: fmt(yearData.currently_needed),
-                      style: yearData.currently_needed > 0
-                        ? { color: yearData.accumulated_accounts >= yearData.currently_needed ? 'var(--color-success-text)' : 'var(--color-danger-text)' }
+                      label: 'Needed this cycle',
+                      value: fmt(yearData.needed_this_cycle),
+                      style: yearData.needed_this_cycle > 0
+                        ? { color: yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'var(--color-success-text)' : 'var(--color-danger-text)' }
                         : { color: 'var(--color-success-text)' },
-                      subtitle: yearData.currently_needed > 0
-                        ? (yearData.accumulated_accounts >= yearData.currently_needed ? 'Covered' : `Shortfall: ${fmt(yearData.currently_needed - yearData.accumulated_accounts)}`)
-                        : 'Nothing due yet',
+                      subtitle: yearData.needed_this_cycle > 0
+                        ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'Covered' : `Shortfall: ${fmt(yearData.needed_this_cycle - yearData.accumulated_accounts)}`)
+                        : 'Nothing due this cycle',
                     },
                     { label: 'Balance', value: fmt(yearData.balance), style: { color: yearData.balance >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' } },
                   ].map(({ label, value, style, subtitle }) => (
