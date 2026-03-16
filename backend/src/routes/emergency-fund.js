@@ -42,6 +42,7 @@ router.put('/emergency-fund/accounts', (req, res) => {
   const rows = db
     .prepare('SELECT account_id FROM emergency_fund_accounts WHERE dossier_id = ?')
     .all(req.params.id);
+  console.log(`[emergency-fund] Updated account selection for dossier ${req.params.id} (${rows.length} accounts) by user ${req.user.username}`);
   res.json(rows.map((r) => r.account_id));
 });
 

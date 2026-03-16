@@ -341,7 +341,7 @@ On import:
 - `paperless_token` is **not imported** — the user must configure it manually after import.
 - `paperless_tag_id` values on template items and cycle items are restored as-is (they are numeric IDs that may or may not match the target Paperless instance).
 
-The export format version must be bumped to **6**. Import continues to accept versions 1–6.
+This feature bumped the export format version to **6**. At the time of implementation, import accepted versions 1–6. The Annual Expenses Tracking feature subsequently bumped the version to **7** — see `SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md`. The current export version and accepted import range are documented in `CLAUDE.md`.
 
 -----
 

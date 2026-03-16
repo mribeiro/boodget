@@ -4,6 +4,7 @@ const session = require('express-session');
 const { v4: uuidv4 } = require('uuid');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../data/capital-tracker.db');
+console.log(`[db] Opening database at ${DB_PATH}`);
 
 const db = new Database(DB_PATH);
 
@@ -475,8 +476,10 @@ const migrations = [
 for (const migration of migrations) {
   const applied = db.prepare('SELECT id FROM schema_migrations WHERE id = ?').get(migration.id);
   if (!applied) {
+    console.log(`[db] Running migration: ${migration.id}`);
     migration.up();
     db.prepare('INSERT INTO schema_migrations (id) VALUES (?)').run(migration.id);
+    console.log(`[db] Migration applied: ${migration.id}`);
   }
 }
 
@@ -510,7 +513,10 @@ class SQLiteSessionStore extends session.Store {
 
 // Clean up expired sessions hourly
 setInterval(() => {
-  db.prepare('DELETE FROM sessions WHERE expired <= ?').run(Date.now());
+  const result = db.prepare('DELETE FROM sessions WHERE expired <= ?').run(Date.now());
+  if (result.changes > 0) {
+    console.log(`[db] Cleaned up ${result.changes} expired session(s)`);
+  }
 }, 60 * 60 * 1000);
 
 module.exports = { db, SQLiteSessionStore };

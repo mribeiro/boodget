@@ -218,6 +218,7 @@ router.patch('/settings', (req, res) => {
 
   params.push(req.params.id);
   db.prepare(`UPDATE dossiers SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
     .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
@@ -438,6 +439,7 @@ router.post('/cycles', (req, res) => {
 
   createCycle();
   const cycle = db.prepare('SELECT * FROM expense_cycles WHERE id = ?').get(id);
+  console.log(`[cycles] Created cycle ${year}/${month} (${id}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(201).json(cycle);
 });
 
@@ -509,6 +511,11 @@ router.patch('/cycles/:cycleId', (req, res) => {
     'UPDATE expense_cycles SET year = ?, month = ?, salary = ?, previous_balance = ?, is_closed = ?, final_real_balance = ? WHERE id = ?'
   ).run(newYear, newMonth, newSalary, newPrevBalance, newIsClosed, newFinalRealBalance, req.params.cycleId);
 
+  if (is_closed !== undefined && newIsClosed !== cycle.is_closed) {
+    const action = newIsClosed ? 'Closed' : 'Reopened';
+    console.log(`[cycles] ${action} cycle ${newYear}/${newMonth} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
+  }
+
   const updated = db.prepare('SELECT * FROM expense_cycles WHERE id = ?').get(req.params.cycleId);
   res.json(updated);
 });
@@ -523,6 +530,7 @@ router.delete('/cycles/:cycleId', (req, res) => {
 
   db.prepare('DELETE FROM cycle_items WHERE cycle_id = ?').run(req.params.cycleId);
   db.prepare('DELETE FROM expense_cycles WHERE id = ?').run(req.params.cycleId);
+  console.log(`[cycles] Deleted cycle ${cycle.year}/${cycle.month} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();
 });
 

@@ -43,7 +43,8 @@ capital-tracker/
 │   │       ├── expenses.js       # Expense settings, monthly template, annual template, cycles,
 │   │       │                     # cycle items, workbench snapshots (nested under dossiers)
 │   │       ├── goals.js          # Goals CRUD, cycle contributions, historical contributions (nested under dossiers)
-│   │       └── emergency-fund.js # Emergency fund accounts, extra values, status (nested under dossiers)
+│   │       ├── emergency-fund.js # Emergency fund accounts, extra values, status (nested under dossiers)
+│   │       └── annual-expenses.js # Annual expense template (with installments), years, payments (nested under dossiers)
 │   ├── scripts/
 │   │   ├── reset-password.js # Node.js tool for emergency password reset
 │   │   └── reset-password.sh # Shell wrapper (made executable in Docker image)
@@ -54,7 +55,7 @@ capital-tracker/
 │   │   ├── App.jsx           # AuthContext, routing, setup/login gates; navbar shows 7-char git SHA
 │   │   ├── services/api.js   # Fetch-based API client wrapper
 │   │   └── components/
-│   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Workbench / Goals / Emergency Fund / Settings tabs; uses key={activeTab} on tab wrapper for entrance animation
+│   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Annual Expenses / Workbench / Goals / Emergency Fund / Settings tabs; uses key={activeTab} on tab wrapper for entrance animation
 │   │       ├── DossierSettingsTab.jsx  # Settings tab: cycle start day, monthly template, annual template, emergency fund settings
 │   │       ├── ConfirmModal.jsx        # Reusable animated confirmation modal (danger/primary variants); replaces all native confirm() dialogs
 │   │       ├── layout/
@@ -90,13 +91,17 @@ capital-tracker/
 │   │           ├── GoalFormModal.jsx       # Create/edit goal modal
 │   │           └── GoalDetail.jsx          # Goal detail view (progress bar, chart, cycle contributions, historical contributions)
 ├── ai-spec/
-│   ├── SPECIFICATION.md                    # Core product specification (Capital section)
-│   ├── SPECIFICATION_MONTHLY_EXPENSES.md   # Monthly Expenses specification
-│   ├── SPECIFICATION_WORKBENCH.md          # Workbench specification
-│   ├── SPECIFICATION_GOALS.md              # Goals specification
-│   ├── SPECIFICATION_GLANCES.md            # Glances panel specification
-│   ├── SPECIFICATION_EMERGENCY_FUND.md     # Emergency Fund specification
-│   └── SPECIFICATION_PREVIEW_ENVIRONMENTS.md # Preview environments infrastructure
+│   ├── SPECIFICATION.md                          # Core product specification (Capital section)
+│   ├── SPECIFICATION_MONTHLY_EXPENSES.md         # Monthly Expenses specification
+│   ├── SPECIFICATION_WORKBENCH.md                # Workbench specification
+│   ├── SPECIFICATION_GOALS.md                    # Goals specification
+│   ├── SPECIFICATION_GLANCES.md                  # Glances panel specification
+│   ├── SPECIFICATION_EMERGENCY_FUND.md           # Emergency Fund specification
+│   ├── SPECIFICATION_PAPERLESS.md                # Paperless-ngx integration specification
+│   ├── SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md # Annual Expenses Tracking specification
+│   ├── SPECIFICATION_UI.md                       # UI conventions and component patterns
+│   ├── SPECIFICATION_BACKEND_LOGGING.md          # Backend logging conventions
+│   └── SPECIFICATION_PREVIEW_ENVIRONMENTS.md     # Preview environments infrastructure
 ├── preview-index/            # Lightweight service listing all running preview environments
 │   ├── server.js             # Plain Node.js HTTP server (no deps); queries Docker socket
 │   ├── Dockerfile            # node:20-alpine + curl; runs server.js
@@ -232,16 +237,23 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 |---|---|
 | `users` | User accounts. `is_oidc=1` for SSO users (no password). |
 | `sessions` | Express session store. |
-| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds: `capital_snapshot_warning_day` (default 7), `next_cycle_warning_day` (default 22), `previous_cycle_close_warning_day` (default 25), and two Emergency Fund settings: `emergency_fund_months_multiplier` (default 6), `emergency_fund_cycles_to_average` (default 6). All warning thresholds are integers 1–28. |
+| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds: `capital_snapshot_warning_day` (default 7), `next_cycle_warning_day` (default 22), `previous_cycle_close_warning_day` (default 25), two Emergency Fund settings: `emergency_fund_months_multiplier` (default 6), `emergency_fund_cycles_to_average` (default 6). All warning thresholds are integers 1–28. Also holds four Paperless-ngx settings (all nullable): `paperless_url`, `paperless_token`, `paperless_date_field_id`, `paperless_amount_field_id`. |
 | `dossier_access` | Many-to-many sharing: `(dossier_id, user_id)` PK. |
 | `accounts` | Tracked accounts. `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived` hides from new months. `is_idle_money` flags liquid cash. `position` controls display order. |
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool marks completion. |
 | `month_account_snapshot` | Which accounts were active when a month was created (composite PK). |
 | `month_entries` | One row per `(month_id, account_id)` with `value` and optional `comment`. |
-| `expense_template_items` | Per-dossier monthly expense/distribution template. `section` ∈ `{expense, distribution}`, `type` ∈ `{Fixed, Budget}`, `day_of_payment` (Fixed only). Expense entries have `classification` (`must`/`want`). Distribution entries have `must_amount`, `want_amount`, `save_amount` decomposition fields. |
+| `expense_template_items` | Per-dossier monthly expense/distribution template. `section` ∈ `{expense, distribution}`, `type` ∈ `{Fixed, Budget}`, `day_of_payment` (Fixed only). Expense entries have `classification` (`must`/`want`). Distribution entries have `must_amount`, `want_amount`, `save_amount` decomposition fields. Fixed expenses also have `paperless_tag_id` (INTEGER nullable). |
 | `expense_cycles` | One row per cycle. `(dossier_id, year, month)` UNIQUE. Has `salary`, `previous_balance`, `is_closed`, `final_real_balance`. |
-| `cycle_items` | Items within a cycle. `section` ∈ `{expense, distribution}`. Fixed expenses have `paid` bool. Budget expenses have `spent` real. Distributions have `done` bool. `template_item_id` FK to template (nullable). |
-| `annual_expense_template_items` | Per-dossier annual expense template. Fields: `name`, `value`, `day_of_payment`, `month_of_payment` (1–12), `classification` (`must`/`want`), `position`. Used by the Workbench (monthly avg = value / 12). |
+| `cycle_items` | Items within a cycle. `section` ∈ `{expense, distribution}`. Fixed expenses have `paid` bool. Budget expenses have `spent` real. Distributions have `done` bool. `template_item_id` FK to template (nullable). Fixed expenses have `paperless_tag_id` (INTEGER nullable). |
+| `annual_expense_template_items` | Per-dossier annual expense template. Fields: `name`, `value`, `day_of_payment`, `month_of_payment` (1–12, legacy — see installments), `classification` (`must`/`want`), `position`, `num_installments` (default 1). Used by the Workbench (monthly avg = value / 12). |
+| `annual_expense_template_installments` | Installment dates per annual template item. Fields: `template_item_id` FK, `installment_number` (1-based), `month` (1–12), `day` (1–31). |
+| `annual_expense_years` | Per-dossier per-calendar-year tracking instance. `(dossier_id, year)` UNIQUE. Has `carryover` (opening balance). Auto-created from template when a cycle spanning that year is first opened. |
+| `annual_expense_year_items` | Expenses within an annual year, copied from template at year creation. Fields: `year_id` FK, `name`, `budgeted_value`, `classification`, `num_installments`, `from_template`, `position`. |
+| `annual_expense_year_installments` | Installment dates for year items. Fields: `year_item_id` FK, `installment_number`, `month`, `day`. |
+| `annual_expense_payments` | Payment record per installment per cycle. `(installment_id, cycle_id)` UNIQUE. Fields: `real_value`, `paid`. Auto-created when a cycle is opened if the installment date falls within the cycle's range. |
+| `annual_expense_accounts` | Accounts whose current value counts toward the annual expenses fund. Composite PK `(dossier_id, account_id)`. |
+| `annual_expense_distributions` | Distribution template items contributing monthly to the annual fund. Composite PK `(dossier_id, distribution_template_id)`. |
 | `workbench_snapshots` | Named snapshots of the Workbench state per dossier. Fields: `name`, `data` (JSON string of full workbench state), `created_at`, `updated_at`. |
 | `goals` | Financial objectives per dossier. Fields: `name`, `target_value`, `target_date` (YYYY-MM), `extra_value` (nullable), `extra_value_impact_mode` (`reduce_monthly_amount`/`anticipate_end_date`, nullable), `contribution_mode` (`via_distributions`/`manual`/`ad_hoc`), `manual_monthly_value` (nullable), `created_at`. |
 | `goal_accounts` | Many-to-many: accounts whose current value counts toward a goal. Composite PK `(goal_id, account_id)`. Cascades on goal or account delete. |
@@ -260,9 +272,9 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - IDs follow the pattern `NNN_description`, e.g. `003_add_foo_to_bar`.
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
 
-The last applied migration is `017_emergency_fund`. The next migration id must be `018_...`.
+The last applied migration is `019_annual_expenses_tracking`. The next migration id must be `020_...`.
 
-Migrations 011–017:
+Migrations 011–019:
 - `011_create_goals` — `goals` table
 - `012_create_goal_accounts` — `goal_accounts` join table
 - `013_create_goal_distributions` — `goal_distributions` join table
@@ -270,12 +282,14 @@ Migrations 011–017:
 - `015_create_goal_historical_contributions` — `goal_historical_contributions` table
 - `016_add_glance_warning_days` — adds `capital_snapshot_warning_day`, `next_cycle_warning_day`, `previous_cycle_close_warning_day` columns to `dossiers`
 - `017_emergency_fund` — adds `emergency_fund_months_multiplier`, `emergency_fund_cycles_to_average` to `dossiers`; creates `emergency_fund_accounts` and `emergency_fund_extra_values` tables
+- `018_paperless_integration` — adds `paperless_url`, `paperless_token`, `paperless_date_field_id`, `paperless_amount_field_id` to `dossiers`; adds `paperless_tag_id` to `expense_template_items` and `cycle_items`
+- `019_annual_expenses_tracking` — adds `num_installments` to `annual_expense_template_items`; creates `annual_expense_template_installments`, `annual_expense_years`, `annual_expense_year_items`, `annual_expense_year_installments`, `annual_expense_payments`, `annual_expense_accounts`, `annual_expense_distributions`; migrates existing installment data from `day_of_payment`/`month_of_payment`
 
 **To add a new migration**, append an entry to the `migrations` array:
 
 ```js
 {
-  id: '018_your_description',
+  id: '020_your_description',
   up() {
     const cols = db.prepare('PRAGMA table_info(your_table)').all();
     if (!cols.find((c) => c.name === 'your_column')) {
@@ -285,7 +299,7 @@ Migrations 011–017:
 },
 ```
 
-Migration `003` added `cycle_start_day` to `dossiers`. Migration `016` added the three Glances warning thresholds. Migration `017` added Emergency Fund support.
+Migration `003` added `cycle_start_day` to `dossiers`. Migration `016` added the three Glances warning thresholds. Migration `017` added Emergency Fund support. Migration `018` added Paperless-ngx integration fields. Migration `019` added Annual Expenses Tracking tables.
 
 Never modify or remove existing migration entries — only append new ones.
 
@@ -342,7 +356,9 @@ POST   /api/dossiers/:id/months/:monthId/reset
 GET    /api/dossiers/:id/settings
 PATCH  /api/dossiers/:id/settings   { cycle_start_day?, capital_snapshot_warning_day?,
                                        next_cycle_warning_day?, previous_cycle_close_warning_day?,
-                                       emergency_fund_months_multiplier?, emergency_fund_cycles_to_average? }
+                                       emergency_fund_months_multiplier?, emergency_fund_cycles_to_average?,
+                                       paperless_url?, paperless_token?, paperless_date_field_id?,
+                                       paperless_amount_field_id? }
 
 GET    /api/dossiers/:id/expense-template
 POST   /api/dossiers/:id/expense-template     { section, name, type?, value, day_of_payment?, classification?, must_amount?, want_amount?, save_amount? }
@@ -351,10 +367,30 @@ DELETE /api/dossiers/:id/expense-template/:itemId
 POST   /api/dossiers/:id/expense-template/bulk-replace  { items: [] }  # replaces entire template atomically
 
 GET    /api/dossiers/:id/annual-expense-template
-POST   /api/dossiers/:id/annual-expense-template     { name, value, day_of_payment?, month_of_payment?, classification? }
-PUT    /api/dossiers/:id/annual-expense-template/:itemId  { name?, value?, day_of_payment?, month_of_payment?, classification? }
+POST   /api/dossiers/:id/annual-expense-template     { name, value, classification?, num_installments?, installments?: [{month, day}] }
+PUT    /api/dossiers/:id/annual-expense-template/:itemId  { name?, value?, classification?, num_installments?, installments? }
 DELETE /api/dossiers/:id/annual-expense-template/:itemId
 POST   /api/dossiers/:id/annual-expense-template/bulk-replace  { items: [] }  # replaces entire template atomically
+
+GET    /api/dossiers/:id/annual-years
+POST   /api/dossiers/:id/annual-years               { year }
+GET    /api/dossiers/:id/annual-years/:yearId
+PATCH  /api/dossiers/:id/annual-years/:yearId        { carryover }
+DELETE /api/dossiers/:id/annual-years/:yearId
+GET    /api/dossiers/:id/annual-years/:yearId/status
+POST   /api/dossiers/:id/annual-years/:yearId/sync-from-template
+POST   /api/dossiers/:id/annual-years/:yearId/sync-to-template
+
+POST   /api/dossiers/:id/annual-years/:yearId/items              { name, budgeted_value, classification?, num_installments, installments: [{month, day}] }
+PATCH  /api/dossiers/:id/annual-years/:yearId/items/:itemId      { name?, budgeted_value?, classification?, num_installments?, installments? }
+DELETE /api/dossiers/:id/annual-years/:yearId/items/:itemId
+
+PATCH  /api/dossiers/:id/annual-expense-payments/:paymentId      { real_value?, paid? }
+
+GET    /api/dossiers/:id/annual-expenses/accounts
+PUT    /api/dossiers/:id/annual-expenses/accounts    { account_ids: [] }
+GET    /api/dossiers/:id/annual-expenses/distributions
+PUT    /api/dossiers/:id/annual-expenses/distributions  { distribution_template_ids: [] }
 
 GET    /api/dossiers/:id/workbench-snapshots
 POST   /api/dossiers/:id/workbench-snapshots          { name, data }
@@ -440,7 +476,7 @@ Always add new API helper functions to `api.js` rather than calling `fetch` dire
 React Router v6. All routes defined in `App.jsx`. Route params: `dossierId`, `monthId`, `cycleId`, `goalId`.
 
 Key routes:
-- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Workbench, Goals, Emergency Fund, Settings)
+- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Emergency Fund, Settings)
 - `/dossiers/:id/months/:monthId` → month detail
 - `/dossiers/:id/cycles/:cycleId` → `CycleEditor`
 - `/dossiers/:id/goals/:goalId` → `GoalDetail`
@@ -487,7 +523,7 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 8. **Cycle start day**: Stored on the dossier (`cycle_start_day`, default 25). A cycle stored as `(year, month)` runs from day `cycle_start_day` of that month to day `cycle_start_day − 1` of the following month. The **display name** uses the end month: `new Date(year, month, startDay - 1)` (JS Date handles overflow). For the date range: start = `new Date(year, month - 1, startDay)`, end = `new Date(year, month, startDay - 1)`. Example: stored as `month=3`, `startDay=25` → runs Mar 25 – Apr 24 → displayed as "April 2025".
 9. **Template → cycle copy**: When a new cycle is created, all template items are copied into `cycle_items`. `day_of_payment` values are clamped to the last day of the cycle's calendar month at copy time (e.g., day 30 becomes day 28 for February).
 10. **Expense sorting**: Fixed expenses sort by day within the cycle: days ≥ `cycle_start_day` first (ascending), then days < `cycle_start_day` (ascending). Budget items always sort last. This applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format version**: The export JSON is `version: 5`. Includes `dossier.cycle_start_day`, `dossier.emergency_fund_months_multiplier`, `dossier.emergency_fund_cycles_to_average`, `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`), `annual_expense_template[]`, `workbench_snapshots[]`, `cycles[]` (each with `items[]`), `goals[]` (each with `account_names[]`, `distribution_names[]`, `cycle_contributions[]`, `historical_contributions[]`), `emergency_fund_accounts[]` (account names), and `emergency_fund_extra_values[]` (`{name, value, position}`). Import accepts versions 1–5. Goals and EF accounts are re-linked by account name on import.
+11. **Export format version**: The export JSON is `version: 7`. Includes `dossier.cycle_start_day`, `dossier.emergency_fund_months_multiplier`, `dossier.emergency_fund_cycles_to_average`, `dossier.paperless_url`, `dossier.paperless_date_field_id`, `dossier.paperless_amount_field_id` (token excluded for security), `expense_template[]` (with `classification`, `must_amount`, `want_amount`, `save_amount`, `paperless_tag_id`), `annual_expense_template[]` (with `num_installments` and `installments[]`), `workbench_snapshots[]`, `cycles[]` (each with `items[]` including `paperless_tag_id`), `goals[]` (each with `account_names[]`, `distribution_names[]`, `cycle_contributions[]`, `historical_contributions[]`), `emergency_fund_accounts[]` (account names), `emergency_fund_extra_values[]` (`{name, value, position}`), and `annual_expense_years[]`. Import accepts versions 1–7. Goals and EF accounts are re-linked by account name on import.
 12. **Emergency Fund calculation**: `target = emergency_fund_months_multiplier × effective_monthly_base`. `effective_monthly_base = avg_monthly_expense + extra_monthly_total`. Average expense is computed from the Y (`emergency_fund_cycles_to_average`) most recent cycles: fixed items use `value`, budget items use `spent` if cycle is closed or `value` (max) if open. Archived accounts are excluded from the contributing account list and from the current value lookup (most recent filled Capital snapshot).
 
 ## Environment Variables
@@ -513,6 +549,25 @@ Do not implement the following unless the specification is explicitly updated:
 - Multi-currency conversion
 
 The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import), Glances (read-only summary panel with up to five colour-coded cards above the tab bar), and Emergency Fund (savings buffer target with account selection, extra monthly values, and status tracking) are fully implemented.
+
+## Backend Logging
+
+All significant backend events are logged to stdout using `console.log` with structured `[category] message` prefixes. Read (GET) operations are not logged — only mutations and security-relevant auth events. Log lines include the acting user's username and relevant resource IDs where applicable.
+
+| Category | Events logged |
+|---|---|
+| `[db]` | Database path on open, each migration applied, expired session cleanup (count only when > 0) |
+| `[auth]` | Login success/failure (username only), logout, password change, OIDC user auto-creation |
+| `[users]` | User created/deleted (with acting user) |
+| `[dossiers]` | Created, imported (with export version), exported, deleted, access granted/revoked |
+| `[accounts]` | Created, archived |
+| `[months]` | Created, submitted (filled), reset |
+| `[cycles]` | Created, closed/reopened, deleted |
+| `[settings]` | Settings updated (lists which field names changed) |
+| `[goals]` | Created, deleted |
+| `[emergency-fund]` | Account selection updated |
+
+When adding new routes that perform mutations, follow this pattern and add a matching `console.log` in the appropriate category.
 
 ## No Test Suite
 
