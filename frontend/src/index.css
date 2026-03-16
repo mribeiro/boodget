@@ -262,11 +262,12 @@ body:has(.modal-overlay) {
 }
 
 .sidebar-logo {
-  height: 56px;
+  height: calc(56px + env(safe-area-inset-top, 0px));
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-3);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-4) 10px;
+  padding-top: env(safe-area-inset-top, 0px);
   border-bottom: 1px solid var(--sidebar-border);
   flex-shrink: 0;
 }
