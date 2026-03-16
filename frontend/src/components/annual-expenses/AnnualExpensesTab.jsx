@@ -543,8 +543,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                             <tr>
                               <th style={{ width: 60 }}>#</th>
                               <th>Date</th>
-                              <th style={{ textAlign: 'right' }}>Expected</th>
-                              <th style={{ textAlign: 'right' }}>Real</th>
+                              <th style={{ textAlign: 'right' }}>Amount</th>
                               <th>Status</th>
                               <th></th>
                             </tr>
@@ -559,9 +558,6 @@ export default function AnnualExpensesTab({ dossierId }) {
                                   <td style={{ color: 'var(--text-muted)' }}>{inst.installment_number}/{item.num_installments}</td>
                                   <td>{MONTH_NAMES[inst.month - 1]} {inst.day}</td>
                                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(inst.expected_value)}</td>
-                                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                    {inst.payment ? fmt(inst.payment.real_value) : '—'}
-                                  </td>
                                   <td><InstallmentStatusBadge inst={inst} calYear={selectedYear.year} /></td>
                                   <td>
                                     {inst.payment?.cycle_id && (

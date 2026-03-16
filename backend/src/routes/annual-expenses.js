@@ -20,9 +20,10 @@ function computeYearStatus(yearId, dossierId) {
   const items = db.prepare(`
     SELECT ayi.*,
            COALESCE((
-             SELECT SUM(p.real_value) FROM annual_expense_payments p
-             JOIN annual_expense_year_installments ayii ON ayii.id = p.installment_id
-             WHERE ayii.year_item_id = ayi.id AND p.paid = 1
+             SELECT COUNT(p.id) * 1.0 * ayi.budgeted_value / NULLIF(ayi.num_installments, 0)
+             FROM annual_expense_payments p
+             JOIN annual_expense_year_installments inst2 ON inst2.id = p.installment_id
+             WHERE inst2.year_item_id = ayi.id AND p.paid = 1
            ), 0) as total_paid
     FROM annual_expense_year_items ayi
     WHERE ayi.year_id = ?
@@ -492,23 +493,14 @@ router.patch('/annual-expense-payments/:paymentId', (req, res) => {
   `).get(req.params.paymentId, req.params.id);
   if (!payment) return res.status(404).json({ error: 'Payment not found' });
 
-  const { real_value, paid } = req.body;
-  let newRealValue = payment.real_value;
-  let newPaid = payment.paid;
+  const { paid } = req.body;
+  if (paid === undefined) return res.status(400).json({ error: 'paid is required' });
 
-  if (real_value !== undefined) {
-    newRealValue = Number(real_value);
-    if (isNaN(newRealValue) || newRealValue < 0) return res.status(400).json({ error: 'real_value must be a non-negative number' });
-  }
-  if (paid !== undefined) {
-    newPaid = paid ? 1 : 0;
-  }
-
-  db.prepare('UPDATE annual_expense_payments SET real_value = ?, paid = ? WHERE id = ?')
-    .run(newRealValue, newPaid, req.params.paymentId);
+  db.prepare('UPDATE annual_expense_payments SET paid = ? WHERE id = ?')
+    .run(paid ? 1 : 0, req.params.paymentId);
 
   const updated = db.prepare('SELECT * FROM annual_expense_payments WHERE id = ?').get(req.params.paymentId);
-  res.json({ ...updated, paid: !!updated.paid });
+  res.json({ id: updated.id, paid: !!updated.paid });
 });
 
 // ── Contributing Accounts ────────────────────────────────────────────────────

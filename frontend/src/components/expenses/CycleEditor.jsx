@@ -666,9 +666,11 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
 
   async function handleAnnualTogglePaid(p) {
     try {
-      await api.updateAnnualPayment(dossierId, p.id, { paid: !p.paid });
+      await api.updateAnnualPayment(dossierId, p.id, { paid: p.paid ? false : true });
       onAnnualPaymentUpdated();
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error('Failed to toggle annual payment:', e);
+    }
   }
 
   // Merge annual payments into the sorted expenses list
