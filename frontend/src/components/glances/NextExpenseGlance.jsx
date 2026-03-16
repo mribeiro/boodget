@@ -103,14 +103,17 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
   let color = 'neutral';
   let whenColor = 'var(--text-secondary)';
 
+  const monthName = next.date.toLocaleString('default', { month: 'short' });
+  const dayLabel = `${monthName} ${next.day}`;
+
   if (diffDays === 0) {
-    whenLabel = `Today (day ${next.day})`;
+    whenLabel = `Today (${dayLabel})`;
   } else if (diffDays < 0) {
-    whenLabel = `Overdue (day ${next.day})`;
+    whenLabel = `Overdue (${dayLabel})`;
     color = 'amber';
     whenColor = 'var(--color-warning-text)';
   } else {
-    whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (day ${next.day})`;
+    whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (${dayLabel})`;
   }
 
   return (
