@@ -273,6 +273,78 @@ function PaperlessSettings({ dossierId }) {
   );
 }
 
+function NotificationDossierSettings({ dossierId }) {
+  const [value, setValue] = useState(1);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getDossierSettings(dossierId).then((s) => {
+      setValue(s.expense_notification_days_before ?? 1);
+    }).catch(() => {});
+  }, [dossierId]);
+
+  function startEdit() {
+    setEditing(true);
+    setDraft(String(value));
+    setError('');
+  }
+
+  function cancelEdit() { setEditing(false); setDraft(''); setError(''); }
+
+  async function handleSave() {
+    setError('');
+    const v = Number(draft);
+    if (!Number.isInteger(v) || v < 0 || v > 7) { setError('Must be an integer between 0 and 7'); return; }
+    setSaving(true);
+    try {
+      const updated = await api.updateDossierSettings(dossierId, { expense_notification_days_before: v });
+      setValue(updated.expense_notification_days_before ?? v);
+      setEditing(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Notify me</span>
+        {editing ? (
+          <>
+            <input
+              type="number"
+              min={0}
+              max={7}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              style={{ width: '4rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
+            />
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
+            <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button className="btn-secondary" onClick={cancelEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>Cancel</button>
+          </>
+        ) : (
+          <>
+            <strong>{value}</strong>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
+            <button className="btn-secondary" onClick={startEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
+              <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
+            </button>
+          </>
+        )}
+      </div>
+      {editing && error && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>}
+    </div>
+  );
+}
+
 export default function DossierSettingsTab({ dossierId, dossier }) {
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
@@ -340,6 +412,13 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         description="Configure how the emergency fund target is calculated. The target = multiplier × average monthly expense (computed from recent cycles)."
       >
         <EmergencyFundSettings dossierId={dossierId} />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Notifications"
+        description="Configure how many days before a fixed expense is due you receive a push notification reminder."
+      >
+        <NotificationDossierSettings dossierId={dossierId} />
       </SettingsCard>
 
       <SettingsCard

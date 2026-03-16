@@ -12,6 +12,7 @@ import CycleEditor from './components/expenses/CycleEditor';
 import UserManager from './components/UserManager';
 import PasswordChange from './components/PasswordChange';
 import GoalDetail from './components/goals/GoalDetail';
+import NotificationSettings from './pages/NotificationSettings';
 
 export const AuthContext = createContext(null);
 export const AppContext = createContext({ currentDossier: null, setCurrentDossier: () => {} });
@@ -91,6 +92,7 @@ function AppRoutes() {
           <Route path="/dossiers/:id/goals/:goalId" element={<GoalDetail />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
+          <Route path="/notifications" element={<NotificationSettings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>

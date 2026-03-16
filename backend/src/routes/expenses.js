@@ -138,7 +138,7 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
@@ -151,6 +151,7 @@ router.get('/settings', (req, res) => {
     paperless_token_set: !!dossier.paperless_token,
     paperless_date_field_id: dossier.paperless_date_field_id ?? null,
     paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
+    expense_notification_days_before: dossier.expense_notification_days_before ?? 1,
   });
 });
 
@@ -172,6 +173,7 @@ router.patch('/settings', (req, res) => {
     paperless_token,
     paperless_date_field_id,
     paperless_amount_field_id,
+    expense_notification_days_before,
   } = req.body;
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
@@ -200,6 +202,12 @@ router.patch('/settings', (req, res) => {
   if (paperless_amount_field_id !== undefined && paperless_amount_field_id !== null && !Number.isInteger(paperless_amount_field_id)) {
     return res.status(400).json({ error: 'paperless_amount_field_id must be an integer' });
   }
+  if (expense_notification_days_before !== undefined) {
+    const v = expense_notification_days_before;
+    if (!Number.isInteger(v) || v < 0 || v > 7) {
+      return res.status(400).json({ error: 'expense_notification_days_before must be an integer between 0 and 7' });
+    }
+  }
 
   const updates = [];
   const params = [];
@@ -213,6 +221,7 @@ router.patch('/settings', (req, res) => {
   if (paperless_token !== undefined) { updates.push('paperless_token = ?'); params.push(paperless_token || null); }
   if (paperless_date_field_id !== undefined) { updates.push('paperless_date_field_id = ?'); params.push(paperless_date_field_id); }
   if (paperless_amount_field_id !== undefined) { updates.push('paperless_amount_field_id = ?'); params.push(paperless_amount_field_id); }
+  if (expense_notification_days_before !== undefined) { updates.push('expense_notification_days_before = ?'); params.push(expense_notification_days_before); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -221,7 +230,7 @@ router.patch('/settings', (req, res) => {
   console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
@@ -234,6 +243,7 @@ router.patch('/settings', (req, res) => {
     paperless_token_set: !!updated.paperless_token,
     paperless_date_field_id: updated.paperless_date_field_id ?? null,
     paperless_amount_field_id: updated.paperless_amount_field_id ?? null,
+    expense_notification_days_before: updated.expense_notification_days_before ?? 1,
   });
 });
 

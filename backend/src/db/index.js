@@ -471,6 +471,73 @@ const migrations = [
       }
     },
   },
+  {
+    id: '020_pwa_push_notifications',
+    up() {
+      // app_settings — stores VAPID keys and other app-wide config
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key   TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      `);
+
+      // push_subscriptions — browser push subscriptions per user
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          endpoint    TEXT NOT NULL UNIQUE,
+          keys_p256dh TEXT NOT NULL,
+          keys_auth   TEXT NOT NULL,
+          created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+
+      // user_notification_settings — per-user delivery preferences
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_notification_settings (
+          user_id              TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          enabled              INTEGER NOT NULL DEFAULT 1,
+          send_hour            INTEGER NOT NULL DEFAULT 9,
+          send_minute          INTEGER NOT NULL DEFAULT 0,
+          repeat_enabled       INTEGER NOT NULL DEFAULT 0,
+          repeat_interval_days INTEGER NOT NULL DEFAULT 1
+        )
+      `);
+
+      // dossier_notification_subscriptions — which dossiers a user opted into
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS dossier_notification_subscriptions (
+          user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          PRIMARY KEY (user_id, dossier_id)
+        )
+      `);
+
+      // notification_log — deduplication and repetition tracking
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS notification_log (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          event_type TEXT NOT NULL,
+          event_key  TEXT NOT NULL,
+          sent_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_notification_log_lookup
+          ON notification_log(user_id, dossier_id, event_type, event_key)
+      `);
+
+      // dossiers.expense_notification_days_before
+      const dossierCols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!dossierCols.find((c) => c.name === 'expense_notification_days_before')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN expense_notification_days_before INTEGER NOT NULL DEFAULT 1');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
