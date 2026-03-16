@@ -120,6 +120,12 @@ export default function Navbar({ onHamburger }) {
                   Change Password
                 </button>
               )}
+              <button
+                className="user-dropdown-item"
+                onClick={() => { navigate('/notifications'); setDropdownOpen(false); }}
+              >
+                Notifications
+              </button>
               <hr className="user-dropdown-divider" />
               <button className="user-dropdown-item danger" onClick={handleLogout}>
                 Logout

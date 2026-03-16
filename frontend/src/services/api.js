@@ -188,4 +188,16 @@ export const api = {
     request('GET', `/dossiers/${dossierId}/annual-expenses/distributions`),
   setAnnualExpenseDistributions: (dossierId, distribution_template_ids) =>
     request('PUT', `/dossiers/${dossierId}/annual-expenses/distributions`, { distribution_template_ids }),
+
+  // Push notifications — VAPID & subscriptions
+  getVapidPublicKey: () => request('GET', '/push/vapid-public-key'),
+  subscribePush: (subscription) => request('POST', '/push/subscribe', subscription),
+  unsubscribePush: (endpoint) => request('DELETE', '/push/subscribe', { endpoint }),
+  getPushSubscriptions: () => request('GET', '/push/subscriptions'),
+
+  // Push notifications — user settings & dossier opt-in
+  getNotificationSettings: () => request('GET', '/notifications/settings'),
+  updateNotificationSettings: (data) => request('PATCH', '/notifications/settings', data),
+  getNotificationDossiers: () => request('GET', '/notifications/dossiers'),
+  setNotificationDossiers: (dossier_ids) => request('PUT', '/notifications/dossiers', { dossier_ids }),
 };

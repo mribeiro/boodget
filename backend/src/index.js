@@ -38,6 +38,8 @@ app.use('/api/setup', require('./routes/setup'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', requireAuth, require('./routes/users'));
 app.use('/api/dossiers', requireAuth, require('./routes/dossiers'));
+app.use('/api/push', requireAuth, require('./routes/push'));
+app.use('/api/notifications', requireAuth, require('./routes/notifications'));
 
 // Serve the built frontend when available (production, dev, ephemeral, etc.)
 const frontendDist = path.join(__dirname, '..', 'frontend-dist');
@@ -64,8 +66,25 @@ async function start() {
   if (process.env.SEED_ON_EMPTY === 'true') {
     require('./db/seed')();
   }
+
+  // Initialize VAPID keys for Web Push
+  const { initVapid } = require('./notifications/push');
+  initVapid();
+
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`Capital Tracker running on port ${PORT}`));
+  app.listen(PORT, () => {
+    console.log(`Capital Tracker running on port ${PORT}`);
+
+    // Start push notification scheduler (runs every minute)
+    const cron = require('node-cron');
+    const { runNotificationScheduler } = require('./notifications/scheduler');
+    cron.schedule('* * * * *', () => {
+      runNotificationScheduler().catch((err) =>
+        console.error('[push] Scheduler error:', err.message)
+      );
+    });
+    console.log('[push] Notification scheduler started');
+  });
 }
 
 start().catch(console.error);

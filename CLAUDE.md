@@ -44,23 +44,37 @@ capital-tracker/
 │   │       │                     # cycle items, workbench snapshots (nested under dossiers)
 │   │       ├── goals.js          # Goals CRUD, cycle contributions, historical contributions (nested under dossiers)
 │   │       ├── emergency-fund.js # Emergency fund accounts, extra values, status (nested under dossiers)
-│   │       └── annual-expenses.js # Annual expense template (with installments), years, payments (nested under dossiers)
+│   │       ├── annual-expenses.js # Annual expense template (with installments), years, payments (nested under dossiers)
+│   │       ├── push.js           # Push subscription management + VAPID public key endpoint
+│   │       └── notifications.js  # User notification settings + dossier opt-in
+│   ├── notifications/
+│   │   ├── push.js               # VAPID init, getVapidKeys(), sendPush() helper
+│   │   └── scheduler.js          # node-cron scheduler: evaluates 5 event types, deduplicates, sends push
 │   ├── scripts/
 │   │   ├── reset-password.js # Node.js tool for emergency password reset
 │   │   └── reset-password.sh # Shell wrapper (made executable in Docker image)
 │   └── Dockerfile            # Multi-stage: builds frontend (with GIT_COMMIT arg), then runs backend+frontend
 ├── frontend/         # React 18 SPA (ES Modules, Vite)
+│   ├── public/
+│   │   ├── manifest.webmanifest  # PWA manifest (name, icons, standalone display, theme colour)
+│   │   ├── icon.svg              # Master app icon source (gradient background, "C" + trend line)
+│   │   ├── icons/                # Generated PNG icons: icon-16, icon-32, icon-180, icon-192, icon-512, icon-512-maskable
+│   │   └── sw-push.js            # Service worker push handler (push event + notificationclick)
+│   ├── scripts/
+│   │   └── generate-icons.js     # Generates all PNG icon sizes from icon.svg using sharp (runs at build time)
 │   ├── src/
 │   │   ├── main.jsx          # React entry point
 │   │   ├── App.jsx           # AuthContext, routing, setup/login gates; navbar shows 7-char git SHA
 │   │   ├── services/api.js   # Fetch-based API client wrapper
+│   │   ├── pages/
+│   │   │   └── NotificationSettings.jsx  # User notification settings page (/notifications)
 │   │   └── components/
 │   │       ├── DossierView.jsx         # Dossier page with Capital / Monthly Expenses / Annual Expenses / Workbench / Goals / Emergency Fund / Settings tabs; uses key={activeTab} on tab wrapper for entrance animation
-│   │       ├── DossierSettingsTab.jsx  # Settings tab: cycle start day, monthly template, annual template, emergency fund settings
+│   │       ├── DossierSettingsTab.jsx  # Settings tab: cycle start day, monthly template, annual template, emergency fund settings, notification days-before
 │   │       ├── ConfirmModal.jsx        # Reusable animated confirmation modal (danger/primary variants); replaces all native confirm() dialogs
 │   │       ├── layout/
 │   │       │   ├── AppShell.jsx        # App layout: sidebar + navbar + main content area
-│   │       │   ├── Navbar.jsx          # Top navbar (git SHA, theme, hamburger)
+│   │       │   ├── Navbar.jsx          # Top navbar (git SHA, theme, hamburger, Notifications link in user dropdown)
 │   │       │   └── Sidebar.jsx         # Collapsible sidebar (Users link only; no dossier-specific nav)
 │   │       ├── glances/
 │   │       │   ├── GlancesPanel.jsx        # Glances panel (rendered above tab bar in DossierView)
@@ -101,7 +115,8 @@ capital-tracker/
 │   ├── SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md # Annual Expenses Tracking specification
 │   ├── SPECIFICATION_UI.md                       # UI conventions and component patterns
 │   ├── SPECIFICATION_BACKEND_LOGGING.md          # Backend logging conventions
-│   └── SPECIFICATION_PREVIEW_ENVIRONMENTS.md     # Preview environments infrastructure
+│   ├── SPECIFICATION_PREVIEW_ENVIRONMENTS.md     # Preview environments infrastructure
+│   └── SPECIFICATION_PWA.md                      # PWA installability + Web Push notifications specification
 ├── preview-index/            # Lightweight service listing all running preview environments
 │   ├── server.js             # Plain Node.js HTTP server (no deps); queries Docker socket
 │   ├── Dockerfile            # node:20-alpine + curl; runs server.js
@@ -124,8 +139,10 @@ capital-tracker/
 | Sessions | `express-session` (72-hour expiry, httpOnly, SameSite=lax) |
 | Password hashing | `bcrypt` |
 | SSO | `openid-client` (OIDC, optional) |
+| Push notifications | `web-push` (VAPID), `node-cron` (scheduler) |
 | Frontend framework | React 18 |
-| Frontend build | Vite 5 |
+| Frontend build | Vite 5 + `vite-plugin-pwa` (Workbox, service worker) |
+| Icon generation | `sharp` (devDependency, runs at build time) |
 | Routing | `react-router-dom` v6 |
 | Charts | `recharts` |
 | Deployment | Docker + Docker Compose |
@@ -237,7 +254,7 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 |---|---|
 | `users` | User accounts. `is_oidc=1` for SSO users (no password). |
 | `sessions` | Express session store. |
-| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds: `capital_snapshot_warning_day` (default 7), `next_cycle_warning_day` (default 22), `previous_cycle_close_warning_day` (default 25), two Emergency Fund settings: `emergency_fund_months_multiplier` (default 6), `emergency_fund_cycles_to_average` (default 6). All warning thresholds are integers 1–28. Also holds four Paperless-ngx settings (all nullable): `paperless_url`, `paperless_token`, `paperless_date_field_id`, `paperless_amount_field_id`. |
+| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds: `capital_snapshot_warning_day` (default 7), `next_cycle_warning_day` (default 22), `previous_cycle_close_warning_day` (default 25), two Emergency Fund settings: `emergency_fund_months_multiplier` (default 6), `emergency_fund_cycles_to_average` (default 6). All warning thresholds are integers 1–28. Also holds four Paperless-ngx settings (all nullable): `paperless_url`, `paperless_token`, `paperless_date_field_id`, `paperless_amount_field_id`. Push notification setting: `expense_notification_days_before` (default 1, range 0–7). |
 | `dossier_access` | Many-to-many sharing: `(dossier_id, user_id)` PK. |
 | `accounts` | Tracked accounts. `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived` hides from new months. `is_idle_money` flags liquid cash. `position` controls display order. |
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool marks completion. |
@@ -262,6 +279,11 @@ SQLite database at path `DB_PATH` env var (default: `/data/capital-tracker.db` i
 | `goal_historical_contributions` | Pre-cycle historical contributions (year/month/amount) for the chart. Composite PK `(goal_id, year, month)`. Managed via bulk-replace. Cascades on goal delete. |
 | `emergency_fund_accounts` | Accounts whose current value counts toward the emergency fund. Composite PK `(dossier_id, account_id)`. Cascades on dossier or account delete. Current value sourced from the most recent filled Capital snapshot. |
 | `emergency_fund_extra_values` | Per-dossier list of extra monthly amounts to add to the expense average (e.g. rent paid outside cycles). Fields: `id`, `dossier_id`, `name`, `value`, `position`. Cascades on dossier delete. |
+| `app_settings` | Application-wide key-value store. Currently holds `vapid_public_key` and `vapid_private_key` (auto-generated on first startup). |
+| `push_subscriptions` | Browser push subscriptions per user. Fields: `id`, `user_id`, `endpoint` (UNIQUE), `keys_p256dh`, `keys_auth`, `created_at`. Cascades on user delete. One user may have multiple subscriptions (one per device/browser). |
+| `user_notification_settings` | Per-user push notification preferences. PK: `user_id`. Fields: `enabled` (default 1), `send_hour` (0–23, default 9, UTC), `send_minute` (0–59, default 0, UTC), `repeat_enabled` (default 0), `repeat_interval_days` (1–7, default 1). Row is created on first PATCH. |
+| `dossier_notification_subscriptions` | Which dossiers generate notifications for each user. Composite PK `(user_id, dossier_id)`. No dossiers are opted in by default. Cascades on user or dossier delete. |
+| `notification_log` | Deduplication log for sent notifications. Fields: `id`, `user_id`, `dossier_id`, `event_type`, `event_key`, `sent_at`. Indexed on `(user_id, dossier_id, event_type, event_key)`. Entries older than 90 days are auto-deleted during each scheduler run. |
 
 ### Migration System
 
@@ -272,9 +294,9 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - IDs follow the pattern `NNN_description`, e.g. `003_add_foo_to_bar`.
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
 
-The last applied migration is `019_annual_expenses_tracking`. The next migration id must be `020_...`.
+The last applied migration is `020_pwa_push_notifications`. The next migration id must be `021_...`.
 
-Migrations 011–019:
+Migrations 011–020:
 - `011_create_goals` — `goals` table
 - `012_create_goal_accounts` — `goal_accounts` join table
 - `013_create_goal_distributions` — `goal_distributions` join table
@@ -284,12 +306,13 @@ Migrations 011–019:
 - `017_emergency_fund` — adds `emergency_fund_months_multiplier`, `emergency_fund_cycles_to_average` to `dossiers`; creates `emergency_fund_accounts` and `emergency_fund_extra_values` tables
 - `018_paperless_integration` — adds `paperless_url`, `paperless_token`, `paperless_date_field_id`, `paperless_amount_field_id` to `dossiers`; adds `paperless_tag_id` to `expense_template_items` and `cycle_items`
 - `019_annual_expenses_tracking` — adds `num_installments` to `annual_expense_template_items`; creates `annual_expense_template_installments`, `annual_expense_years`, `annual_expense_year_items`, `annual_expense_year_installments`, `annual_expense_payments`, `annual_expense_accounts`, `annual_expense_distributions`; migrates existing installment data from `day_of_payment`/`month_of_payment`
+- `020_pwa_push_notifications` — creates `app_settings`, `push_subscriptions`, `user_notification_settings`, `dossier_notification_subscriptions`, `notification_log` tables; adds `expense_notification_days_before` to `dossiers`
 
 **To add a new migration**, append an entry to the `migrations` array:
 
 ```js
 {
-  id: '020_your_description',
+  id: '021_your_description',
   up() {
     const cols = db.prepare('PRAGMA table_info(your_table)').all();
     if (!cols.find((c) => c.name === 'your_column')) {
@@ -299,7 +322,7 @@ Migrations 011–019:
 },
 ```
 
-Migration `003` added `cycle_start_day` to `dossiers`. Migration `016` added the three Glances warning thresholds. Migration `017` added Emergency Fund support. Migration `018` added Paperless-ngx integration fields. Migration `019` added Annual Expenses Tracking tables.
+Migration `003` added `cycle_start_day` to `dossiers`. Migration `016` added the three Glances warning thresholds. Migration `017` added Emergency Fund support. Migration `018` added Paperless-ngx integration fields. Migration `019` added Annual Expenses Tracking tables. Migration `020` added PWA push notification tables and `expense_notification_days_before`.
 
 Never modify or remove existing migration entries — only append new ones.
 
@@ -358,7 +381,8 @@ PATCH  /api/dossiers/:id/settings   { cycle_start_day?, capital_snapshot_warning
                                        next_cycle_warning_day?, previous_cycle_close_warning_day?,
                                        emergency_fund_months_multiplier?, emergency_fund_cycles_to_average?,
                                        paperless_url?, paperless_token?, paperless_date_field_id?,
-                                       paperless_amount_field_id? }
+                                       paperless_amount_field_id?,
+                                       expense_notification_days_before? }
 
 GET    /api/dossiers/:id/expense-template
 POST   /api/dossiers/:id/expense-template     { section, name, type?, value, day_of_payment?, classification?, must_amount?, want_amount?, save_amount? }
@@ -425,6 +449,16 @@ POST   /api/dossiers/:id/emergency-fund/extra-values     { name, value }
 PATCH  /api/dossiers/:id/emergency-fund/extra-values/:itemId  { name?, value? }
 DELETE /api/dossiers/:id/emergency-fund/extra-values/:itemId
 GET    /api/dossiers/:id/emergency-fund/status           # returns status object (see below)
+
+GET    /api/push/vapid-public-key        # returns { publicKey }
+POST   /api/push/subscribe              { endpoint, keys: { p256dh, auth } }
+DELETE /api/push/subscribe              { endpoint }
+GET    /api/push/subscriptions          # returns user's registered push subscriptions
+
+GET    /api/notifications/settings      # returns user notification prefs (or defaults)
+PATCH  /api/notifications/settings      { enabled?, send_hour?, send_minute?, repeat_enabled?, repeat_interval_days? }
+GET    /api/notifications/dossiers      # returns opted-in dossier_ids[]
+PUT    /api/notifications/dossiers      { dossier_ids: [] }
 ```
 
 #### Emergency Fund Status Response
@@ -480,6 +514,7 @@ Key routes:
 - `/dossiers/:id/months/:monthId` → month detail
 - `/dossiers/:id/cycles/:cycleId` → `CycleEditor`
 - `/dossiers/:id/goals/:goalId` → `GoalDetail`
+- `/notifications` → `NotificationSettings` (user-level push notification preferences)
 
 `DossierView` tab state can be restored via router location state: `navigate('/dossiers/:id', { state: { tab: 'expenses' } })`.
 
@@ -545,10 +580,9 @@ Inline styles and CSS via `index.css`. No CSS framework (Tailwind, Bootstrap) is
 
 Do not implement the following unless the specification is explicitly updated:
 - Admin roles or permission tiers
-- PWA or mobile app
 - Multi-currency conversion
 
-The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import), Glances (read-only summary panel with up to five colour-coded cards above the tab bar), and Emergency Fund (savings buffer target with account selection, extra monthly values, and status tracking) are fully implemented.
+The Monthly Expenses feature (cycles, templates, settings), the Workbench (scenario calculator with snapshots, income/expense/distribution sections, Must/Want/Save breakdown, Annual Expense Template), Goals (financial objectives with progress tracking, contribution modes, historical contributions, and export/import), Glances (read-only summary panel with up to five colour-coded cards above the tab bar), Emergency Fund (savings buffer target with account selection, extra monthly values, and status tracking), and PWA + Web Push Notifications (installable app, VAPID push subscriptions, notification scheduler, user preference UI) are fully implemented.
 
 ## Backend Logging
 
