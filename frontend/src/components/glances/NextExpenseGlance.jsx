@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faClock, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
@@ -27,7 +28,7 @@ function getAnnualPaymentDate(payment) {
   return new Date(payment.expense_year, payment.month - 1, payment.day);
 }
 
-export default function NextExpenseGlance({ currentCycleDetail, settings, today, onClick }) {
+export default function NextExpenseGlance({ currentCycleDetail, settings, today, onClick, onMarkPaid }) {
   const cycleStartDay = settings.cycle_start_day ?? 25;
 
   if (!currentCycleDetail) {
@@ -116,6 +117,20 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (${dayLabel})`;
   }
 
+  const isOverdue = diffDays < 0;
+  const [marking, setMarking] = useState(false);
+
+  async function handleMarkPaid(e) {
+    e.stopPropagation();
+    if (!onMarkPaid || marking) return;
+    setMarking(true);
+    try {
+      await onMarkPaid(next);
+    } finally {
+      setMarking(false);
+    }
+  }
+
   return (
     <GlanceCard title="Next Expense" icon={faClock} color={color} onClick={onClick}>
       <div className="text-base" style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -137,6 +152,25 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
           <span style={{ color: whenColor, marginLeft: 6 }}>· {whenLabel}</span>
         )}
       </div>
+      {isOverdue && onMarkPaid && (
+        <button
+          onClick={handleMarkPaid}
+          disabled={marking}
+          style={{
+            marginTop: 8,
+            padding: '3px 10px',
+            fontSize: 12,
+            borderRadius: 'var(--radius-full)',
+            border: '1px solid var(--border-default)',
+            background: 'var(--surface-secondary)',
+            color: 'var(--text-secondary)',
+            cursor: marking ? 'default' : 'pointer',
+            opacity: marking ? 0.6 : 1,
+          }}
+        >
+          {marking ? 'Marking…' : 'Mark as paid'}
+        </button>
+      )}
     </GlanceCard>
   );
 }
