@@ -497,6 +497,85 @@ export default function AnnualExpensesTab({ dossierId }) {
               <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No expenses defined for {selectedYear.year}. Add expenses or sync from the template.</p>
             ) : (
               yearData.items.map((item) => {
+                const isSingle = item.num_installments === 1;
+                const inst0 = item.installments[0];
+
+                // Shared classification badge
+                const classificationBadge = item.classification ? (
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 'var(--radius-full)',
+                    background: item.classification === 'must' ? 'var(--color-danger-light)' : 'var(--color-warning-light)',
+                    color: item.classification === 'must' ? 'var(--color-danger-text)' : 'var(--color-warning-text)',
+                    border: `1px solid ${item.classification === 'must' ? 'var(--color-danger-border)' : 'var(--color-warning-border)'}`,
+                  }}>
+                    {item.classification === 'must' ? 'Must' : 'Want'}
+                  </span>
+                ) : null;
+
+                const actionButtons = (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }} onClick={() => setItemModal(item)}>
+                      <FontAwesomeIcon icon={faPencil} />
+                    </button>
+                    <button className="btn-ghost" style={{ fontSize: 12, padding: '3px 8px', color: 'var(--color-danger)' }} onClick={() => handleDeleteItem(item)}>
+                      <FontAwesomeIcon icon={faTrash} />
+                    </button>
+                  </div>
+                );
+
+                if (isSingle) {
+                  // ── Single installment: one flat row ──────────────────────
+                  const today = new Date();
+                  const instDate = inst0 ? new Date(selectedYear.year, inst0.month - 1, inst0.day) : null;
+                  const overdue = inst0 && !inst0.payment?.paid && instDate < today;
+                  return (
+                    <div key={item.id} style={{
+                      borderBottom: '1px solid var(--border-default)', marginBottom: 8, paddingBottom: 8,
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: overdue ? 'var(--color-warning-light)' : 'inherit',
+                      borderRadius: overdue ? 'var(--radius)' : undefined,
+                      padding: overdue ? '6px 8px' : '0 0 8px 0',
+                    }}>
+                      {/* Name + badges */}
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</span>
+                        {classificationBadge}
+                        {!item.from_template && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>ad-hoc</span>}
+                      </div>
+                      {/* Date */}
+                      {inst0 && (
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                          {MONTH_NAMES[inst0.month - 1]} {inst0.day}
+                        </span>
+                      )}
+                      {/* Amount */}
+                      <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 80, textAlign: 'right' }}>
+                        {fmt(item.budgeted_value)}
+                      </span>
+                      {/* Status */}
+                      {inst0 && <InstallmentStatusBadge inst={inst0} calYear={selectedYear.year} />}
+                      {/* Paid checkbox */}
+                      {inst0?.payment && (
+                        <Checkbox
+                          checked={!!inst0.payment.paid}
+                          onChange={async () => {
+                            await api.updateAnnualPayment(dossierId, inst0.payment.id, { paid: !inst0.payment.paid });
+                            await loadYearData(selectedYearId);
+                          }}
+                        />
+                      )}
+                      {/* Cycle link */}
+                      {inst0?.payment?.cycle_id && (
+                        <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => navigate(`/dossiers/${dossierId}/cycles/${inst0.payment.cycle_id}`)}>
+                          <FontAwesomeIcon icon={faArrowRight} style={{ marginRight: 3 }} />Cycle
+                        </button>
+                      )}
+                      {actionButtons}
+                    </div>
+                  );
+                }
+
+                // ── Multiple installments: collapsible header + sub-table ──
                 const expanded = !!expandedItems[item.id];
                 const diff = item.difference ?? ((item.total_paid || 0) - (item.budgeted_value || 0));
                 return (
@@ -506,19 +585,8 @@ export default function AnnualExpensesTab({ dossierId }) {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</span>
-                          {item.classification && (
-                            <span style={{
-                              fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 'var(--radius-full)',
-                              background: item.classification === 'must' ? 'var(--color-danger-light)' : 'var(--color-warning-light)',
-                              color: item.classification === 'must' ? 'var(--color-danger-text)' : 'var(--color-warning-text)',
-                              border: `1px solid ${item.classification === 'must' ? 'var(--color-danger-border)' : 'var(--color-warning-border)'}`,
-                            }}>
-                              {item.classification === 'must' ? 'Must' : 'Want'}
-                            </span>
-                          )}
-                          {!item.from_template && (
-                            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>ad-hoc</span>
-                          )}
+                          {classificationBadge}
+                          {!item.from_template && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>ad-hoc</span>}
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 'auto' }}>
@@ -536,14 +604,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>difference</div>
                         </div>
-                        <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
-                          <button className="btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }} onClick={() => setItemModal(item)}>
-                            <FontAwesomeIcon icon={faPencil} />
-                          </button>
-                          <button className="btn-ghost" style={{ fontSize: 12, padding: '3px 8px', color: 'var(--color-danger)' }} onClick={() => handleDeleteItem(item)}>
-                            <FontAwesomeIcon icon={faTrash} />
-                          </button>
-                        </div>
+                        <div onClick={(e) => e.stopPropagation()}>{actionButtons}</div>
                       </div>
                     </div>
 
@@ -556,6 +617,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                               <th>Date</th>
                               <th style={{ textAlign: 'right' }}>Amount</th>
                               <th>Status</th>
+                              <th style={{ width: 32 }}></th>
                               <th></th>
                             </tr>
                           </thead>
@@ -570,6 +632,17 @@ export default function AnnualExpensesTab({ dossierId }) {
                                   <td>{MONTH_NAMES[inst.month - 1]} {inst.day}</td>
                                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(inst.expected_value)}</td>
                                   <td><InstallmentStatusBadge inst={inst} calYear={selectedYear.year} /></td>
+                                  <td>
+                                    {inst.payment && (
+                                      <Checkbox
+                                        checked={!!inst.payment.paid}
+                                        onChange={async () => {
+                                          await api.updateAnnualPayment(dossierId, inst.payment.id, { paid: !inst.payment.paid });
+                                          await loadYearData(selectedYearId);
+                                        }}
+                                      />
+                                    )}
+                                  </td>
                                   <td>
                                     {inst.payment?.cycle_id && (
                                       <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => navigate(`/dossiers/${dossierId}/cycles/${inst.payment.cycle_id}`)}>
