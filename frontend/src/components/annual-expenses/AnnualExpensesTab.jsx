@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faPencil, faTrash, faXmark, faChevronDown, faChevronRight,
-  faSync, faListCheck, faCheck, faTriangleExclamation, faArrowRight,
+  faSync, faListCheck,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -25,22 +25,6 @@ function StatRow({ label, value, valueStyle }) {
       <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
       <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...valueStyle }}>{value}</span>
     </div>
-  );
-}
-
-function InstallmentStatusBadge({ inst, calYear }) {
-  if (!inst.payment) return null;
-  if (inst.payment.paid) {
-    return <span style={{ color: 'var(--color-success-text)', fontSize: 12, fontWeight: 600 }}><FontAwesomeIcon icon={faCheck} style={{ marginRight: 4 }} />Paid</span>;
-  }
-  const today = new Date();
-  const instDate = new Date(calYear, inst.month - 1, inst.day);
-  const overdue = instDate < today;
-  return (
-    <span style={{ color: overdue ? 'var(--color-warning-text)' : 'var(--text-muted)', fontSize: 12 }}>
-      {overdue ? <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: 4 }} /> : null}
-      {overdue ? 'Overdue' : 'Upcoming'}
-    </span>
   );
 }
 
@@ -500,161 +484,118 @@ export default function AnnualExpensesTab({ dossierId }) {
                 const isSingle = item.num_installments === 1;
                 const inst0 = item.installments[0];
 
-                // Shared classification badge
-                const classificationBadge = item.classification ? (
-                  <span style={{
-                    fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 'var(--radius-full)',
-                    background: item.classification === 'must' ? 'var(--color-danger-light)' : 'var(--color-warning-light)',
-                    color: item.classification === 'must' ? 'var(--color-danger-text)' : 'var(--color-warning-text)',
-                    border: `1px solid ${item.classification === 'must' ? 'var(--color-danger-border)' : 'var(--color-warning-border)'}`,
-                  }}>
-                    {item.classification === 'must' ? 'Must' : 'Want'}
-                  </span>
-                ) : null;
-
-                const actionButtons = (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button className="btn-ghost" style={{ fontSize: 12, padding: '3px 8px' }} onClick={() => setItemModal(item)}>
-                      <FontAwesomeIcon icon={faPencil} />
-                    </button>
-                    <button className="btn-ghost" style={{ fontSize: 12, padding: '3px 8px', color: 'var(--color-danger)' }} onClick={() => handleDeleteItem(item)}>
-                      <FontAwesomeIcon icon={faTrash} />
-                    </button>
-                  </div>
-                );
+                // Shared inline styles matching the monthly expense row
+                const rowStyle = {
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  padding: '0.6rem 0.75rem',
+                  background: 'var(--color-surface)',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--color-border)',
+                };
+                const iconBtnStyle = {
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--color-text-muted)', fontSize: '0.8rem',
+                  padding: '0 0.25rem', flexShrink: 0,
+                };
 
                 if (isSingle) {
-                  // ── Single installment: one flat row ──────────────────────
-                  const today = new Date();
-                  const instDate = inst0 ? new Date(selectedYear.year, inst0.month - 1, inst0.day) : null;
-                  const overdue = inst0 && !inst0.payment?.paid && instDate < today;
+                  // ── Single installment: one flat row matching monthly expense style ──
+                  const paid = !!inst0?.payment?.paid;
                   return (
-                    <div key={item.id} style={{
-                      borderBottom: '1px solid var(--border-default)', marginBottom: 8, paddingBottom: 8,
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      background: overdue ? 'var(--color-warning-light)' : 'inherit',
-                      borderRadius: overdue ? 'var(--radius)' : undefined,
-                      padding: overdue ? '6px 8px' : '0 0 8px 0',
-                    }}>
-                      {/* Name + badges */}
-                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</span>
-                        {classificationBadge}
-                        {!item.from_template && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>ad-hoc</span>}
-                      </div>
-                      {/* Date */}
-                      {inst0 && (
-                        <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {MONTH_NAMES[inst0.month - 1]} {inst0.day}
-                        </span>
-                      )}
-                      {/* Amount */}
-                      <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 80, textAlign: 'right' }}>
-                        {fmt(item.budgeted_value)}
-                      </span>
-                      {/* Status */}
-                      {inst0 && <InstallmentStatusBadge inst={inst0} calYear={selectedYear.year} />}
-                      {/* Paid checkbox */}
+                    <div key={item.id} style={{ ...rowStyle, opacity: paid ? 0.6 : 1, marginBottom: 4 }}>
                       {inst0?.payment && (
                         <Checkbox
-                          checked={!!inst0.payment.paid}
+                          checked={paid}
                           onChange={async () => {
-                            await api.updateAnnualPayment(dossierId, inst0.payment.id, { paid: !inst0.payment.paid });
+                            await api.updateAnnualPayment(dossierId, inst0.payment.id, { paid: !paid });
                             await loadYearData(selectedYearId);
                           }}
                         />
                       )}
-                      {/* Cycle link */}
-                      {inst0?.payment?.cycle_id && (
-                        <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => navigate(`/dossiers/${dossierId}/cycles/${inst0.payment.cycle_id}`)}>
-                          <FontAwesomeIcon icon={faArrowRight} style={{ marginRight: 3 }} />Cycle
-                        </button>
-                      )}
-                      {actionButtons}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 500, textDecoration: paid ? 'line-through' : 'none' }}>
+                          {item.name}
+                        </span>
+                        {inst0 && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                            {MONTH_NAMES[inst0.month - 1]} {inst0.day}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                        {fmt(item.budgeted_value)}
+                      </span>
+                      <button style={iconBtnStyle} onClick={() => setItemModal(item)} title="Edit">
+                        <FontAwesomeIcon icon={faPencil} />
+                      </button>
+                      <button style={iconBtnStyle} onClick={() => handleDeleteItem(item)} title="Delete">
+                        <FontAwesomeIcon icon={faTrash} />
+                      </button>
                     </div>
                   );
                 }
 
-                // ── Multiple installments: collapsible header + sub-table ──
+                // ── Multiple installments: collapsible header + installment rows ──
                 const expanded = !!expandedItems[item.id];
-                const diff = item.difference ?? ((item.total_paid || 0) - (item.budgeted_value || 0));
                 return (
-                  <div key={item.id} style={{ borderBottom: '1px solid var(--border-default)', marginBottom: 8, paddingBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => toggleExpand(item.id)}>
-                      <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} style={{ fontSize: 11, color: 'var(--text-muted)', width: 12 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</span>
-                          {classificationBadge}
-                          {!item.from_template && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>ad-hoc</span>}
-                        </div>
+                  <div key={item.id} style={{ marginBottom: 4 }}>
+                    {/* Header row */}
+                    <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={() => toggleExpand(item.id)}>
+                      <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 12, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 500 }}>{item.name}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                          {item.num_installments} installments
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 'auto' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                         <div style={{ textAlign: 'right', fontSize: 13 }}>
-                          <div style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmt(item.budgeted_value)}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>budgeted</div>
+                          <div style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{fmt(item.budgeted_value)}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{fmt(item.total_paid)} paid</div>
                         </div>
-                        <div style={{ textAlign: 'right', fontSize: 13 }}>
-                          <div style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmt(item.total_paid)}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>paid</div>
+                        <div style={{ display: 'flex', gap: 2 }} onClick={(e) => e.stopPropagation()}>
+                          <button style={iconBtnStyle} onClick={() => setItemModal(item)} title="Edit">
+                            <FontAwesomeIcon icon={faPencil} />
+                          </button>
+                          <button style={iconBtnStyle} onClick={() => handleDeleteItem(item)} title="Delete">
+                            <FontAwesomeIcon icon={faTrash} />
+                          </button>
                         </div>
-                        <div style={{ textAlign: 'right', fontSize: 13, minWidth: 80 }}>
-                          <div style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: diff > 0 ? 'var(--color-danger-text)' : diff < 0 ? 'var(--color-success-text)' : 'inherit' }}>
-                            {diff >= 0 ? '+' : ''}{fmt(diff)}
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>difference</div>
-                        </div>
-                        <div onClick={(e) => e.stopPropagation()}>{actionButtons}</div>
                       </div>
                     </div>
-
+                    {/* Expanded installment rows */}
                     {expanded && (
-                      <div style={{ marginTop: 8, marginLeft: 22 }}>
-                        <table className="table" style={{ fontSize: 13 }}>
-                          <thead>
-                            <tr>
-                              <th style={{ width: 60 }}>#</th>
-                              <th>Date</th>
-                              <th style={{ textAlign: 'right' }}>Amount</th>
-                              <th>Status</th>
-                              <th style={{ width: 32 }}></th>
-                              <th></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {item.installments.map((inst) => {
-                              const today = new Date();
-                              const instDate = new Date(selectedYear.year, inst.month - 1, inst.day);
-                              const overdue = !inst.payment?.paid && instDate < today;
-                              return (
-                                <tr key={inst.id} style={{ background: overdue ? 'var(--color-warning-light)' : 'inherit' }}>
-                                  <td style={{ color: 'var(--text-muted)' }}>{inst.installment_number}/{item.num_installments}</td>
-                                  <td>{MONTH_NAMES[inst.month - 1]} {inst.day}</td>
-                                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(inst.expected_value)}</td>
-                                  <td><InstallmentStatusBadge inst={inst} calYear={selectedYear.year} /></td>
-                                  <td>
-                                    {inst.payment && (
-                                      <Checkbox
-                                        checked={!!inst.payment.paid}
-                                        onChange={async () => {
-                                          await api.updateAnnualPayment(dossierId, inst.payment.id, { paid: !inst.payment.paid });
-                                          await loadYearData(selectedYearId);
-                                        }}
-                                      />
-                                    )}
-                                  </td>
-                                  <td>
-                                    {inst.payment?.cycle_id && (
-                                      <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => navigate(`/dossiers/${dossierId}/cycles/${inst.payment.cycle_id}`)}>
-                                        <FontAwesomeIcon icon={faArrowRight} style={{ marginRight: 3 }} />Cycle
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 24 }}>
+                        {item.installments.map((inst) => {
+                          const paid = !!inst.payment?.paid;
+                          return (
+                            <div key={inst.id} style={{ ...rowStyle, opacity: paid ? 0.6 : 1 }}>
+                              {inst.payment && (
+                                <Checkbox
+                                  checked={paid}
+                                  onChange={async () => {
+                                    await api.updateAnnualPayment(dossierId, inst.payment.id, { paid: !paid });
+                                    await loadYearData(selectedYearId);
+                                  }}
+                                />
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontWeight: 500, textDecoration: paid ? 'line-through' : 'none' }}>
+                                  {item.name}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                                  {inst.installment_number}/{item.num_installments}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                                  {MONTH_NAMES[inst.month - 1]} {inst.day}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.875rem', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                                {fmt(inst.expected_value)}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
