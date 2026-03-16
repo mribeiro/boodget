@@ -45,7 +45,7 @@ function InstallmentStatusBadge({ inst, calYear }) {
 }
 
 // Modal for add/edit year item
-function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
+export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
   const numInstDefault = item ? item.num_installments : 1;
   const [name, setName] = useState(item?.name ?? '');
   const [value, setValue] = useState(item ? String(item.budgeted_value) : '');

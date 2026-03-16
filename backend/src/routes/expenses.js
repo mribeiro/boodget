@@ -459,10 +459,11 @@ router.get('/cycles/:cycleId', (req, res) => {
     .all(req.params.cycleId);
 
   const annualPayments = db.prepare(`
-    SELECT p.id, p.real_value, p.paid,
-           ayi.name, ayi.num_installments, ayi.budgeted_value, ayi.position as item_position,
+    SELECT p.id, p.paid,
+           ayi.id as year_item_id, ayi.name, ayi.num_installments, ayi.budgeted_value,
+           ayi.classification, ayi.position as item_position,
            ayii.installment_number, ayii.month, ayii.day,
-           aey.year as expense_year
+           aey.id as year_id, aey.year as expense_year
     FROM annual_expense_payments p
     JOIN annual_expense_year_installments ayii ON ayii.id = p.installment_id
     JOIN annual_expense_year_items ayi ON ayi.id = ayii.year_item_id

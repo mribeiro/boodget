@@ -5,6 +5,7 @@ import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark, fa
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
+import { ItemFormModal } from '../annual-expenses/AnnualExpensesTab';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -63,6 +64,7 @@ export default function CycleEditor() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditPeriod, setShowEditPeriod] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
+  const [annualEditModal, setAnnualEditModal] = useState(null); // { yearId, item } | null
 
   const [paperlessSettings, setPaperlessSettings] = useState(null);
   const [fetchingPaperless, setFetchingPaperless] = useState(false);
@@ -223,6 +225,33 @@ export default function CycleEditor() {
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  async function handleAnnualEdit(p) {
+    try {
+      const yearData = await api.getAnnualYear(dossierId, p.year_id);
+      const fullItem = yearData.items.find((i) => i.id === p.year_item_id);
+      if (fullItem) setAnnualEditModal({ yearId: p.year_id, item: fullItem });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function handleAnnualDelete(p) {
+    setConfirmState({
+      title: 'Delete annual expense',
+      message: `Delete "${p.name}" from the annual expense year? All its installments and payment records will also be removed.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteAnnualYearItem(dossierId, p.year_id, p.year_item_id);
+          await load();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleFetchPaperless() {
@@ -487,6 +516,8 @@ export default function CycleEditor() {
           onEdit={handleEditItem}
           dossierId={dossierId}
           onAnnualPaymentUpdated={load}
+          onAnnualEdit={handleAnnualEdit}
+          onAnnualDelete={handleAnnualDelete}
         />
       ) : (
         <DistributionsList
@@ -509,6 +540,15 @@ export default function CycleEditor() {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      {annualEditModal && (
+        <ItemFormModal
+          dossierId={dossierId}
+          yearId={annualEditModal.yearId}
+          item={annualEditModal.item}
+          onSave={async () => { setAnnualEditModal(null); await load(); }}
+          onClose={() => setAnnualEditModal(null)}
+        />
+      )}
       {paperlessModal && (
         <PaperlessFetchModal
           results={paperlessModal.results}
@@ -639,7 +679,7 @@ function SummaryRow({ label, value, highlight, bold }) {
   );
 }
 
-function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated }) {
+function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit }) {
   const [spentDrafts, setSpentDrafts] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
@@ -739,9 +779,23 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                   {typeLabel}
                 </span>
               </div>
-              <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
                 {fmt(expectedValue)}
               </span>
+              <button
+                onClick={() => onAnnualEdit(p)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                title="Edit annual expense"
+              >
+                <FontAwesomeIcon icon={faPencil} />
+              </button>
+              <button
+                onClick={() => onAnnualDelete(p)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                title="Delete annual expense"
+              >
+                <FontAwesomeIcon icon={faTrash} />
+              </button>
             </div>
           );
         }
