@@ -13,26 +13,26 @@ const todayMonth = now.getMonth() + 1; // 1–12
 
 const CYCLE_START = 25;
 
-// Current cycle year/month:
-//   If todayDay < CYCLE_START → current cycle = this calendar month
-//   If todayDay >= CYCLE_START → current cycle = next calendar month
-const curCycleIsThisCalMonth = todayDay < CYCLE_START;
-const curCycleMonth = curCycleIsThisCalMonth ? todayMonth : (todayMonth % 12) + 1;
-const curCycleYear  = (curCycleIsThisCalMonth || todayMonth < 12) ? todayYear : todayYear + 1;
-
-// Previous / next cycle
-const prevCycleMonth = curCycleMonth === 1  ? 12 : curCycleMonth - 1;
-const prevCycleYear  = curCycleMonth === 1  ? curCycleYear - 1 : curCycleYear;
-const nextCycleMonth = curCycleMonth === 12 ? 1  : curCycleMonth + 1;
-const nextCycleYear  = curCycleMonth === 12 ? curCycleYear + 1 : curCycleYear;
-
-// Current / previous / two-months-ago calendar months
+// Current / previous / two-months-ago calendar months (must come first)
 const calYear  = todayYear;
 const calMonth = todayMonth;
 const prevCalMonth = calMonth === 1  ? 12 : calMonth - 1;
 const prevCalYear  = calMonth === 1  ? calYear - 1  : calYear;
 const twoCalAgoMonth = prevCalMonth === 1  ? 12 : prevCalMonth - 1;
 const twoCalAgoYear  = prevCalMonth === 1  ? prevCalYear - 1 : prevCalYear;
+
+// Current cycle STORED year/month (the month the cycle STARTS in):
+//   If todayDay >= CYCLE_START → cycle started this calendar month → stored month = todayMonth
+//   If todayDay < CYCLE_START  → cycle started last calendar month → stored month = prevCalMonth
+const curCycleStartedThisMonth = todayDay >= CYCLE_START;
+const curCycleMonth = curCycleStartedThisMonth ? todayMonth : prevCalMonth;
+const curCycleYear  = curCycleStartedThisMonth ? todayYear  : prevCalYear;
+
+// Previous / next cycle (by stored month)
+const prevCycleMonth = curCycleMonth === 1  ? 12 : curCycleMonth - 1;
+const prevCycleYear  = curCycleMonth === 1  ? curCycleYear - 1 : curCycleYear;
+const nextCycleMonth = curCycleMonth === 12 ? 1  : curCycleMonth + 1;
+const nextCycleYear  = curCycleMonth === 12 ? curCycleYear + 1 : curCycleYear;
 
 // Warning threshold helpers (values between 1–28):
 //   warningOn  → todayDay >= warningOn  is always true
@@ -51,6 +51,11 @@ const futureDay  = CYCLE_START - 1;  // 24
 // target_date format: YYYY-MM
 function ym(year, month) {
   return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+// Advance a month number by n steps, wrapping 1–12
+function addMonths(month, n) {
+  return ((month - 1 + n) % 12) + 1;
 }
 const nextCalMonth     = calMonth === 12 ? 1  : calMonth + 1;
 const nextCalYear      = calMonth === 12 ? calYear + 1 : calYear;
@@ -165,6 +170,83 @@ function mkGoal(dossierId, accIds, def) {
   return goalId;
 }
 
+function mkAnnualTemplate(dossierId, items) {
+  const insertItem = db.prepare(
+    `INSERT INTO annual_expense_template_items
+       (id, dossier_id, name, value, num_installments, day_of_payment, month_of_payment, classification, position)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insertInst = db.prepare(
+    `INSERT INTO annual_expense_template_installments
+       (id, template_item_id, installment_number, month, day)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  const ids = [];
+  items.forEach((item, i) => {
+    const itemId = uuidv4();
+    ids.push(itemId);
+    const firstInst = item.installments[0];
+    insertItem.run(
+      itemId, dossierId, item.name, item.value, item.installments.length,
+      firstInst?.day ?? null, firstInst?.month ?? null,
+      item.classification, i + 1
+    );
+    item.installments.forEach((inst, j) => {
+      insertInst.run(uuidv4(), itemId, j + 1, inst.month, inst.day);
+    });
+  });
+  return ids;
+}
+
+function mkAnnualYear(dossierId, year, items, cycleList) {
+  const yearId = uuidv4();
+  db.prepare(
+    `INSERT INTO annual_expense_years (id, dossier_id, year, carryover) VALUES (?, ?, ?, 0)`
+  ).run(yearId, dossierId, year);
+  const insertYearItem = db.prepare(
+    `INSERT INTO annual_expense_year_items
+       (id, year_id, name, budgeted_value, classification, num_installments, from_template, position)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?)`
+  );
+  const insertYearInst = db.prepare(
+    `INSERT INTO annual_expense_year_installments
+       (id, year_item_id, installment_number, month, day)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  const insertPayment = db.prepare(
+    `INSERT INTO annual_expense_payments (id, installment_id, cycle_id, real_value, paid)
+     VALUES (?, ?, ?, 0, ?)`
+  );
+  items.forEach((item, i) => {
+    const yearItemId = uuidv4();
+    insertYearItem.run(yearItemId, yearId, item.name, item.value, item.classification, item.installments.length, i + 1);
+    item.installments.forEach((inst, j) => {
+      const instId = uuidv4();
+      insertYearInst.run(instId, yearItemId, j + 1, inst.month, inst.day);
+      // Match installment date to a seeded cycle and create a payment record
+      const instDate = new Date(year, inst.month - 1, inst.day);
+      for (const c of cycleList) {
+        const cycleStart = new Date(c.cycleYear, c.cycleMonth - 1, c.startDay);
+        const cycleEnd   = new Date(c.cycleYear, c.cycleMonth,     c.startDay - 1);
+        if (instDate >= cycleStart && instDate <= cycleEnd) {
+          insertPayment.run(uuidv4(), instId, c.cycleId, inst.paid ? 1 : 0);
+          break;
+        }
+      }
+    });
+  });
+}
+
+function mkAnnualAccounts(dossierId, accountIds) {
+  const stmt = db.prepare('INSERT INTO annual_expense_accounts (dossier_id, account_id) VALUES (?, ?)');
+  for (const aId of accountIds) stmt.run(dossierId, aId);
+}
+
+function mkAnnualDistributions(dossierId, distributionTemplateIds) {
+  const stmt = db.prepare('INSERT INTO annual_expense_distributions (dossier_id, distribution_template_id) VALUES (?, ?)');
+  for (const tId of distributionTemplateIds) stmt.run(dossierId, tId);
+}
+
 // ── Seed entry point ─────────────────────────────────────────────────────────
 
 module.exports = function seed() {
@@ -242,24 +324,39 @@ module.exports = function seed() {
       );
     }
 
-    // Annual expense template
-    const annualItems = [
-      { name: 'Car Insurance',      value: 720,  day_of_payment: 15, month_of_payment: 3,  classification: 'must', position: 1 },
-      { name: 'Home Insurance',     value: 280,  day_of_payment: 1,  month_of_payment: 1,  classification: 'must', position: 2 },
-      { name: 'Holiday Budget',     value: 1200, day_of_payment: 1,  month_of_payment: 7,  classification: 'want', position: 3 },
-      { name: 'Tech Subscriptions', value: 150,  day_of_payment: 1,  month_of_payment: 1,  classification: 'want', position: 4 },
+    // Annual expense template — 4 items with varying installment counts
+    const d0AnnualTemplateItems = [
+      {
+        name: 'Car Insurance', value: 720, classification: 'must',
+        installments: [
+          { month: curCycleMonth, day: 25 },   // falls in current cycle (unpaid)
+        ],
+      },
+      {
+        name: 'Property Tax', value: 540, classification: 'must',
+        installments: [
+          { month: prevCycleMonth, day: 25, paid: 1 },  // previous cycle (paid)
+          { month: curCycleMonth,  day: 27, paid: 0 },  // current cycle (unpaid)
+          { month: nextCycleMonth, day: 26, paid: 0 },  // next cycle (not seeded)
+        ],
+      },
+      {
+        name: 'Home Insurance', value: 280, classification: 'must',
+        installments: [
+          { month: addMonths(curCycleMonth, 4), day: 1 }, // ~4 months out, no seeded cycle
+        ],
+      },
+      {
+        name: 'Holiday Budget', value: 1200, classification: 'want',
+        installments: [
+          { month: addMonths(curCycleMonth, 3), day: 1 }, // ~3 months out, no seeded cycle
+        ],
+      },
     ];
-    const insertAnnual = db.prepare(
-      `INSERT INTO annual_expense_template_items
-         (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    );
-    for (const item of annualItems) {
-      insertAnnual.run(uuidv4(), d0, item.name, item.value, item.day_of_payment, item.month_of_payment, item.classification, item.position);
-    }
+    mkAnnualTemplate(d0, d0AnnualTemplateItems);
 
     // Previous cycle (closed)
-    mkCycle(d0, prevCycleYear, prevCycleMonth, 1950, 180, true, [
+    const d0PrevCycleId = mkCycle(d0, prevCycleYear, prevCycleMonth, 1950, 180, true, [
       { section: 'expense',      name: 'Rent',            type: 'Fixed',  value: 900, day_of_payment: 1,    paid: 1,    spent: null, done: null },
       { section: 'expense',      name: 'Electricity',     type: 'Fixed',  value: 65,  day_of_payment: 10,   paid: 1,    spent: null, done: null },
       { section: 'expense',      name: 'Internet',        type: 'Fixed',  value: 35,  day_of_payment: 15,   paid: 1,    spent: null, done: null },
@@ -268,7 +365,7 @@ module.exports = function seed() {
     ]);
 
     // Current cycle (open, partial progress)
-    mkCycle(d0, curCycleYear, curCycleMonth, 1950, 230, false, [
+    const d0CurCycleId = mkCycle(d0, curCycleYear, curCycleMonth, 1950, 230, false, [
       { section: 'expense',      name: 'Rent',              type: 'Fixed',  value: 900, day_of_payment: 1,    paid: 1,    spent: null, done: null },
       { section: 'expense',      name: 'Electricity',       type: 'Fixed',  value: 65,  day_of_payment: 10,   paid: 1,    spent: null, done: null },
       { section: 'expense',      name: 'Internet',          type: 'Fixed',  value: 35,  day_of_payment: 15,   paid: 0,    spent: null, done: null },
@@ -280,6 +377,16 @@ module.exports = function seed() {
       { section: 'distribution', name: 'Emergency Fund',    type: null,     value: 200, day_of_payment: null, paid: null, spent: null, done: 0    },
       { section: 'distribution', name: 'Investment Top-up', type: null,     value: 300, day_of_payment: null, paid: null, spent: null, done: 0    },
     ]);
+
+    // Annual expense year — open year with payments matching seeded cycles
+    mkAnnualYear(d0, calYear, d0AnnualTemplateItems, [
+      { cycleId: d0PrevCycleId, cycleYear: prevCycleYear, cycleMonth: prevCycleMonth, startDay: CYCLE_START },
+      { cycleId: d0CurCycleId,  cycleYear: curCycleYear,  cycleMonth: curCycleMonth,  startDay: CYCLE_START },
+    ]);
+
+    // Annual expense: Savings account contributes; Investment Top-up distribution linked
+    mkAnnualAccounts(d0, [d0Accs[1]]); // Savings
+    mkAnnualDistributions(d0, [templateIds[9]]); // Investment Top-up
 
     // Workbench snapshot
     const workbenchData = {
@@ -298,10 +405,10 @@ module.exports = function seed() {
         { id: 'me-8', name: 'Transport',   type: 'Budget', value: 80,   classification: 'must', fromTemplate: true },
       ],
       annualExpenses: [
-        { id: 'ae-1', name: 'Car Insurance',      value: 720,  day_of_payment: 15, month_of_payment: 3,  classification: 'must', fromTemplate: true },
-        { id: 'ae-2', name: 'Home Insurance',     value: 280,  day_of_payment: 1,  month_of_payment: 1,  classification: 'must', fromTemplate: true },
-        { id: 'ae-3', name: 'Holiday Budget',     value: 1200, day_of_payment: 1,  month_of_payment: 7,  classification: 'want', fromTemplate: true },
-        { id: 'ae-4', name: 'Tech Subscriptions', value: 150,  day_of_payment: 1,  month_of_payment: 1,  classification: 'want', fromTemplate: true },
+        { id: 'ae-1', name: 'Car Insurance',  value: 720,  classification: 'must', fromTemplate: true },
+        { id: 'ae-2', name: 'Property Tax',   value: 540,  classification: 'must', fromTemplate: true },
+        { id: 'ae-3', name: 'Home Insurance', value: 280,  classification: 'must', fromTemplate: true },
+        { id: 'ae-4', name: 'Holiday Budget', value: 1200, classification: 'want', fromTemplate: true },
       ],
       distributions: [
         { id: 'di-1', name: 'Emergency Fund',    value: 200, mustAmount: 0, wantAmount: 0, saveAmount: 200, fromTemplate: true },

@@ -151,4 +151,41 @@ export const api = {
     request('GET', `/dossiers/${dossierId}/cycles/${cycleId}/paperless-fetch`),
   applyPaperlessDocuments: (dossierId, cycleId, items) =>
     request('POST', `/dossiers/${dossierId}/cycles/${cycleId}/paperless-apply`, { items }),
+
+  // Annual Expense Years
+  getAnnualYears: (dossierId) => request('GET', `/dossiers/${dossierId}/annual-years`),
+  createAnnualYear: (dossierId, year) => request('POST', `/dossiers/${dossierId}/annual-years`, { year }),
+  getAnnualYear: (dossierId, yearId) => request('GET', `/dossiers/${dossierId}/annual-years/${yearId}`),
+  updateAnnualYear: (dossierId, yearId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/annual-years/${yearId}`, data),
+  deleteAnnualYear: (dossierId, yearId) =>
+    request('DELETE', `/dossiers/${dossierId}/annual-years/${yearId}`),
+  createAnnualYearItem: (dossierId, yearId, data) =>
+    request('POST', `/dossiers/${dossierId}/annual-years/${yearId}/items`, data),
+  updateAnnualYearItem: (dossierId, yearId, itemId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/annual-years/${yearId}/items/${itemId}`, data),
+  deleteAnnualYearItem: (dossierId, yearId, itemId) =>
+    request('DELETE', `/dossiers/${dossierId}/annual-years/${yearId}/items/${itemId}`),
+  syncAnnualYearFromTemplate: (dossierId, yearId) =>
+    request('POST', `/dossiers/${dossierId}/annual-years/${yearId}/sync-from-template`),
+  syncAnnualYearToTemplate: (dossierId, yearId) =>
+    request('POST', `/dossiers/${dossierId}/annual-years/${yearId}/sync-to-template`),
+  getAnnualYearStatus: (dossierId, yearId) =>
+    request('GET', `/dossiers/${dossierId}/annual-years/${yearId}/status`),
+
+  // Annual Expense Payments
+  updateAnnualPayment: (dossierId, paymentId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/annual-expense-payments/${paymentId}`, data),
+
+  // Annual Expense Contributing Accounts
+  getAnnualExpenseAccounts: (dossierId) =>
+    request('GET', `/dossiers/${dossierId}/annual-expenses/accounts`),
+  setAnnualExpenseAccounts: (dossierId, account_ids) =>
+    request('PUT', `/dossiers/${dossierId}/annual-expenses/accounts`, { account_ids }),
+
+  // Annual Expense Contributing Distributions
+  getAnnualExpenseDistributions: (dossierId) =>
+    request('GET', `/dossiers/${dossierId}/annual-expenses/distributions`),
+  setAnnualExpenseDistributions: (dossierId, distribution_template_ids) =>
+    request('PUT', `/dossiers/${dossierId}/annual-expenses/distributions`, { distribution_template_ids }),
 };

@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const session = require('express-session');
+const { v4: uuidv4 } = require('uuid');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../data/capital-tracker.db');
 
@@ -337,6 +338,108 @@ const migrations = [
           name TEXT NOT NULL,
           value REAL NOT NULL DEFAULT 0,
           position INTEGER DEFAULT 0
+        )
+      `);
+    },
+  },
+  {
+    id: '019_annual_expenses_tracking',
+    up() {
+      // 1. Add num_installments to annual_expense_template_items
+      const annualTemplateCols = db.prepare('PRAGMA table_info(annual_expense_template_items)').all();
+      if (!annualTemplateCols.find((c) => c.name === 'num_installments')) {
+        db.exec('ALTER TABLE annual_expense_template_items ADD COLUMN num_installments INTEGER DEFAULT 1');
+      }
+
+      // 2. Create annual_expense_template_installments
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_template_installments (
+          id TEXT PRIMARY KEY,
+          template_item_id TEXT NOT NULL REFERENCES annual_expense_template_items(id) ON DELETE CASCADE,
+          installment_number INTEGER NOT NULL,
+          month INTEGER NOT NULL,
+          day INTEGER NOT NULL
+        )
+      `);
+
+      // 3. Migrate existing template data: convert day_of_payment + month_of_payment → one installment row
+      const existingItems = db.prepare(
+        'SELECT id, day_of_payment, month_of_payment FROM annual_expense_template_items WHERE day_of_payment IS NOT NULL AND month_of_payment IS NOT NULL'
+      ).all();
+      const checkInst = db.prepare('SELECT id FROM annual_expense_template_installments WHERE template_item_id = ?');
+      const insertInst = db.prepare(
+        'INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, 1, ?, ?)'
+      );
+      for (const item of existingItems) {
+        if (!checkInst.get(item.id)) {
+          insertInst.run(uuidv4(), item.id, item.month_of_payment, item.day_of_payment);
+        }
+      }
+
+      // 4. Create annual_expense_years
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_years (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          year INTEGER NOT NULL,
+          carryover REAL NOT NULL DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(dossier_id, year)
+        )
+      `);
+
+      // 5. Create annual_expense_year_items
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_year_items (
+          id TEXT PRIMARY KEY,
+          year_id TEXT NOT NULL REFERENCES annual_expense_years(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          budgeted_value REAL NOT NULL DEFAULT 0,
+          classification TEXT,
+          num_installments INTEGER NOT NULL DEFAULT 1,
+          from_template INTEGER NOT NULL DEFAULT 0,
+          position INTEGER DEFAULT 0
+        )
+      `);
+
+      // 6. Create annual_expense_year_installments
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_year_installments (
+          id TEXT PRIMARY KEY,
+          year_item_id TEXT NOT NULL REFERENCES annual_expense_year_items(id) ON DELETE CASCADE,
+          installment_number INTEGER NOT NULL,
+          month INTEGER NOT NULL,
+          day INTEGER NOT NULL
+        )
+      `);
+
+      // 7. Create annual_expense_payments
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_payments (
+          id TEXT PRIMARY KEY,
+          installment_id TEXT NOT NULL REFERENCES annual_expense_year_installments(id) ON DELETE CASCADE,
+          cycle_id TEXT NOT NULL REFERENCES expense_cycles(id) ON DELETE CASCADE,
+          real_value REAL NOT NULL DEFAULT 0,
+          paid INTEGER NOT NULL DEFAULT 0,
+          UNIQUE(installment_id, cycle_id)
+        )
+      `);
+
+      // 8. Create annual_expense_accounts
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_accounts (
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          PRIMARY KEY (dossier_id, account_id)
+        )
+      `);
+
+      // 9. Create annual_expense_distributions
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS annual_expense_distributions (
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          distribution_template_id TEXT NOT NULL REFERENCES expense_template_items(id) ON DELETE CASCADE,
+          PRIMARY KEY (dossier_id, distribution_template_id)
         )
       `);
     },
