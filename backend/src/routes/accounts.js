@@ -45,6 +45,7 @@ router.post('/', (req, res) => {
   db.prepare(
     'INSERT INTO accounts (id, dossier_id, group_name, name, type, is_idle_money, position) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ).run(id, req.params.id, group_name.trim(), name.trim(), type, is_idle_money ? 1 : 0, maxPos + 1);
+  console.log(`[accounts] Created account "${name.trim()}" (${id}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(201).json({
     id,
     dossier_id: req.params.id,
@@ -89,6 +90,7 @@ router.delete('/:accountId', (req, res) => {
     .get(req.params.accountId, req.params.id);
   if (!account) return res.status(404).json({ error: 'Account not found' });
   db.prepare('UPDATE accounts SET archived = 1 WHERE id = ?').run(req.params.accountId);
+  console.log(`[accounts] Archived account "${account.name}" (${req.params.accountId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();
 });
 

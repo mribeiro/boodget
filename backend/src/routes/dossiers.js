@@ -260,6 +260,7 @@ router.post('/import', (req, res) => {
   });
 
   doImport();
+  console.log(`[dossiers] Imported dossier "${finalName}" (${dossierId}) for user ${req.user.username} (version ${data.version})`);
   res.status(201).json({ id: dossierId, name: finalName, creator_id: req.user.id, is_creator: 1, currency: data.dossier.currency || 'EUR' });
 });
 
@@ -269,6 +270,7 @@ router.post('/', (req, res) => {
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = uuidv4();
   db.prepare('INSERT INTO dossiers (id, name, creator_id) VALUES (?, ?, ?)').run(id, name.trim(), req.user.id);
+  console.log(`[dossiers] Created dossier "${name.trim()}" (${id}) by user ${req.user.username}`);
   res.status(201).json({ id, name: name.trim(), creator_id: req.user.id, is_creator: 1, currency: 'EUR' });
 });
 
@@ -480,6 +482,7 @@ router.get('/:id/export', (req, res) => {
     annual_expense_accounts: aeAccountNames,
     annual_expense_distributions: aeDistributionNames,
   });
+  console.log(`[dossiers] Exported dossier "${dossier.name}" (${req.params.id}) by user ${req.user.username}`);
 });
 
 // DELETE /api/dossiers/:id
@@ -490,6 +493,7 @@ router.delete('/:id', (req, res) => {
     return res.status(403).json({ error: 'Only the creator can delete this dossier' });
   }
   db.prepare('DELETE FROM dossiers WHERE id = ?').run(req.params.id);
+  console.log(`[dossiers] Deleted dossier "${dossier.name}" (${req.params.id}) by user ${req.user.username}`);
   res.status(204).end();
 });
 
@@ -521,6 +525,8 @@ router.post('/:id/access', (req, res) => {
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   db.prepare('INSERT OR IGNORE INTO dossier_access (dossier_id, user_id) VALUES (?, ?)').run(req.params.id, userId);
+  const sharedWith = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+  console.log(`[dossiers] Access granted on dossier "${dossier.name}" (${req.params.id}) to user ${sharedWith?.username} by ${req.user.username}`);
   res.status(201).json({ ok: true });
 });
 
@@ -535,6 +541,8 @@ router.delete('/:id/access/:userId', (req, res) => {
     req.params.id,
     req.params.userId
   );
+  const revokedFrom = db.prepare('SELECT username FROM users WHERE id = ?').get(req.params.userId);
+  console.log(`[dossiers] Access revoked on dossier "${dossier.name}" (${req.params.id}) from user ${revokedFrom?.username} by ${req.user.username}`);
   res.status(204).end();
 });
 
