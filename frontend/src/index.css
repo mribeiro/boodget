@@ -465,7 +465,7 @@ body:has(.modal-overlay) {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  padding: 0 var(--space-6);
+  padding: 0 var(--space-6) 10px;
   padding-top: env(safe-area-inset-top, 0px);
   position: sticky;
   top: 0;
