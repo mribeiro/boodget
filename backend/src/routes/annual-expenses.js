@@ -367,6 +367,36 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
           insertInst.run(uuidv4(), req.params.itemId, num, inst.month, inst.day);
         }
       });
+
+      // Re-assign payments to the correct cycle after date changes.
+      const yearRow = db.prepare('SELECT year FROM annual_expense_years WHERE id = ?').get(req.params.yearId);
+      const dossierRow = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
+      const startDay = dossierRow?.cycle_start_day ?? 25;
+      const allCycles = db.prepare('SELECT id, year, month FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
+
+      const updatedInsts = db.prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ?').all(req.params.itemId);
+      for (const inst of updatedInsts) {
+        const payment = db.prepare('SELECT * FROM annual_expense_payments WHERE installment_id = ?').get(inst.id);
+        if (!payment) continue;
+
+        const instDate = new Date(yearRow.year, inst.month - 1, inst.day);
+        let targetCycle = null;
+        for (const cycle of allCycles) {
+          const cycleStart = new Date(cycle.year, cycle.month - 1, startDay);
+          const cycleEnd = new Date(cycle.year, cycle.month, startDay - 1);
+          if (instDate >= cycleStart && instDate <= cycleEnd) {
+            targetCycle = cycle;
+            break;
+          }
+        }
+
+        if (targetCycle && targetCycle.id !== payment.cycle_id) {
+          db.prepare('UPDATE annual_expense_payments SET cycle_id = ? WHERE id = ?').run(targetCycle.id, payment.id);
+        } else if (!targetCycle) {
+          // No open cycle covers the new date; remove the payment (recreated when cycle is opened)
+          db.prepare('DELETE FROM annual_expense_payments WHERE id = ?').run(payment.id);
+        }
+      }
     }
   });
   doUpdate();
