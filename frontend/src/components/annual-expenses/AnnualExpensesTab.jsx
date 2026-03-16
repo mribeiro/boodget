@@ -503,15 +503,14 @@ export default function AnnualExpensesTab({ dossierId }) {
                   const paid = !!inst0?.payment?.paid;
                   return (
                     <div key={item.id} style={{ ...rowStyle, opacity: paid ? 0.6 : 1, marginBottom: 4 }}>
-                      {inst0?.payment && (
-                        <Checkbox
-                          checked={paid}
-                          onChange={async () => {
-                            await api.updateAnnualPayment(dossierId, inst0.payment.id, { paid: !paid });
-                            await loadYearData(selectedYearId);
-                          }}
-                        />
-                      )}
+                      <Checkbox
+                        checked={paid}
+                        disabled={!inst0?.payment}
+                        onChange={async () => {
+                          await api.updateAnnualPayment(dossierId, inst0.payment.id, { paid: !paid });
+                          await loadYearData(selectedYearId);
+                        }}
+                      />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 500, textDecoration: paid ? 'line-through' : 'none' }}>
                           {item.name}
@@ -570,15 +569,14 @@ export default function AnnualExpensesTab({ dossierId }) {
                           const paid = !!inst.payment?.paid;
                           return (
                             <div key={inst.id} style={{ ...rowStyle, opacity: paid ? 0.6 : 1 }}>
-                              {inst.payment && (
-                                <Checkbox
-                                  checked={paid}
-                                  onChange={async () => {
-                                    await api.updateAnnualPayment(dossierId, inst.payment.id, { paid: !paid });
-                                    await loadYearData(selectedYearId);
-                                  }}
-                                />
-                              )}
+                              <Checkbox
+                                checked={paid}
+                                disabled={!inst.payment}
+                                onChange={async () => {
+                                  await api.updateAnnualPayment(dossierId, inst.payment.id, { paid: !paid });
+                                  await loadYearData(selectedYearId);
+                                }}
+                              />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <span style={{ fontWeight: 500, textDecoration: paid ? 'line-through' : 'none' }}>
                                   {item.name}
