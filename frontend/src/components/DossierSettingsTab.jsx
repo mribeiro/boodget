@@ -42,7 +42,7 @@ function SettingsCard({ title, description, children, defaultOpen = false }) {
           textAlign: 'left',
         }}
       >
-        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{title}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>{title}</h2>
         <FontAwesomeIcon
           icon={faChevronDown}
           style={{
