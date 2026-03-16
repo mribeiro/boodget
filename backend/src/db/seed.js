@@ -13,6 +13,14 @@ const todayMonth = now.getMonth() + 1; // 1–12
 
 const CYCLE_START = 25;
 
+// Current / previous / two-months-ago calendar months (must come first)
+const calYear  = todayYear;
+const calMonth = todayMonth;
+const prevCalMonth = calMonth === 1  ? 12 : calMonth - 1;
+const prevCalYear  = calMonth === 1  ? calYear - 1  : calYear;
+const twoCalAgoMonth = prevCalMonth === 1  ? 12 : prevCalMonth - 1;
+const twoCalAgoYear  = prevCalMonth === 1  ? prevCalYear - 1 : prevCalYear;
+
 // Current cycle STORED year/month (the month the cycle STARTS in):
 //   If todayDay >= CYCLE_START → cycle started this calendar month → stored month = todayMonth
 //   If todayDay < CYCLE_START  → cycle started last calendar month → stored month = prevCalMonth
@@ -25,14 +33,6 @@ const prevCycleMonth = curCycleMonth === 1  ? 12 : curCycleMonth - 1;
 const prevCycleYear  = curCycleMonth === 1  ? curCycleYear - 1 : curCycleYear;
 const nextCycleMonth = curCycleMonth === 12 ? 1  : curCycleMonth + 1;
 const nextCycleYear  = curCycleMonth === 12 ? curCycleYear + 1 : curCycleYear;
-
-// Current / previous / two-months-ago calendar months
-const calYear  = todayYear;
-const calMonth = todayMonth;
-const prevCalMonth = calMonth === 1  ? 12 : calMonth - 1;
-const prevCalYear  = calMonth === 1  ? calYear - 1  : calYear;
-const twoCalAgoMonth = prevCalMonth === 1  ? 12 : prevCalMonth - 1;
-const twoCalAgoYear  = prevCalMonth === 1  ? prevCalYear - 1 : prevCalYear;
 
 // Warning threshold helpers (values between 1–28):
 //   warningOn  → todayDay >= warningOn  is always true
