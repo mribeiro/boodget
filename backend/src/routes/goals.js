@@ -359,6 +359,7 @@ router.post('/goals', (req, res) => {
     .all(id)
     .map((r) => r.distribution_template_id);
 
+  console.log(`[goals] Created goal "${String(name).trim()}" (${id}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(201).json({ ...goal, ...computed, account_ids: accounts, distribution_template_ids: distributions });
 });
 
@@ -525,6 +526,7 @@ router.delete('/goals/:goalId', (req, res) => {
     .get(req.params.goalId, req.params.id);
   if (!goal) return res.status(404).json({ error: 'Goal not found' });
   db.prepare('DELETE FROM goals WHERE id = ?').run(goal.id);
+  console.log(`[goals] Deleted goal "${goal.name}" (${goal.id}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();
 });
 

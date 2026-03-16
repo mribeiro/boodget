@@ -31,18 +31,22 @@ router.post('/login', (req, res) => {
   }
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
   if (!user || !user.password_hash) {
+    console.log(`[auth] Failed login attempt for username: ${username}`);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   const match = bcrypt.compareSync(password, user.password_hash);
   if (!match) {
+    console.log(`[auth] Failed login attempt for username: ${username}`);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   req.session.userId = user.id;
+  console.log(`[auth] User logged in: ${user.username} (${user.id})`);
   res.json({ id: user.id, username: user.username, is_oidc: user.is_oidc });
 });
 
 // POST /api/auth/logout
-router.post('/logout', (req, res) => {
+router.post('/logout', requireAuth, (req, res) => {
+  console.log(`[auth] User logged out: ${req.user.username} (${req.user.id})`);
   req.session.destroy(() => {});
   res.json({ ok: true });
 });
@@ -69,6 +73,7 @@ router.post('/change-password', requireAuth, (req, res) => {
   }
   const hash = bcrypt.hashSync(newPassword, 12);
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.id);
+  console.log(`[auth] Password changed for user: ${req.user.username} (${req.user.id})`);
   res.json({ ok: true });
 });
 
@@ -111,9 +116,11 @@ router.get('/oidc/callback', async (req, res) => {
       const id = uuidv4();
       db.prepare('INSERT INTO users (id, username, is_oidc) VALUES (?, ?, 1)').run(id, username);
       user = { id, username, is_oidc: 1 };
+      console.log(`[auth] New OIDC user auto-created: ${username} (${id})`);
     }
 
     req.session.userId = user.id;
+    console.log(`[auth] OIDC user logged in: ${user.username} (${user.id})`);
     delete req.session.oidcState;
     res.redirect('/');
   } catch (err) {

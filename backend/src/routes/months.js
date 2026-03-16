@@ -66,6 +66,7 @@ router.post('/', (req, res) => {
   });
 
   createMonth();
+  console.log(`[months] Created month ${year}/${month} (${id}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(201).json({ id, dossier_id: req.params.id, year, month, filled: 0, capital_total: null });
 });
 
@@ -199,6 +200,7 @@ router.put('/:monthId', (req, res) => {
   });
 
   save();
+  console.log(`[months] Submitted month ${month.year}/${month.month} (${req.params.monthId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.json({ ok: true });
 });
 
@@ -265,6 +267,7 @@ router.post('/:monthId/reset', (req, res) => {
   });
 
   reset();
+  console.log(`[months] Reset month ${month.year}/${month.month} (${req.params.monthId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.json({ ok: true });
 });
 

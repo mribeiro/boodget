@@ -40,6 +40,7 @@ router.post('/', (req, res) => {
   const id = uuidv4();
   const hash = bcrypt.hashSync(password, 12);
   db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)').run(id, username, hash);
+  console.log(`[users] User created: ${username} (${id}) by ${req.user.username}`);
   res.status(201).json({ id, username, is_oidc: 0 });
 });
 
@@ -48,9 +49,10 @@ router.delete('/:id', (req, res) => {
   if (req.params.id === req.user.id) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  console.log(`[users] User deleted: ${user.username} (${user.id}) by ${req.user.username}`);
   res.status(204).end();
 });
 
