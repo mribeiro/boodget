@@ -1,12 +1,8 @@
 # Capital Tracker — PWA & Push Notifications Specification
 
-## 0. Instructions for Claude Code
+## 0. Status
 
-- This specification is an **extension** to all existing specifications. Read `SPECIFICATION.md`, `SPECIFICATION_MONTHLY_EXPENSES.md`, `SPECIFICATION_GLANCES.md`, `SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md`, and `SPECIFICATION_UI.md` before writing any code.
-- This document covers two features: **(A)** making the application installable as a PWA, and **(B)** adding Web Push notifications for financial reminders.
-- Before generating any files, **propose the folder structure, schema changes, and any new npm dependencies**, and wait for approval.
-- Do **not overwrite** existing files unless explicitly instructed.
-- The PWA icon source file (`icon.svg`) must be provided by the developer and placed at `frontend/public/icon.svg` before building. The build pipeline generates all required sizes from this file.
+**Fully implemented.** This specification has been executed and all features described below are live in the codebase. Refer to `CLAUDE.md` for the up-to-date architecture overview, schema summary, and API route listing.
 
 -----
 
@@ -665,7 +661,16 @@ This icon features a bold "C" with an integrated upward trend line and arrow, on
 
 -----
 
-## 16. Out of Scope (this phase)
+## 16. iOS Safe Area
+
+When running as a standalone PWA on iOS (with `viewport-fit=cover` and `apple-mobile-web-app-status-bar-style: black-translucent`), the status bar overlaps the app content. The navbar and sidebar header must account for this using `env(safe-area-inset-top)`:
+
+- `.navbar` and `.sidebar-logo` both have `height: calc(56px + env(safe-area-inset-top, 0px))`, `padding-top: env(safe-area-inset-top, 0px)`, `padding-bottom: 10px`, and `align-items: flex-end` so that the visible content sits in the lower 56px of the bar on all devices. The extra top area fills behind the iOS status bar with the app's background colour.
+- The `viewport-fit=cover` meta tag is set in `index.html` to expose the safe area inset CSS variables.
+
+-----
+
+## 17. Out of Scope (this phase)
 
 - Offline data access (reading/writing without backend connectivity)
 - Email or SMS notifications
