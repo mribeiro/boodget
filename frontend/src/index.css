@@ -461,11 +461,12 @@ body:has(.modal-overlay) {
 .navbar {
   background: var(--bg-navbar);
   border-bottom: 1px solid var(--border-default);
-  height: 56px;
+  height: calc(56px + env(safe-area-inset-top, 0px));
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   padding: 0 var(--space-6);
+  padding-top: env(safe-area-inset-top, 0px);
   position: sticky;
   top: 0;
   z-index: var(--z-navbar);
