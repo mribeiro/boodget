@@ -447,11 +447,22 @@ export default function AnnualExpensesTab({ dossierId }) {
                     { label: 'Total budgeted', value: fmt(yearData.total_budgeted) },
                     { label: 'Total paid', value: fmt(yearData.total_paid) },
                     { label: 'Total remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
+                    {
+                      label: 'Needed now',
+                      value: fmt(yearData.currently_needed),
+                      style: yearData.currently_needed > 0
+                        ? { color: yearData.accumulated_accounts >= yearData.currently_needed ? 'var(--color-success-text)' : 'var(--color-danger-text)' }
+                        : { color: 'var(--color-success-text)' },
+                      subtitle: yearData.currently_needed > 0
+                        ? (yearData.accumulated_accounts >= yearData.currently_needed ? 'Covered' : `Shortfall: ${fmt(yearData.currently_needed - yearData.accumulated_accounts)}`)
+                        : 'Nothing due yet',
+                    },
                     { label: 'Balance', value: fmt(yearData.balance), style: { color: yearData.balance >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' } },
-                  ].map(({ label, value, style }) => (
+                  ].map(({ label, value, style, subtitle }) => (
                     <div key={label} style={{ background: 'var(--surface-secondary)', padding: 12, borderRadius: 'var(--radius)' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
                       <span style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...style }}>{value}</span>
+                      {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{subtitle}</div>}
                     </div>
                   ))}
                 </div>

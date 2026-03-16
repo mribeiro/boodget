@@ -119,6 +119,21 @@ function computeYearStatus(yearId, dossierId) {
     }
   }
 
+  // Compute "currently needed": unpaid installments whose due date is today or in the past
+  const today = new Date();
+  today.setHours(23, 59, 59, 999); // end of today
+  let currentlyNeeded = 0;
+  for (const item of itemsWithInstallments) {
+    const expectedPerInst = (item.budgeted_value || 0) / (item.num_installments || 1);
+    for (const inst of item.installments) {
+      const instDate = new Date(year.year, inst.month - 1, inst.day);
+      const isPaid = inst.payment && inst.payment.paid;
+      if (!isPaid && instDate <= today) {
+        currentlyNeeded += expectedPerInst;
+      }
+    }
+  }
+
   return {
     year: year.year,
     carryover: year.carryover,
@@ -127,6 +142,7 @@ function computeYearStatus(yearId, dossierId) {
     total_budgeted: totalBudgeted,
     total_paid: totalPaid,
     total_remaining: totalBudgeted - totalPaid,
+    currently_needed: currentlyNeeded,
     balance: accumulatedAccounts - totalPaid,
     items: itemsWithInstallments,
     contributing_accounts: contributingAccountDetails,
