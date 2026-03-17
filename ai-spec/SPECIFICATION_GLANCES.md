@@ -25,7 +25,10 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
   4. Goals
 - Each card is **clickable** and navigates the user to the relevant section:
   - Capital card → Capital tab
-  - Current Cycle card → Monthly Expenses tab
+  - Current Cycle card → **CycleEditor page for the relevant cycle** (`/dossiers/:id/cycles/:cycleId`):
+    - Normal / loading state → current cycle's editor
+    - Red state (previous cycle not closed) → previous cycle's editor
+    - Fallback (next cycle not opened, no current cycle) → Monthly Expenses tab
   - Next Expense card → **CycleEditor page for the current cycle** (`/dossiers/:id/cycles/:cycleId`). Fallback: Monthly Expenses tab when no current cycle exists.
   - Goals card → Goals tab
 - Cards use a **colour scheme** to communicate state:
@@ -261,4 +264,4 @@ Sub-components (one per card) are recommended for clarity:
 - Notifications or push alerts based on the warning thresholds
 - Server-side computation of Glances data
 
-> **Implemented beyond original scope**: The Next Expense card navigates directly to the `CycleEditor` page for the current cycle (rather than only to the Monthly Expenses tab). All other cards still navigate to their respective tabs.
+> Both the **Current Cycle** card and the **Next Expense** card navigate directly to the relevant `CycleEditor` page rather than to the Monthly Expenses tab. The Current Cycle card resolves to the current cycle in normal state, or to the previous cycle when the red "not closed" warning is active. Both fall back to the Monthly Expenses tab only when no specific cycle can be resolved.

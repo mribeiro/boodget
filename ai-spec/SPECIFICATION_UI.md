@@ -719,7 +719,7 @@ GOALS
 
 ### 9.2 Cycle Editor (CycleEditor)
 
-- Page header: cycle **display name** (end month, e.g. "April 2025 Cycle") + date range subtitle + three header actions: **Period** button (pencil icon, opens `EditPeriodModal` to change the stored start month/year), **Delete** button (danger, opens `ConfirmModal`, then navigates back), **open/close action button**.
+- Page header: cycle **display name** (end month, e.g. "April 2025 Cycle") + date range subtitle + four header action buttons (flex row, wraps on mobile): **Period** (pencil icon, opens `EditPeriodModal`), **Income** (pencil icon, opens the salary/previous-balance edit form inline in the info card), **Close cycle** / **Reopen** (lock icon; shows "Close cycle" when open — clicking reveals the final-balance form inline in the card; shows "Reopen" when closed), **Delete** (danger, opens `ConfirmModal`, then navigates back).
 - The **EditPeriodModal** shows a Cycle selector (dropdown of end-month labels derived from `new Date(year, m, startDay - 1)`) and a Start year selector. The date range hint updates live. Submitting sends `PATCH /cycles/:id { year, month }`. A 409 conflict is shown inline.
 - **Summary card** (`.card`) directly below the header info card:
   - Section title "Summary" at top.
@@ -856,6 +856,17 @@ Each setting field: label on the left (60% width), control on the right (40% wid
 |Desktop   |≥ 1024 px  |Sidebar visible, 4-column Glances grid           |
 
 All breakpoints implemented via `@media` queries in `index.css`.
+
+#### `.page-header` on mobile
+
+`.page-header` stays as a **flex row** on all screen sizes — the Back link and page title remain on the same line. `flex-wrap: wrap` allows action buttons to flow to a second line if the row is too narrow. The `flex-direction: column` override that was previously applied on mobile has been removed.
+
+#### `.cycle-derived-values` responsive class
+
+The **Total available** and **Leftovers expected** values in the CycleEditor info card are wrapped in a single `div.cycle-derived-values` so they always travel together as a unit when the outer flex row wraps. Responsive rules:
+
+- **Desktop (≥ 768 px)**: `border-left: 1px solid var(--color-border); padding-left: 2rem` — visual separator between input fields (salary/balance) and computed values.
+- **Mobile (< 768 px)**: no border or padding — the pair wraps flush to the left edge, aligned with the fields above.
 
 -----
 
