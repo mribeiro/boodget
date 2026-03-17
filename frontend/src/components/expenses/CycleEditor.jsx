@@ -355,13 +355,15 @@ export default function CycleEditor() {
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Previous balance</div>
                   <div style={{ fontWeight: 600 }}>{fmt(cycle.previous_balance)}</div>
                 </div>
-                <div style={{ borderLeft: '1px solid var(--color-border)', paddingLeft: '2rem' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Total available</div>
-                  <div style={{ fontWeight: 600 }}>{fmt(summary.total_available)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Leftovers expected</div>
-                  <div style={{ fontWeight: 600, color: summary.expected_balance < 0 ? 'var(--color-danger)' : 'inherit' }}>{fmt(summary.expected_balance)}</div>
+                <div style={{ borderLeft: '1px solid var(--color-border)', paddingLeft: '2rem', display: 'flex', gap: '2rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Total available</div>
+                    <div style={{ fontWeight: 600 }}>{fmt(summary.total_available)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Leftovers expected</div>
+                    <div style={{ fontWeight: 600, color: summary.expected_balance < 0 ? 'var(--color-danger)' : 'inherit' }}>{fmt(summary.expected_balance)}</div>
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Expected current balance</div>
