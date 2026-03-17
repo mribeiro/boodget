@@ -564,7 +564,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                     </div>
                     {/* Expanded installment rows */}
                     {expanded && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 24 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 24, animation: 'slideUp var(--transition-normal) both' }}>
                         {item.installments.map((inst) => {
                           const paid = !!inst.payment?.paid;
                           return (
