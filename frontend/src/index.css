@@ -1902,8 +1902,7 @@ tr:hover td {
   }
 
   .page-header {
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .page-header h1 {
