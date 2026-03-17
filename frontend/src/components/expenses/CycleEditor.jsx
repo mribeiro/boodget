@@ -314,10 +314,22 @@ export default function CycleEditor() {
             {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={() => setShowEditPeriod(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
             <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Period
           </button>
+          <button className="btn-secondary" onClick={() => setEditingInfo(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+            <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Income
+          </button>
+          {cycle.is_closed ? (
+            <button className="btn-secondary" onClick={handleReopen} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+              <FontAwesomeIcon icon={faLockOpen} style={{ marginRight: '0.35rem' }} />Reopen
+            </button>
+          ) : (
+            <button className="btn-secondary" onClick={() => setShowCloseForm(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+              <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.35rem' }} />Close cycle
+            </button>
+          )}
           <button className="btn-danger" onClick={handleDeleteCycle} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
             <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
           </button>
@@ -369,46 +381,38 @@ export default function CycleEditor() {
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Expected current balance</div>
                   <div style={{ fontWeight: 600, color: expectedCurrentBalance < 0 ? 'var(--color-danger)' : 'inherit' }}>{fmt(expectedCurrentBalance)}</div>
                 </div>
-                <button className="btn-secondary" onClick={() => setEditingInfo(true)} style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem' }}>
-                  <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-                </button>
               </div>
             )}
           </div>
 
-          <div>
-            {cycle.is_closed ? (
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>Final real balance (€)</label>
-                  <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} />
+          {(cycle.is_closed || showCloseForm) && (
+            <div>
+              {cycle.is_closed ? (
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.8rem' }}>Final real balance (€)</label>
+                    <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} />
+                  </div>
+                  <button className="btn-secondary" onClick={handleUpdateFinalBalance} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+                    Update
+                  </button>
                 </div>
-                <button className="btn-secondary" onClick={handleUpdateFinalBalance} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
-                  Update
-                </button>
-                <button className="btn-secondary" onClick={handleReopen} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
-                  <FontAwesomeIcon icon={faLockOpen} style={{ marginRight: '0.35rem' }} />Reopen
-                </button>
-              </div>
-            ) : showCloseForm ? (
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>Final real balance (€)</label>
-                  <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+              ) : (
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.8rem' }}>Final real balance (€)</label>
+                    <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+                  </div>
+                  <button className="btn-primary" onClick={handleClose} disabled={savingClose} style={{ padding: '0.35rem 0.75rem' }}>
+                    {savingClose ? 'Closing…' : 'Confirm close'}
+                  </button>
+                  <button className="btn-secondary" onClick={() => setShowCloseForm(false)} style={{ padding: '0.35rem 0.75rem' }}>
+                    Cancel
+                  </button>
                 </div>
-                <button className="btn-primary" onClick={handleClose} disabled={savingClose} style={{ padding: '0.35rem 0.75rem' }}>
-                  {savingClose ? 'Closing…' : 'Confirm close'}
-                </button>
-                <button className="btn-secondary" onClick={() => setShowCloseForm(false)} style={{ padding: '0.35rem 0.75rem' }}>
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button className="btn-secondary" onClick={() => setShowCloseForm(true)} style={{ fontSize: '0.875rem' }}>
-                <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.4rem' }} />Close cycle
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
