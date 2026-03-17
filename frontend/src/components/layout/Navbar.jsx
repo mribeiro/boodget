@@ -31,6 +31,10 @@ export default function Navbar({ onHamburger }) {
   const dropdownRef = useRef(null);
 
   const appEnv = window.__APP_ENV__;
+  const navbarBg =
+    appEnv === 'dev' ? 'var(--color-navbar-dev)' :
+    appEnv === 'ephemeral' ? 'var(--color-navbar-ephemeral)' :
+    undefined;
 
   const dossierId = getDossierIdFromPath(location.pathname);
   const sha = (import.meta.env.VITE_GIT_COMMIT || 'unknown').slice(0, 7);
@@ -68,7 +72,7 @@ export default function Navbar({ onHamburger }) {
   }, []);
 
   return (
-    <nav className="navbar">
+    <nav className="navbar" style={navbarBg ? { background: navbarBg } : undefined}>
       <div className="navbar-left">
         <button className="navbar-hamburger" onClick={onHamburger} aria-label="Menu">
           <FontAwesomeIcon icon={faBars} />
