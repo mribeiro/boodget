@@ -92,7 +92,7 @@ Use `vite-plugin-pwa` to generate the service worker during the Vite build. The 
 1. **Pre-cache the application shell** — HTML, CSS, JS bundles, fonts, and icons. Strategy: cache-first for static assets.
 2. **Register for push events** — handle incoming push messages and display notifications (see Section 5).
 3. **Handle notification clicks** — open or focus the app window and navigate to the relevant page.
-4. **Not cache API responses** — all `/api/*` requests go to the network. If the network is unavailable, the app shows its normal error handling.
+4. **Not cache API responses** — all `/api/*` requests go to the network. If the network is unavailable on startup, the app shows a dedicated server-error screen (see Section 2.6).
 
 #### Vite plugin configuration
 
@@ -140,6 +140,26 @@ export default defineConfig({
 | Package | Purpose | Dev/Prod |
 |---------|---------|----------|
 | `vite-plugin-pwa` | Service worker generation + PWA build tooling | devDependency (frontend) |
+
+### 2.6 Server-Unreachable Error Screen
+
+When the app is opened as a PWA and the initial server check (`getSetupStatus`) fails with a network error (`TypeError` — server completely unreachable), the app must display a centered error card instead of silently redirecting to the login page.
+
+**Behaviour:**
+- `App.jsx` holds a `serverError` boolean state alongside `authState`.
+- The `init()` function is extracted from `useEffect` so it can be called directly as a retry handler.
+- On `TypeError` (network-level failure), `serverError` is set to `true` and loading is set to `false`.
+- Other errors (e.g. 4xx/5xx HTTP responses) fall through to the existing login-redirect behaviour.
+
+**Error screen UI** (rendered before `ThemeProvider` wraps the normal app, but wrapped in its own `ThemeProvider`):
+- Full-viewport centered container (`.server-error-screen`).
+- Card (`.server-error-card`) containing:
+  - Warning icon (`.server-error-icon`): `⚠` in amber.
+  - Title (`.server-error-title`): "Server unavailable"
+  - Message (`.server-error-message`): "Could not connect to the server. Check your connection and try again."
+  - Retry button (`.server-error-retry`): calls `init()`, resetting both `serverError` and `authState.loading` before re-running the full init sequence.
+
+**CSS classes:** `.server-error-screen`, `.server-error-card`, `.server-error-icon`, `.server-error-title`, `.server-error-message`, `.server-error-retry`.
 
 -----
 

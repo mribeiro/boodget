@@ -64,7 +64,7 @@ capital-tracker/
 │   │   └── generate-icons.js     # Generates all PNG icon sizes from icon.svg using sharp (runs at build time)
 │   ├── src/
 │   │   ├── main.jsx          # React entry point
-│   │   ├── App.jsx           # AuthContext, routing, setup/login gates; navbar shows 7-char git SHA
+│   │   ├── App.jsx           # AuthContext, routing, setup/login gates; server-error screen when backend unreachable; navbar shows 7-char git SHA
 │   │   ├── services/api.js   # Fetch-based API client wrapper
 │   │   ├── pages/
 │   │   │   └── NotificationSettings.jsx  # User notification settings page (/notifications)
@@ -198,15 +198,15 @@ const appEnv = process.env.NODE_ENV || 'production';
 const injected = html.replace('<head>', `<head><script>window.__APP_ENV__="${appEnv}";</script>`);
 ```
 
-The `Navbar` component in `App.jsx` reads this value and applies a background colour:
+The `Navbar` component reads `window.__APP_ENV__` and applies both a background colour and an env badge:
 
-| `NODE_ENV` value | Navbar colour |
-|---|---|
-| `dev` | `#f0fdfa` (light teal) — `--color-navbar-dev` |
-| `ephemeral` | `#fff1f2` (light rose) — `--color-navbar-ephemeral` |
-| `production` / unset | default (no override) |
+| `NODE_ENV` value | Navbar colour | Badge |
+|---|---|---|
+| `dev` | `#f0fdfa` (light teal) — `--color-navbar-dev` | green "dev" badge |
+| `ephemeral` | `#fff1f2` (light rose) — `--color-navbar-ephemeral` | amber "preview" badge |
+| `production` / unset | default (no override) | none |
 
-Preview environments are deployed with `NODE_ENV=ephemeral`, giving them a visually distinct rose-tinted navbar so users can immediately tell they are on a preview instance.
+The background tint is applied as an inline `style` on the `<nav>` element via the `navbarBg` variable. Preview environments are deployed with `NODE_ENV=ephemeral`, giving them a visually distinct rose-tinted navbar so users can immediately tell they are on a preview instance.
 
 ### CI/CD Pipeline
 
