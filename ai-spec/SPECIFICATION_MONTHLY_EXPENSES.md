@@ -204,7 +204,7 @@ The following values must be displayed in a summary section for each cycle:
 - The **Dossier Settings**, **Expense Template**, and **Cycles** should be clearly distinct areas in the UI.
 - Tabs for **Expenses** and **Distributions** must be visually clear and indicate they are two separate concepts within the same template.
 - The **cycle list** (`CycleList`) shows cycles newest-first, with placeholder rows above/below to open the next and previous months. Placeholder and cycle row labels both use the **end-month display name**.
-- The **cycle editor** (`CycleEditor`) header shows the cycle's display name (end month) and date range, plus **Period** (edit start month/year) and **Delete** action buttons.
+- The **cycle editor** (`CycleEditor`) header shows the cycle's display name (end month) and date range, plus four action buttons in this order: **Period** (edit start month/year), **Income** (edit salary and previous balance), **Close cycle** / **Reopen** (toggles cycle open/close state), and **Delete** (permanent deletion). When the cycle is already closed the third button reads "Reopen".
 - The **cycle summary** card shows Expenses and Distributions as stacked sections, each with a section label above and three data points (Total / Paid / Unpaid; Total / Done / Pending) in a `repeat(3, 1fr)` grid for even spacing. When closed, a Closing section is appended with Final real balance and Difference.
 
 ---
