@@ -438,7 +438,12 @@ export default function AnnualExpensesTab({ dossierId }) {
                       { label: 'Contributed (distributions)', value: fmt(yearData.contributed_distributions) },
                       { label: 'Total budgeted', value: fmt(yearData.total_budgeted) },
                       { label: 'Total paid', value: fmt(yearData.total_paid) },
-                      { label: 'Total remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
+                      { label: 'Total expenses remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
+                      {
+                        label: 'Amount left needed',
+                        value: fmt(Math.max(0, (yearData.total_remaining || 0) - (yearData.accumulated_accounts || 0))),
+                        style: { color: yearData.total_remaining <= yearData.accumulated_accounts ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
+                      },
                       {
                         label: 'Needed this cycle',
                         value: fmt(yearData.needed_this_cycle),
