@@ -19,25 +19,53 @@ export const AppContext = createContext({ currentDossier: null, setCurrentDossie
 
 export default function App() {
   const [authState, setAuthState] = useState({ loading: true, needsSetup: false, user: null });
+  const [serverError, setServerError] = useState(false);
 
-  useEffect(() => {
-    async function init() {
-      try {
-        const setup = await api.getSetupStatus();
-        if (setup.needsSetup) {
-          setAuthState({ loading: false, needsSetup: true, user: null });
-          return;
-        }
-        const user = await api.me().catch(() => null);
-        setAuthState({ loading: false, needsSetup: false, user });
-      } catch {
+  async function init() {
+    setServerError(false);
+    setAuthState({ loading: true, needsSetup: false, user: null });
+    try {
+      const setup = await api.getSetupStatus();
+      if (setup.needsSetup) {
+        setAuthState({ loading: false, needsSetup: true, user: null });
+        return;
+      }
+      const user = await api.me().catch(() => null);
+      setAuthState({ loading: false, needsSetup: false, user });
+    } catch (err) {
+      if (err instanceof TypeError) {
+        setServerError(true);
+        setAuthState({ loading: false, needsSetup: false, user: null });
+      } else {
         setAuthState({ loading: false, needsSetup: false, user: null });
       }
     }
+  }
+
+  useEffect(() => {
     init();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authState.loading) return <div className="loading">Loading...</div>;
+
+  if (serverError) {
+    return (
+      <ThemeProvider>
+        <div className="server-error-screen">
+          <div className="server-error-card">
+            <div className="server-error-icon">⚠</div>
+            <h2 className="server-error-title">Server unavailable</h2>
+            <p className="server-error-message">
+              Could not connect to the server. Check your connection and try again.
+            </p>
+            <button className="server-error-retry" onClick={init}>
+              Retry
+            </button>
+          </div>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>

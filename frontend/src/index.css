@@ -633,6 +633,66 @@ body:has(.modal-overlay) {
   font-size: 14px;
 }
 
+/* ── Server error screen ─────────────────────────────────── */
+
+.server-error-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg-app);
+}
+
+.server-error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--space-8) var(--space-10);
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+}
+
+.server-error-icon {
+  font-size: 2.5rem;
+  color: var(--color-warning, #f59e0b);
+}
+
+.server-error-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.server-error-message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.server-error-retry {
+  margin-top: var(--space-2);
+  padding: 10px 28px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.server-error-retry:hover {
+  opacity: 0.85;
+}
+
 /* ── Buttons ─────────────────────────────────────────────── */
 
 button {
