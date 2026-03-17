@@ -544,6 +544,22 @@ router.delete('/cycles/:cycleId', (req, res) => {
   res.status(204).end();
 });
 
+// POST /cycles/:cycleId/pull-annual-expenses
+router.post('/cycles/:cycleId/pull-annual-expenses', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+
+  const { cycle_start_day } = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
+  const startDay = cycle_start_day ?? 25;
+
+  createAnnualPaymentsForCycle(req.params.id, req.params.cycleId, cycle.year, cycle.month, startDay);
+  console.log(`[cycles] Pulled annual expenses for cycle ${cycle.year}/${cycle.month} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
+  res.status(204).end();
+});
+
 // POST /cycles/:cycleId/items
 router.post('/cycles/:cycleId/items', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
