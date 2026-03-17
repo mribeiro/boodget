@@ -62,6 +62,15 @@ function computeYearStatus(yearId, dossierId) {
     };
   });
 
+  // Sort by first installment date (month × 100 + day); items with no installments go last
+  itemsWithInstallments.sort((a, b) => {
+    const firstA = a.installments[0];
+    const firstB = b.installments[0];
+    const keyA = firstA ? firstA.month * 100 + firstA.day : Infinity;
+    const keyB = firstB ? firstB.month * 100 + firstB.day : Infinity;
+    return keyA - keyB;
+  });
+
   // Contributing accounts: sum from most recent filled capital snapshot
   const selectedAccountIds = db
     .prepare('SELECT account_id FROM annual_expense_accounts WHERE dossier_id = ?')

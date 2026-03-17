@@ -88,7 +88,7 @@ capital-tracker/
 │   │       ├── expenses/
 │   │       │   ├── ExpensesTab.jsx         # Monthly Expenses tab (renders CycleList)
 │   │       │   ├── CycleList.jsx           # List of cycles with placeholder rows; OpenCycleModal
-│   │       │   ├── CycleEditor.jsx         # Single cycle view (items, summary); header buttons: Period | Income | Close cycle/Reopen | Delete
+│   │       │   ├── CycleEditor.jsx         # Single cycle view (items, summary); header buttons: Period | Income | Close cycle/Reopen | Pull annual expenses | Delete
 │   │       │   ├── ExpenseTemplate.jsx     # Monthly expense template editor (with classification)
 │   │       │   ├── AnnualExpenseTemplate.jsx # Annual expense template editor
 │   │       │   └── DossierSettings.jsx     # Cycle start day setting
@@ -429,6 +429,7 @@ PATCH  /api/dossiers/:id/cycles/:cycleId      { year?, month?, salary?, previous
                                               # year/month change → 409 if another cycle already occupies that period
 DELETE /api/dossiers/:id/cycles/:cycleId      # deletes cycle and all its items
 
+POST   /api/dossiers/:id/cycles/:cycleId/pull-annual-expenses  # idempotent; links annual installments that fall in cycle range but weren't linked at creation
 POST   /api/dossiers/:id/cycles/:cycleId/items          { section, name, type?, value, day_of_payment? }
 PATCH  /api/dossiers/:id/cycles/:cycleId/items/:itemId  { value?, day_of_payment?, paid?, spent?, done? }
 DELETE /api/dossiers/:id/cycles/:cycleId/items/:itemId
