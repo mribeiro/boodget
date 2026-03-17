@@ -60,6 +60,7 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
           onClick={() => onNavigate('capital')}
         />
         <CycleGlance
+          dossierId={dossierId}
           cyclesList={cyclesList}
           currentCycleDetail={currentCycleDetail}
           settings={settings}

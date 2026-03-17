@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarDays } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
@@ -31,7 +32,8 @@ function nextYearMonth(year, month) {
   return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
 }
 
-export default function CycleGlance({ cyclesList, currentCycleDetail, settings, today, onClick }) {
+export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail, settings, today, onClick }) {
+  const navigate = useNavigate();
   const cycleStartDay = settings.cycle_start_day ?? 25;
   const nextCycleWarningDay = settings.next_cycle_warning_day ?? 22;
   const prevCloseWarningDay = settings.previous_cycle_close_warning_day ?? 25;
@@ -48,7 +50,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   // Red: previous cycle not closed
   if (prevCycle && !prevCycle.is_closed && todayDay >= prevCloseWarningDay) {
     return (
-      <GlanceCard title={`Cycle of ${cycleDisplayName(prev.year, prev.month, cycleStartDay)}`} icon={faCalendarDays} color="red" onClick={onClick}>
+      <GlanceCard title={`Cycle of ${cycleDisplayName(prev.year, prev.month, cycleStartDay)}`} icon={faCalendarDays} color="red" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${prevCycle.id}`)}>
         <p style={msgStyle}>Previous cycle has not been closed yet</p>
       </GlanceCard>
     );
@@ -76,7 +78,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
 
   if (!currentCycleDetail) {
     return (
-      <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={onClick}>
+      <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${currentCycleMeta.id}`)}>
         <p style={{ ...msgStyle, fontStyle: 'italic' }}>Loading…</p>
       </GlanceCard>
     );
@@ -104,7 +106,7 @@ export default function CycleGlance({ cyclesList, currentCycleDetail, settings, 
   const balanceColor = currentBalance < 0 ? 'var(--color-value-negative)' : 'var(--text-primary)';
 
   return (
-    <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={onClick}>
+    <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${currentCycleMeta.id}`)}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Balance</span>
         <span className="text-md tabular" style={{ color: balanceColor }}>{formatEur(currentBalance)}</span>
