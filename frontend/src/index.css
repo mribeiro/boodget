@@ -1902,8 +1902,7 @@ tr:hover td {
   }
 
   .page-header {
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .page-header h1 {
@@ -1926,5 +1925,25 @@ tr:hover td {
 
   .navbar-hamburger {
     display: flex;
+  }
+}
+
+/* ── Cycle derived values (Total available + Leftovers expected) ─── */
+
+/* Desktop: left border separator between input values and derived values */
+@media (min-width: 768px) {
+  .cycle-derived-values {
+    display: flex;
+    gap: 2rem;
+    border-left: 1px solid var(--color-border);
+    padding-left: 2rem;
+  }
+}
+
+/* Mobile: no border/indent — items align flush with the rest */
+@media (max-width: 767px) {
+  .cycle-derived-values {
+    display: flex;
+    gap: 2rem;
   }
 }
