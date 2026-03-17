@@ -195,6 +195,8 @@ Each payment record links an installment to a cycle:
 
 A new section **"Annual Expenses"** is displayed in the CycleEditor, below the existing Distributions section. It is only visible when the cycle has at least one annual payment record.
 
+If an annual expense year is created *after* a cycle was already open, that cycle will not have had its installments linked automatically. The **"Pull annual expenses"** button in the CycleEditor header triggers `POST /dossiers/:id/cycles/:cycleId/pull-annual-expenses`, which re-runs the same payment-creation logic used at cycle creation time. The operation is idempotent (`INSERT OR IGNORE`) — running it multiple times on the same cycle never creates duplicate records.
+
 Each row shows:
 - Expense name (from the year item)
 - Installment number (e.g. "2/3" for installment 2 of 3)
