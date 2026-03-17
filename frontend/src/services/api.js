@@ -92,6 +92,8 @@ export const api = {
     request('PATCH', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`, data),
   deleteCycleItem: (dossierId, cycleId, itemId) =>
     request('DELETE', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`),
+  pullAnnualExpensesForCycle: (dossierId, cycleId) =>
+    request('POST', `/dossiers/${dossierId}/cycles/${cycleId}/pull-annual-expenses`),
 
   // Expense template (extended)
   bulkReplaceExpenseTemplateSection: (dossierId, section, items) =>

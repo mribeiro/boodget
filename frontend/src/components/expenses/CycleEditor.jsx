@@ -69,6 +69,7 @@ export default function CycleEditor() {
   const [paperlessSettings, setPaperlessSettings] = useState(null);
   const [fetchingPaperless, setFetchingPaperless] = useState(false);
   const [paperlessModal, setPaperlessModal] = useState(null);
+  const [pullingAnnual, setPullingAnnual] = useState(false);
 
   useEffect(() => {
     load();
@@ -277,6 +278,19 @@ export default function CycleEditor() {
     }
   }
 
+  async function handlePullAnnualExpenses() {
+    setError('');
+    setPullingAnnual(true);
+    try {
+      await api.pullAnnualExpensesForCycle(dossierId, cycleId);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPullingAnnual(false);
+    }
+  }
+
   async function handleAddItem(data) {
     try {
       await api.createCycleItem(dossierId, cycleId, { ...data, section: activeTab === 'expenses' ? 'expense' : 'distribution' });
@@ -330,6 +344,10 @@ export default function CycleEditor() {
               <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.35rem' }} />Close cycle
             </button>
           )}
+          <button className="btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+            <FontAwesomeIcon icon={faFileArrowDown} style={{ marginRight: '0.35rem' }} />
+            {pullingAnnual ? 'Pulling…' : 'Pull annual expenses'}
+          </button>
           <button className="btn-danger" onClick={handleDeleteCycle} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
             <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
           </button>
