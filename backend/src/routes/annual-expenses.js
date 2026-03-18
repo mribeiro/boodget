@@ -119,10 +119,24 @@ function computeYearStatus(yearId, dossierId) {
 
     for (const cycle of cyclesInYear) {
       for (const distId of selectedDistIds) {
-        // Find cycle items matching this template distribution (by template_item_id)
-        const doneItems = db.prepare(
-          "SELECT value FROM cycle_items WHERE cycle_id = ? AND template_item_id = ? AND section = 'distribution' AND done = 1"
-        ).all(cycle.id, distId);
+        // Match by template_item_id (primary) OR by name for cycle items whose
+        // template_item_id was orphaned by a bulk-replace of the expense template.
+        const doneItems = db.prepare(`
+          SELECT ci.value FROM cycle_items ci
+          WHERE ci.cycle_id = ?
+            AND ci.section = 'distribution'
+            AND ci.done = 1
+            AND (
+              ci.template_item_id = ?
+              OR (
+                ci.name = (SELECT name FROM expense_template_items WHERE id = ?)
+                AND (
+                  ci.template_item_id IS NULL
+                  OR NOT EXISTS (SELECT 1 FROM expense_template_items WHERE id = ci.template_item_id)
+                )
+              )
+            )
+        `).all(cycle.id, distId, distId);
         contributedDistributions += doneItems.reduce((s, i) => s + (i.value || 0), 0);
       }
     }
