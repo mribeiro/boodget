@@ -19,6 +19,19 @@ function fmt(v) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' €';
 }
 
+// Returns the number of cycles in `calendarYear` whose start date is still in the future.
+// A cycle displayed as display-month M (0=Jan) of calendarYear starts on cycleStartDay of
+// the *previous* calendar month: new Date(calendarYear, M - 1, cycleStartDay).
+function cyclesRemainingInYear(calendarYear, cycleStartDay) {
+  const today = new Date();
+  let count = 0;
+  for (let displayMonth = 0; displayMonth < 12; displayMonth++) {
+    const cycleStart = new Date(calendarYear, displayMonth - 1, cycleStartDay);
+    if (cycleStart > today) count++;
+  }
+  return count;
+}
+
 function StatRow({ label, value, valueStyle }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border-default)' }}>
@@ -155,6 +168,7 @@ export default function AnnualExpensesTab({ dossierId }) {
   const [selectedAccountIds, setSelectedAccountIds] = useState([]);
   const [distributionTemplate, setDistributionTemplate] = useState([]);
   const [selectedDistIds, setSelectedDistIds] = useState([]);
+  const [cycleStartDay, setCycleStartDay] = useState(25);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -172,18 +186,20 @@ export default function AnnualExpensesTab({ dossierId }) {
 
   const loadYears = useCallback(async () => {
     try {
-      const [yrs, accs, selAccs, tmpl, selDists] = await Promise.all([
+      const [yrs, accs, selAccs, tmpl, selDists, settings] = await Promise.all([
         api.getAnnualYears(dossierId),
         api.getAccounts(dossierId, false),
         api.getAnnualExpenseAccounts(dossierId),
         api.getExpenseTemplate(dossierId),
         api.getAnnualExpenseDistributions(dossierId),
+        api.getDossierSettings(dossierId),
       ]);
       setYears(yrs);
       setAllAccounts(accs);
       setSelectedAccountIds(selAccs);
       setDistributionTemplate(tmpl.filter((i) => i.section === 'distribution'));
       setSelectedDistIds(selDists);
+      setCycleStartDay(settings.cycle_start_day ?? 25);
       return yrs;
     } catch (e) {
       setError(e.message);
@@ -431,7 +447,9 @@ export default function AnnualExpensesTab({ dossierId }) {
                       .reduce((sum, d) => sum + (d.value || 0), 0);
                     const annualDistProjected = monthlyDistProjected * 12;
                     const totalRaiseNeeded = Math.max(0, (yearData.total_budgeted || 0) - (yearData.carryover || 0));
-                    const monthlyAverageNeeded = totalRaiseNeeded / 12;
+                    const amountLeftNeeded = Math.max(0, (yearData.total_remaining || 0) - (yearData.accumulated_accounts || 0));
+                    const cyclesLeft = cyclesRemainingInYear(yearData.year, cycleStartDay);
+                    const monthlyAverageNeeded = cyclesLeft > 0 ? amountLeftNeeded / cyclesLeft : amountLeftNeeded;
 
                     return [
                       { label: 'Accumulated (accounts)', value: fmt(yearData.accumulated_accounts) },
@@ -441,8 +459,8 @@ export default function AnnualExpensesTab({ dossierId }) {
                       { label: 'Total expenses remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
                       {
                         label: 'Amount left needed',
-                        value: fmt(Math.max(0, (yearData.total_remaining || 0) - (yearData.accumulated_accounts || 0))),
-                        style: { color: yearData.total_remaining <= yearData.accumulated_accounts ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
+                        value: fmt(amountLeftNeeded),
+                        style: { color: amountLeftNeeded <= 0 ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
                       },
                       {
                         label: 'Needed this cycle',
@@ -461,7 +479,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                         subtitleStyle: { color: annualDistProjected >= totalRaiseNeeded ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
                       },
                       {
-                        label: 'Monthly average needed',
+                        label: `Monthly average needed (${cyclesLeft} cycle${cyclesLeft !== 1 ? 's' : ''} left)`,
                         value: fmt(monthlyAverageNeeded),
                         subtitle: `Distributions/mo: ${fmt(monthlyDistProjected)}`,
                         subtitleStyle: { color: monthlyDistProjected >= monthlyAverageNeeded ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
