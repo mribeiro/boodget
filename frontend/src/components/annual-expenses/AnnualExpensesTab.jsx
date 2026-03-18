@@ -425,28 +425,53 @@ export default function AnnualExpensesTab({ dossierId }) {
                     )}
                   </div>
 
-                  {[
-                    { label: 'Accumulated (accounts)', value: fmt(yearData.accumulated_accounts) },
-                    { label: 'Contributed (distributions)', value: fmt(yearData.contributed_distributions) },
-                    { label: 'Total budgeted', value: fmt(yearData.total_budgeted) },
-                    { label: 'Total paid', value: fmt(yearData.total_paid) },
-                    { label: 'Total remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
-                    {
-                      label: 'Needed this cycle',
-                      value: fmt(yearData.needed_this_cycle),
-                      style: yearData.needed_this_cycle > 0
-                        ? { color: yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'var(--color-success-text)' : 'var(--color-danger-text)' }
-                        : { color: 'var(--color-success-text)' },
-                      subtitle: yearData.needed_this_cycle > 0
-                        ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'Covered' : `Shortfall: ${fmt(yearData.needed_this_cycle - yearData.accumulated_accounts)}`)
-                        : 'Nothing due this cycle',
-                    },
-                    { label: 'Balance', value: fmt(yearData.balance), style: { color: yearData.balance >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' } },
-                  ].map(({ label, value, style, subtitle }) => (
+                  {(() => {
+                    const monthlyDistProjected = distributionTemplate
+                      .filter((d) => selectedDistIds.includes(d.id))
+                      .reduce((sum, d) => sum + (d.value || 0), 0);
+                    const annualDistProjected = monthlyDistProjected * 12;
+                    const totalRaiseNeeded = Math.max(0, (yearData.total_budgeted || 0) - (yearData.carryover || 0));
+                    const monthlyAverageNeeded = totalRaiseNeeded / 12;
+
+                    return [
+                      { label: 'Accumulated (accounts)', value: fmt(yearData.accumulated_accounts) },
+                      { label: 'Contributed (distributions)', value: fmt(yearData.contributed_distributions) },
+                      { label: 'Total budgeted', value: fmt(yearData.total_budgeted) },
+                      { label: 'Total paid', value: fmt(yearData.total_paid) },
+                      { label: 'Total expenses remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
+                      {
+                        label: 'Amount left needed',
+                        value: fmt(Math.max(0, (yearData.total_remaining || 0) - (yearData.accumulated_accounts || 0))),
+                        style: { color: yearData.total_remaining <= yearData.accumulated_accounts ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
+                      },
+                      {
+                        label: 'Needed this cycle',
+                        value: fmt(yearData.needed_this_cycle),
+                        style: yearData.needed_this_cycle > 0
+                          ? { color: yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'var(--color-success-text)' : 'var(--color-danger-text)' }
+                          : { color: 'var(--color-success-text)' },
+                        subtitle: yearData.needed_this_cycle > 0
+                          ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'Covered' : `Shortfall: ${fmt(yearData.needed_this_cycle - yearData.accumulated_accounts)}`)
+                          : 'Nothing due this cycle',
+                      },
+                      {
+                        label: 'Total raise needed',
+                        value: fmt(totalRaiseNeeded),
+                        subtitle: `Distributions/yr: ${fmt(annualDistProjected)}`,
+                        subtitleStyle: { color: annualDistProjected >= totalRaiseNeeded ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
+                      },
+                      {
+                        label: 'Monthly average needed',
+                        value: fmt(monthlyAverageNeeded),
+                        subtitle: `Distributions/mo: ${fmt(monthlyDistProjected)}`,
+                        subtitleStyle: { color: monthlyDistProjected >= monthlyAverageNeeded ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
+                      },
+                    ];
+                  })().map(({ label, value, style, subtitle, subtitleStyle }) => (
                     <div key={label} style={{ background: 'var(--surface-secondary)', padding: 12, borderRadius: 'var(--radius)' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
                       <span style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...style }}>{value}</span>
-                      {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{subtitle}</div>}
+                      {subtitle && <div style={{ fontSize: 11, marginTop: 2, ...subtitleStyle ?? { color: 'var(--text-muted)' } }}>{subtitle}</div>}
                     </div>
                   ))}
                 </div>
@@ -564,7 +589,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                     </div>
                     {/* Expanded installment rows */}
                     {expanded && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 24 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 24, animation: 'slideUp var(--transition-normal) both' }}>
                         {item.installments.map((inst) => {
                           const paid = !!inst.payment?.paid;
                           return (
