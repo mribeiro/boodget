@@ -235,16 +235,21 @@ A summary card at the top shows:
 | Field | Description |
 |---|---|
 | Carryover | Amount carried from previous year (editable) |
-| Accumulated (accounts) | Sum of contributing account values from last Capital snapshot |
+| Accumulated (accounts) | Sum of contributing account values from last Capital snapshot (already includes carryover and is net of paid expenses) |
 | Contributed (distributions) | Sum of "done" distributions from cycles in this calendar year |
 | Total budgeted | Sum of all year item budgeted values |
 | Total paid | Sum of all real_value where paid = true |
-| Total remaining | Total budgeted − Total paid |
-| Balance | Accumulated (accounts) − Total paid |
+| Total expenses remaining | Total budgeted − Total paid (amber when > 0, green when 0) |
+| Amount left needed | max(0, Total expenses remaining − Accumulated accounts) — how much still needs to be raised beyond what is already on hand; green when accumulated covers remaining, amber otherwise |
+| Total raise needed | max(0, Total budgeted − Carryover) — total amount to be raised over the year; subtitle shows projected annual distributions (selected distribution template values × 12), colour-coded green/amber vs. target |
+| Monthly average needed | Total raise needed / 12; subtitle shows projected monthly distributions (sum of selected distribution template values), colour-coded green/amber vs. target |
+| Needed this cycle | Sum of unpaid installment expected values assigned to the current cycle |
 
 ### 6.4 Year Items Detail
 
-Below the summary, each year item is displayed as a card or expandable row:
+Below the summary, year items are **sorted by their first installment date ascending** (month × 100 + day of installment #1). Items with no installments sort last.
+
+Each year item is displayed as a card or expandable row:
 
 | Field | Description |
 |---|---|
@@ -253,6 +258,8 @@ Below the summary, each year item is displayed as a card or expandable row:
 | Classification | Must / Want badge |
 | Total paid | Sum of real values of paid installments |
 | Difference | Total paid − Budgeted value (colour-coded: green if under budget, red if over) |
+
+Items with a single installment render as a flat row. Items with multiple installments render as a collapsible header; the installment rows slide in with a `slideUp` entrance animation when expanded.
 
 Each item expands to show its **installments table**:
 
@@ -548,6 +555,12 @@ GET    /api/dossiers/:id/annual-years/:yearId/status
 
 Returns computed values for the tab summary:
 
+The frontend derives the following computed fields client-side (not returned by the API):
+- `total_raise_needed = max(0, total_budgeted − carryover)`
+- `monthly_average_needed = total_raise_needed / 12`
+- `amount_left_needed = max(0, total_remaining − accumulated_accounts)`
+- `monthly_dist_projected` and `annual_dist_projected` — from the loaded distribution template × selected IDs
+
 ```json
 {
   "year": 2026,
@@ -557,7 +570,7 @@ Returns computed values for the tab summary:
   "total_budgeted": 3600.00,
   "total_paid": 1200.00,
   "total_remaining": 2400.00,
-  "balance": 1200.00,
+  "needed_this_cycle": 300.00,
   "items": [
     {
       "id": "...",
