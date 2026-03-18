@@ -242,7 +242,7 @@ A summary card at the top shows:
 | Total expenses remaining | Total budgeted − Total paid (amber when > 0, green when 0) |
 | Amount left needed | max(0, Total expenses remaining − Accumulated accounts) — how much still needs to be raised beyond what is already on hand; green when accumulated covers remaining, amber otherwise |
 | Total raise needed | max(0, Total budgeted − Carryover) — total amount to be raised over the year; subtitle shows projected annual distributions (selected distribution template values × 12), colour-coded green/amber vs. target |
-| Monthly average needed | Total raise needed / 12; subtitle shows projected monthly distributions (sum of selected distribution template values), colour-coded green/amber vs. target |
+| Monthly average needed | `Amount left needed / cycles_remaining`, where `cycles_remaining` = number of cycles in the viewed calendar year whose start date is still in the future. A cycle displayed as "Month M" starts on `cycle_start_day` of the prior calendar month (`new Date(year, M-1, cycleStartDay)`). The label shows the count: "Monthly average needed (N cycles left)". When `cycles_remaining = 0` (past year or all cycles elapsed), shows `Amount left needed` as-is. Subtitle shows projected monthly distributions, colour-coded green/amber vs. target. |
 | Needed this cycle | Sum of unpaid installment expected values assigned to the current cycle |
 
 ### 6.4 Year Items Detail
@@ -557,7 +557,8 @@ Returns computed values for the tab summary:
 
 The frontend derives the following computed fields client-side (not returned by the API):
 - `total_raise_needed = max(0, total_budgeted − carryover)`
-- `monthly_average_needed = total_raise_needed / 12`
+- `cycles_remaining = cyclesRemainingInYear(year, cycle_start_day)` — count of cycles in the year whose start date is still in the future
+- `monthly_average_needed = cycles_remaining > 0 ? amount_left_needed / cycles_remaining : amount_left_needed`
 - `amount_left_needed = max(0, total_remaining − accumulated_accounts)`
 - `monthly_dist_projected` and `annual_dist_projected` — from the loaded distribution template × selected IDs
 
