@@ -22,7 +22,7 @@ Users receive Web Push notifications for financial events: upcoming expenses, ov
 
 ### 2.1 Web App Manifest
 
-Create `frontend/public/manifest.webmanifest`:
+`frontend/public/manifest.webmanifest` includes both light and dark mode icon sets using the `media` property:
 
 ```json
 {
@@ -34,22 +34,12 @@ Create `frontend/public/manifest.webmanifest`:
   "background_color": "#f0f4f8",
   "theme_color": "#1a2035",
   "icons": [
-    {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-512-maskable.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-192-dark.png", "sizes": "192x192", "type": "image/png", "media": "(prefers-color-scheme: dark)" },
+    { "src": "/icons/icon-512-dark.png", "sizes": "512x512", "type": "image/png", "media": "(prefers-color-scheme: dark)" },
+    { "src": "/icons/icon-512-maskable-dark.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable", "media": "(prefers-color-scheme: dark)" }
   ]
 }
 ```
@@ -58,18 +48,27 @@ The `background_color` matches `--bg-app` (light theme). The `theme_color` match
 
 ### 2.2 Icon Generation
 
-Icons are generated at build time from `frontend/public/icon.svg` using `vite-plugin-pwa` (which uses `sharp` internally) or a dedicated build script. The following sizes must be produced and placed in `frontend/public/icons/`:
+Icons are generated at build time from `frontend/public/icon.svg` (light mode) and `frontend/public/icon-dark.svg` (dark mode) using `sharp`. The following sizes are produced and placed in `frontend/public/icons/`:
 
-| File | Size | Usage |
-|------|------|-------|
-| `icon-16.png` | 16×16 | Favicon (small) |
-| `icon-32.png` | 32×32 | Favicon |
-| `icon-180.png` | 180×180 | Apple touch icon |
-| `icon-192.png` | 192×192 | Android home screen, manifest |
-| `icon-512.png` | 512×512 | Android splash screen, manifest |
-| `icon-512-maskable.png` | 512×512 | Maskable icon (with safe-zone padding) |
+| File | Size | Mode | Usage |
+|------|------|------|-------|
+| `icon-16.png` | 16×16 | light | Favicon (small) |
+| `icon-32.png` | 32×32 | light | Favicon |
+| `icon-180.png` | 180×180 | light | Apple touch icon |
+| `icon-192.png` | 192×192 | light | Android home screen, manifest |
+| `icon-512.png` | 512×512 | light | Android splash screen, manifest |
+| `icon-512-maskable.png` | 512×512 | light | Maskable icon (with safe-zone padding) |
+| `icon-192-dark.png` | 192×192 | dark | Manifest (dark mode) |
+| `icon-512-dark.png` | 512×512 | dark | Manifest (dark mode) |
+| `icon-512-maskable-dark.png` | 512×512 | dark | Maskable icon (dark mode) |
 
-The maskable variant must have the icon content centred within the inner 80% of the canvas, with the background colour filling the full 512×512 area.
+The maskable variant must have the icon content centred within the inner 80% of the canvas, with the background colour filling the full 512×512 area. Light maskable uses `#38bdf8`; dark maskable uses `#0f172a`.
+
+#### Icon colour schemes
+
+**Light mode** (`icon.svg`): blue-to-indigo gradient background (`#38bdf8` → `#6366f1`), white "C" and trend line.
+
+**Dark mode** (`icon-dark.svg`): dark navy gradient background (`#0f172a` → `#1e1b4b`), sky-blue "C" (`#38bdf8`), indigo trend line (`#818cf8`).
 
 ### 2.3 HTML Meta Tags
 
@@ -635,10 +634,11 @@ All schema changes above go into a single migration: `020_pwa_push_notifications
 
 -----
 
-## 14. Icon Source File
+## 14. Icon Source Files
 
-The developer must place the app icon SVG at `frontend/public/icon.svg`. The SVG provided for this project is:
+Two SVG source files drive icon generation:
 
+**`frontend/public/icon.svg`** (light mode):
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
@@ -648,18 +648,35 @@ The developer must place the app icon SVG at `frontend/public/icon.svg`. The SVG
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="120" fill="url(#bg)"/>
-  <path
-    d="M330 160 A120 120 0 1 0 330 352"
+  <path d="M330 160 A120 120 0 1 0 330 352"
     fill="none" stroke="#ffffff" stroke-width="42" stroke-linecap="round"/>
-  <polyline
-    points="190,300 240,260 280,280 330,210"
+  <polyline points="190,300 240,260 280,280 330,210"
     fill="none" stroke="#ffffff" stroke-width="28"
     stroke-linecap="round" stroke-linejoin="round"/>
   <polygon points="330,210 312,214 326,228" fill="#ffffff"/>
 </svg>
 ```
 
-This icon features a bold "C" with an integrated upward trend line and arrow, on a blue-to-indigo gradient background with rounded corners.
+**`frontend/public/icon-dark.svg`** (dark mode):
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+  <path d="M330 160 A120 120 0 1 0 330 352"
+    fill="none" stroke="#38bdf8" stroke-width="42" stroke-linecap="round"/>
+  <polyline points="190,300 240,260 280,280 330,210"
+    fill="none" stroke="#818cf8" stroke-width="28"
+    stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="330,210 312,214 326,228" fill="#818cf8"/>
+</svg>
+```
+
+Both icons share the same "C" + upward trend line design. The dark variant uses a dark navy background with coloured accent strokes instead of white.
 
 -----
 
@@ -667,9 +684,10 @@ This icon features a bold "C" with an integrated upward trend line and arrow, on
 
 | File / Directory | Description |
 |------------------|-------------|
-| `frontend/public/manifest.webmanifest` | PWA manifest |
-| `frontend/public/icon.svg` | Master icon source (developer-provided) |
-| `frontend/public/icons/` | Generated PNG icons (build output) |
+| `frontend/public/manifest.webmanifest` | PWA manifest (includes dark/light mode icon entries) |
+| `frontend/public/icon.svg` | Light mode icon source |
+| `frontend/public/icon-dark.svg` | Dark mode icon source |
+| `frontend/public/icons/` | Generated PNG icons (build output; includes `-dark` variants) |
 | `frontend/index.html` | Updated with manifest link, meta tags, apple-touch-icon |
 | `frontend/vite.config.js` | Updated with `vite-plugin-pwa` configuration |
 | `frontend/src/pages/NotificationSettings.jsx` | User notification settings page |
