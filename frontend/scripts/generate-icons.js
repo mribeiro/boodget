@@ -1,5 +1,4 @@
 import sharp from 'sharp';
-import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -8,10 +7,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const srcSvg = join(__dirname, '../public/icon.svg');
+const srcSvgDark = join(__dirname, '../public/icon-dark.svg');
 const outDir = join(__dirname, '../public/icons');
 
 if (!existsSync(srcSvg)) {
   console.error('icon.svg not found at', srcSvg);
+  process.exit(1);
+}
+
+if (!existsSync(srcSvgDark)) {
+  console.error('icon-dark.svg not found at', srcSvgDark);
   process.exit(1);
 }
 
@@ -28,12 +33,13 @@ const sizes = [
 ];
 
 async function generate() {
+  // Light mode icons
   for (const { size, file } of sizes) {
     await sharp(srcSvg).resize(size, size).png().toFile(join(outDir, file));
     console.log(`Generated ${file} (${size}x${size})`);
   }
 
-  // Maskable: icon content centred in 80% of canvas, solid brand-color background
+  // Maskable (light): icon content centred in 80% of canvas, solid brand-color background
   const maskableSize = 512;
   const innerSize = Math.round(maskableSize * 0.8); // 410px
   const offset = Math.round((maskableSize - innerSize) / 2); // 51px
@@ -53,6 +59,34 @@ async function generate() {
     .toFile(join(outDir, 'icon-512-maskable.png'));
 
   console.log('Generated icon-512-maskable.png (512x512 maskable)');
+
+  // Dark mode icons
+  const darkSizes = [
+    { size: 192, file: 'icon-192-dark.png' },
+    { size: 512, file: 'icon-512-dark.png' },
+  ];
+
+  for (const { size, file } of darkSizes) {
+    await sharp(srcSvgDark).resize(size, size).png().toFile(join(outDir, file));
+    console.log(`Generated ${file} (${size}x${size})`);
+  }
+
+  // Maskable dark: dark navy background
+  const innerBufDark = await sharp(srcSvgDark).resize(innerSize, innerSize).toBuffer();
+
+  await sharp({
+    create: {
+      width: maskableSize,
+      height: maskableSize,
+      channels: 4,
+      background: { r: 15, g: 23, b: 42, alpha: 1 }, // #0f172a
+    },
+  })
+    .composite([{ input: innerBufDark, top: offset, left: offset }])
+    .png()
+    .toFile(join(outDir, 'icon-512-maskable-dark.png'));
+
+  console.log('Generated icon-512-maskable-dark.png (512x512 maskable dark)');
 }
 
 generate().catch((err) => {

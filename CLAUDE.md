@@ -67,12 +67,13 @@ capital-tracker/
 │   └── Dockerfile            # Multi-stage: builds frontend (with GIT_COMMIT arg), then runs backend+frontend
 ├── frontend/         # React 18 SPA (ES Modules, Vite)
 │   ├── public/
-│   │   ├── manifest.webmanifest  # PWA manifest (name, icons, standalone display, theme colour)
-│   │   ├── icon.svg              # Master app icon source (gradient background, "C" + trend line)
-│   │   ├── icons/                # Generated PNG icons: icon-16, icon-32, icon-180, icon-192, icon-512, icon-512-maskable
+│   │   ├── manifest.webmanifest  # PWA manifest (name, icons w/ dark/light media queries, standalone display, theme colour)
+│   │   ├── icon.svg              # Light mode app icon source (gradient background, "C" + trend line)
+│   │   ├── icon-dark.svg         # Dark mode app icon source (dark navy background, coloured accent strokes)
+│   │   ├── icons/                # Generated PNG icons: icon-16, icon-32, icon-180, icon-192, icon-512, icon-512-maskable + dark variants (icon-192-dark, icon-512-dark, icon-512-maskable-dark)
 │   │   └── sw-push.js            # Service worker push handler (push event + notificationclick)
 │   ├── scripts/
-│   │   └── generate-icons.js     # Generates all PNG icon sizes from icon.svg using sharp (runs at build time)
+│   │   └── generate-icons.js     # Generates all PNG icon sizes from icon.svg and icon-dark.svg using sharp (runs at build time)
 │   ├── src/
 │   │   ├── main.jsx          # React entry point
 │   │   ├── App.jsx           # AuthContext, routing, setup/login gates; server-error screen when backend unreachable; navbar shows 7-char git SHA
