@@ -24,6 +24,12 @@
       "purpose": "maskable"
     },
     {
+      "src": "/icons/icon-180-dark.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "media": "(prefers-color-scheme: dark)"
+    },
+    {
       "src": "/icons/icon-192-dark.png",
       "sizes": "192x192",
       "type": "image/png",
