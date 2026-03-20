@@ -62,6 +62,7 @@ async function generate() {
 
   // Dark mode icons
   const darkSizes = [
+    { size: 180, file: 'icon-180-dark.png' },
     { size: 192, file: 'icon-192-dark.png' },
     { size: 512, file: 'icon-512-dark.png' },
   ];

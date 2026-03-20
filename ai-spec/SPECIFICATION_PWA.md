@@ -54,10 +54,11 @@ Icons are generated at build time from `frontend/public/icon.svg` (light mode) a
 |------|------|------|-------|
 | `icon-16.png` | 16×16 | light | Favicon (small) |
 | `icon-32.png` | 32×32 | light | Favicon |
-| `icon-180.png` | 180×180 | light | Apple touch icon |
+| `icon-180.png` | 180×180 | light | Manifest (iOS/Safari home screen) |
 | `icon-192.png` | 192×192 | light | Android home screen, manifest |
 | `icon-512.png` | 512×512 | light | Android splash screen, manifest |
 | `icon-512-maskable.png` | 512×512 | light | Maskable icon (with safe-zone padding) |
+| `icon-180-dark.png` | 180×180 | dark | Manifest (iOS/Safari dark mode) |
 | `icon-192-dark.png` | 192×192 | dark | Manifest (dark mode) |
 | `icon-512-dark.png` | 512×512 | dark | Manifest (dark mode) |
 | `icon-512-maskable-dark.png` | 512×512 | dark | Maskable icon (dark mode) |
@@ -78,11 +79,12 @@ Add to `frontend/index.html` inside `<head>`:
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a2035">
 ```
+
+**Note**: `<link rel="apple-touch-icon">` is intentionally absent. When it is present, iOS Safari uses it unconditionally for the home screen icon and ignores the manifest's `media`-based dark/light icon entries. Omitting it allows Safari to read the manifest and select the correct light or dark icon. The manifest includes both 180×180 and 192×192 entries so iOS picks the native size.
 
 ### 2.4 Service Worker
 
