@@ -1748,13 +1748,8 @@ tr:hover td {
     grid-template-columns: 1fr 1fr;
   }
 
-  /* 5 cards (EF underfunded): 3 columns → 3+2 = 2 rows */
-  .glances-grid--5 {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  /* Last card in a 3-col row that only has 2 items: span remaining column */
-  .glances-grid--5 > :last-child:nth-child(3n+2) {
+  /* 5 cards (EF underfunded): still 2 columns; last (5th) card spans full width */
+  .glances-grid--5 > :nth-child(5) {
     grid-column: span 2;
   }
 
