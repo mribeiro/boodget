@@ -56,8 +56,13 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
     );
   }
 
-  // Amber: next cycle not opened
-  if (!nextCycle && todayDay >= nextCycleWarningDay) {
+  // Amber: next cycle not opened — only warn once we're in the same calendar month
+  // as the current cycle's end date (i.e. not from day 1 of the start month).
+  const cycleEndDate = new Date(current.year, current.month, cycleStartDay - 1);
+  const inCycleEndMonth =
+    today.getFullYear() === cycleEndDate.getFullYear() &&
+    today.getMonth() === cycleEndDate.getMonth();
+  if (!nextCycle && inCycleEndMonth && todayDay >= nextCycleWarningDay) {
     return (
       <GlanceCard title={`Cycle of ${cycleDisplayName(next.year, next.month, cycleStartDay)}`} icon={faCalendarDays} color="amber" onClick={onClick}>
         <p style={msgStyle}>Next cycle has not been opened yet</p>
