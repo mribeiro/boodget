@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>boodget — because handling your money shouldn't be scary</title>
+  <meta name="description" content="boodget is a self-hosted personal finance app for tracking monthly capital, budget cycles, goals, and expenses. Own your data." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:        #3b82f6;
+      --brand-dark:   #2563eb;
+      --brand-light:  #eff6ff;
+      --accent:       #6366f1;
+      --success:      #22c55e;
+      --warning:      #f59e0b;
+      --danger:       #ef4444;
+      --text-h:       #0f172a;
+      --text-b:       #334155;
+      --text-m:       #64748b;
+      --bg:           #f8fafc;
+      --card:         #ffffff;
+      --border:       #e2e8f0;
+      --shadow-sm:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+      --shadow-md:    0 4px 12px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.06);
+      --shadow-lg:    0 16px 40px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.07);
+      --shadow-xl:    0 32px 64px rgba(0,0,0,.14), 0 8px 24px rgba(0,0,0,.08);
+      --radius:       12px;
+      --radius-lg:    18px;
+      --radius-xl:    24px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-b);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ─────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo { display: flex; align-items: center; gap: .6rem; font-weight: 700; font-size: 1.05rem; color: var(--text-h); text-decoration: none; }
+    .nav-logo svg { width: 34px; height: 34px; }
+    .nav-links { display: flex; align-items: center; gap: 1.8rem; }
+    .nav-links a { color: var(--text-m); text-decoration: none; font-size: .9rem; font-weight: 500; transition: color .15s; }
+    .nav-links a:hover { color: var(--brand); }
+    .nav-cta { background: var(--brand); color: #fff; border: none; padding: .45rem 1.1rem; border-radius: 8px; font-size: .875rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: background .15s, transform .1s; display: inline-block; }
+    .nav-cta:hover { background: var(--brand-dark); transform: translateY(-1px); }
+
+    /* ── HERO ────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      padding: 6rem 2rem 4rem;
+      background: linear-gradient(160deg, #f0f9ff 0%, #f8fafc 45%, #eef2ff 100%);
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(99,102,241,.12), transparent);
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: rgba(59,130,246,.1); color: var(--brand);
+      border: 1px solid rgba(59,130,246,.2);
+      padding: .3rem .9rem; border-radius: 999px;
+      font-size: .8rem; font-weight: 600; letter-spacing: .03em;
+      margin-bottom: 1.5rem;
+    }
+    .hero-badge .dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+    h1 {
+      font-size: clamp(2.4rem, 5vw, 3.8rem);
+      font-weight: 900; line-height: 1.12;
+      color: var(--text-h); letter-spacing: -.03em;
+      max-width: 780px; margin: 0 auto 1.25rem;
+    }
+    h1 span { background: linear-gradient(135deg, var(--brand), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-sub {
+      font-size: 1.15rem; color: var(--text-m); max-width: 560px; margin: 0 auto 2.5rem; line-height: 1.7;
+    }
+    .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--brand); color: #fff; border: none;
+      padding: .8rem 2rem; border-radius: 10px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: .5rem;
+      box-shadow: 0 4px 14px rgba(59,130,246,.4);
+      transition: background .15s, transform .15s, box-shadow .15s;
+    }
+    .btn-primary:hover { background: var(--brand-dark); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59,130,246,.5); }
+    .btn-secondary {
+      background: #fff; color: var(--text-h); border: 1px solid var(--border);
+      padding: .8rem 2rem; border-radius: 10px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: .5rem;
+      transition: border-color .15s, transform .15s, box-shadow .15s;
+    }
+    .btn-secondary:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+    /* ── HERO MOCKUP ─────────────────────────────────────── */
+    .hero-mockup-wrap {
+      margin: 4rem auto 0;
+      max-width: 1000px;
+      position: relative;
+      padding: 0 1rem;
+    }
+    .browser-frame {
+      background: #1a2035;
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-xl);
+      overflow: hidden;
+    }
+    .browser-bar {
+      background: #111827;
+      height: 42px;
+      display: flex; align-items: center; padding: 0 16px; gap: 8px;
+    }
+    .browser-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .browser-dot:nth-child(1) { background: #ef4444; }
+    .browser-dot:nth-child(2) { background: #f59e0b; }
+    .browser-dot:nth-child(3) { background: #22c55e; }
+    .browser-url {
+      flex: 1; background: #1f2937; border-radius: 6px; height: 24px;
+      margin: 0 12px; display: flex; align-items: center; padding: 0 10px;
+      font-size: 11px; color: #6b7280; font-family: monospace;
+    }
+    .browser-content { background: #f0f4f8; }
+
+    /* ── APP MOCKUP LAYOUT ───────────────────────────────── */
+    .app-shell { display: flex; height: 520px; }
+    .app-sidebar {
+      width: 220px; background: #1a2035; padding: 16px 0;
+      display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
+    }
+    .sidebar-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; color: #6b7a99; letter-spacing: .08em; text-transform: uppercase; }
+    .sidebar-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; margin: 0 8px; border-radius: 8px;
+      font-size: 13px; color: #c8d0e0; cursor: default;
+    }
+    .sidebar-item.active { background: #2a3655; color: #fff; }
+    .sidebar-item .si-dot { width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; }
+    .app-main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .app-navbar {
+      background: #fff; border-bottom: 1px solid #e2e8f0;
+      height: 52px; display: flex; align-items: center; padding: 0 20px; gap: 12px;
+      font-size: 13px; font-weight: 600; color: #0f172a;
+    }
+    .app-navbar .breadcrumb { color: #94a3b8; font-weight: 400; }
+    .app-navbar .sha-badge { margin-left: auto; background: #f1f5f9; color: #64748b; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-family: monospace; }
+    .app-content { flex: 1; padding: 20px; overflow: hidden; background: #f0f4f8; }
+
+    /* Glances */
+    .glances { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+    .g-card {
+      background: #fff; border-radius: 10px; padding: 12px 14px;
+      border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .g-card.amber { border-color: #fde68a; background: #fffbeb; }
+    .g-card.green { border-color: #bbf7d0; background: #f0fdf4; }
+    .g-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+    .g-value { font-size: 16px; font-weight: 800; color: #0f172a; }
+    .g-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+    .g-sub.up { color: #22c55e; }
+    .g-sub.amber { color: #d97706; }
+
+    /* Tab bar */
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 14px; }
+    .tab { padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 500; color: #64748b; cursor: default; }
+    .tab.active { background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,.08); font-weight: 600; }
+
+    /* Capital chart area */
+    .chart-area { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 14px; height: 200px; position: relative; overflow: hidden; }
+    .chart-title { font-size: 12px; font-weight: 600; color: #0f172a; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .chart-title span { font-size: 11px; color: #22c55e; font-weight: 700; }
+
+    /* ── STATS STRIP ─────────────────────────────────────── */
+    .stats {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      padding: 3.5rem 2rem;
+    }
+    .stats-grid { display: flex; justify-content: center; gap: 4rem; flex-wrap: wrap; max-width: 900px; margin: 0 auto; }
+    .stat { text-align: center; color: #fff; }
+    .stat-num { font-size: 2.8rem; font-weight: 900; letter-spacing: -.04em; background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .stat-label { font-size: .875rem; color: #94a3b8; margin-top: .25rem; font-weight: 500; }
+
+    /* ── SECTIONS ────────────────────────────────────────── */
+    section { padding: 6rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-tag { display: inline-block; background: var(--brand-light); color: var(--brand); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: .3rem .8rem; border-radius: 999px; margin-bottom: 1rem; }
+    .section-title { font-size: clamp(1.7rem, 3.5vw, 2.5rem); font-weight: 800; color: var(--text-h); letter-spacing: -.03em; line-height: 1.2; margin-bottom: 1rem; }
+    .section-desc { font-size: 1.05rem; color: var(--text-m); max-width: 540px; line-height: 1.7; }
+
+    /* ── FEATURES GRID ───────────────────────────────────── */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 3.5rem; }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 2rem;
+      transition: transform .2s, box-shadow .2s, border-color .2s;
+    }
+    .feature-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: rgba(59,130,246,.3); }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 1.25rem;
+    }
+    .feature-icon.blue { background: #eff6ff; }
+    .feature-icon.purple { background: #f5f3ff; }
+    .feature-icon.green { background: #f0fdf4; }
+    .feature-icon.amber { background: #fffbeb; }
+    .feature-icon.red { background: #fef2f2; }
+    .feature-icon.teal { background: #f0fdfa; }
+    .feature-title { font-size: 1.05rem; font-weight: 700; color: var(--text-h); margin-bottom: .5rem; }
+    .feature-desc { font-size: .9rem; color: var(--text-m); line-height: 1.65; }
+
+    /* ── SHOWCASE SECTION ────────────────────────────────── */
+    .showcase { background: linear-gradient(135deg, #f0f9ff 0%, #fdf4ff 100%); }
+    .showcase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; margin-top: 4rem; }
+    .showcase-grid.reverse { direction: rtl; }
+    .showcase-grid.reverse > * { direction: ltr; }
+    .showcase-text .label { font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-bottom: .75rem; }
+    .showcase-text h3 { font-size: 1.7rem; font-weight: 800; color: var(--text-h); letter-spacing: -.03em; margin-bottom: 1rem; }
+    .showcase-text p { font-size: .95rem; color: var(--text-m); line-height: 1.7; margin-bottom: 1.25rem; }
+    .check-list { list-style: none; display: flex; flex-direction: column; gap: .6rem; }
+    .check-list li { display: flex; align-items: flex-start; gap: .65rem; font-size: .9rem; color: var(--text-b); }
+    .check-list li::before { content: '✓'; color: var(--success); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── MOCKUP CARDS ────────────────────────────────────── */
+    .mockup-card {
+      background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border);
+      box-shadow: var(--shadow-xl); overflow: hidden;
+    }
+    .mockup-header {
+      background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+      padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mockup-dot:nth-child(1) { background: #ef4444; }
+    .mockup-dot:nth-child(2) { background: #f59e0b; }
+    .mockup-dot:nth-child(3) { background: #22c55e; }
+    .mockup-body { padding: 20px; }
+
+    /* Cycle mockup */
+    .cycle-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .cycle-title { font-size: 15px; font-weight: 700; color: #0f172a; }
+    .cycle-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+    .cycle-badge.open { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .cycle-badge.closed { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .cycle-row {
+      display: flex; align-items: center; padding: 9px 0;
+      border-bottom: 1px solid #f1f5f9; font-size: 13px;
+    }
+    .cycle-row:last-child { border-bottom: none; }
+    .cycle-row .name { flex: 1; color: #334155; }
+    .cycle-row .amount { font-weight: 600; color: #0f172a; margin-right: 12px; }
+    .cycle-row .paid { font-size: 11px; padding: 2px 8px; border-radius: 5px; }
+    .cycle-row .paid.yes { background: #f0fdf4; color: #15803d; }
+    .cycle-row .paid.no { background: #fef2f2; color: #991b1b; }
+    .cycle-row .day { color: #94a3b8; font-size: 12px; margin-right: 12px; }
+    .cycle-summary { margin-top: 14px; background: #f8fafc; border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .cycle-sum-item .cs-label { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .cycle-sum-item .cs-val { font-size: 16px; font-weight: 800; color: #0f172a; }
+    .cycle-sum-item .cs-val.green { color: #15803d; }
+
+    /* Goals mockup */
+    .goal-row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; gap: 12px; }
+    .goal-row:last-child { border-bottom: none; }
+    .goal-info { flex: 1; }
+    .goal-name { font-size: 13px; font-weight: 600; color: #0f172a; }
+    .goal-date { font-size: 11px; color: #94a3b8; }
+    .goal-progress-wrap { width: 120px; }
+    .goal-pct { font-size: 12px; font-weight: 700; color: #0f172a; text-align: right; margin-bottom: 4px; }
+    .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; }
+    .goal-status { font-size: 11px; padding: 2px 8px; border-radius: 5px; font-weight: 600; white-space: nowrap; }
+    .goal-status.active { background: #eff6ff; color: #1d4ed8; }
+    .goal-status.done { background: #f0fdf4; color: #15803d; }
+
+    /* Glances mockup standalone */
+    .glances-mockup { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .gm-card { background: #fff; border-radius: 10px; padding: 14px 16px; border: 1px solid #e2e8f0; }
+    .gm-card.amber { background: #fffbeb; border-color: #fde68a; }
+    .gm-card.red { background: #fef2f2; border-color: #fecaca; }
+    .gm-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+    .gm-value { font-size: 20px; font-weight: 800; color: #0f172a; }
+    .gm-sub { font-size: 11px; color: #64748b; margin-top: 3px; }
+    .gm-sub.green { color: #15803d; }
+    .gm-sub.amber { color: #b45309; }
+    .gm-sub.red { color: #991b1b; }
+
+    /* ── SELF-HOSTED HIGHLIGHT ───────────────────────────── */
+    .self-hosted-section { background: #1e293b; }
+    .self-hosted-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+    .self-hosted-inner h2 { color: #f1f5f9; font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -.03em; margin-bottom: 1rem; }
+    .self-hosted-inner p { color: #94a3b8; font-size: .95rem; line-height: 1.7; margin-bottom: 1.5rem; }
+    .tech-pills { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .tech-pill { background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: .35rem .9rem; border-radius: 8px; font-size: .8rem; font-weight: 500; }
+    .tech-pill .highlight { color: #38bdf8; }
+    .docker-card {
+      background: #1e293b; border: 1px solid #334155; border-radius: var(--radius-lg);
+      padding: 1.5rem; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: .82rem;
+    }
+    .dc-line { display: flex; align-items: flex-start; gap: .75rem; padding: .3rem 0; }
+    .dc-prompt { color: #6366f1; font-weight: 700; flex-shrink: 0; }
+    .dc-cmd { color: #e2e8f0; }
+    .dc-comment { color: #475569; font-style: italic; }
+    .dc-out { color: #22c55e; padding-left: 1.5rem; }
+
+    /* ── WORKFLOW ────────────────────────────────────────── */
+    .workflow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-top: 3.5rem; }
+    .workflow-step { text-align: center; }
+    .workflow-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--brand), var(--accent));
+      color: #fff; font-size: 1.1rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;
+      box-shadow: 0 4px 12px rgba(59,130,246,.35);
+    }
+    .workflow-title { font-size: .95rem; font-weight: 700; color: var(--text-h); margin-bottom: .4rem; }
+    .workflow-desc { font-size: .85rem; color: var(--text-m); line-height: 1.6; }
+
+    /* ── CTA SECTION ─────────────────────────────────────── */
+    .cta-section {
+      text-align: center;
+      background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%);
+      padding: 7rem 2rem;
+    }
+    .cta-section h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 900; color: var(--text-h); letter-spacing: -.04em; margin-bottom: 1rem; }
+    .cta-section p { font-size: 1.05rem; color: var(--text-m); max-width: 520px; margin: 0 auto 2.5rem; }
+
+    /* ── FOOTER ──────────────────────────────────────────── */
+    footer {
+      background: #0f172a; color: #475569; padding: 2.5rem 2rem;
+      text-align: center; font-size: .85rem; line-height: 1.8;
+    }
+    footer a { color: #64748b; text-decoration: none; }
+    footer a:hover { color: #94a3b8; }
+
+    /* ── RESPONSIVENESS ──────────────────────────────────── */
+    @media (max-width: 900px) {
+      .app-sidebar { display: none; }
+      .showcase-grid { grid-template-columns: 1fr; }
+      .showcase-grid.reverse { direction: ltr; }
+      .self-hosted-inner { grid-template-columns: 1fr; }
+      .workflow-grid { grid-template-columns: 1fr 1fr; }
+      .glances { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 640px) {
+      nav .nav-links { display: none; }
+      .hero { padding: 4rem 1.5rem 3rem; }
+      .workflow-grid { grid-template-columns: 1fr; }
+      .glances { grid-template-columns: repeat(2, 1fr); }
+      .glances-mockup { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a class="nav-logo" href="#">
+      <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#38bdf8"/>
+            <stop offset="100%" stop-color="#6366f1"/>
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="120" fill="url(#ng)"/>
+        <path d="M330 160 A120 120 0 1 0 330 352" fill="none" stroke="#fff" stroke-width="42" stroke-linecap="round"/>
+        <polyline points="190,300 240,260 280,280 330,210" fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+        <polygon points="330,210 312,214 326,228" fill="#fff"/>
+      </svg>
+      boodget
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#cycles">Expenses</a>
+      <a href="#goals">Goals</a>
+      <a href="#self-hosted">Self-Hosted</a>
+    </div>
+    <a href="https://github.com/ViBE-MiNDS/capital-tracker" class="nav-cta" target="_blank">
+      View on GitHub →
+    </a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge"><span class="dot"></span>Open Source · Self-Hosted · Privacy-First</div>
+    <h1>because handling your money<br><span>shouldn't be scary.</span></h1>
+    <p class="hero-sub">boodget is a self-hosted personal finance app for tracking your capital, managing budget cycles, setting goals, and keeping expenses in check — without handing your data to anyone.</p>
+    <div class="hero-actions">
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" class="btn-primary" target="_blank">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        Get Started
+      </a>
+      <a href="#features" class="btn-secondary">
+        Explore Features ↓
+      </a>
+    </div>
+
+    <!-- HERO APP MOCKUP -->
+    <div class="hero-mockup-wrap">
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+          <div class="browser-dot"></div>
+          <div class="browser-url">https://boodget.yourdomain.com/dossiers/1</div>
+        </div>
+        <div class="browser-content">
+          <div class="app-shell">
+            <!-- Sidebar -->
+            <div class="app-sidebar">
+              <div class="sidebar-section">Navigation</div>
+              <div class="sidebar-item"><span>🏠</span> Dashboard</div>
+              <div class="sidebar-item active"><span class="si-dot"></span> My Finances</div>
+              <div class="sidebar-item"><span>💼</span> Work Savings</div>
+              <div class="sidebar-item" style="margin-top:auto;padding-bottom:12px;"><span>👤</span> Users</div>
+            </div>
+            <!-- Main -->
+            <div class="app-main">
+              <div class="app-navbar">
+                My Finances
+                <span class="breadcrumb">/ Capital</span>
+                <div class="sha-badge">a1b2c3d</div>
+              </div>
+              <div class="app-content">
+                <!-- Glances -->
+                <div class="glances">
+                  <div class="g-card green">
+                    <div class="g-label">Capital</div>
+                    <div class="g-value">€82,450</div>
+                    <div class="g-sub up">▲ 3.2% this month</div>
+                  </div>
+                  <div class="g-card">
+                    <div class="g-label">Current Cycle</div>
+                    <div class="g-value">€1,240</div>
+                    <div class="g-sub">expected leftover</div>
+                  </div>
+                  <div class="g-card amber">
+                    <div class="g-label">Next Expense</div>
+                    <div class="g-value">Apr 1</div>
+                    <div class="g-sub amber">Rent — in 3 days</div>
+                  </div>
+                  <div class="g-card">
+                    <div class="g-label">Goals</div>
+                    <div class="g-value">3 active</div>
+                    <div class="g-sub">1 completed</div>
+                  </div>
+                  <div class="g-card">
+                    <div class="g-label">Emergency Fund</div>
+                    <div class="g-value">✓ Healthy</div>
+                    <div class="g-sub up">6.2× covered</div>
+                  </div>
+                </div>
+                <!-- Tabs -->
+                <div class="tab-bar">
+                  <div class="tab active">Capital</div>
+                  <div class="tab">Monthly Expenses</div>
+                  <div class="tab">Annual Expenses</div>
+                  <div class="tab">Workbench</div>
+                  <div class="tab">Goals</div>
+                  <div class="tab">Settings</div>
+                </div>
+                <!-- Chart area -->
+                <div class="chart-area">
+                  <div class="chart-title">
+                    Total Capital Evolution
+                    <span>+€6,820 YTD</span>
+                  </div>
+                  <!-- SVG Chart -->
+                  <svg width="100%" height="150" viewBox="0 0 900 150" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#3b82f6" stop-opacity=".25"/>
+                        <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    <!-- Grid lines -->
+                    <line x1="0" y1="30" x2="900" y2="30" stroke="#f1f5f9" stroke-width="1"/>
+                    <line x1="0" y1="70" x2="900" y2="70" stroke="#f1f5f9" stroke-width="1"/>
+                    <line x1="0" y1="110" x2="900" y2="110" stroke="#f1f5f9" stroke-width="1"/>
+                    <!-- Area fill -->
+                    <path d="M0,130 L75,110 L150,95 L225,100 L300,85 L375,75 L450,70 L525,55 L600,45 L675,38 L750,30 L825,25 L900,20 L900,150 L0,150 Z" fill="url(#cg)"/>
+                    <!-- Line -->
+                    <polyline points="0,130 75,110 150,95 225,100 300,85 375,75 450,70 525,55 600,45 675,38 750,30 825,25 900,20"
+                      fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <!-- Dots -->
+                    <circle cx="900" cy="20" r="5" fill="#3b82f6"/>
+                    <circle cx="750" cy="30" r="4" fill="#3b82f6" fill-opacity=".6"/>
+                    <circle cx="600" cy="45" r="4" fill="#3b82f6" fill-opacity=".6"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="stat-num">100%</div>
+        <div class="stat-label">Data ownership</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">6+</div>
+        <div class="stat-label">Finance modules</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">Third-party cloud</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">PWA</div>
+        <div class="stat-label">Installable on any device</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="container">
+      <div class="section-tag">Everything you need</div>
+      <h2 class="section-title">All your finances,<br>one dashboard</h2>
+      <p class="section-desc">From monthly snapshots to expense cycles and long-term goals — boodget covers the full picture without making you feel like an accountant.</p>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon blue">📈</div>
+          <div class="feature-title">Capital Snapshots</div>
+          <div class="feature-desc">Record account values every month and watch your net worth grow over time. Track investments, savings accounts, and current accounts with a beautiful evolution chart.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon amber">💸</div>
+          <div class="feature-title">Monthly Expense Cycles</div>
+          <div class="feature-desc">Model your real budget month by month. Fixed expenses with payment dates, budget items with spending limits, and salary + previous balance tracking.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">🎯</div>
+          <div class="feature-title">Financial Goals</div>
+          <div class="feature-desc">Set targets with deadlines. Automatically track progress via distributions, manual contributions, or historical data. Visual progress bars and timeline charts included.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon purple">🔭</div>
+          <div class="feature-title">Glances Dashboard</div>
+          <div class="feature-desc">An at-a-glance panel shows Capital, Current Cycle balance, Next Expense, Goals status, and Emergency Fund health — colour-coded with amber and red urgency alerts.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon red">🛡️</div>
+          <div class="feature-title">Emergency Fund Tracker</div>
+          <div class="feature-desc">Define a savings multiplier, pick contributing accounts, and add extra monthly expenses. Instantly know if you're covered for the recommended N months of expenses.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon teal">📅</div>
+          <div class="feature-title">Annual Expenses</div>
+          <div class="feature-desc">Track annual bills with multiple installments across months. A carryover balance, payment tracking, and cycle integration keep big-ticket expenses under control.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon purple">🧮</div>
+          <div class="feature-title">Workbench Scenarios</div>
+          <div class="feature-desc">Model income vs. expenses vs. distributions with Must/Want/Save breakdowns before committing. Save named snapshots and compare scenarios side by side.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue">🔔</div>
+          <div class="feature-title">Push Notifications</div>
+          <div class="feature-desc">Get notified N days before upcoming fixed expenses. Configurable delivery times, repeat intervals, and per-dossier opt-in. Works via browser push (no app needed).</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">👥</div>
+          <div class="feature-title">Multi-User Sharing</div>
+          <div class="feature-desc">Share any dossier with other users. Multiple dossiers per account, fine-grained access control, and optional OIDC/SSO support for teams.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SHOWCASE: EXPENSE CYCLES -->
+  <section class="showcase" id="cycles">
+    <div class="container">
+      <div class="showcase-grid">
+        <div class="showcase-text">
+          <div class="label">Monthly Expenses</div>
+          <h3>Budget cycles that match how you actually spend</h3>
+          <p>Most people's months don't align with the calendar. Capital Tracker lets you define a custom start day (e.g. 25th), so each cycle covers your real pay period — not an arbitrary Jan 1 boundary.</p>
+          <ul class="check-list">
+            <li>Fixed expenses with per-item payment dates and "paid" checkboxes</li>
+            <li>Budget items with max spending and tracked "spent" amounts</li>
+            <li>Salary + previous balance → real leftover calculation</li>
+            <li>Templates auto-copy into each new cycle with one click</li>
+            <li>Mark cycles as closed with a confirmed final balance</li>
+          </ul>
+        </div>
+        <div>
+          <div class="mockup-card">
+            <div class="mockup-header">
+              <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+              <span style="font-size:12px;color:#64748b;margin-left:8px;font-weight:600;">April 2025 — Expense Cycle</span>
+            </div>
+            <div class="mockup-body">
+              <div class="cycle-header">
+                <div class="cycle-title">April 2025</div>
+                <span class="cycle-badge open">Open</span>
+              </div>
+              <!-- Fixed Expenses -->
+              <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Fixed Expenses</div>
+              <div class="cycle-row">
+                <div class="name">Rent</div>
+                <div class="day">Apr 1</div>
+                <div class="amount">€900</div>
+                <span class="paid yes">Paid</span>
+              </div>
+              <div class="cycle-row">
+                <div class="name">Internet</div>
+                <div class="day">Apr 5</div>
+                <div class="amount">€45</div>
+                <span class="paid yes">Paid</span>
+              </div>
+              <div class="cycle-row">
+                <div class="name">Gym</div>
+                <div class="day">Apr 10</div>
+                <div class="amount">€35</div>
+                <span class="paid no">Unpaid</span>
+              </div>
+              <div class="cycle-row">
+                <div class="name">Phone</div>
+                <div class="day">Apr 15</div>
+                <div class="amount">€28</div>
+                <span class="paid no">Unpaid</span>
+              </div>
+              <!-- Budget -->
+              <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px;">Budget Items</div>
+              <div class="cycle-row">
+                <div class="name">Groceries</div>
+                <div style="font-size:11px;color:#94a3b8;margin-right:12px;">€280 / €350 max</div>
+                <div style="flex:1;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;">
+                  <div style="width:80%;height:100%;background:#3b82f6;border-radius:2px;"></div>
+                </div>
+              </div>
+              <div class="cycle-row">
+                <div class="name">Dining out</div>
+                <div style="font-size:11px;color:#94a3b8;margin-right:12px;">€55 / €100 max</div>
+                <div style="flex:1;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;">
+                  <div style="width:55%;height:100%;background:#22c55e;border-radius:2px;"></div>
+                </div>
+              </div>
+              <!-- Summary -->
+              <div class="cycle-summary">
+                <div class="cycle-sum-item">
+                  <div class="cs-label">Salary</div>
+                  <div class="cs-val">€3,200</div>
+                </div>
+                <div class="cycle-sum-item">
+                  <div class="cs-label">Total Expenses</div>
+                  <div class="cs-val">€1,343</div>
+                </div>
+                <div class="cycle-sum-item">
+                  <div class="cs-label">Distributions</div>
+                  <div class="cs-val">€620</div>
+                </div>
+                <div class="cycle-sum-item">
+                  <div class="cs-label">Expected Left</div>
+                  <div class="cs-val green">€1,237</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SHOWCASE: GOALS -->
+  <section id="goals" style="background: #fff;">
+    <div class="container">
+      <div class="showcase-grid reverse">
+        <div class="showcase-text">
+          <div class="label">Financial Goals</div>
+          <h3>Track what matters with a clear finish line</h3>
+          <p>Whether you're saving for a home, an emergency fund, or a dream trip — Goals give you a target amount, a deadline, and automatic progress tracking tied to your real financial activity.</p>
+          <ul class="check-list">
+            <li>Progress tracked via distribution items, manual entries, or ad-hoc amounts</li>
+            <li>Historical contributions for months before cycle tracking started</li>
+            <li>Auto-computed state: Active, Completed, or Failed</li>
+            <li>Timeline chart showing actual vs. projected trajectory</li>
+            <li>Extra value with impact mode (reduce monthly or anticipate end date)</li>
+          </ul>
+        </div>
+        <div>
+          <div class="mockup-card">
+            <div class="mockup-header">
+              <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+              <span style="font-size:12px;color:#64748b;margin-left:8px;font-weight:600;">Goals — My Finances</span>
+            </div>
+            <div class="mockup-body">
+              <div class="goal-row">
+                <div style="width:36px;height:36px;background:#eff6ff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🏠</div>
+                <div class="goal-info">
+                  <div class="goal-name">Down Payment</div>
+                  <div class="goal-date">Target: Dec 2026 · €60,000</div>
+                </div>
+                <div class="goal-progress-wrap">
+                  <div class="goal-pct">72%</div>
+                  <div class="progress-bar"><div class="progress-fill" style="width:72%;background:#3b82f6;"></div></div>
+                  <div style="font-size:10px;color:#64748b;margin-top:3px;">€43,200 saved</div>
+                </div>
+                <span class="goal-status active">Active</span>
+              </div>
+              <div class="goal-row">
+                <div style="width:36px;height:36px;background:#f0fdf4;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">✈️</div>
+                <div class="goal-info">
+                  <div class="goal-name">Japan Trip</div>
+                  <div class="goal-date">Target: Sep 2025 · €5,000</div>
+                </div>
+                <div class="goal-progress-wrap">
+                  <div class="goal-pct">100%</div>
+                  <div class="progress-bar"><div class="progress-fill" style="width:100%;background:#22c55e;"></div></div>
+                  <div style="font-size:10px;color:#15803d;margin-top:3px;">€5,000 saved</div>
+                </div>
+                <span class="goal-status done">Completed</span>
+              </div>
+              <div class="goal-row">
+                <div style="width:36px;height:36px;background:#fff7ed;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🚗</div>
+                <div class="goal-info">
+                  <div class="goal-name">New Car Fund</div>
+                  <div class="goal-date">Target: Jun 2027 · €15,000</div>
+                </div>
+                <div class="goal-progress-wrap">
+                  <div class="goal-pct">31%</div>
+                  <div class="progress-bar"><div class="progress-fill" style="width:31%;background:#f59e0b;"></div></div>
+                  <div style="font-size:10px;color:#64748b;margin-top:3px;">€4,650 saved</div>
+                </div>
+                <span class="goal-status active">Active</span>
+              </div>
+              <!-- Progress chart stub -->
+              <div style="margin-top:16px;background:#f8fafc;border-radius:8px;padding:12px;">
+                <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:8px;">Down Payment — Contribution Timeline</div>
+                <svg width="100%" height="60" viewBox="0 0 400 60">
+                  <polyline points="0,55 40,50 80,44 120,42 160,36 200,30 240,25 280,18 320,12 360,8 400,5"
+                    fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+                  <polyline points="0,55 400,3" fill="none" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="4 3"/>
+                  <circle cx="400" cy="5" r="4" fill="#3b82f6"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SHOWCASE: GLANCES -->
+  <section style="background: #f8fafc;">
+    <div class="container">
+      <div style="text-align:center;max-width:620px;margin:0 auto 3.5rem;">
+        <div class="section-tag">Glances Panel</div>
+        <h2 class="section-title">Instant financial health, at a glance</h2>
+        <p class="section-desc">Colour-coded cards at the top of every dossier surface the most important signals — so you never miss an overdue expense or an underfunded emergency reserve.</p>
+      </div>
+      <div style="max-width:760px;margin:0 auto;">
+        <div class="mockup-card">
+          <div class="mockup-header">
+            <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+            <span style="font-size:12px;color:#64748b;margin-left:8px;font-weight:600;">Glances — My Finances</span>
+          </div>
+          <div class="mockup-body">
+            <!-- Glances row -->
+            <div class="glances-mockup">
+              <div class="gm-card">
+                <div class="gm-label">Capital</div>
+                <div class="gm-value">€82,450</div>
+                <div class="gm-sub green">▲ +3.2% this month</div>
+              </div>
+              <div class="gm-card amber">
+                <div class="gm-label">Current Cycle</div>
+                <div class="gm-value">€1,240</div>
+                <div class="gm-sub amber">⚠ Cycle closes in 3d</div>
+              </div>
+              <div class="gm-card red">
+                <div class="gm-label">Next Expense</div>
+                <div class="gm-value">Gym</div>
+                <div class="gm-sub red">Overdue — Apr 10</div>
+                <div style="margin-top:8px;"><span style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer;">Mark as paid</span></div>
+              </div>
+            </div>
+            <!-- Colour legend -->
+            <div style="display:flex;gap:1.5rem;margin-top:16px;padding:12px 16px;background:#f8fafc;border-radius:8px;font-size:12px;">
+              <div style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:#22c55e;display:inline-block;"></span><span style="color:#334155;">All good — no action needed</span></div>
+              <div style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:#f59e0b;display:inline-block;"></span><span style="color:#334155;">Attention — review soon</span></div>
+              <div style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:3px;background:#ef4444;display:inline-block;"></span><span style="color:#334155;">Urgent — action required</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SELF-HOSTED -->
+  <section class="self-hosted-section" id="self-hosted">
+    <div class="container">
+      <div class="self-hosted-inner">
+        <div>
+          <div style="display:inline-block;background:rgba(99,102,241,.2);color:#818cf8;font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:.3rem .8rem;border-radius:999px;margin-bottom:1rem;">Self-Hosted · Open Source</div>
+          <h2>Your data stays where it belongs — with you</h2>
+          <p>boodget runs on your own server. One Docker command and you're up. No subscriptions, no cloud account, no one looking at your spending habits but you.</p>
+          <div class="tech-pills">
+            <div class="tech-pill"><span class="highlight">Node.js</span> backend</div>
+            <div class="tech-pill"><span class="highlight">React 18</span> frontend</div>
+            <div class="tech-pill"><span class="highlight">SQLite</span> database</div>
+            <div class="tech-pill"><span class="highlight">Docker</span> deployment</div>
+            <div class="tech-pill"><span class="highlight">PWA</span> installable</div>
+            <div class="tech-pill">OIDC / SSO ready</div>
+            <div class="tech-pill">Zero dependencies cloud</div>
+          </div>
+        </div>
+        <div class="docker-card">
+          <div class="dc-line"><span class="dc-comment"># Clone & deploy in minutes</span></div>
+          <div class="dc-line">
+            <span class="dc-prompt">$</span>
+            <span class="dc-cmd">git clone https://github.com/<wbr>ViBE-MiNDS/capital-tracker</span>
+          </div>
+          <div class="dc-line">
+            <span class="dc-prompt">$</span>
+            <span class="dc-cmd">cd capital-tracker</span>
+          </div>
+          <div class="dc-line" style="margin-top:8px;">
+            <span class="dc-comment"># Edit SESSION_SECRET in docker-compose.yml</span>
+          </div>
+          <div class="dc-line">
+            <span class="dc-prompt">$</span>
+            <span class="dc-cmd">docker compose up --build -d</span>
+          </div>
+          <div class="dc-line" style="margin-top:8px;">
+            <span class="dc-out">✓ capital-tracker started</span>
+          </div>
+          <div class="dc-line">
+            <span class="dc-out">✓ Listening on http://localhost:3000</span>
+          </div>
+          <div class="dc-line">
+            <span class="dc-out">✓ SQLite database ready at /data/</span>
+          </div>
+          <div class="dc-line" style="margin-top:8px;">
+            <span class="dc-comment"># That's it. Not scary at all.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section style="background: #fff;">
+    <div class="container" style="text-align:center;">
+      <div class="section-tag">How it works</div>
+      <h2 class="section-title">Up and running in four steps</h2>
+      <div class="workflow-grid">
+        <div class="workflow-step">
+          <div class="workflow-num">1</div>
+          <div class="workflow-title">Deploy</div>
+          <div class="workflow-desc">Run one Docker command on any server or home lab. SQLite stores everything locally — no external database needed.</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-num">2</div>
+          <div class="workflow-title">Configure</div>
+          <div class="workflow-desc">Create a dossier, add your accounts, set a cycle start day, and define your expense template once.</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-num">3</div>
+          <div class="workflow-title">Track Monthly</div>
+          <div class="workflow-desc">Open a new cycle each month, record account snapshots, and mark expenses paid as the days go by.</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-num">4</div>
+          <div class="workflow-title">Stay Informed</div>
+          <div class="workflow-desc">Let Glances, push notifications, and Goals keep you on top of your financial situation — automatically.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="section-tag">Open Source</div>
+    <h2>Ready to stop being scared<br>of your finances?</h2>
+    <p>boodget is free, open source, and runs on your own hardware. No subscriptions. No analytics. Just you and your money.</p>
+    <div class="hero-actions" style="justify-content:center;">
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" class="btn-primary" target="_blank">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        Star on GitHub
+      </a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker/blob/main/README.md" class="btn-secondary" target="_blank">
+        Read the Docs
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div style="display:flex;align-items:center;justify-content:center;gap:.6rem;margin-bottom:.5rem;">
+      <svg width="24" height="24" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="fg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#38bdf8"/><stop offset="100%" stop-color="#6366f1"/></linearGradient></defs>
+        <rect width="512" height="512" rx="120" fill="url(#fg)"/>
+        <path d="M330 160 A120 120 0 1 0 330 352" fill="none" stroke="#fff" stroke-width="42" stroke-linecap="round"/>
+        <polyline points="190,300 240,260 280,280 330,210" fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+        <polygon points="330,210 312,214 326,228" fill="#fff"/>
+      </svg>
+      <span style="color:#94a3b8;font-weight:600;">boodget</span>
+    </div>
+    <div>because handling your money shouldn't be scary — self-hosted, private, yours.</div>
+    <div style="margin-top:.5rem;">
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a>
+    </div>
+  </footer>
+
+</body>
+</html>
