@@ -21,4 +21,8 @@
   <circle cx="312" cy="240" r="9" fill="white" opacity="0.8"/>
   <!-- Smile -->
   <path d="M220,295 Q256,318 292,295" fill="none" stroke="#1e1b4b" stroke-width="8" stroke-linecap="round"/>
+  <!-- Coin on chest -->
+  <circle cx="256" cy="348" r="34" fill="#f59e0b"/>
+  <circle cx="256" cy="348" r="25" fill="#fbbf24"/>
+  <circle cx="256" cy="348" r="15" fill="#f59e0b"/>
 </svg>
