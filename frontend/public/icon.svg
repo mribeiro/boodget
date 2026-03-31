@@ -1,17 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8"/>
-      <stop offset="100%" stop-color="#6366f1"/>
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="120" fill="url(#bg)"/>
-  <path
-    d="M330 160 A120 120 0 1 0 330 352"
-    fill="none" stroke="#ffffff" stroke-width="42" stroke-linecap="round"/>
-  <polyline
-    points="190,300 240,260 280,280 330,210"
-    fill="none" stroke="#ffffff" stroke-width="28"
-    stroke-linecap="round" stroke-linejoin="round"/>
-  <polygon points="330,210 312,214 326,228" fill="#ffffff"/>
+  <!-- Ghost body -->
+  <path d="M136,400 L136,280 A120,120 0 0,1 376,280 L376,400 Q346,368 316,400 Q286,432 256,400 Q226,368 196,400 Q166,432 136,400 Z"
+    fill="white"/>
+  <!-- Eyes -->
+  <circle cx="210" cy="250" r="26" fill="#1e1b4b"/>
+  <circle cx="302" cy="250" r="26" fill="#1e1b4b"/>
+  <!-- Eye shine -->
+  <circle cx="220" cy="240" r="9" fill="white"/>
+  <circle cx="312" cy="240" r="9" fill="white"/>
+  <!-- Smile -->
+  <path d="M220,295 Q256,318 292,295" fill="none" stroke="#1e1b4b" stroke-width="8" stroke-linecap="round"/>
+  <!-- Coin on chest -->
+  <circle cx="256" cy="348" r="34" fill="#f59e0b"/>
+  <circle cx="256" cy="348" r="25" fill="#fbbf24"/>
+  <circle cx="256" cy="348" r="15" fill="#f59e0b"/>
 </svg>

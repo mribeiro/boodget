@@ -1,4 +1,4 @@
-# CLAUDE.md — Capital Tracker
+# CLAUDE.md — boodget
 
 This file provides AI assistants with the context needed to understand and work effectively in this codebase.
 
@@ -14,7 +14,7 @@ Rules:
 
 ## Project Overview
 
-**Capital Tracker** is a self-hosted personal finance application for tracking monthly capital snapshots. Users define accounts (investments, savings, etc.), record their value each month, and visualize their capital evolution over time.
+**boodget** is a self-hosted personal finance application for tracking monthly capital snapshots. Users define accounts (investments, savings, etc.), record their value each month, and visualize their capital evolution over time.
 
 Key concepts:
 - **Dossier**: A named container for a set of accounts, monthly snapshots, and expense cycles. Owned by one user, shareable with others.

@@ -1,5 +1,5 @@
 {
-  "name": "Capital Tracker Dev",
+  "name": "boodget Dev",
   "dockerComposeFile": ["../docker-compose.yml", "../docker-compose.devcontainer.yml"],
   "service": "capital-tracker",
   "workspaceFolder": "/workspaces/money_manager",

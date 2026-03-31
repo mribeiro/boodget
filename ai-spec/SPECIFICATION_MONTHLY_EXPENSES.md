@@ -1,4 +1,4 @@
-# Capital Tracker — Monthly Expenses Specification
+# boodget — Monthly Expenses Specification
 
 ## 0. Instructions for Claude Code
 

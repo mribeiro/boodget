@@ -1,4 +1,4 @@
-# Capital Tracker — Emergency Fund Specification
+# boodget — Emergency Fund Specification
 
 ## 0. Instructions for Claude Code
 
