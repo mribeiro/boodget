@@ -53,7 +53,7 @@ export default function LoginPage({ onLogin }) {
             C
           </div>
           <div>
-            <h1 style={{ fontSize: 18, marginBottom: 0 }}>Capital Tracker</h1>
+            <h1 style={{ fontSize: 18, marginBottom: 0 }}>boodget</h1>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-# Capital Tracker — Backend Logging Specification
+# boodget — Backend Logging Specification
 
 ## 0. Instructions for Claude Code
 

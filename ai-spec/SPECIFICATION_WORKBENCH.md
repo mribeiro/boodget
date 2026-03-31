@@ -1,4 +1,4 @@
-# Capital Tracker — Workbench Specification
+# boodget — Workbench Specification
 
 ## 0. Instructions for Claude Code
 

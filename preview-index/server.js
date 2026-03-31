@@ -62,7 +62,7 @@ function renderPage(containers) {
   <meta charset="UTF-8">
   <meta http-equiv="refresh" content="30">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Capital Tracker — Preview Environments</title>
+  <title>boodget — Preview Environments</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; padding: 0; background: #f5f5f5; color: #222; }
     header { background: #1a237e; color: #fff; padding: 20px 32px; }
@@ -80,7 +80,7 @@ function renderPage(containers) {
 </head>
 <body>
   <header>
-    <h1>Capital Tracker — Preview Environments</h1>
+    <h1>boodget — Preview Environments</h1>
     <p>Auto-refreshes every 30 seconds &bull; ${containers.length} environment${containers.length !== 1 ? 's' : ''} found</p>
   </header>
   <main>

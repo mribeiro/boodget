@@ -73,7 +73,7 @@ async function start() {
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
-    console.log(`Capital Tracker running on port ${PORT}`);
+    console.log(`boodget running on port ${PORT}`);
 
     // Start push notification scheduler (runs every minute)
     const cron = require('node-cron');

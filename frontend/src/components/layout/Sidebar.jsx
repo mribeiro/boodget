@@ -31,7 +31,7 @@ export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChan
         <div className="sidebar-logo-icon" onClick={() => navToPath('/')} style={{ cursor: 'pointer' }}>
           C
         </div>
-        <span className="sidebar-logo-text">Capital Tracker</span>
+        <span className="sidebar-logo-text">boodget</span>
       </div>
 
       {/* Nav */}

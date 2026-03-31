@@ -1,4 +1,4 @@
-# Capital Tracker — Application Specification
+# boodget — Application Specification
 
 ## 0. Instructions for Claude Code
 

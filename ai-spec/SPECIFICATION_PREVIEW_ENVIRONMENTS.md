@@ -1,4 +1,4 @@
-# Capital Tracker — Preview Environments Specification
+# boodget — Preview Environments Specification
 
 ## 0. Instructions for Claude Code
 

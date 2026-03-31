@@ -1,4 +1,4 @@
-# Capital Tracker — Goals Specification
+# boodget — Goals Specification
 
 ## 0. Instructions for Claude Code
 

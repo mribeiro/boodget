@@ -1,4 +1,4 @@
-# Capital Tracker — Glances Specification
+# boodget — Glances Specification
 
 ## 0. Status
 
