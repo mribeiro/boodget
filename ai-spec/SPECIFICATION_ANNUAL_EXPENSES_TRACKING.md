@@ -1,4 +1,4 @@
-# Capital Tracker — Annual Expenses Tracking Specification
+# boodget — Annual Expenses Tracking Specification
 
 ## 0. Instructions for Claude Code
 

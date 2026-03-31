@@ -44,16 +44,26 @@ export default function LoginPage({ onLogin }) {
       <div className="form-card">
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #38bdf8, #6366f1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 18, fontWeight: 700, flexShrink: 0,
-          }}>
-            C
-          </div>
+          <svg width="36" height="36" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+            <defs>
+              <linearGradient id="lg-login" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#8b5cf6"/>
+                <stop offset="100%" stopColor="#38bdf8"/>
+              </linearGradient>
+            </defs>
+            <rect width="512" height="512" rx="120" fill="url(#lg-login)"/>
+            <path d="M136,400 L136,280 A120,120 0 0,1 376,280 L376,400 Q346,368 316,400 Q286,432 256,400 Q226,368 196,400 Q166,432 136,400 Z" fill="white"/>
+            <circle cx="210" cy="250" r="26" fill="#1e1b4b"/>
+            <circle cx="302" cy="250" r="26" fill="#1e1b4b"/>
+            <circle cx="220" cy="240" r="9" fill="white"/>
+            <circle cx="312" cy="240" r="9" fill="white"/>
+            <path d="M220,295 Q256,318 292,295" fill="none" stroke="#1e1b4b" strokeWidth="8" strokeLinecap="round"/>
+            <circle cx="256" cy="348" r="34" fill="#f59e0b"/>
+            <circle cx="256" cy="348" r="25" fill="#fbbf24"/>
+            <circle cx="256" cy="348" r="15" fill="#f59e0b"/>
+          </svg>
           <div>
-            <h1 style={{ fontSize: 18, marginBottom: 0 }}>Capital Tracker</h1>
+            <h1 style={{ fontSize: 18, marginBottom: 0 }}>boodget</h1>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-# Capital Tracker — Paperless-ngx Integration Specification
+# boodget — Paperless-ngx Integration Specification
 
 ## 0. Instructions for Claude Code
 

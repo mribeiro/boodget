@@ -1,7 +1,7 @@
 {
-  "name": "Capital Tracker",
-  "short_name": "Capital",
-  "description": "Personal finance tracking",
+  "name": "boodget",
+  "short_name": "boodget",
+  "description": "Because handling your money shouldn't be scary",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f0f4f8",

@@ -4,7 +4,7 @@ self.addEventListener('push', function (event) {
   var data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { /* ignore */ }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Capital Tracker', {
+    self.registration.showNotification(data.title || 'boodget', {
       body: data.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',

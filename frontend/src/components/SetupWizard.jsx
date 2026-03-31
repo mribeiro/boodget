@@ -27,7 +27,7 @@ export default function SetupWizard({ onComplete }) {
   return (
     <div className="form-centered">
       <div className="form-card">
-        <h1>Welcome to Capital Tracker</h1>
+        <h1>Welcome to boodget</h1>
         <p className="subtitle">Create your admin account to get started.</p>
 
         <div className="password-rules">

@@ -1,4 +1,4 @@
-# Capital Tracker — UI / Design System Specification
+# boodget — UI / Design System Specification
 
 ## 0. Instructions for Claude Code
 
@@ -305,7 +305,7 @@ The main column has `margin-left` equal to the current sidebar width (toggled vi
 
 ```
 ┌──────────────────────────┐
-│  Logo + "Capital Tracker" │  ← always visible (icon-only when collapsed)
+│  Logo + "boodget" │  ← always visible (icon-only when collapsed)
 ├──────────────────────────┤
 │  Dossier selector area   │  ← hidden when collapsed
 ├──────────────────────────┤
@@ -334,7 +334,7 @@ The main column has `margin-left` equal to the current sidebar width (toggled vi
 
 - Height: 56 px.
 - Icon: a circular gradient element (`background: linear-gradient(135deg, #38bdf8, #6366f1)`, 28 px × 28 px, `border-radius: 50%`) with a capital “C” in white, 16 px, weight 700.
-- Text “Capital Tracker”: 15 px, weight 700, `var(--sidebar-logo-text)`. Hidden when collapsed (use `opacity: 0; width: 0; overflow: hidden` with transition).
+- Text “boodget”: 15 px, weight 700, `var(--sidebar-logo-text)`. Hidden when collapsed (use `opacity: 0; width: 0; overflow: hidden` with transition).
 - A thin bottom border: `1px solid var(--sidebar-border)`.
 
 #### Dossier selector area
