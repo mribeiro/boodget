@@ -130,6 +130,11 @@ export default function NotificationSettings() {
 
       const { publicKey } = await api.getVapidPublicKey();
       const reg = await navigator.serviceWorker.ready;
+      // Unsubscribe any existing subscription first — if the server's VAPID keys
+      // changed (e.g. DB wiped) the browser will reject a subscribe() with a key
+      // mismatch error unless we clear the stale subscription first.
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
