@@ -75,8 +75,7 @@ router.post('/test', async (req, res) => {
     });
   }
 
-  const allFailed = results.every((r) => !r.success);
-  res.status(allFailed ? 502 : 200).json({ results });
+  res.json({ results });
 });
 
 module.exports = router;

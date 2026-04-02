@@ -177,6 +177,7 @@ export default function NotificationSettings() {
       setTestResult({ ok: false, detail: err.message });
     } finally {
       setTestingPush(false);
+      await loadData();
       setTimeout(() => setTestResult(null), 4000);
     }
   }
