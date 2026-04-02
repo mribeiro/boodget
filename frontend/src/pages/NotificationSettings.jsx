@@ -112,7 +112,13 @@ export default function NotificationSettings() {
 
   async function handleEnableOnDevice() {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      setError('Push notifications are not supported in this browser.');
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+      if (isIOS && !isStandalone) {
+        setError('On iOS, push notifications are only available when the app is installed on your Home Screen. Tap the Share button (⬆) in Safari and select "Add to Home Screen", then open the app from there.');
+      } else {
+        setError('Push notifications are not supported in this browser.');
+      }
       return;
     }
     setSubscribing(true);
@@ -188,6 +194,9 @@ export default function NotificationSettings() {
 
   const isCurrentDeviceSubscribed = !!currentEndpoint;
   const notificationsBlocked = permissionState === 'denied';
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  const showIOSHint = isIOS && !isStandalone && !isCurrentDeviceSubscribed;
 
   return (
     <div className="page-fade-in" style={{ padding: 'var(--space-6)', maxWidth: 640 }}>
@@ -220,6 +229,12 @@ export default function NotificationSettings() {
       {/* Device registration */}
       <div className="card card--flat" style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
         <h2 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 var(--space-3)' }}>This Device</h2>
+
+        {showIOSHint && (
+          <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+            On iOS, push notifications require the app to be installed on your Home Screen. Tap the Share button (⬆) in Safari and select <strong>"Add to Home Screen"</strong>, then open the app from there.
+          </div>
+        )}
 
         {notificationsBlocked ? (
           <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
