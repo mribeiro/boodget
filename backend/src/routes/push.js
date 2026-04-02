@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const { getVapidKeys } = require('../notifications/push');
+const { getVapidKeys, sendPush } = require('../notifications/push');
 
 // GET /api/push/vapid-public-key
 router.get('/vapid-public-key', (req, res) => {
@@ -41,6 +41,39 @@ router.get('/subscriptions', (req, res) => {
     .prepare('SELECT id, endpoint, created_at FROM push_subscriptions WHERE user_id = ?')
     .all(req.user.id);
   res.json(subs);
+});
+
+// POST /api/push/test
+router.post('/test', async (req, res) => {
+  const subscriptions = db
+    .prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
+    .all(req.user.id);
+
+  if (subscriptions.length === 0) {
+    return res.status(400).json({ error: 'No push subscriptions registered for this user.' });
+  }
+
+  const results = [];
+  for (const sub of subscriptions) {
+    const result = await sendPush(sub, {
+      type: 'test',
+      title: 'Test notification',
+      body: 'Push notifications are working correctly.',
+      url: '/notifications',
+    });
+    if (!result.success && (result.statusCode === 410 || result.statusCode === 404)) {
+      db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
+      console.log(`[push] Removed expired subscription for user ${req.user.username} (test endpoint)`);
+    }
+    results.push({
+      endpoint: sub.endpoint,
+      success: result.success,
+      ...(result.success ? {} : { statusCode: result.statusCode }),
+    });
+  }
+
+  const allFailed = results.every((r) => !r.success);
+  res.status(allFailed ? 502 : 200).json({ results });
 });
 
 module.exports = router;

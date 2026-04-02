@@ -360,6 +360,7 @@ GET    /api/push/vapid-public-key
 POST   /api/push/subscribe              { endpoint, keys: { p256dh, auth } }
 DELETE /api/push/subscribe              { endpoint }
 GET    /api/push/subscriptions
+POST   /api/push/test
 
 GET    /api/notifications/settings
 PATCH  /api/notifications/settings      { enabled?, send_hour?, send_minute?, repeat_enabled?, repeat_interval_days? }
@@ -464,6 +465,7 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 | `[settings]` | Updated (lists changed field names) |
 | `[goals]` | Created, deleted |
 | `[emergency-fund]` | Account selection updated |
+| `[push]` | Generated new VAPID keys; removed expired subscription (scheduler and test endpoint) |
 
 ## No Test Suite
 

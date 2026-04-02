@@ -28,6 +28,8 @@ export default function NotificationSettings() {
   const [subscribing, setSubscribing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testingPush, setTestingPush] = useState(false);
+  const [testResult, setTestResult] = useState(null); // null | 'success' | 'error'
   const [localHour, setLocalHour] = useState(9);
   const [localMinute, setLocalMinute] = useState(0);
 
@@ -152,6 +154,21 @@ export default function NotificationSettings() {
     }
   }
 
+  async function handleTestPush() {
+    setTestingPush(true);
+    setTestResult(null);
+    try {
+      const data = await api.testPush();
+      const anySuccess = data.results.some((r) => r.success);
+      setTestResult(anySuccess ? 'success' : 'error');
+    } catch (err) {
+      setTestResult('error');
+    } finally {
+      setTestingPush(false);
+      setTimeout(() => setTestResult(null), 4000);
+    }
+  }
+
   async function handleDossierToggle(dossierId, checked) {
     const next = checked ? [...optedIn, dossierId] : optedIn.filter((id) => id !== dossierId);
     setSaving(true);
@@ -245,6 +262,29 @@ export default function NotificationSettings() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {subscriptions.length > 0 && (
+          <div style={{ marginTop: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <button
+              className="btn btn-ghost"
+              onClick={handleTestPush}
+              disabled={testingPush}
+              style={{ fontSize: 13 }}
+            >
+              {testingPush ? 'Sending…' : 'Send test notification'}
+            </button>
+            {testResult === 'success' && (
+              <span style={{ fontSize: 12, color: 'var(--color-success-text)' }}>
+                ✓ Notification sent — check your device
+              </span>
+            )}
+            {testResult === 'error' && (
+              <span style={{ fontSize: 12, color: 'var(--color-danger-text)' }}>
+                Failed — check console or subscription status
+              </span>
+            )}
           </div>
         )}
       </div>
