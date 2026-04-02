@@ -360,6 +360,7 @@ GET    /api/push/vapid-public-key
 POST   /api/push/subscribe              { endpoint, keys: { p256dh, auth } }
 DELETE /api/push/subscribe              { endpoint }
 GET    /api/push/subscriptions
+POST   /api/push/test
 
 GET    /api/notifications/settings
 PATCH  /api/notifications/settings      { enabled?, send_hour?, send_minute?, repeat_enabled?, repeat_interval_days? }
@@ -437,6 +438,9 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 | `DB_PATH` | No | SQLite path. Default: `./capital-tracker.db` |
 | `NODE_ENV` | No | `production` (default), `dev` (teal navbar), `ephemeral` (rose navbar + DB wiped on start). |
 | `SEED_ON_EMPTY` | No | `"true"` to seed preview data on empty DB (one `preview` user, six dossiers). |
+| `VAPID_PUBLIC_KEY` | No | Base64url VAPID public key. If set together with `VAPID_PRIVATE_KEY`, overrides auto-generated DB keys. Recommended in production to pin keys across restarts. |
+| `VAPID_PRIVATE_KEY` | No | Base64url VAPID private key. Must be set together with `VAPID_PUBLIC_KEY`. |
+| `VAPID_SUBJECT` | No | VAPID subject URI (`mailto:` or `https://`). Default: `mailto:admin@capitaltracker.local`. Set to a real email/URL — some push services (Apple) reject `.local` domains. |
 | `OIDC_ENABLED` | No | `true` to enable OIDC SSO. |
 | `OIDC_ISSUER_URL` | If OIDC | OIDC provider issuer URL. |
 | `OIDC_CLIENT_ID` | If OIDC | OIDC client ID. |
@@ -464,6 +468,7 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 | `[settings]` | Updated (lists changed field names) |
 | `[goals]` | Created, deleted |
 | `[emergency-fund]` | Account selection updated |
+| `[push]` | Generated new VAPID keys; removed expired subscription (scheduler and test endpoint) |
 
 ## No Test Suite
 
