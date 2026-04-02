@@ -11,15 +11,13 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/data
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - SESSION_SECRET=change-this-to-a-long-random-secret
       - DB_PATH=/data/capital-tracker.db
-      # Push notifications — VAPID (optional but recommended for stable keys)
-      # Generate once with: node -e "const wp=require('web-push');const k=wp.generateVAPIDKeys();console.log(JSON.stringify(k))"
-      # - VAPID_PUBLIC_KEY=your-base64url-public-key
-      # - VAPID_PRIVATE_KEY=your-base64url-private-key
-      # - VAPID_SUBJECT=mailto:you@yourdomain.com
+      # Push notifications — set in .env (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT)
       # OIDC (optional — uncomment and fill in to enable)
       # - OIDC_ENABLED=true
       # - OIDC_ISSUER_URL=https://your-oidc-provider.com
