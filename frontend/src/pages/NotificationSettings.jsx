@@ -166,9 +166,15 @@ export default function NotificationSettings() {
     try {
       const data = await api.testPush();
       const anySuccess = data.results.some((r) => r.success);
-      setTestResult(anySuccess ? 'success' : 'error');
+      if (anySuccess) {
+        setTestResult({ ok: true });
+      } else {
+        const first = data.results[0];
+        const detail = first.statusCode ? `status ${first.statusCode}` : first.message || 'unknown error';
+        setTestResult({ ok: false, detail });
+      }
     } catch (err) {
-      setTestResult('error');
+      setTestResult({ ok: false, detail: err.message });
     } finally {
       setTestingPush(false);
       setTimeout(() => setTestResult(null), 4000);
@@ -290,14 +296,14 @@ export default function NotificationSettings() {
             >
               {testingPush ? 'Sending…' : 'Send test notification'}
             </button>
-            {testResult === 'success' && (
+            {testResult?.ok === true && (
               <span style={{ fontSize: 12, color: 'var(--color-success-text)' }}>
                 ✓ Notification sent — check your device
               </span>
             )}
-            {testResult === 'error' && (
+            {testResult?.ok === false && (
               <span style={{ fontSize: 12, color: 'var(--color-danger-text)' }}>
-                Failed — check console or subscription status
+                Failed: {testResult.detail}
               </span>
             )}
           </div>

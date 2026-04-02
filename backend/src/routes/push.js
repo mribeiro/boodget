@@ -61,14 +61,17 @@ router.post('/test', async (req, res) => {
       body: 'Push notifications are working correctly.',
       url: '/notifications',
     });
-    if (!result.success && (result.statusCode === 410 || result.statusCode === 404)) {
-      db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
-      console.log(`[push] Removed expired subscription for user ${req.user.username} (test endpoint)`);
+    if (!result.success) {
+      console.log(`[push] Test send failed for user ${req.user.username}: status=${result.statusCode} message=${result.message}`);
+      if (result.statusCode === 410 || result.statusCode === 404) {
+        db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
+        console.log(`[push] Removed expired subscription for user ${req.user.username} (test endpoint)`);
+      }
     }
     results.push({
       endpoint: sub.endpoint,
       success: result.success,
-      ...(result.success ? {} : { statusCode: result.statusCode }),
+      ...(result.success ? {} : { statusCode: result.statusCode, message: result.message }),
     });
   }
 

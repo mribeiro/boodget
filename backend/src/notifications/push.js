@@ -26,7 +26,7 @@ async function sendPush(subscription, payload) {
     );
     return { success: true };
   } catch (err) {
-    return { success: false, statusCode: err.statusCode };
+    return { success: false, statusCode: err.statusCode, message: err.body || err.message };
   }
 }
 
