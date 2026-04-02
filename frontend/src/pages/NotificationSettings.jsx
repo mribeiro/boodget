@@ -200,6 +200,7 @@ export default function NotificationSettings() {
   }
 
   const isCurrentDeviceSubscribed = !!currentEndpoint;
+  const isRegisteredOnBackend = subscriptions.some((s) => s.endpoint === currentEndpoint);
   const notificationsBlocked = permissionState === 'denied';
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
@@ -247,9 +248,23 @@ export default function NotificationSettings() {
           <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
             Notifications are blocked in your browser settings. To enable them, update your browser's notification permissions for this site.
           </div>
-        ) : isCurrentDeviceSubscribed ? (
+        ) : isCurrentDeviceSubscribed && isRegisteredOnBackend ? (
           <div style={{ color: 'var(--color-success-text)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <span>✓</span> Notifications enabled on this device
+          </div>
+        ) : isCurrentDeviceSubscribed && !isRegisteredOnBackend ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
+              This device is subscribed in the browser but not registered on the server. Click below to fix it.
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleEnableOnDevice}
+              disabled={subscribing}
+              style={{ fontSize: 13 }}
+            >
+              {subscribing ? 'Registering…' : 'Re-register this device'}
+            </button>
           </div>
         ) : (
           <button
