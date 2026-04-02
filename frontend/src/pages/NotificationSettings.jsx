@@ -30,22 +30,25 @@ export default function NotificationSettings() {
   const [error, setError] = useState('');
   const [testingPush, setTestingPush] = useState(false);
   const [testResult, setTestResult] = useState(null); // null | 'success' | 'error'
+  const [vapidInfo, setVapidInfo] = useState(null);
   const [localHour, setLocalHour] = useState(9);
   const [localMinute, setLocalMinute] = useState(0);
 
   // Load all data
   const loadData = useCallback(async () => {
     try {
-      const [s, di, subs, dos] = await Promise.all([
+      const [s, di, subs, dos, vi] = await Promise.all([
         api.getNotificationSettings(),
         api.getNotificationDossiers(),
         api.getPushSubscriptions(),
         api.getDossiers(),
+        api.getVapidInfo(),
       ]);
       setSettings(s);
       setOptedIn(di);
       setSubscriptions(subs);
       setDossiers(dos);
+      setVapidInfo(vi);
       const local = utcToLocal(s.send_hour, s.send_minute);
       setLocalHour(local.hour);
       setLocalMinute(local.minute);
@@ -411,6 +414,28 @@ export default function NotificationSettings() {
           ))
         )}
       </div>
+
+      {/* VAPID debug info */}
+      {vapidInfo && (
+        <div className="card card--flat" style={{ marginTop: 'var(--space-4)', padding: 'var(--space-4)' }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 var(--space-3)', color: 'var(--text-muted)' }}>VAPID Config (debug)</h2>
+          <table style={{ fontSize: 12, borderCollapse: 'collapse', width: '100%' }}>
+            <tbody>
+              {[
+                ['Source', vapidInfo.fromEnv ? 'Environment variables ✓' : 'Auto-generated (DB)'],
+                ['Subject', vapidInfo.subject],
+                ['Public key', vapidInfo.publicKey],
+                ['Private key', vapidInfo.privateKey],
+              ].map(([label, val]) => (
+                <tr key={label}>
+                  <td style={{ color: 'var(--text-muted)', paddingRight: 16, paddingBottom: 4, whiteSpace: 'nowrap' }}>{label}</td>
+                  <td style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{val}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

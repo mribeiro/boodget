@@ -10,6 +10,20 @@ router.get('/vapid-public-key', (req, res) => {
   res.json({ publicKey: keys.publicKey });
 });
 
+// GET /api/push/vapid-info  — debug: masked key info to verify correct config
+router.get('/vapid-info', (req, res) => {
+  const keys = getVapidKeys();
+  const subject = process.env.VAPID_SUBJECT || 'mailto:admin@capitaltracker.local';
+  const fromEnv = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+  const mask = (s) => s ? `${s.slice(0, 6)}…${s.slice(-6)}` : null;
+  res.json({
+    subject,
+    fromEnv,
+    publicKey: mask(keys?.publicKey),
+    privateKey: mask(keys?.privateKey),
+  });
+});
+
 // POST /api/push/subscribe
 router.post('/subscribe', (req, res) => {
   const { endpoint, keys } = req.body;

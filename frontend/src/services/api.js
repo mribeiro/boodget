@@ -197,6 +197,7 @@ export const api = {
   unsubscribePush: (endpoint) => request('DELETE', '/push/subscribe', { endpoint }),
   getPushSubscriptions: () => request('GET', '/push/subscriptions'),
   testPush: () => request('POST', '/push/test'),
+  getVapidInfo: () => request('GET', '/push/vapid-info'),
 
   // Push notifications — user settings & dossier opt-in
   getNotificationSettings: () => request('GET', '/notifications/settings'),
