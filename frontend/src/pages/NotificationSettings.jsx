@@ -287,7 +287,7 @@ export default function NotificationSettings() {
           </div>
         )}
 
-        {subscriptions.length > 0 && (
+        {isCurrentDeviceSubscribed && (
           <div style={{ marginTop: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             <button
               className="btn btn-ghost"
