@@ -2,7 +2,7 @@ import { useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../App';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUser, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faUser, faBell, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
 export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChange }) {
   const { user } = useContext(AuthContext);
@@ -60,6 +60,14 @@ export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChan
         >
           <span className="sidebar-nav-icon"><FontAwesomeIcon icon={faUser} /></span>
           <span className="sidebar-nav-label">Users</span>
+        </button>
+        <button
+          className={`sidebar-nav-item${location.pathname === '/notifications' ? ' active' : ''}`}
+          data-tooltip="Notifications"
+          onClick={() => navToPath('/notifications')}
+        >
+          <span className="sidebar-nav-icon"><FontAwesomeIcon icon={faBell} /></span>
+          <span className="sidebar-nav-label">Notifications</span>
         </button>
       </nav>
 
