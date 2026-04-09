@@ -431,8 +431,6 @@ export default function CycleEditor() {
           <FontAwesomeIcon icon={faTrash} /><span className="cycle-toolbar-label">Delete</span>
         </button>
       </div>
-      {/* Spacer so fixed toolbar doesn't overlap content on mobile */}
-      <div className="cycle-toolbar-spacer" />
 
       {/* ── Income row (edit mode) ── */}
       {editingInfo && (
@@ -649,6 +647,8 @@ export default function CycleEditor() {
         />
       )}
       <Toast message={toast.msg} visible={toast.show} />
+      {/* Spacer so fixed bottom toolbar doesn't overlap last section on mobile */}
+      <div className="cycle-toolbar-spacer" />
     </div>
   );
 }
