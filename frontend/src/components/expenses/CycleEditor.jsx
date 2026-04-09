@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
   faFileArrowDown, faSpinner, faFileLines, faCheck, faArrowRotateLeft,
-  faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave,
+  faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave, faSackDollar,
   faCircleCheck, faClock, faCalendarDays, faLeaf,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
@@ -427,7 +427,7 @@ export default function CycleEditor() {
         <KpiStrip style={{ marginBottom: cycle.is_closed ? '0.75rem' : 0 }} items={[
           { label: 'Salary', value: fmt(cycle.salary), icon: faMoneyBillWave },
           { label: 'Prev. bal.', value: fmt(cycle.previous_balance), icon: faWallet },
-          { label: 'Available', value: fmt(summary.total_available) },
+          { label: 'Available', value: fmt(summary.total_available), icon: faSackDollar },
           { label: 'Expenses', value: fmt(summary.total_expenses), icon: faReceipt, highlight: 'danger' },
           { label: 'Paid', value: fmt(summary.total_expenses_paid), icon: faCircleCheck, highlight: 'success' },
           { label: 'Unpaid', value: fmt(summary.total_expenses_unpaid), icon: faClock, highlight: summary.total_expenses_unpaid > 0 ? 'warning' : 'neutral' },
