@@ -431,6 +431,7 @@ export default function CycleEditor() {
           { label: 'Expenses', value: fmt(summary.total_expenses), icon: faReceipt, highlight: 'danger' },
           { label: 'Paid', value: fmt(summary.total_expenses_paid), icon: faCircleCheck, highlight: 'success' },
           { label: 'Unpaid', value: fmt(summary.total_expenses_unpaid), icon: faClock, highlight: summary.total_expenses_unpaid > 0 ? 'warning' : 'neutral' },
+          { label: 'Curr. balance', value: fmt(expectedCurrentBalance), icon: faWallet, highlight: expectedCurrentBalance < 0 ? 'danger' : 'success' },
           { label: 'Exp. balance', value: fmt(summary.expected_balance), highlight: summary.expected_balance < 0 ? 'danger' : 'success', large: true },
         ]} />
 
