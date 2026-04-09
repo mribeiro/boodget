@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import KpiBlock from './ui/KpiBlock';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -188,6 +189,36 @@ export default function MonthEditor() {
           </button>
         </div>
       )}
+
+      {/* ── KPI strip ── */}
+      {monthData && monthData.entries.length > 0 && (() => {
+        const filledCount = monthData.entries.filter((e) => values[e.id] !== '').length;
+        const total = monthData.entries.reduce((s, e) => {
+          const v = parseFloat(values[e.id]);
+          return s + (isNaN(v) ? 0 : v);
+        }, 0);
+        const deltaSum = monthData.entries.reduce((s, e) => {
+          if (e.prev_value == null) return s;
+          const v = parseFloat(values[e.id]);
+          if (isNaN(v)) return s;
+          return s + (v - e.prev_value);
+        }, 0);
+        const hasDelta = monthData.entries.some((e) => e.prev_value != null && values[e.id] !== '');
+        const fmt = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' €';
+        return (
+          <div className="cycle-kpi-row" style={{ marginBottom: '1.25rem' }}>
+            <KpiBlock label="Entries filled" value={`${filledCount} / ${monthData.entries.length}`} highlight={filledCount === monthData.entries.length ? 'success' : 'neutral'} />
+            <KpiBlock label="Total entered" value={filledCount > 0 ? fmt(total) : '—'} large />
+            {hasDelta && (
+              <KpiBlock
+                label="Net change"
+                value={`${deltaSum >= 0 ? '+' : ''}${fmt(deltaSum)}`}
+                highlight={deltaSum > 0 ? 'success' : deltaSum < 0 ? 'danger' : 'neutral'}
+              />
+            )}
+          </div>
+        );
+      })()}
 
       <form onSubmit={handleSubmit}>
         <div className="month-editor">

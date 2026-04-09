@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPencil, faTrash, faPlus, faXmark, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faReceipt, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
+import CollapsibleSection from '../ui/CollapsibleSection';
+import Toast from '../ui/Toast';
 
 function formatValue(v) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' €';
@@ -57,12 +59,21 @@ export default function ExpenseTemplate({ dossierId }) {
   const [items, setItems] = useState([]);
   const [cycleStartDay, setCycleStartDay] = useState(25);
   const [paperlessActive, setPaperlessActive] = useState(false);
-  const [activeTab, setActiveTab] = useState('expense');
+  const [activeSection, setActiveSection] = useState('expense'); // tracks which modal to open
+  const [expenseCollapsed, setExpenseCollapsed] = useState(false);
+  const [distCollapsed, setDistCollapsed] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [error, setError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
+  const [toast, setToast] = useState({ msg: '', show: false });
+  const toastTimer = useRef(null);
+  function showToast(msg) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, show: true });
+    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
+  }
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -102,6 +113,7 @@ export default function ExpenseTemplate({ dossierId }) {
         try {
           await api.deleteTemplateItem(dossierId, item.id);
           setItems((prev) => prev.filter((i) => i.id !== item.id));
+          showToast('Item deleted');
         } catch (err) {
           setError(err.message);
         }
@@ -133,9 +145,11 @@ export default function ExpenseTemplate({ dossierId }) {
       if (itemId) {
         const updated = await api.updateTemplateItem(dossierId, itemId, data);
         setItems((prev) => prev.map((i) => (i.id === itemId ? updated : i)));
+        showToast('Item updated');
       } else {
-        const created = await api.createTemplateItem(dossierId, { ...data, section: activeTab });
+        const created = await api.createTemplateItem(dossierId, { ...data, section: activeSection });
         setItems((prev) => [...prev, created]);
+        showToast('Item added');
       }
       setShowAddModal(false);
       setEditingItem(null);
@@ -144,109 +158,42 @@ export default function ExpenseTemplate({ dossierId }) {
     }
   }
 
-  const rawTabItems = items.filter((i) => i.section === activeTab);
-  const tabItems = activeTab === 'expense'
-    ? sortTemplateExpenses(rawTabItems, cycleStartDay)
-    : rawTabItems;
+  const expenseItems = sortTemplateExpenses(items.filter((i) => i.section === 'expense'), cycleStartDay);
+  const distItems = items.filter((i) => i.section === 'distribution');
 
   return (
-    <div>
-      {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {error && <div className="alert alert-error">{error}</div>}
 
-      <div className="tabs" style={{ marginBottom: 'var(--space-4)' }}>
-        {['expense', 'distribution'].map((tab) => (
-          <button
-            key={tab}
-            className={`tab-btn${activeTab === tab ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab === 'expense' ? 'Expenses' : 'Distributions'}
-          </button>
-        ))}
-      </div>
-
-      {tabItems.length === 0 ? (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-          No {activeTab === 'expense' ? 'expenses' : 'distributions'} in template yet.
-        </p>
-      ) : activeTab === 'expense' ? (
-        <div className="mobile-cards table-container" style={{ marginBottom: '0.75rem' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Type</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value / Max</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Day</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
-                {paperlessActive && <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Paperless Tag ID</th>}
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {tabItems.map((item) => (
-                <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
-                  <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
-                    <span>{item.name}</span>
-                    <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
-                    <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
-                  </td>
-                  <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                  <td data-label="Type" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
-                  <td data-label="Day" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
-                    {item.type === 'Fixed' ? item.day_of_payment : '—'}
-                  </td>
-                  <td data-label="Class" className="mobile-detail" style={{ padding: '0.3rem 0.5rem' }}>
-                    <ClassificationPills
-                      value={item.classification}
-                      onChange={(v) => handleClassificationChange(item, v)}
-                    />
-                  </td>
-                  {paperlessActive && (
-                    <td data-label="Paperless Tag ID" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
-                      {item.type === 'Fixed' ? (item.paperless_tag_id != null ? item.paperless_tag_id : '—') : ''}
-                    </td>
-                  )}
-                  <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => { setEditingItem(item); setShowAddModal(true); }}
-                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
-                    >
-                      <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-                    </button>
-                    <button
-                      className="btn-danger"
-                      onClick={() => handleDelete(item)}
-                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                    >
-                      <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
-                    </button>
-                  </td>
+      <CollapsibleSection
+        title="Expenses"
+        icon={faReceipt}
+        accent="var(--color-brand)"
+        count={expenseItems.length}
+        collapsed={expenseCollapsed}
+        onToggle={() => setExpenseCollapsed((v) => !v)}
+        noPad
+      >
+        {expenseItems.length === 0 ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '12px 16px 0' }}>
+            No expenses in template yet.
+          </p>
+        ) : (
+          <div className="mobile-cards table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Type</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value / Max</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Day</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
+                  {paperlessActive && <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Paperless Tag ID</th>}
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="mobile-cards table-container" style={{ marginBottom: '0.75rem' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Must</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Want</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Save</th>
-                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {tabItems.map((item) => {
-                const sumDecomp = (item.must_amount || 0) + (item.want_amount || 0) + (item.save_amount || 0);
-                const anySet = item.must_amount != null || item.want_amount != null || item.save_amount != null;
-                const mismatch = anySet && Math.abs(sumDecomp - item.value) > 0.005;
-                return (
+              </thead>
+              <tbody>
+                {expenseItems.map((item) => (
                   <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
                     <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                       <span>{item.name}</span>
@@ -254,64 +201,153 @@ export default function ExpenseTemplate({ dossierId }) {
                       <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                     </td>
                     <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
-                    {['must_amount', 'want_amount', 'save_amount'].map((field, fi) => (
-                      <td key={field} data-label={['Must', 'Want', 'Save'][fi]} className="mobile-detail" style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={item[field] ?? ''}
-                          onChange={(e) => handleDecompositionChange(item, field, e.target.value)}
-                          placeholder="—"
-                          style={{
-                            width: '5.5rem',
-                            textAlign: 'right',
-                            fontSize: '0.8rem',
-                            border: mismatch ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
-                          }}
-                        />
+                    <td data-label="Type" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
+                    <td data-label="Day" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>
+                      {item.type === 'Fixed' ? item.day_of_payment : '—'}
+                    </td>
+                    <td data-label="Class" className="mobile-detail" style={{ padding: '0.3rem 0.5rem' }}>
+                      <ClassificationPills
+                        value={item.classification}
+                        onChange={(v) => handleClassificationChange(item, v)}
+                      />
+                    </td>
+                    {paperlessActive && (
+                      <td data-label="Paperless Tag ID" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+                        {item.type === 'Fixed' ? (item.paperless_tag_id != null ? item.paperless_tag_id : '—') : ''}
                       </td>
-                    ))}
+                    )}
                     <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {mismatch && (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--color-danger)', marginRight: '0.4rem' }}>
-                          sum ≠ {formatValue(item.value)}
-                        </span>
-                      )}
                       <button
                         className="btn-secondary"
-                        onClick={() => { setEditingItem(item); setShowAddModal(true); }}
+                        onClick={() => { setActiveSection('expense'); setEditingItem(item); setShowAddModal(true); }}
                         style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
                       >
-                        Edit
+                        <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
                       </button>
                       <button
                         className="btn-danger"
                         onClick={() => handleDelete(item)}
                         style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
                       >
-                        Delete
+                        <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
                       </button>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div style={{ padding: '10px 16px 14px' }}>
+          <button
+            className="btn-primary"
+            onClick={() => { setActiveSection('expense'); setEditingItem(null); setShowAddModal(true); }}
+            style={{ fontSize: '0.875rem' }}
+          >
+            <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add expense
+          </button>
         </div>
-      )}
+      </CollapsibleSection>
 
-      <button
-        className="btn-primary"
-        onClick={() => { setEditingItem(null); setShowAddModal(true); }}
-        style={{ fontSize: '0.875rem' }}
+      <CollapsibleSection
+        title="Distributions"
+        icon={faWallet}
+        accent="var(--color-brand)"
+        count={distItems.length}
+        collapsed={distCollapsed}
+        onToggle={() => setDistCollapsed((v) => !v)}
+        noPad
       >
-        <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add {activeTab === 'expense' ? 'expense' : 'distribution'}
-      </button>
+        {distItems.length === 0 ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '12px 16px 0' }}>
+            No distributions in template yet.
+          </p>
+        ) : (
+          <div className="mobile-cards table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Must</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Want</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Save</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {distItems.map((item) => {
+                  const sumDecomp = (item.must_amount || 0) + (item.want_amount || 0) + (item.save_amount || 0);
+                  const anySet = item.must_amount != null || item.want_amount != null || item.save_amount != null;
+                  const mismatch = anySet && Math.abs(sumDecomp - item.value) > 0.005;
+                  return (
+                    <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
+                      <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
+                        <span>{item.name}</span>
+                        <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
+                        <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
+                      </td>
+                      <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                      {['must_amount', 'want_amount', 'save_amount'].map((field, fi) => (
+                        <td key={field} data-label={['Must', 'Want', 'Save'][fi]} className="mobile-detail" style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={item[field] ?? ''}
+                            onChange={(e) => handleDecompositionChange(item, field, e.target.value)}
+                            placeholder="—"
+                            style={{
+                              width: '5.5rem',
+                              textAlign: 'right',
+                              fontSize: '0.8rem',
+                              border: mismatch ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
+                            }}
+                          />
+                        </td>
+                      ))}
+                      <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {mismatch && (
+                          <span style={{ fontSize: '0.7rem', color: 'var(--color-danger)', marginRight: '0.4rem' }}>
+                            sum ≠ {formatValue(item.value)}
+                          </span>
+                        )}
+                        <button
+                          className="btn-secondary"
+                          onClick={() => { setActiveSection('distribution'); setEditingItem(item); setShowAddModal(true); }}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
+                        >
+                          <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
+                        </button>
+                        <button
+                          className="btn-danger"
+                          onClick={() => handleDelete(item)}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div style={{ padding: '10px 16px 14px' }}>
+          <button
+            className="btn-primary"
+            onClick={() => { setActiveSection('distribution'); setEditingItem(null); setShowAddModal(true); }}
+            style={{ fontSize: '0.875rem' }}
+          >
+            <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add distribution
+          </button>
+        </div>
+      </CollapsibleSection>
 
       {showAddModal && (
         <TemplateItemModal
-          section={activeTab}
+          section={activeSection}
           item={editingItem}
           paperlessActive={paperlessActive}
           onSave={handleSaveItem}
@@ -319,6 +355,7 @@ export default function ExpenseTemplate({ dossierId }) {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      <Toast message={toast.msg} visible={toast.show} />
     </div>
   );
 }

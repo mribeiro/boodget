@@ -24,6 +24,7 @@ import GoalsTab from './goals/GoalsTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
 import GlancesPanel from './glances/GlancesPanel';
+import KpiBlock from './ui/KpiBlock';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -142,6 +143,37 @@ export default function DossierView() {
       <div key={activeTab} className="tab-content">
       {activeTab === 'capital' && (
         <div>
+          {/* ── Capital KPI strip ── */}
+          {months.length > 0 && (() => {
+            const filled = months.filter((m) => m.filled && m.capital_total != null);
+            const latest = filled[0];
+            const prev   = filled[1];
+            const mom = latest && prev ? latest.capital_total - prev.capital_total : null;
+            return (
+              <div className="cycle-kpi-row" style={{ marginBottom: '1.25rem' }}>
+                <KpiBlock
+                  label="Current capital"
+                  value={latest ? formatEur(latest.capital_total) : '—'}
+                  highlight={latest ? 'neutral' : 'neutral'}
+                  large
+                />
+                <KpiBlock
+                  label="Month-over-month"
+                  value={mom != null ? `${mom >= 0 ? '+' : ''}${formatEur(mom)}` : '—'}
+                  highlight={mom == null ? 'neutral' : mom >= 0 ? 'success' : 'danger'}
+                />
+                <KpiBlock
+                  label="Months recorded"
+                  value={months.length}
+                />
+                <KpiBlock
+                  label="Filled"
+                  value={`${filled.length} / ${months.length}`}
+                  highlight={filled.length === months.length ? 'success' : filled.length > 0 ? 'neutral' : 'warning'}
+                />
+              </div>
+            );
+          })()}
           <CapitalChart months={months} />
 
           <div className="months-section">

@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faTriangleExclamation, faListCheck, faPlus, faPencil, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
+import Toast from '../ui/Toast';
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -46,6 +47,13 @@ export default function EmergencyFundTab({ dossierId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [confirmState, setConfirmState] = useState(null);
+  const [toast, setToast] = useState({ msg: '', show: false });
+  const toastTimer = useRef(null);
+  function showToast(msg) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, show: true });
+    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
+  }
 
   // Account picker dialog state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -98,6 +106,7 @@ export default function EmergencyFundTab({ dossierId }) {
       setSelectedIds(saved);
       setShowAccountPicker(false);
       await refreshStatus();
+      showToast('Accounts saved');
     } catch (e) {
       setError(e.message);
     }
@@ -139,6 +148,7 @@ export default function EmergencyFundTab({ dossierId }) {
       }
       setShowExtraForm(false);
       await refreshStatus();
+      showToast(editingExtra ? 'Value updated' : 'Value added');
     } catch (err) {
       setError(err.message);
     }
@@ -155,6 +165,7 @@ export default function EmergencyFundTab({ dossierId }) {
           await api.deleteEmergencyFundExtraValue(dossierId, ev.id);
           setExtraValues((prev) => prev.filter((x) => x.id !== ev.id));
           await refreshStatus();
+          showToast('Value deleted');
         } catch (e) {
           setError(e.message);
         }
@@ -374,6 +385,7 @@ export default function EmergencyFundTab({ dossierId }) {
         </div>
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      <Toast message={toast.msg} visible={toast.show} />
     </div>
   );
 }

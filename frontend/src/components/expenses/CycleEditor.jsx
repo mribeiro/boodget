@@ -5,99 +5,15 @@ import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
   faFileArrowDown, faSpinner, faFileLines, faCheck, faArrowRotateLeft,
   faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave,
-  faCircleCheck, faClock, faChevronDown,
+  faCircleCheck, faClock,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
+import Toast from '../ui/Toast';
+import KpiBlock from '../ui/KpiBlock';
+import CollapsibleSection from '../ui/CollapsibleSection';
 import { ItemFormModal } from '../annual-expenses/AnnualExpensesTab';
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-
-function Toast({ message, visible }) {
-  return (
-    <div style={{
-      position: 'fixed',
-      bottom: 32,
-      right: 24,
-      background: 'var(--color-success)',
-      color: '#fff',
-      padding: '10px 20px',
-      borderRadius: 'var(--radius)',
-      fontWeight: 700,
-      fontSize: 13,
-      opacity: visible ? 1 : 0,
-      transform: `translateY(${visible ? 0 : 12}px)`,
-      transition: 'all 0.35s cubic-bezier(.22,1,.36,1)',
-      pointerEvents: 'none',
-      zIndex: 500,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-    }}>
-      <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 14 }} />
-      {message}
-    </div>
-  );
-}
-
-// ── Collapsible section (mobile) ──────────────────────────────────────────────
-
-function CollapsibleSection({ title, icon, accent, count, collapsed, onToggle, children }) {
-  return (
-    <div style={{
-      background: 'var(--bg-card)',
-      borderRadius: 'var(--radius)',
-      border: '1px solid var(--border-default)',
-      overflow: 'hidden',
-      marginBottom: '1rem',
-    }}>
-      <button
-        onClick={onToggle}
-        style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '14px 16px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: 'var(--text-primary)',
-          borderBottom: collapsed ? 'none' : '1px solid var(--border-default)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 3, height: 16, borderRadius: 2, background: accent, flexShrink: 0 }} />
-          <FontAwesomeIcon icon={icon} style={{ fontSize: 13, color: accent }} />
-          <span style={{ fontSize: 14, fontWeight: 700 }}>{title}</span>
-          {count != null && (
-            <span style={{
-              fontSize: 11, fontWeight: 700, color: accent,
-              background: `color-mix(in srgb, ${accent} 12%, transparent)`,
-              padding: '2px 7px', borderRadius: 8,
-            }}>{count}</span>
-          )}
-        </div>
-        <FontAwesomeIcon
-          icon={faChevronDown}
-          style={{
-            fontSize: 12,
-            color: 'var(--text-muted)',
-            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-            transition: 'transform 0.3s ease',
-          }}
-        />
-      </button>
-      {!collapsed && (
-        <div style={{ padding: '14px 16px' }}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Budget progress bar ───────────────────────────────────────────────────────
 
@@ -734,31 +650,7 @@ export default function CycleEditor() {
   );
 }
 
-// ── KPI block ─────────────────────────────────────────────────────────────────
 
-function KpiBlock({ label, value, icon, highlight = 'neutral', large }) {
-  const color =
-    highlight === 'success' ? 'var(--color-success)' :
-    highlight === 'danger'  ? 'var(--color-danger)'  :
-    highlight === 'warning' ? 'var(--color-warning)'  :
-    'var(--text-primary)';
-  return (
-    <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border-default)',
-      borderRadius: 'var(--radius)',
-      padding: '10px 14px',
-      minWidth: 0,
-      flex: large ? 2 : 1,
-    }}>
-      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-        <FontAwesomeIcon icon={icon} style={{ fontSize: 9 }} />
-        {label}
-      </div>
-      <div style={{ fontSize: large ? 16 : 14, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-    </div>
-  );
-}
 
 // ── Close Cycle Panel ─────────────────────────────────────────────────────────
 

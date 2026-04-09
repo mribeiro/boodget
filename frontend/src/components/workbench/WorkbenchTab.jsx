@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown, faMoneyBillWave, faReceipt, faCalendarDays, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
+import KpiBlock from '../ui/KpiBlock';
+import CollapsibleSection from '../ui/CollapsibleSection';
+import Toast from '../ui/Toast';
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -198,6 +201,14 @@ export default function WorkbenchTab({ dossierId }) {
   const [saveNameInput, setSaveNameInput] = useState('');
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
+  const [toast, setToast] = useState({ msg: '', show: false });
+  const toastTimer = useRef(null);
+
+  function showToast(msg) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, show: true });
+    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
+  }
 
   useEffect(() => {
     loadAll();
@@ -319,6 +330,7 @@ export default function WorkbenchTab({ dossierId }) {
       });
       setSnapshots((prev) => prev.map((s) => (s.id === updated.id ? { ...updated, data: updated.data } : s)));
       setIsDirty(false);
+      showToast('Snapshot saved');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -337,6 +349,7 @@ export default function WorkbenchTab({ dossierId }) {
       setLoadedSnapshot({ id: created.id, name: created.name });
       setIsDirty(false);
       setShowSavePrompt(false);
+      showToast('Snapshot created');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -546,48 +559,63 @@ export default function WorkbenchTab({ dossierId }) {
         onNewFromScratch={handleNewFromScratch}
       />
 
-      {state && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1.5rem' }}>
-          <IncomeSection
-            entries={state.income}
-            onAdd={(e) => addEntry('income', e)}
-            onUpdate={(_id, ch) => updateEntry('income', _id, ch)}
-            onRemove={(_id) => removeEntry('income', _id)}
-          />
+      {state && summary && (
+        <>
+          {/* ── KPI summary strip (always visible) ── */}
+          <div className="cycle-kpi-row" style={{ margin: '1.25rem 0' }}>
+            <KpiBlock label="Income" value={fmt(summary.totalIncome)} icon={faMoneyBillWave} highlight={summary.totalIncome > 0 ? 'success' : 'neutral'} large />
+            <KpiBlock label="Must" value={fmt(summary.totalMust)} icon={faReceipt} />
+            <KpiBlock label="Want" value={fmt(summary.totalWant)} icon={faCalendarDays} />
+            <KpiBlock label="Save" value={fmt(summary.totalSave)} icon={faWallet} />
+            <KpiBlock
+              label="Leftover"
+              value={fmt(summary.leftover)}
+              highlight={summary.leftover >= 0 ? 'success' : 'danger'}
+              large
+            />
+          </div>
 
-          <MonthlyExpensesSection
-            entries={state.monthlyExpenses}
-            onAdd={(e) => addEntry('monthlyExpenses', e)}
-            onUpdate={(_id, ch) => updateEntry('monthlyExpenses', _id, ch)}
-            onRemove={(_id) => removeEntry('monthlyExpenses', _id)}
-            onSyncFrom={() => handleSyncFromTemplate('monthly')}
-            onSyncTo={handleSyncToTemplate}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginTop: '0.5rem' }}>
+            <IncomeSection
+              entries={state.income}
+              onAdd={(e) => addEntry('income', e)}
+              onUpdate={(_id, ch) => updateEntry('income', _id, ch)}
+              onRemove={(_id) => removeEntry('income', _id)}
+            />
 
-          <AnnualExpensesSection
-            entries={state.annualExpenses}
-            annualDeductible={state.annualDeductible || 0}
-            onChangeDeductible={(v) => updateScalar('annualDeductible', v)}
-            onAdd={(e) => addEntry('annualExpenses', e)}
-            onUpdate={(_id, ch) => updateEntry('annualExpenses', _id, ch)}
-            onRemove={(_id) => removeEntry('annualExpenses', _id)}
-            onSyncFrom={() => handleSyncFromTemplate('annual')}
-            onSyncTo={handleSyncToTemplate}
-          />
+            <MonthlyExpensesSection
+              entries={state.monthlyExpenses}
+              onAdd={(e) => addEntry('monthlyExpenses', e)}
+              onUpdate={(_id, ch) => updateEntry('monthlyExpenses', _id, ch)}
+              onRemove={(_id) => removeEntry('monthlyExpenses', _id)}
+              onSyncFrom={() => handleSyncFromTemplate('monthly')}
+              onSyncTo={handleSyncToTemplate}
+            />
 
-          <DistributionsSection
-            entries={state.distributions}
-            onAdd={(e) => addEntry('distributions', e)}
-            onUpdate={(_id, ch) => updateEntry('distributions', _id, ch)}
-            onRemove={(_id) => removeEntry('distributions', _id)}
-            onSyncFrom={() => handleSyncFromTemplate('distributions')}
-            onSyncTo={handleSyncToTemplate}
-          />
+            <AnnualExpensesSection
+              entries={state.annualExpenses}
+              annualDeductible={state.annualDeductible || 0}
+              onChangeDeductible={(v) => updateScalar('annualDeductible', v)}
+              onAdd={(e) => addEntry('annualExpenses', e)}
+              onUpdate={(_id, ch) => updateEntry('annualExpenses', _id, ch)}
+              onRemove={(_id) => removeEntry('annualExpenses', _id)}
+              onSyncFrom={() => handleSyncFromTemplate('annual')}
+              onSyncTo={handleSyncToTemplate}
+            />
 
-          <GlobalSummarySection summary={summary} />
-        </div>
+            <DistributionsSection
+              entries={state.distributions}
+              onAdd={(e) => addEntry('distributions', e)}
+              onUpdate={(_id, ch) => updateEntry('distributions', _id, ch)}
+              onRemove={(_id) => removeEntry('distributions', _id)}
+              onSyncFrom={() => handleSyncFromTemplate('distributions')}
+              onSyncTo={handleSyncToTemplate}
+            />
+          </div>
+        </>
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      <Toast message={toast.msg} visible={toast.show} />
     </div>
   );
 }
@@ -711,21 +739,9 @@ function SnapshotPanel({
   );
 }
 
-// ── Section Header ───────────────────────────────────────────────────────────
-
-function SectionHeader({ title, collapsed, onToggle, collapsedSummary, children }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: collapsed ? 0 : '0.75rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }} onClick={onToggle}>
-        <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronDown} style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)' }} />
-        <h3 style={{ margin: 0, fontSize: '0.95rem' }}>{title}</h3>
-        {collapsed && collapsedSummary && (
-          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>{collapsedSummary}</span>
-        )}
-      </div>
-      {!collapsed && <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>{children}</div>}
-    </div>
-  );
+// SectionHeader kept for internal use by sections that need action buttons alongside title
+function SectionActions({ children }) {
+  return <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', padding: '0 16px 12px' }}>{children}</div>;
 }
 
 // ── Income Section ───────────────────────────────────────────────────────────
@@ -736,47 +752,50 @@ function IncomeSection({ entries, onAdd, onUpdate, onRemove }) {
   const totalIncome = sum(entries, (e) => e.value);
 
   return (
-    <div className="card" style={{ padding: '1rem' }}>
-      <SectionHeader title="Income" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={`Total: ${fmt(totalIncome)}`}>
+    <CollapsibleSection
+      title="Income"
+      icon={faMoneyBillWave}
+      accent="var(--color-success)"
+      count={entries.length}
+      collapsed={collapsed}
+      onToggle={() => setCollapsed((c) => !c)}
+      noPad
+    >
+      <SectionActions>
         <button className="btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}>
           + Add
         </button>
-      </SectionHeader>
-
-      {!collapsed && (
-        <>
-          {entries.length === 0 ? (
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No income entries yet.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              {entries.map((e) => (
-                <InlineEditRow
-                  key={e._id}
-                  name={e.name}
-                  value={e.value}
-                  onChangeName={(v) => onUpdate(e._id, { name: v })}
-                  onChangeValue={(v) => onUpdate(e._id, { value: v })}
-                  onRemove={() => onRemove(e._id)}
-                />
-              ))}
-            </div>
-          )}
-
-          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.75rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'flex-end', fontSize: '0.875rem', fontWeight: 600 }}>
-            Total income: {fmt(totalIncome)}
+      </SectionActions>
+      <div style={{ padding: '0 16px 14px' }}>
+        {entries.length === 0 ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No income entries yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            {entries.map((e) => (
+              <InlineEditRow
+                key={e._id}
+                name={e.name}
+                value={e.value}
+                onChangeName={(v) => onUpdate(e._id, { name: v })}
+                onChangeValue={(v) => onUpdate(e._id, { value: v })}
+                onRemove={() => onRemove(e._id)}
+              />
+            ))}
           </div>
-
-          {showAdd && (
-            <AddEntryModal
-              title="Add Income"
-              fields={[{ key: 'name', label: 'Name', type: 'text' }, { key: 'value', label: 'Monthly value (€)', type: 'number' }]}
-              onSave={(d) => { onAdd({ name: d.name, value: Number(d.value), isFromTemplate: false }); setShowAdd(false); }}
-              onClose={() => setShowAdd(false)}
-            />
-          )}
-        </>
+        )}
+        <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.75rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'flex-end', fontSize: '0.875rem', fontWeight: 600 }}>
+          Total income: {fmt(totalIncome)}
+        </div>
+      </div>
+      {showAdd && (
+        <AddEntryModal
+          title="Add Income"
+          fields={[{ key: 'name', label: 'Name', type: 'text' }, { key: 'value', label: 'Monthly value (€)', type: 'number' }]}
+          onSave={(d) => { onAdd({ name: d.name, value: Number(d.value), isFromTemplate: false }); setShowAdd(false); }}
+          onClose={() => setShowAdd(false)}
+        />
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -807,44 +826,43 @@ function MonthlyExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom
   }
 
   return (
-    <div className="card" style={{ padding: '1rem' }}>
-      <SectionHeader title="Monthly Expenses" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={`Total: ${fmt(totalAll)} | Must: ${fmt(totalMust)} | Want: ${fmt(totalWant)}`}>
-        <button className="btn-secondary" onClick={onSyncFrom} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
-          Sync from template
-        </button>
-        <button className="btn-secondary" onClick={() => setShowSyncToModal(true)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
-          Sync to template
-        </button>
-        <button className="btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}>
-          + Add
-        </button>
-      </SectionHeader>
-
-      {!collapsed && (
-        <>
-          {entries.length === 0 ? (
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No monthly expenses.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              {entries.map((e) => (
-                <ExpenseEntryRow
-                  key={e._id}
-                  entry={e}
-                  onChangeName={(v) => onUpdate(e._id, { name: v })}
-                  onChangeValue={(v) => onUpdate(e._id, { value: v })}
-                  onChangeClassification={(v) => onUpdate(e._id, { classification: v })}
-                  onRemove={() => onRemove(e._id)}
-                />
-              ))}
-            </div>
-          )}
-
-          <SectionSummary rows={[
-            { label: 'Total monthly expenses', value: totalAll },
-            { label: 'Total Must', value: totalMust },
-            { label: 'Total Want', value: totalWant },
-          ]} />
-
+    <CollapsibleSection
+      title="Monthly Expenses"
+      icon={faReceipt}
+      accent="var(--color-brand)"
+      count={entries.length}
+      collapsed={collapsed}
+      onToggle={() => setCollapsed((c) => !c)}
+      noPad
+    >
+      <SectionActions>
+        <button className="btn-secondary" onClick={onSyncFrom} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>Sync from template</button>
+        <button className="btn-secondary" onClick={() => setShowSyncToModal(true)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>Sync to template</button>
+        <button className="btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}>+ Add</button>
+      </SectionActions>
+      <div style={{ padding: '0 16px 14px' }}>
+        {entries.length === 0 ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No monthly expenses.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            {entries.map((e) => (
+              <ExpenseEntryRow
+                key={e._id}
+                entry={e}
+                onChangeName={(v) => onUpdate(e._id, { name: v })}
+                onChangeValue={(v) => onUpdate(e._id, { value: v })}
+                onChangeClassification={(v) => onUpdate(e._id, { classification: v })}
+                onRemove={() => onRemove(e._id)}
+              />
+            ))}
+          </div>
+        )}
+        <SectionSummary rows={[
+          { label: 'Total monthly expenses', value: totalAll },
+          { label: 'Total Must', value: totalMust },
+          { label: 'Total Want', value: totalWant },
+        ]} />
+      </div>
       {showAdd && (
         <AddEntryModal
           title="Add Monthly Expense"
@@ -861,23 +879,20 @@ function MonthlyExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom
           onClose={() => setShowAdd(false)}
         />
       )}
-
-          {showSyncToModal && (
-            <SyncToTemplateModal
-              title="Sync Monthly Expenses to Template"
-              warning="This will discard and replace the entire Monthly Expenses template with the current Workbench entries."
-              entries={entries}
-              needsDay={(e) => !e.isFromTemplate && e.type === 'Fixed'}
-              dayFieldLabel="Day of payment"
-              syncing={syncing}
-              syncError={syncError}
-              onConfirm={doSyncTo}
-              onClose={() => { setShowSyncToModal(false); setSyncError(''); }}
-            />
-          )}
-        </>
+      {showSyncToModal && (
+        <SyncToTemplateModal
+          title="Sync Monthly Expenses to Template"
+          warning="This will discard and replace the entire Monthly Expenses template with the current Workbench entries."
+          entries={entries}
+          needsDay={(e) => !e.isFromTemplate && e.type === 'Fixed'}
+          dayFieldLabel="Day of payment"
+          syncing={syncing}
+          syncError={syncError}
+          onConfirm={doSyncTo}
+          onClose={() => { setShowSyncToModal(false); setSyncError(''); }}
+        />
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -913,116 +928,104 @@ function AnnualExpensesSection({ entries, annualDeductible, onChangeDeductible, 
   }
 
   return (
-    <div className="card" style={{ padding: '1rem' }}>
-      <SectionHeader title="Annual Expenses" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={`Annual: ${fmt(totalAnnual)} | Avg/mo: ${fmt(totalMonthlyAvg)} | Missing avg: ${fmt(monthlyMissingAvg)}`}>
-        <button className="btn-secondary" onClick={onSyncFrom} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
-          Sync from template
-        </button>
-        <button className="btn-secondary" onClick={() => setShowSyncToModal(true)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
-          Sync to template
-        </button>
-        <button className="btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}>
-          + Add
-        </button>
-      </SectionHeader>
-
-      {!collapsed && (
-        <>
-          {entries.length === 0 ? (
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No annual expenses.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ color: 'var(--color-text-muted)' }}>
-                  <th style={{ padding: '0.25rem 0.4rem', textAlign: 'left', fontWeight: 500 }}>Name</th>
-                  <th style={{ padding: '0.25rem 0.4rem', textAlign: 'right', fontWeight: 500 }}>Annual</th>
-                  <th style={{ padding: '0.25rem 0.4rem', textAlign: 'right', fontWeight: 500 }}>Monthly avg</th>
-                  <th style={{ padding: '0.25rem 0.4rem', fontWeight: 500 }}>Classification</th>
-                  <th style={{ padding: '0.25rem 0.4rem' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((e) => (
-                  <AnnualEntryRow
-                    key={e._id}
-                    entry={e}
-                    onChangeName={(v) => onUpdate(e._id, { name: v })}
-                    onChangeValue={(v) => onUpdate(e._id, { value: v })}
-                    onChangeClassification={(v) => onUpdate(e._id, { classification: v })}
-                    onRemove={() => onRemove(e._id)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          <SectionSummary rows={[
-            { label: 'Total annual', value: totalAnnual },
-            { label: 'Must (annual)', value: totalMustAnnual },
-            { label: 'Want (annual)', value: totalWantAnnual },
-            { label: 'Monthly avg', value: totalMonthlyAvg },
-            { label: 'Must avg/mo', value: totalMustAvg },
-            { label: 'Want avg/mo', value: totalWantAvg },
-          ]} />
-
-          <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.75rem', paddingTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Carried over:</span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={annualDeductible || ''}
-              onChange={(e) => onChangeDeductible(Number(e.target.value) || 0)}
-              placeholder="0.00"
-              style={{ width: '8rem', textAlign: 'right', fontSize: '0.875rem' }}
-            />
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>€</span>
-          </div>
-
-          <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'var(--color-surface)', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', fontSize: '0.85rem' }}>
-            <div>
-              <span style={{ color: 'var(--color-text-muted)' }}>Annual missing: </span>
-              <strong>{fmt(annualMissing)}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-text-muted)' }}>Monthly missing avg: </span>
-              <strong>{fmt(monthlyMissingAvg)}</strong>
-            </div>
-          </div>
-
-          {showAdd && (
-            <AddEntryModal
-              title="Add Annual Expense"
-              fields={[
-                { key: 'name', label: 'Name', type: 'text' },
-                { key: 'value', label: 'Annual value (€)', type: 'number' },
-                { key: 'classification', label: 'Classification', type: 'classification-pills' },
-              ]}
-              onSave={(d) => {
-                onAdd({ name: d.name, value: Number(d.value), classification: d.classification || null, isFromTemplate: false, templateItemId: null });
-                setShowAdd(false);
-              }}
-              onClose={() => setShowAdd(false)}
-            />
-          )}
-
-          {showSyncToModal && (
-            <SyncToTemplateModal
-              title="Sync Annual Expenses to Template"
-              warning="This will discard and replace the entire Annual Expenses template with the current Workbench entries."
-              entries={entries}
-              needsDay={(e) => !e.isFromTemplate}
-              dayFieldLabel="Day + Month of payment"
-              needsDayMonth
-              syncing={syncing}
-              syncError={syncError}
-              onConfirm={doSyncTo}
-              onClose={() => { setShowSyncToModal(false); setSyncError(''); }}
-            />
-          )}
-        </>
+    <CollapsibleSection
+      title="Annual Expenses"
+      icon={faCalendarDays}
+      accent="var(--color-warning)"
+      count={entries.length}
+      collapsed={collapsed}
+      onToggle={() => setCollapsed((c) => !c)}
+      noPad
+    >
+      <SectionActions>
+        <button className="btn-secondary" onClick={onSyncFrom} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>Sync from template</button>
+        <button className="btn-secondary" onClick={() => setShowSyncToModal(true)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>Sync to template</button>
+        <button className="btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}>+ Add</button>
+      </SectionActions>
+      <div style={{ padding: '0 16px 14px' }}>
+        {entries.length === 0 ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No annual expenses.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ color: 'var(--color-text-muted)' }}>
+                <th style={{ padding: '0.25rem 0.4rem', textAlign: 'left', fontWeight: 500 }}>Name</th>
+                <th style={{ padding: '0.25rem 0.4rem', textAlign: 'right', fontWeight: 500 }}>Annual</th>
+                <th style={{ padding: '0.25rem 0.4rem', textAlign: 'right', fontWeight: 500 }}>Monthly avg</th>
+                <th style={{ padding: '0.25rem 0.4rem', fontWeight: 500 }}>Classification</th>
+                <th style={{ padding: '0.25rem 0.4rem' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <AnnualEntryRow
+                  key={e._id}
+                  entry={e}
+                  onChangeName={(v) => onUpdate(e._id, { name: v })}
+                  onChangeValue={(v) => onUpdate(e._id, { value: v })}
+                  onChangeClassification={(v) => onUpdate(e._id, { classification: v })}
+                  onRemove={() => onRemove(e._id)}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
+        <SectionSummary rows={[
+          { label: 'Total annual', value: totalAnnual },
+          { label: 'Must (annual)', value: totalMustAnnual },
+          { label: 'Want (annual)', value: totalWantAnnual },
+          { label: 'Monthly avg', value: totalMonthlyAvg },
+          { label: 'Must avg/mo', value: totalMustAvg },
+          { label: 'Want avg/mo', value: totalWantAvg },
+        ]} />
+        <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.75rem', paddingTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+          <span style={{ color: 'var(--color-text-muted)' }}>Carried over:</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={annualDeductible || ''}
+            onChange={(e) => onChangeDeductible(Number(e.target.value) || 0)}
+            placeholder="0.00"
+            style={{ width: '8rem', textAlign: 'right', fontSize: '0.875rem' }}
+          />
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>€</span>
+        </div>
+        <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'var(--color-surface)', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', fontSize: '0.85rem' }}>
+          <div><span style={{ color: 'var(--color-text-muted)' }}>Annual missing: </span><strong>{fmt(annualMissing)}</strong></div>
+          <div><span style={{ color: 'var(--color-text-muted)' }}>Monthly missing avg: </span><strong>{fmt(monthlyMissingAvg)}</strong></div>
+        </div>
+      </div>
+      {showAdd && (
+        <AddEntryModal
+          title="Add Annual Expense"
+          fields={[
+            { key: 'name', label: 'Name', type: 'text' },
+            { key: 'value', label: 'Annual value (€)', type: 'number' },
+            { key: 'classification', label: 'Classification', type: 'classification-pills' },
+          ]}
+          onSave={(d) => {
+            onAdd({ name: d.name, value: Number(d.value), classification: d.classification || null, isFromTemplate: false, templateItemId: null });
+            setShowAdd(false);
+          }}
+          onClose={() => setShowAdd(false)}
+        />
       )}
-    </div>
+      {showSyncToModal && (
+        <SyncToTemplateModal
+          title="Sync Annual Expenses to Template"
+          warning="This will discard and replace the entire Annual Expenses template with the current Workbench entries."
+          entries={entries}
+          needsDay={(e) => !e.isFromTemplate}
+          dayFieldLabel="Day + Month of payment"
+          needsDayMonth
+          syncing={syncing}
+          syncError={syncError}
+          onConfirm={doSyncTo}
+          onClose={() => { setShowSyncToModal(false); setSyncError(''); }}
+        />
+      )}
+    </CollapsibleSection>
   );
 }
 
@@ -1063,164 +1066,61 @@ function DistributionsSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom, 
   }
 
   return (
-    <div className="card" style={{ padding: '1rem' }}>
-      <SectionHeader title="Distributions" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={`Total: ${fmt(totalDist)} | Must: ${fmt(totalMust)} | Want: ${fmt(totalWant)} | Save: ${fmt(totalSave)}`}>
-        <button className="btn-secondary" onClick={onSyncFrom} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
-          Sync from template
-        </button>
-        <button className="btn-secondary" onClick={doSyncTo} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
-          Sync to template
-        </button>
-        <button className="btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}>
-          + Add
-        </button>
-      </SectionHeader>
-
-      {!collapsed && (
-        <>
-          {syncError && <div className="alert alert-error" style={{ marginBottom: '0.5rem', fontSize: '0.8rem' }}>{syncError}</div>}
-
-          {entries.length === 0 ? (
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No distributions.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {entries.map((e) => (
-                <DistributionEntryRow
-                  key={e._id}
-                  entry={e}
-                  onChangeName={(v) => onUpdate(e._id, { name: v })}
-                  onChangeValue={(v) => onUpdate(e._id, { value: v })}
-                  onChangeDecomp={(f, v) => onUpdate(e._id, { [f]: v === '' ? null : Number(v) })}
-                  onRemove={() => onRemove(e._id)}
-                />
-              ))}
-            </div>
-          )}
-
-          <SectionSummary rows={[
-            { label: 'Total distributions', value: totalDist },
-            { label: 'Total Must', value: totalMust },
-            { label: 'Total Want', value: totalWant },
-            { label: 'Total Save', value: totalSave },
-          ]} />
-
-          {showAdd && (
-            <AddEntryModal
-              title="Add Distribution"
-              fields={[
-                { key: 'name', label: 'Name', type: 'text' },
-                { key: 'value', label: 'Value (€)', type: 'number' },
-              ]}
-              onSave={(d) => {
-                onAdd({ name: d.name, value: Number(d.value), must_amount: null, want_amount: null, save_amount: null, isFromTemplate: false, templateItemId: null });
-                setShowAdd(false);
-              }}
-              onClose={() => setShowAdd(false)}
-            />
-          )}
-        </>
-      )}
-      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-    </div>
-  );
-}
-
-// ── Global Summary Section ───────────────────────────────────────────────────
-
-const SUMMARY_COLORS = {
-  must: '#f59e0b',
-  want: '#3b82f6',
-  save: '#22c55e',
-  leftover: '#94a3b8',
-};
-
-function IncomeStackBar({ totalIncome, totalMust, totalWant, totalSave, leftover }) {
-  const segments = [
-    { key: 'must', label: 'Must', value: Math.max(0, totalMust), color: SUMMARY_COLORS.must },
-    { key: 'want', label: 'Want', value: Math.max(0, totalWant), color: SUMMARY_COLORS.want },
-    { key: 'save', label: 'Save', value: Math.max(0, totalSave), color: SUMMARY_COLORS.save },
-    { key: 'leftover', label: 'Leftover', value: Math.max(0, leftover), color: SUMMARY_COLORS.leftover },
-  ].filter((s) => s.value > 0);
-
-  const total = segments.reduce((acc, s) => acc + s.value, 0);
-  if (total <= 0) return null;
-
-  return (
-    <div style={{ marginTop: '0.75rem' }}>
-      <div style={{ display: 'flex', height: '1.75rem', borderRadius: 'var(--radius)', overflow: 'hidden', gap: '2px' }}>
-        {segments.map((seg) => {
-          const pct = (seg.value / total) * 100;
-          return (
-            <div
-              key={seg.key}
-              title={`${seg.label}: ${fmt(seg.value)} (${pct.toFixed(1)}%)`}
-              style={{ flex: pct, background: seg.color, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minWidth: 0 }}
-            >
-              {pct > 9 && (
-                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
-                  {pct.toFixed(0)}%
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
-        {segments.map((seg) => {
-          const pct = (seg.value / total) * 100;
-          return (
-            <div key={seg.key} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
-              <span style={{ width: '0.55rem', height: '0.55rem', borderRadius: '50%', background: seg.color, flexShrink: 0, display: 'inline-block' }} />
-              {seg.label} {pct.toFixed(1)}%
-            </div>
-          );
-        })}
-        {leftover < 0 && (
-          <div style={{ fontSize: '0.72rem', color: 'var(--color-danger)', marginLeft: 'auto' }}>
-            Over budget by {fmt(Math.abs(leftover))}
+    <CollapsibleSection
+      title="Distributions"
+      icon={faWallet}
+      accent="var(--color-brand)"
+      count={entries.length}
+      collapsed={collapsed}
+      onToggle={() => setCollapsed((c) => !c)}
+      noPad
+    >
+      <SectionActions>
+        <button className="btn-secondary" onClick={onSyncFrom} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>Sync from template</button>
+        <button className="btn-secondary" onClick={doSyncTo} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>Sync to template</button>
+        <button className="btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}>+ Add</button>
+      </SectionActions>
+      <div style={{ padding: '0 16px 14px' }}>
+        {syncError && <div className="alert alert-error" style={{ marginBottom: '0.5rem', fontSize: '0.8rem' }}>{syncError}</div>}
+        {entries.length === 0 ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No distributions.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {entries.map((e) => (
+              <DistributionEntryRow
+                key={e._id}
+                entry={e}
+                onChangeName={(v) => onUpdate(e._id, { name: v })}
+                onChangeValue={(v) => onUpdate(e._id, { value: v })}
+                onChangeDecomp={(f, v) => onUpdate(e._id, { [f]: v === '' ? null : Number(v) })}
+                onRemove={() => onRemove(e._id)}
+              />
+            ))}
           </div>
         )}
+        <SectionSummary rows={[
+          { label: 'Total distributions', value: totalDist },
+          { label: 'Total Must', value: totalMust },
+          { label: 'Total Want', value: totalWant },
+          { label: 'Total Save', value: totalSave },
+        ]} />
       </div>
-    </div>
-  );
-}
-
-function GlobalSummarySection({ summary }) {
-  const { totalIncome, totalMust, totalWant, totalSave, leftover } = summary;
-  const [collapsed, setCollapsed] = useState(true);
-
-  const collapsedSummary = `Income: ${fmt(totalIncome)} | Must: ${fmtPct(totalMust, totalIncome)} | Want: ${fmtPct(totalWant, totalIncome)} | Save: ${fmtPct(totalSave, totalIncome)} | Leftover: ${fmt(leftover)}`;
-
-  return (
-    <div className="card" style={{ padding: '1rem' }}>
-      <SectionHeader title="Global Summary" collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} collapsedSummary={collapsedSummary} />
-
-      <IncomeStackBar totalIncome={totalIncome} totalMust={totalMust} totalWant={totalWant} totalSave={totalSave} leftover={leftover} />
-
-      {!collapsed && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(10rem, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
-          {[
-            { label: 'Total Income', value: totalIncome, bold: true },
-            { label: 'Total Must', value: totalMust, pct: fmtPct(totalMust, totalIncome) },
-            { label: 'Total Want', value: totalWant, pct: fmtPct(totalWant, totalIncome) },
-            { label: 'Total Save', value: totalSave, pct: fmtPct(totalSave, totalIncome) },
-            { label: 'Leftover', value: leftover, pct: fmtPct(leftover, totalIncome), highlight: leftover < 0 ? 'danger' : leftover > 0 ? 'success' : null },
-          ].map(({ label, value, pct, bold, highlight }) => (
-            <div key={label} style={{ padding: '0.6rem', background: 'var(--color-surface)', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginBottom: '0.2rem' }}>{label}</div>
-              <div style={{
-                fontWeight: bold ? 700 : 600,
-                fontSize: '0.95rem',
-                color: highlight === 'danger' ? 'var(--color-danger)' : highlight === 'success' ? 'var(--color-success)' : 'inherit',
-              }}>
-                {fmt(value)}
-              </div>
-              {pct && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{pct}</div>}
-            </div>
-          ))}
-        </div>
+      {showAdd && (
+        <AddEntryModal
+          title="Add Distribution"
+          fields={[
+            { key: 'name', label: 'Name', type: 'text' },
+            { key: 'value', label: 'Value (€)', type: 'number' },
+          ]}
+          onSave={(d) => {
+            onAdd({ name: d.name, value: Number(d.value), must_amount: null, want_amount: null, save_amount: null, isFromTemplate: false, templateItemId: null });
+            setShowAdd(false);
+          }}
+          onClose={() => setShowAdd(false)}
+        />
       )}
-    </div>
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+    </CollapsibleSection>
   );
 }
 

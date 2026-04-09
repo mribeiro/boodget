@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faPencil, faTrash, faTriangleExclamation, faChevronDown, faChevronRight, faPlus } from '@fortawesome/free-solid-svg-icons';
+import KpiBlock from '../ui/KpiBlock';
+import Toast from '../ui/Toast';
 import {
   LineChart,
   Line,
@@ -59,6 +61,14 @@ export default function GoalDetail() {
   const [savingHist, setSavingHist] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
+  const [toast, setToast] = useState({ msg: '', show: false });
+  const toastTimer = useRef(null);
+
+  function showToast(msg) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, show: true });
+    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
+  }
 
   useEffect(() => {
     load();
@@ -114,6 +124,7 @@ export default function GoalDetail() {
       ]);
       setNewHistAmount('');
       await load();
+      showToast('Entry added');
     } catch (err) {
       setHistError(err.message);
     } finally {
@@ -147,6 +158,7 @@ export default function GoalDetail() {
       await api.bulkReplaceGoalHistoricalContributions(dossierId, goal.id, merged);
       setBatchAmount('');
       await load();
+      showToast('Entries added');
     } catch (err) {
       setHistError(err.message);
     } finally {
@@ -175,6 +187,7 @@ export default function GoalDetail() {
       setEditingCycle(null);
       setCycleContribValue('');
       await load();
+      showToast('Contribution saved');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -210,87 +223,73 @@ export default function GoalDetail() {
         </div>
       )}
 
-      {/* Progress bar */}
-      <div style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontSize: 12 }}>
-          <span style={{ color: 'var(--text-muted)' }}>Progress</span>
-          <span style={{ fontWeight: 600 }}>{progressPct.toFixed(1)}%</span>
-        </div>
-        <div className="progress-track">
-          <div
-            className="progress-fill"
-            style={{
-              width: `${progressPct}%`,
-              background: goal.state === 'completed'
-                ? 'var(--color-success)'
-                : goal.state === 'failed'
-                ? 'var(--color-danger)'
-                : infeasible
-                ? 'var(--color-warning)'
-                : 'var(--color-brand)',
-            }}
-          />
-        </div>
-      </div>
+      {/* ── Two-column layout: left = stats + contributions, right = chart ── */}
+      <div className="cycle-editor-columns" style={{ marginBottom: '1.5rem' }}>
 
-      {/* Key values grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        <KeyValue label="Target value" value={formatEur(goal.target_value)} />
-        <KeyValue label="Total current progress" value={formatEur(goal.total_current_progress)} />
-        <KeyValue label="Remaining amount" value={formatEur(goal.remaining_amount)} />
-        <KeyValue label="Target date" value={formatYM(goal.target_date)} />
-        {!isAdHoc && (
-          <>
-            <KeyValue label="Months remaining" value={goal.months_remaining > 0 ? `${goal.months_remaining} months` : 'Overdue'} />
-            <KeyValue label="Monthly value needed" value={formatEur(goal.monthly_value_needed)} />
-            <KeyValue label="Expected monthly contribution" value={formatEur(goal.expected_monthly_contribution)} highlight={infeasible} />
-          </>
-        )}
-        {goal.anticipated_completion_date && (
-          <KeyValue label="Anticipated completion" value={formatYM(goal.anticipated_completion_date)} accent />
-        )}
-        {goal.extra_value > 0 && (
-          <KeyValue label="Extra value (in accounts)" value={formatEur(goal.extra_value)} note="Already included in account balance — used for projection only" />
-        )}
-      </div>
+        {/* Left column */}
+        <div className="cycle-editor-left">
+          {/* Progress bar */}
+          <div style={{ marginBottom: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Progress</span>
+              <span style={{ fontWeight: 600 }}>{progressPct.toFixed(1)}%</span>
+            </div>
+            <div className="progress-track">
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${progressPct}%`,
+                  background: goal.state === 'completed'
+                    ? 'var(--color-success)'
+                    : goal.state === 'failed'
+                    ? 'var(--color-danger)'
+                    : infeasible
+                    ? 'var(--color-warning)'
+                    : 'var(--color-brand)',
+                }}
+              />
+            </div>
+          </div>
 
-      {/* Chart */}
-      {!isAdHoc && goal.chart_data && goal.chart_data.length > 0 && (
-        <div style={{ marginBottom: '1.5rem' }}>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>Cumulative contributions</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={goal.chart_data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-              <XAxis
-                dataKey={(d) => `${MONTH_NAMES[d.month - 1]} ${d.year}`}
-                tick={{ fontSize: 11 }}
+          {/* KPI blocks */}
+          <div className="cycle-kpi-row" style={{ marginBottom: 'var(--space-4)' }}>
+            <KpiBlock label="Target" value={formatEur(goal.target_value)} large />
+            <KpiBlock label="Progress" value={formatEur(goal.total_current_progress)} highlight={goal.state === 'completed' ? 'success' : 'neutral'} />
+            <KpiBlock label="Remaining" value={formatEur(goal.remaining_amount)} highlight={goal.remaining_amount > 0 && goal.state === 'active' ? 'neutral' : 'success'} />
+          </div>
+          <div className="cycle-kpi-row" style={{ marginBottom: 'var(--space-4)' }}>
+            <KpiBlock label="Target date" value={formatYM(goal.target_date)} />
+            {!isAdHoc && (
+              <KpiBlock
+                label="Months remaining"
+                value={goal.months_remaining > 0 ? `${goal.months_remaining} mo` : 'Overdue'}
+                highlight={goal.months_remaining <= 0 ? 'danger' : 'neutral'}
               />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v) => formatEur(v)} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="expected_cumulative"
-                name="Expected"
-                stroke="#6366f1"
-                dot={false}
-                strokeWidth={2}
+            )}
+            {!isAdHoc && (
+              <KpiBlock
+                label="Monthly needed"
+                value={formatEur(goal.monthly_value_needed)}
+                highlight={infeasible ? 'warning' : 'neutral'}
               />
-              <Line
-                type="monotone"
-                dataKey="real_cumulative"
-                name="Real"
-                stroke="#10b981"
-                dot={false}
-                strokeWidth={2}
+            )}
+            {!isAdHoc && (
+              <KpiBlock
+                label="Expected contribution"
+                value={formatEur(goal.expected_monthly_contribution)}
+                highlight={infeasible ? 'warning' : 'neutral'}
               />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+            )}
+            {goal.anticipated_completion_date && (
+              <KpiBlock label="Est. completion" value={formatYM(goal.anticipated_completion_date)} highlight="success" />
+            )}
+            {goal.extra_value > 0 && (
+              <KpiBlock label="Extra value" value={formatEur(goal.extra_value)} note="In accounts — projection only" />
+            )}
+          </div>
 
-      {/* Historical contributions */}
-      {!isAdHoc && (
+          {/* Historical contributions */}
+          {!isAdHoc && (
         <div style={{ marginBottom: '1.5rem' }}>
           <button
             className="btn-ghost"
@@ -391,78 +390,106 @@ export default function GoalDetail() {
         </div>
       )}
 
-      {/* Per-cycle manual contributions */}
-      {goal.contribution_mode === 'manual' && goal.chart_data && goal.chart_data.length > 0 && (
-        <div>
-          <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Cycle contributions</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            {goal.chart_data.filter((c) => !c.is_historical).map((c) => {
-              const label = `${MONTH_NAMES[c.month - 1]} ${c.year}`;
-              const isEditing = editingCycle === c.cycle_id;
-              return (
-                <div
-                  key={c.cycle_id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    padding: '0.5rem 0.75rem',
-                    background: 'var(--color-surface)',
-                    borderRadius: 'var(--radius)',
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <span style={{ flex: 1 }}>{label}</span>
-                  {isEditing ? (
-                    <>
-                      <input
-                        type="number"
-                        value={cycleContribValue}
-                        onChange={(e) => setCycleContribValue(e.target.value)}
-                        min="0"
-                        step="0.01"
-                        style={{ width: '120px' }}
-                        autoFocus
-                      />
-                      <button
-                        className="btn-primary"
-                        style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
-                        disabled={savingContrib}
-                        onClick={() => handleSaveCycleContrib(c.cycle_id)}
-                      >
-                        Save
-                      </button>
-                      <button
-                        className="btn-secondary"
-                        style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
-                        onClick={() => { setEditingCycle(null); setCycleContribValue(''); }}
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ color: c.real_contribution > 0 ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
-                        {formatEur(c.real_contribution)}
-                      </span>
-                      <button
-                        className="btn-secondary"
-                        style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                        onClick={() => {
-                          setEditingCycle(c.cycle_id);
-                          setCycleContribValue(String(c.real_contribution));
-                        }}
-                      >
-                        <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-                      </button>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+          {/* Per-cycle manual contributions */}
+          {goal.contribution_mode === 'manual' && goal.chart_data && goal.chart_data.length > 0 && (
+            <div>
+              <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Cycle contributions</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {goal.chart_data.filter((c) => !c.is_historical).map((c) => {
+                  const label = `${MONTH_NAMES[c.month - 1]} ${c.year}`;
+                  const isEditing = editingCycle === c.cycle_id;
+                  return (
+                    <div
+                      key={c.cycle_id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        padding: '0.5rem 0.75rem',
+                        background: 'var(--color-surface)',
+                        borderRadius: 'var(--radius)',
+                        fontSize: '0.875rem',
+                      }}
+                    >
+                      <span style={{ flex: 1 }}>{label}</span>
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="number"
+                            value={cycleContribValue}
+                            onChange={(e) => setCycleContribValue(e.target.value)}
+                            min="0"
+                            step="0.01"
+                            style={{ width: '120px' }}
+                            autoFocus
+                          />
+                          <button
+                            className="btn-primary"
+                            style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
+                            disabled={savingContrib}
+                            onClick={() => handleSaveCycleContrib(c.cycle_id)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn-secondary"
+                            style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
+                            onClick={() => { setEditingCycle(null); setCycleContribValue(''); }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: c.real_contribution > 0 ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                            {formatEur(c.real_contribution)}
+                          </span>
+                          <button
+                            className="btn-secondary"
+                            style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                            onClick={() => {
+                              setEditingCycle(c.cycle_id);
+                              setCycleContribValue(String(c.real_contribution));
+                            }}
+                          >
+                            <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>{/* end left column */}
+
+        {/* Right column — chart */}
+        <div className="cycle-editor-right">
+          {!isAdHoc && goal.chart_data && goal.chart_data.length > 0 ? (
+            <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
+              <h3 style={{ marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Cumulative contributions
+              </h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={goal.chart_data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey={(d) => `${MONTH_NAMES[d.month - 1]} ${d.year}`}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v) => formatEur(v)} />
+                  <Legend />
+                  <Line type="monotone" dataKey="expected_cumulative" name="Expected" stroke="#6366f1" dot={false} strokeWidth={2} />
+                  <Line type="monotone" dataKey="real_cumulative" name="Real" stroke="#10b981" dot={false} strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : null}
+        </div>{/* end right column */}
+
+      </div>{/* end two-column */}
 
       {showEdit && (
         <GoalFormModal
@@ -477,23 +504,7 @@ export default function GoalDetail() {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-    </div>
-  );
-}
-
-function KeyValue({ label, value, highlight, accent, note }) {
-  return (
-    <div
-      style={{
-        background: 'var(--color-surface)',
-        borderRadius: 'var(--radius)',
-        padding: '0.75rem 1rem',
-        borderLeft: highlight ? '3px solid #f59e0b' : accent ? '3px solid #10b981' : '3px solid var(--color-border)',
-      }}
-    >
-      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem' }}>{label}</div>
-      <div style={{ fontWeight: 600, fontSize: '1rem', color: highlight ? '#d97706' : accent ? '#059669' : 'var(--color-text)' }}>{value}</div>
-      {note && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.25rem', fontStyle: 'italic' }}>{note}</div>}
+      <Toast message={toast.msg} visible={toast.show} />
     </div>
   );
 }
