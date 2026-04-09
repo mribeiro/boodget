@@ -88,6 +88,7 @@ export default function CycleEditor() {
   const [error, setError] = useState('');
 
   const [showEditIncome, setShowEditIncome] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
 
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [finalBalance, setFinalBalance] = useState('');
@@ -369,7 +370,7 @@ export default function CycleEditor() {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
-            <span className={`badge cycle-status-badge ${cycle.is_closed ? 'badge-secondary' : 'badge-success'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span className={`badge cycle-status-badge ${cycle.is_closed ? 'badge-secondary' : 'badge-success'}`} style={{ alignItems: 'center', gap: 4 }}>
               <FontAwesomeIcon icon={cycle.is_closed ? faLock : faLockOpen} style={{ fontSize: 10 }} />
               {cycle.is_closed ? 'Closed' : 'Open'}
             </span>
@@ -403,7 +404,7 @@ export default function CycleEditor() {
         <div className="cycle-toolbar-group">
           <button
             className={`cycle-toolbar-btn ${!!cycle.is_closed ? 'btn-secondary' : 'btn-warning'}`}
-            onClick={!!cycle.is_closed ? handleReopen : () => setShowCloseForm(true)}
+            onClick={!!cycle.is_closed ? handleReopen : () => setShowCloseModal(true)}
           >
             <FontAwesomeIcon icon={!!cycle.is_closed ? faLockOpen : faLock} />
             <span className="cycle-toolbar-label">{!!cycle.is_closed ? 'Reopen' : 'Close'}</span>
@@ -423,6 +424,20 @@ export default function CycleEditor() {
             setShowEditIncome(false);
           }}
           onClose={() => setShowEditIncome(false)}
+        />
+      )}
+
+      {showCloseModal && (
+        <CloseCycleModal
+          expectedBalance={summary.expected_balance}
+          initialBalance={finalBalance}
+          onClose={() => setShowCloseModal(false)}
+          onConfirm={async (bal) => {
+            await api.updateCycle(dossierId, cycleId, { is_closed: true, final_real_balance: bal });
+            await load();
+            setShowCloseModal(false);
+            showToast('Cycle closed');
+          }}
         />
       )}
 
@@ -783,6 +798,85 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={saving || isTaken(year, month)}>
               {saving ? 'Saving…' : `Move to ${cycleDisplayLabel}`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Close cycle modal ─────────────────────────────────────────────────────────
+
+function CloseCycleModal({ expectedBalance, initialBalance, onConfirm, onClose }) {
+  const [balance, setBalance] = useState(initialBalance ?? '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const diff = balance !== '' && !isNaN(Number(balance))
+    ? Number(balance) - expectedBalance
+    : null;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const bal = Number(balance);
+    if (isNaN(bal)) { setError('Enter a valid number'); return; }
+    setError('');
+    setSaving(true);
+    try {
+      await onConfirm(bal);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Close Cycle</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div className="form-group">
+              <label>Final real balance (€)</label>
+              <input
+                type="number" inputMode="decimal"
+                step="0.01"
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                placeholder="0.00"
+                autoFocus
+              />
+            </div>
+            {diff !== null && (
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: 'var(--radius)',
+                background: diff >= 0 ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Difference vs expected</span>
+                <span style={{
+                  fontSize: 15, fontWeight: 800,
+                  color: diff >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {diff >= 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(diff)} €
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.35rem' }} />
+              {saving ? 'Closing…' : 'Confirm close'}
             </button>
           </div>
         </form>
