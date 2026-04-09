@@ -769,6 +769,21 @@ button:disabled {
   transform: translateY(0);
 }
 
+.btn-warning {
+  background: var(--color-warning);
+  color: #fff;
+  font-weight: 500;
+}
+
+.btn-warning:hover:not(:disabled) {
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+}
+
+.btn-warning:active:not(:disabled) {
+  transform: translateY(0);
+}
+
 .btn-sm {
   padding: 5px 12px;
   font-size: 12px;
@@ -2063,6 +2078,9 @@ tr:hover td {
   .cycle-toolbar-spacer {
     display: block;
     height: calc(56px + env(safe-area-inset-bottom));
+  }
+  .cycle-status-badge {
+    display: none;
   }
 }
 

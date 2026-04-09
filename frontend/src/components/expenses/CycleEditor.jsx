@@ -369,7 +369,7 @@ export default function CycleEditor() {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
-            <span className={`badge ${cycle.is_closed ? 'badge-secondary' : 'badge-success'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span className={`badge cycle-status-badge ${cycle.is_closed ? 'badge-secondary' : 'badge-success'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <FontAwesomeIcon icon={cycle.is_closed ? faLock : faLockOpen} style={{ fontSize: 10 }} />
               {cycle.is_closed ? 'Closed' : 'Open'}
             </span>
@@ -399,15 +399,19 @@ export default function CycleEditor() {
               <span className="cycle-toolbar-label">{fetchingPaperless ? 'Fetching…' : 'Paperless'}</span>
             </button>
           )}
-          {!!cycle.is_closed && (
-            <button className="cycle-toolbar-btn btn-secondary" onClick={handleReopen}>
-              <FontAwesomeIcon icon={faArrowRotateLeft} /><span className="cycle-toolbar-label">Reopen</span>
-            </button>
-          )}
         </div>
-        <button className="cycle-toolbar-btn btn-danger" onClick={handleDeleteCycle}>
-          <FontAwesomeIcon icon={faTrash} /><span className="cycle-toolbar-label">Delete</span>
-        </button>
+        <div className="cycle-toolbar-group">
+          <button
+            className={`cycle-toolbar-btn ${!!cycle.is_closed ? 'btn-secondary' : 'btn-warning'}`}
+            onClick={!!cycle.is_closed ? handleReopen : () => setShowCloseForm(true)}
+          >
+            <FontAwesomeIcon icon={!!cycle.is_closed ? faLockOpen : faLock} />
+            <span className="cycle-toolbar-label">{!!cycle.is_closed ? 'Reopen' : 'Close'}</span>
+          </button>
+          <button className="cycle-toolbar-btn btn-danger" onClick={handleDeleteCycle}>
+            <FontAwesomeIcon icon={faTrash} /><span className="cycle-toolbar-label">Delete</span>
+          </button>
+        </div>
       </div>
 
       {showEditIncome && (
