@@ -5,7 +5,7 @@ import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
   faFileArrowDown, faSpinner, faFileLines, faCheck, faArrowRotateLeft,
   faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave,
-  faCircleCheck, faClock, faCalendarDays,
+  faCircleCheck, faClock, faCalendarDays, faLeaf,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -410,7 +410,7 @@ export default function CycleEditor() {
           </button>
           {paperlessActive && (
             <button className="cycle-toolbar-btn btn-secondary" onClick={handleFetchPaperless} disabled={fetchingPaperless}>
-              <FontAwesomeIcon icon={fetchingPaperless ? faSpinner : faFileLines} spin={fetchingPaperless} />
+              <FontAwesomeIcon icon={fetchingPaperless ? faSpinner : faLeaf} spin={fetchingPaperless} />
               <span className="cycle-toolbar-label">{fetchingPaperless ? 'Fetching…' : 'Paperless'}</span>
             </button>
           )}
