@@ -109,6 +109,7 @@ export default function CycleEditor() {
   // Mobile collapsible sections
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [expensesCollapsed, setExpensesCollapsed] = useState(false);
+  const [budgetsCollapsed, setBudgetsCollapsed] = useState(false);
   const [distributionsCollapsed, setDistributionsCollapsed] = useState(true);
 
   // Toast
@@ -521,21 +522,21 @@ export default function CycleEditor() {
 
           {/* ── Budget Expenses section ── */}
           {budgetExpenses.length > 0 && (
-            <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', overflow: 'hidden', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
-                <div style={{ width: 3, height: 16, borderRadius: 2, background: 'var(--color-warning)', flexShrink: 0 }} />
-                <FontAwesomeIcon icon={faWallet} style={{ fontSize: 13, color: 'var(--color-warning)' }} />
-                <span style={{ fontSize: 14, fontWeight: 700 }}>Budgets</span>
-              </div>
-              <div style={{ padding: '0 16px 14px' }}>
-                <BudgetExpensesList
-                  expenses={budgetExpenses}
-                  onUpdateSpent={handleUpdateSpent}
-                  onDelete={handleDeleteItem}
-                  onEdit={handleEditItem}
-                />
-              </div>
-            </div>
+            <CollapsibleSection
+              title="Budgets"
+              icon={faWallet}
+              accent="var(--color-warning)"
+              count={budgetExpenses.length}
+              collapsed={budgetsCollapsed}
+              onToggle={() => setBudgetsCollapsed((v) => !v)}
+            >
+              <BudgetExpensesList
+                expenses={budgetExpenses}
+                onUpdateSpent={handleUpdateSpent}
+                onDelete={handleDeleteItem}
+                onEdit={handleEditItem}
+              />
+            </CollapsibleSection>
           )}
 
           {/* ── Close Cycle panel (only on desktop, open cycle) ── */}

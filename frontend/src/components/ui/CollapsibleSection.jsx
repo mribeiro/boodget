@@ -38,6 +38,7 @@ export default function CollapsibleSection({
           cursor: 'pointer',
           color: 'var(--text-primary)',
           borderBottom: collapsed ? 'none' : '1px solid var(--border-default)',
+          transition: 'border-bottom-color 0.25s',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -59,15 +60,22 @@ export default function CollapsibleSection({
             fontSize: 12,
             color: 'var(--text-muted)',
             transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-            transition: 'transform 0.3s ease',
+            transition: 'transform 0.25s cubic-bezier(.4,0,.2,1)',
           }}
         />
       </button>
-      {!collapsed && (
-        <div style={noPad ? {} : { padding: '14px 16px' }}>
-          {children}
+      {/* Animate with grid-template-rows 0fr→1fr — works for any content height */}
+      <div style={{
+        display: 'grid',
+        gridTemplateRows: collapsed ? '0fr' : '1fr',
+        transition: 'grid-template-rows 0.25s cubic-bezier(.4,0,.2,1)',
+      }}>
+        <div style={{ overflow: 'hidden' }}>
+          <div style={noPad ? {} : { padding: '14px 16px' }}>
+            {children}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
