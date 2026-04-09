@@ -455,7 +455,7 @@ export default function CycleEditor() {
       )}
 
       {/* ── Summary KPIs ── */}
-      <div className="cycle-editor-summary" style={{ marginBottom: '1.25rem' }}>
+      <div className="cycle-editor-summary" style={{ marginBottom: '1rem' }}>
         <KpiStrip style={{ marginBottom: cycle.is_closed ? '0.75rem' : 0 }} items={[
           { label: 'Salary', value: fmt(cycle.salary), icon: faMoneyBillWave },
           { label: 'Prev. bal.', value: fmt(cycle.previous_balance), icon: faWallet },

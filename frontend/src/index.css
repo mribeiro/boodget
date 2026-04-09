@@ -2018,7 +2018,7 @@ tr:hover td {
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
   padding: 8px 12px;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .cycle-toolbar-group {
