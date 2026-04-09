@@ -87,10 +87,7 @@ export default function CycleEditor() {
   const [activeTab, setActiveTab] = useState('expenses');
   const [error, setError] = useState('');
 
-  const [editingInfo, setEditingInfo] = useState(false);
-  const [infoSalary, setInfoSalary] = useState('');
-  const [infoPrevBalance, setInfoPrevBalance] = useState('');
-  const [savingInfo, setSavingInfo] = useState(false);
+  const [showEditIncome, setShowEditIncome] = useState(false);
 
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [finalBalance, setFinalBalance] = useState('');
@@ -132,28 +129,9 @@ export default function CycleEditor() {
     try {
       const data = await api.getCycle(dossierId, cycleId);
       setCycle(data);
-      setInfoSalary(String(data.salary));
-      setInfoPrevBalance(String(data.previous_balance));
       if (data.final_real_balance != null) setFinalBalance(String(data.final_real_balance));
     } catch (err) {
       setError(err.message);
-    }
-  }
-
-  async function handleSaveInfo() {
-    setError('');
-    setSavingInfo(true);
-    try {
-      await api.updateCycle(dossierId, cycleId, {
-        salary: Number(infoSalary),
-        previous_balance: Number(infoPrevBalance),
-      });
-      await load();
-      setEditingInfo(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSavingInfo(false);
     }
   }
 
@@ -409,7 +387,7 @@ export default function CycleEditor() {
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEditPeriod(true)}>
             <FontAwesomeIcon icon={faCalendarDays} /><span className="cycle-toolbar-label">Period</span>
           </button>
-          <button className="cycle-toolbar-btn btn-secondary" onClick={() => setEditingInfo(true)}>
+          <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEditIncome(true)}>
             <FontAwesomeIcon icon={faMoneyBillWave} /><span className="cycle-toolbar-label">Income</span>
           </button>
           <button className="cycle-toolbar-btn btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual}>
@@ -432,26 +410,16 @@ export default function CycleEditor() {
         </button>
       </div>
 
-      {/* ── Income row (edit mode) ── */}
-      {editingInfo && (
-        <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: '0.8rem' }}>Salary received (€)</label>
-              <input type="number" step="0.01" value={infoSalary} onChange={(e) => setInfoSalary(e.target.value)} style={{ width: '8rem' }} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: '0.8rem' }}>Previous balance (€)</label>
-              <input type="number" step="0.01" value={infoPrevBalance} onChange={(e) => setInfoPrevBalance(e.target.value)} style={{ width: '8rem' }} />
-            </div>
-            <button className="btn-primary" onClick={handleSaveInfo} disabled={savingInfo} style={{ padding: '0.35rem 0.75rem' }}>
-              {savingInfo ? 'Saving…' : 'Save'}
-            </button>
-            <button className="btn-secondary" onClick={() => { setEditingInfo(false); setInfoSalary(String(cycle.salary)); setInfoPrevBalance(String(cycle.previous_balance)); }} style={{ padding: '0.35rem 0.75rem' }}>
-              Cancel
-            </button>
-          </div>
-        </div>
+      {showEditIncome && (
+        <EditIncomeModal
+          cycle={cycle}
+          onSave={async (salary, prevBalance) => {
+            await api.updateCycle(dossierId, cycleId, { salary, previous_balance: prevBalance });
+            await load();
+            setShowEditIncome(false);
+          }}
+          onClose={() => setShowEditIncome(false)}
+        />
       )}
 
       {/* ── Summary KPIs ── */}
@@ -810,6 +778,57 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={saving || isTaken(year, month)}>
               {saving ? 'Saving…' : `Move to ${cycleDisplayLabel}`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Income edit modal ─────────────────────────────────────────────────────────
+
+function EditIncomeModal({ cycle, onSave, onClose }) {
+  const [salary, setSalary] = useState(String(cycle.salary));
+  const [prevBalance, setPrevBalance] = useState(String(cycle.previous_balance));
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      await onSave(Number(salary), Number(prevBalance));
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Income</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div className="form-group">
+              <label>Salary received (€)</label>
+              <input type="number" step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} autoFocus />
+            </div>
+            <div className="form-group">
+              <label>Previous balance (€)</label>
+              <input type="number" step="0.01" value={prevBalance} onChange={(e) => setPrevBalance(e.target.value)} />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </form>
