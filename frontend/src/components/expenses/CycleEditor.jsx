@@ -5,7 +5,7 @@ import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
   faFileArrowDown, faSpinner, faFileLines, faCheck, faArrowRotateLeft,
   faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave,
-  faCircleCheck, faClock,
+  faCircleCheck, faClock, faCalendarDays,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -400,10 +400,10 @@ export default function CycleEditor() {
       <div className="cycle-toolbar">
         <div className="cycle-toolbar-group">
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEditPeriod(true)}>
-            <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Period</span>
+            <FontAwesomeIcon icon={faCalendarDays} /><span className="cycle-toolbar-label">Period</span>
           </button>
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setEditingInfo(true)}>
-            <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Income</span>
+            <FontAwesomeIcon icon={faMoneyBillWave} /><span className="cycle-toolbar-label">Income</span>
           </button>
           <button className="cycle-toolbar-btn btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual}>
             <FontAwesomeIcon icon={faFileArrowDown} /><span className="cycle-toolbar-label">{pullingAnnual ? 'Pulling…' : 'Pull annual'}</span>
