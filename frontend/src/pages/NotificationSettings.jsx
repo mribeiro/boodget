@@ -28,22 +28,27 @@ export default function NotificationSettings() {
   const [subscribing, setSubscribing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testingPush, setTestingPush] = useState(false);
+  const [testResult, setTestResult] = useState(null); // null | 'success' | 'error'
+  const [vapidInfo, setVapidInfo] = useState(null);
   const [localHour, setLocalHour] = useState(9);
   const [localMinute, setLocalMinute] = useState(0);
 
   // Load all data
   const loadData = useCallback(async () => {
     try {
-      const [s, di, subs, dos] = await Promise.all([
+      const [s, di, subs, dos, vi] = await Promise.all([
         api.getNotificationSettings(),
         api.getNotificationDossiers(),
         api.getPushSubscriptions(),
         api.getDossiers(),
+        api.getVapidInfo(),
       ]);
       setSettings(s);
       setOptedIn(di);
       setSubscriptions(subs);
       setDossiers(dos);
+      setVapidInfo(vi);
       const local = utcToLocal(s.send_hour, s.send_minute);
       setLocalHour(local.hour);
       setLocalMinute(local.minute);
@@ -110,7 +115,13 @@ export default function NotificationSettings() {
 
   async function handleEnableOnDevice() {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      setError('Push notifications are not supported in this browser.');
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+      if (isIOS && !isStandalone) {
+        setError('On iOS, push notifications are only available when the app is installed on your Home Screen. Tap the Share button (⬆) in Safari and select "Add to Home Screen", then open the app from there.');
+      } else {
+        setError('Push notifications are not supported in this browser.');
+      }
       return;
     }
     setSubscribing(true);
@@ -122,6 +133,11 @@ export default function NotificationSettings() {
 
       const { publicKey } = await api.getVapidPublicKey();
       const reg = await navigator.serviceWorker.ready;
+      // Unsubscribe any existing subscription first — if the server's VAPID keys
+      // changed (e.g. DB wiped) the browser will reject a subscribe() with a key
+      // mismatch error unless we clear the stale subscription first.
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
@@ -152,6 +168,28 @@ export default function NotificationSettings() {
     }
   }
 
+  async function handleTestPush() {
+    setTestingPush(true);
+    setTestResult(null);
+    try {
+      const data = await api.testPush();
+      const anySuccess = data.results.some((r) => r.success);
+      if (anySuccess) {
+        setTestResult({ ok: true });
+      } else {
+        const first = data.results[0];
+        const detail = first.statusCode ? `status ${first.statusCode}` : first.message || 'unknown error';
+        setTestResult({ ok: false, detail });
+      }
+    } catch (err) {
+      setTestResult({ ok: false, detail: err.message });
+    } finally {
+      setTestingPush(false);
+      await loadData();
+      setTimeout(() => setTestResult(null), 4000);
+    }
+  }
+
   async function handleDossierToggle(dossierId, checked) {
     const next = checked ? [...optedIn, dossierId] : optedIn.filter((id) => id !== dossierId);
     setSaving(true);
@@ -170,7 +208,11 @@ export default function NotificationSettings() {
   }
 
   const isCurrentDeviceSubscribed = !!currentEndpoint;
+  const isRegisteredOnBackend = subscriptions.some((s) => s.endpoint === currentEndpoint);
   const notificationsBlocked = permissionState === 'denied';
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  const showIOSHint = isIOS && !isStandalone && !isCurrentDeviceSubscribed;
 
   return (
     <div className="page-fade-in" style={{ padding: 'var(--space-6)', maxWidth: 640 }}>
@@ -204,13 +246,33 @@ export default function NotificationSettings() {
       <div className="card card--flat" style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)' }}>
         <h2 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 var(--space-3)' }}>This Device</h2>
 
+        {showIOSHint && (
+          <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+            On iOS, push notifications require the app to be installed on your Home Screen. Tap the Share button (⬆) in Safari and select <strong>"Add to Home Screen"</strong>, then open the app from there.
+          </div>
+        )}
+
         {notificationsBlocked ? (
           <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
             Notifications are blocked in your browser settings. To enable them, update your browser's notification permissions for this site.
           </div>
-        ) : isCurrentDeviceSubscribed ? (
+        ) : isCurrentDeviceSubscribed && isRegisteredOnBackend ? (
           <div style={{ color: 'var(--color-success-text)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <span>✓</span> Notifications enabled on this device
+          </div>
+        ) : isCurrentDeviceSubscribed && !isRegisteredOnBackend ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
+              This device is subscribed in the browser but not registered on the server. Click below to fix it.
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleEnableOnDevice}
+              disabled={subscribing}
+              style={{ fontSize: 13 }}
+            >
+              {subscribing ? 'Registering…' : 'Re-register this device'}
+            </button>
           </div>
         ) : (
           <button
@@ -245,6 +307,29 @@ export default function NotificationSettings() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {isCurrentDeviceSubscribed && (
+          <div style={{ marginTop: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <button
+              className="btn btn-ghost"
+              onClick={handleTestPush}
+              disabled={testingPush}
+              style={{ fontSize: 13 }}
+            >
+              {testingPush ? 'Sending…' : 'Send test notification'}
+            </button>
+            {testResult?.ok === true && (
+              <span style={{ fontSize: 12, color: 'var(--color-success-text)' }}>
+                ✓ Notification sent — check your device
+              </span>
+            )}
+            {testResult?.ok === false && (
+              <span style={{ fontSize: 12, color: 'var(--color-danger-text)' }}>
+                Failed: {testResult.detail}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -329,6 +414,28 @@ export default function NotificationSettings() {
           ))
         )}
       </div>
+
+      {/* VAPID debug info */}
+      {vapidInfo && (
+        <div className="card card--flat" style={{ marginTop: 'var(--space-4)', padding: 'var(--space-4)' }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 var(--space-3)', color: 'var(--text-muted)' }}>VAPID Config (debug)</h2>
+          <table style={{ fontSize: 12, borderCollapse: 'collapse', width: '100%' }}>
+            <tbody>
+              {[
+                ['Source', vapidInfo.fromEnv ? 'Environment variables ✓' : 'Auto-generated (DB)'],
+                ['Subject', vapidInfo.subject],
+                ['Public key', vapidInfo.publicKey],
+                ['Private key', vapidInfo.privateKey],
+              ].map(([label, val]) => (
+                <tr key={label}>
+                  <td style={{ color: 'var(--text-muted)', paddingRight: 16, paddingBottom: 4, whiteSpace: 'nowrap' }}>{label}</td>
+                  <td style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{val}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

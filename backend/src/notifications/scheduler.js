@@ -3,9 +3,9 @@ const { sendPush } = require('./push');
 
 function getCurrentCycleStartYearMonth(cycleStartDay) {
   const now = new Date();
-  const todayDay = now.getDate();
-  const todayMonth = now.getMonth() + 1;
-  const todayYear = now.getFullYear();
+  const todayDay = now.getUTCDate();
+  const todayMonth = now.getUTCMonth() + 1;
+  const todayYear = now.getUTCFullYear();
   if (todayDay >= cycleStartDay) {
     return { year: todayYear, month: todayMonth };
   }
@@ -32,7 +32,7 @@ async function runNotificationScheduler() {
   const now = new Date();
   const currentHour = now.getUTCHours();
   const currentMinute = now.getUTCMinutes();
-  const todayDay = now.getDate();
+  const todayDay = now.getUTCDate();
 
   // Clean up log entries older than 90 days
   db.prepare("DELETE FROM notification_log WHERE sent_at < datetime('now', '-90 days')").run();
@@ -83,8 +83,8 @@ async function runNotificationScheduler() {
       // --- snapshot_missing ---
       const snapshotWarnDay = dossier.capital_snapshot_warning_day || 7;
       if (todayDay >= snapshotWarnDay) {
-        const calYear = now.getFullYear();
-        const calMonth = now.getMonth() + 1;
+        const calYear = now.getUTCFullYear();
+        const calMonth = now.getUTCMonth() + 1;
         const filled = db
           .prepare('SELECT id FROM months WHERE dossier_id = ? AND year = ? AND month = ? AND filled = 1')
           .get(dossierId, calYear, calMonth);
@@ -147,7 +147,7 @@ async function runNotificationScheduler() {
       // --- expense_upcoming / expense_overdue ---
       if (currentCycle) {
         const symbol = (dossier.currency || 'EUR') === 'EUR' ? '€' : (dossier.currency || 'EUR');
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
         // Monthly fixed expenses
         const unpaidItems = db

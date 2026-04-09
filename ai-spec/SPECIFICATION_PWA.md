@@ -710,6 +710,68 @@ When running as a standalone PWA on iOS (with `viewport-fit=cover` and `apple-mo
 
 -----
 
+## 18. Test Push Endpoint
+
+### 18.1 Purpose
+
+`POST /api/push/test` verifies the full push pipeline end-to-end without waiting for the scheduler to fire at the configured UTC time. Intended for development and user-driven diagnostics.
+
+### 18.2 Behaviour
+
+- Sends a single test notification to **all** push subscriptions belonging to the authenticated user.
+- Bypasses all scheduler logic: no `notification_log` read or write, no dossier checks, no time comparison.
+- Subscriptions returning 410 Gone or 404 Not Found are removed from `push_subscriptions` (same cleanup as the scheduler).
+- Returns HTTP 200 when at least one subscription succeeded.
+- Returns HTTP 400 when the user has no registered subscriptions.
+- Returns HTTP 502 when all sends failed.
+
+### 18.3 Request / Response
+
+```
+POST /api/push/test
+Authorization: session cookie (requireAuth)
+Body: (none)
+
+Response 200:
+{ "results": [{ "endpoint": "https://fcm.googleapis.com/...", "success": true }] }
+
+Response 400:
+{ "error": "No push subscriptions registered for this user." }
+
+Response 502:
+{ "results": [{ "endpoint": "...", "success": false, "statusCode": 410 }] }
+```
+
+### 18.4 Notification Payload
+
+```json
+{ "type": "test", "title": "Test notification", "body": "Push notifications are working correctly.", "url": "/notifications" }
+```
+
+The `url` navigates back to the Notification Settings page on click, also validating the service worker click handler.
+
+### 18.5 UI
+
+A "Send test notification" button appears inside the "This Device" card in `NotificationSettings.jsx` when the user has at least one registered subscription. Uses `btn-ghost` styling. Shows inline success/error feedback for 4 seconds then auto-resets. Not gated on the master `enabled` toggle — tests the pipeline even when scheduled notifications are off.
+
+### 18.6 Scheduler UTC Consistency Fixes
+
+The following local-time → UTC fixes were applied to `backend/src/notifications/scheduler.js`:
+
+| Location | Before | After |
+|---|---|---|
+| `getCurrentCycleStartYearMonth()` line 6 | `now.getDate()` | `now.getUTCDate()` |
+| `getCurrentCycleStartYearMonth()` line 7 | `now.getMonth() + 1` | `now.getUTCMonth() + 1` |
+| `getCurrentCycleStartYearMonth()` line 8 | `now.getFullYear()` | `now.getUTCFullYear()` |
+| `runNotificationScheduler()` line 35 | `now.getDate()` | `now.getUTCDate()` |
+| `snapshot_missing` block | `now.getFullYear()` | `now.getUTCFullYear()` |
+| `snapshot_missing` block | `now.getMonth() + 1` | `now.getUTCMonth() + 1` |
+| expense `today` variable | `new Date(now.getFullYear(), now.getMonth(), now.getDate())` | `new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))` |
+
+These ensure all day-of-month threshold comparisons use UTC, consistent with the UTC-based scheduler trigger time (`send_hour`/`send_minute`).
+
+-----
+
 ## 17. Out of Scope (this phase)
 
 - Offline data access (reading/writing without backend connectivity)
