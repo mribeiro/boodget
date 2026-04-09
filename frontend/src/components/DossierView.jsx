@@ -158,12 +158,12 @@ export default function DossierView() {
                   large
                 />
                 <KpiBlock
-                  label="Month-over-month"
+                  label="MoM"
                   value={mom != null ? `${mom >= 0 ? '+' : ''}${formatEur(mom)}` : '—'}
                   highlight={mom == null ? 'neutral' : mom >= 0 ? 'success' : 'danger'}
                 />
                 <KpiBlock
-                  label="Months recorded"
+                  label="Months"
                   value={months.length}
                 />
                 <KpiBlock

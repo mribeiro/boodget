@@ -207,8 +207,8 @@ export default function MonthEditor() {
         const fmt = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' €';
         return (
           <div className="cycle-kpi-row" style={{ marginBottom: '1.25rem' }}>
-            <KpiBlock label="Entries filled" value={`${filledCount} / ${monthData.entries.length}`} highlight={filledCount === monthData.entries.length ? 'success' : 'neutral'} />
-            <KpiBlock label="Total entered" value={filledCount > 0 ? fmt(total) : '—'} large />
+            <KpiBlock label="Filled" value={`${filledCount} / ${monthData.entries.length}`} highlight={filledCount === monthData.entries.length ? 'success' : 'neutral'} />
+            <KpiBlock label="Total" value={filledCount > 0 ? fmt(total) : '—'} large />
             {hasDelta && (
               <KpiBlock
                 label="Net change"

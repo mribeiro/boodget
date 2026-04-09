@@ -24,7 +24,7 @@ export default function KpiBlock({ label, value, icon, highlight = 'neutral', la
       border: '1px solid var(--border-default)',
       borderRadius: 'var(--radius)',
       padding: '10px 14px',
-      minWidth: 0,
+      minWidth: 80,
       flex: large ? 2 : 1,
     }}>
       <div style={{

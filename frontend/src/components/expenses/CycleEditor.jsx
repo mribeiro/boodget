@@ -441,13 +441,13 @@ export default function CycleEditor() {
         {/* Desktop: horizontal row of KPI blocks */}
         <div className="cycle-kpi-row">
           <KpiBlock label="Salary" value={fmt(cycle.salary)} icon={faMoneyBillWave} />
-          <KpiBlock label="Prev. Balance" value={fmt(cycle.previous_balance)} icon={faWallet} />
+          <KpiBlock label="Prev. bal." value={fmt(cycle.previous_balance)} icon={faWallet} />
           <KpiBlock label="Available" value={fmt(summary.total_available)} icon={faWallet} highlight="neutral" />
           <KpiBlock label="Expenses" value={fmt(summary.total_expenses)} icon={faReceipt} highlight="danger" />
           <KpiBlock label="Paid" value={fmt(summary.total_expenses_paid)} icon={faCircleCheck} highlight="success" />
           <KpiBlock label="Unpaid" value={fmt(summary.total_expenses_unpaid)} icon={faClock} highlight={summary.total_expenses_unpaid > 0 ? 'warning' : 'neutral'} />
           <KpiBlock
-            label="Expected Balance"
+            label="Exp. balance"
             value={fmt(summary.expected_balance)}
             icon={faWallet}
             highlight={summary.expected_balance < 0 ? 'danger' : 'success'}
@@ -459,7 +459,7 @@ export default function CycleEditor() {
         {cycle.is_closed && (
           <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <KpiBlock
-              label="Final Real Balance"
+              label="Final balance"
               value={fmt(summary.final_real_balance)}
               icon={faLock}
               highlight={summary.balance_difference > 0 ? 'success' : summary.balance_difference < 0 ? 'danger' : 'neutral'}
