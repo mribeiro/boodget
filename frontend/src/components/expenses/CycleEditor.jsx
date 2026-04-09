@@ -450,7 +450,7 @@ export default function CycleEditor() {
         ]} />
 
         {/* Closed: show final balance and difference */}
-        {cycle.is_closed && (
+        {!!cycle.is_closed && (
           <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <KpiBlock
               label="Final balance"

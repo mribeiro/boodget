@@ -44,21 +44,27 @@ export default function KpiStrip({ items, style }) {
             style={{ color: 'var(--text-muted)', fontSize: 13, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}
           />
         </button>
-        {open && (
-          <div className="kpi-strip-list">
-            {visible.map((item, i) => (
-              <div key={i} className="kpi-strip-row">
-                <span className="kpi-strip-row-label">
-                  {item.icon && <FontAwesomeIcon icon={item.icon} style={{ marginRight: 5 }} />}
-                  {item.label}
-                </span>
-                <span className="kpi-strip-row-value" style={{ color: color(item.highlight) }}>
-                  {item.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <div
+          className="kpi-strip-list"
+          style={{
+            maxHeight: open ? `${visible.length * 52}px` : 0,
+            overflow: 'hidden',
+            transition: 'max-height 0.28s cubic-bezier(.4,0,.2,1)',
+            borderTop: open ? undefined : 'none',
+          }}
+        >
+          {visible.map((item, i) => (
+            <div key={i} className="kpi-strip-row">
+              <span className="kpi-strip-row-label">
+                {item.icon && <FontAwesomeIcon icon={item.icon} style={{ marginRight: 5 }} />}
+                {item.label}
+              </span>
+              <span className="kpi-strip-row-value" style={{ color: color(item.highlight) }}>
+                {item.value}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

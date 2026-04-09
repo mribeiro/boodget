@@ -2059,6 +2059,7 @@ tr:hover td {
   border: 1px solid var(--border-default);
   border-top: none;
   border-radius: 0 0 var(--radius) var(--radius);
+  will-change: max-height;
 }
 
 .kpi-strip-row {
