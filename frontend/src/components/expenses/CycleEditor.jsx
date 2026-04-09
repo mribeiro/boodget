@@ -328,17 +328,24 @@ export default function CycleEditor() {
     }
   }
 
-  async function handlePullAnnualExpenses() {
-    setError('');
-    setPullingAnnual(true);
-    try {
-      await api.pullAnnualExpensesForCycle(dossierId, cycleId);
-      await load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setPullingAnnual(false);
-    }
+  function handlePullAnnualExpenses() {
+    setConfirmState({
+      title: 'Pull annual expenses',
+      message: `This will import any annual expense installments that fall within this cycle's date range (${cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}) into the Fixed Expenses list.\n\nItems already imported will not be duplicated. New items will appear as unpaid fixed expenses.`,
+      confirmLabel: 'Pull',
+      onConfirm: async () => {
+        setError('');
+        setPullingAnnual(true);
+        try {
+          await api.pullAnnualExpensesForCycle(dossierId, cycleId);
+          await load();
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setPullingAnnual(false);
+        }
+      },
+    });
   }
 
   async function handleAddItem(data) {
