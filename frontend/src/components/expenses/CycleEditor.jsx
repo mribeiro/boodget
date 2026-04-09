@@ -368,12 +368,12 @@ export default function CycleEditor() {
           <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
         </button>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
-            <span className={`badge cycle-status-badge ${cycle.is_closed ? 'badge-secondary' : 'badge-success'}`} style={{ alignItems: 'center', gap: 4 }}>
-              <FontAwesomeIcon icon={cycle.is_closed ? faLock : faLockOpen} style={{ fontSize: 10 }} />
-              {cycle.is_closed ? 'Closed' : 'Open'}
-            </span>
+            <FontAwesomeIcon
+              icon={!!cycle.is_closed ? faLock : faLockOpen}
+              style={{ fontSize: 14, color: !!cycle.is_closed ? 'var(--text-primary)' : 'var(--color-success)' }}
+            />
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <FontAwesomeIcon icon={faClock} style={{ fontSize: 10 }} />
