@@ -127,7 +127,7 @@ function EmergencyFundSettings({ dossierId }) {
             {editing === key ? (
               <>
                 <input
-                  type="number"
+                  type="number" inputMode="numeric"
                   min={1}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -317,7 +317,7 @@ function NotificationDossierSettings({ dossierId }) {
         {editing ? (
           <>
             <input
-              type="number"
+              type="number" inputMode="numeric"
               min={0}
               max={7}
               value={draft}

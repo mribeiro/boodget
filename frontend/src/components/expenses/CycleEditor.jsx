@@ -452,7 +452,7 @@ export default function CycleEditor() {
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '0.8rem' }}>Update final balance (€)</label>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} />
+                <input type="number" inputMode="decimal" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} />
                 <button className="btn-secondary" onClick={handleUpdateFinalBalance} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>Update</button>
               </div>
             </div>
@@ -649,7 +649,7 @@ function CloseCyclePanel({ finalBalance, setFinalBalance, expectedBalance, balDi
               Final Real Balance (€)
             </label>
             <input
-              type="number"
+              type="number" inputMode="decimal"
               step="0.01"
               value={finalBalance}
               onChange={(e) => setFinalBalance(e.target.value)}
@@ -818,11 +818,11 @@ function EditIncomeModal({ cycle, onSave, onClose }) {
             {error && <div className="alert alert-error">{error}</div>}
             <div className="form-group">
               <label>Salary received (€)</label>
-              <input type="number" step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} autoFocus />
+              <input type="number" inputMode="decimal" step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} autoFocus />
             </div>
             <div className="form-group">
               <label>Previous balance (€)</label>
-              <input type="number" step="0.01" value={prevBalance} onChange={(e) => setPrevBalance(e.target.value)} />
+              <input type="number" inputMode="decimal" step="0.01" value={prevBalance} onChange={(e) => setPrevBalance(e.target.value)} />
             </div>
           </div>
           <div className="modal-footer">
@@ -1021,18 +1021,18 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                   <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {item.type === 'Budget' ? 'Max' : 'Value'}
                   </label>
-                  <input type="number" min={0} step="0.01" value={editValue} onChange={(e) => setEditValue(e.target.value)} style={{ width: '6rem' }} autoFocus />
+                  <input type="number" inputMode="decimal" min={0} step="0.01" value={editValue} onChange={(e) => setEditValue(e.target.value)} style={{ width: '6rem' }} autoFocus />
                 </div>
                 {item.type === 'Fixed' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Day</label>
-                    <input type="number" min={1} max={31} value={editDay} onChange={(e) => setEditDay(e.target.value)} style={{ width: '3.5rem' }} />
+                    <input type="number" inputMode="numeric" min={1} max={31} value={editDay} onChange={(e) => setEditDay(e.target.value)} style={{ width: '3.5rem' }} />
                   </div>
                 )}
                 {item.type === 'Fixed' && paperlessActive && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tag ID</label>
-                    <input type="number" min={1} value={editTagId} onChange={(e) => setEditTagId(e.target.value)} placeholder="—" style={{ width: '4rem' }} title="Paperless tag ID" />
+                    <input type="number" inputMode="numeric" min={1} value={editTagId} onChange={(e) => setEditTagId(e.target.value)} placeholder="—" style={{ width: '4rem' }} title="Paperless tag ID" />
                   </div>
                 )}
                 <button className="btn-primary" onClick={() => confirmEdit(item)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Save</button>
@@ -1143,7 +1143,7 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
                 <>
                   <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Max (€)</label>
                   <input
-                    type="number"
+                    type="number" inputMode="decimal"
                     min={0}
                     step="0.01"
                     value={editValue}
@@ -1157,7 +1157,7 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
               ) : (
                 <>
                   <input
-                    type="number"
+                    type="number" inputMode="decimal"
                     min={0}
                     max={item.value}
                     step="0.01"
@@ -1246,7 +1246,7 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
             {isEditing ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
-                  type="number"
+                  type="number" inputMode="decimal"
                   min={0}
                   step="0.01"
                   value={editValue}
@@ -1348,12 +1348,12 @@ function AddCycleItemModal({ section, onSave, onClose }) {
             )}
             <div className="form-group">
               <label>{section === 'expense' && type === 'Budget' ? 'Maximum amount (€)' : 'Value (€)'}</label>
-              <input type="number" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
+              <input type="number" inputMode="decimal" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
             </div>
             {section === 'expense' && type === 'Fixed' && (
               <div className="form-group">
                 <label>Day of payment (1–31)</label>
-                <input type="number" min={1} max={31} value={dayOfPayment} onChange={(e) => setDayOfPayment(e.target.value)} placeholder="e.g. 5" />
+                <input type="number" inputMode="numeric" min={1} max={31} value={dayOfPayment} onChange={(e) => setDayOfPayment(e.target.value)} placeholder="e.g. 5" />
               </div>
             )}
           </div>

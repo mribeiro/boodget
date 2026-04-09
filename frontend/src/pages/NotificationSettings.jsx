@@ -383,7 +383,7 @@ export default function NotificationSettings() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Repeat every</span>
             <input
-              type="number"
+              type="number" inputMode="numeric"
               min={1}
               max={7}
               value={settings.repeat_interval_days}

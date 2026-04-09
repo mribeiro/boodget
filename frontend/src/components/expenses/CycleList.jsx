@@ -224,11 +224,11 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
             {taken && <div className="alert alert-error">This month already has a cycle.</div>}
             <div className="form-group">
               <label>Salary received (€)</label>
-              <input type="number" min={0} step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="0.00" />
+              <input type="number" inputMode="decimal" min={0} step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="0.00" />
             </div>
             <div className="form-group">
               <label>Previous balance (€)</label>
-              <input type="number" step="0.01" value={previousBalance} onChange={(e) => setPreviousBalance(e.target.value)} placeholder="0.00" />
+              <input type="number" inputMode="decimal" step="0.01" value={previousBalance} onChange={(e) => setPreviousBalance(e.target.value)} placeholder="0.00" />
             </div>
           </div>
           <div className="modal-footer">

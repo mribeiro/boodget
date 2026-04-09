@@ -373,7 +373,7 @@ export default function EmergencyFundTab({ dossierId }) {
                 </div>
                 <div className="form-group">
                   <label>Monthly value (€)</label>
-                  <input type="number" value={extraFormValue} onChange={(e) => setExtraFormValue(e.target.value)} placeholder="0.00" step="0.01" min="0" required />
+                  <input type="number" inputMode="decimal" value={extraFormValue} onChange={(e) => setExtraFormValue(e.target.value)} placeholder="0.00" step="0.01" min="0" required />
                 </div>
               </div>
               <div className="modal-footer">

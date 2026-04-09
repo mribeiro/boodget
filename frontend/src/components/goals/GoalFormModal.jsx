@@ -121,7 +121,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
             <div style={{ display: 'flex', gap: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Target value (€)</label>
-                <input type="number" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} min="0" step="0.01" placeholder="0.00" />
+                <input type="number" inputMode="decimal" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} min="0" step="0.01" placeholder="0.00" />
               </div>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Target date</label>
@@ -132,7 +132,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
                     ))}
                   </select>
                   <input
-                    type="number"
+                    type="number" inputMode="decimal"
                     value={targetYear}
                     onChange={(e) => setTargetYear(Number(e.target.value))}
                     min="2020"
@@ -169,7 +169,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
               <div className="form-group">
                 <label>Monthly contribution amount (€)</label>
                 <input
-                  type="number"
+                  type="number" inputMode="decimal"
                   value={manualMonthlyValue}
                   onChange={(e) => setManualMonthlyValue(e.target.value)}
                   min="0"
@@ -228,7 +228,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
               <div className="form-group">
                 <label>Extra value already in hand (€, optional)</label>
                 <input
-                  type="number"
+                  type="number" inputMode="decimal"
                   value={extraValue}
                   onChange={(e) => setExtraValue(e.target.value)}
                   min="0"

@@ -80,7 +80,7 @@ export default function DossierSettings({ dossierId }) {
           {isEditing ? (
             <>
               <input
-                type="number"
+                type="number" inputMode="numeric"
                 min={1}
                 max={28}
                 value={draft}
@@ -123,7 +123,7 @@ export default function DossierSettings({ dossierId }) {
           {editing === 'cycle_start_day' ? (
             <>
               <input
-                type="number"
+                type="number" inputMode="numeric"
                 min={1}
                 max={28}
                 value={draft}

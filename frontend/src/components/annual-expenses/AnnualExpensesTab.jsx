@@ -113,7 +113,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div className="form-group">
                 <label>Annual value (€)</label>
-                <input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" step="0.01" min="0" required />
+                <input type="number" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" step="0.01" min="0" required />
               </div>
               <div className="form-group">
                 <label>Classification</label>
@@ -125,7 +125,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
               </div>
               <div className="form-group">
                 <label>Installments</label>
-                <input type="number" value={numInst} onChange={(e) => handleNumInstChange(e.target.value)} min="1" max="12" />
+                <input type="number" inputMode="numeric" value={numInst} onChange={(e) => handleNumInstChange(e.target.value)} min="1" max="12" />
               </div>
             </div>
             <div style={{ marginTop: 8 }}>
@@ -141,7 +141,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
                     </select>
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <input type="number" value={inst.day} onChange={(e) => setInstField(idx, 'day', e.target.value)} placeholder="Day" min="1" max="31" />
+                    <input type="number" inputMode="numeric" value={inst.day} onChange={(e) => setInstField(idx, 'day', e.target.value)} placeholder="Day" min="1" max="31" />
                   </div>
                 </div>
               ))}
@@ -427,7 +427,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Carryover</div>
                     {editingCarryover ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <input type="number" value={carryoverInput} onChange={(e) => setCarryoverInput(e.target.value)} step="0.01" style={{ width: 90, fontSize: 14 }} autoFocus />
+                        <input type="number" inputMode="decimal" value={carryoverInput} onChange={(e) => setCarryoverInput(e.target.value)} step="0.01" style={{ width: 90, fontSize: 14 }} autoFocus />
                         <button className="btn-primary" style={{ fontSize: 11, padding: '3px 8px' }} onClick={handleSaveCarryover}>Save</button>
                         <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => setEditingCarryover(false)}>Cancel</button>
                       </div>

@@ -320,11 +320,11 @@ export default function GoalDetail() {
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '0.8rem' }}>Year</label>
-              <input type="number" value={newHistYear} onChange={(e) => setNewHistYear(Number(e.target.value))} style={{ width: '6rem' }} />
+              <input type="number" inputMode="numeric" value={newHistYear} onChange={(e) => setNewHistYear(Number(e.target.value))} style={{ width: '6rem' }} />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '0.8rem' }}>Amount (€)</label>
-              <input type="number" step="0.01" min="0" value={newHistAmount} onChange={(e) => setNewHistAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+              <input type="number" inputMode="decimal" step="0.01" min="0" value={newHistAmount} onChange={(e) => setNewHistAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
             </div>
             <button className="btn-secondary" onClick={handleAddHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
               <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.35rem' }} />Add entry
@@ -339,7 +339,7 @@ export default function GoalDetail() {
                     <option key={i + 1} value={i + 1}>{name}</option>
                   ))}
                 </select>
-                <input type="number" value={batchStartYear} onChange={(e) => setBatchStartYear(Number(e.target.value))} style={{ width: '6rem' }} />
+                <input type="number" inputMode="numeric" value={batchStartYear} onChange={(e) => setBatchStartYear(Number(e.target.value))} style={{ width: '6rem' }} />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -350,12 +350,12 @@ export default function GoalDetail() {
                     <option key={i + 1} value={i + 1}>{name}</option>
                   ))}
                 </select>
-                <input type="number" value={batchEndYear} onChange={(e) => setBatchEndYear(Number(e.target.value))} style={{ width: '6rem' }} />
+                <input type="number" inputMode="numeric" value={batchEndYear} onChange={(e) => setBatchEndYear(Number(e.target.value))} style={{ width: '6rem' }} />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '0.8rem' }}>Amount/month (€)</label>
-              <input type="number" step="0.01" min="0" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+              <input type="number" inputMode="decimal" step="0.01" min="0" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
             </div>
             <button className="btn-secondary" onClick={handleAddBatchHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
               <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.35rem' }} />Add range
@@ -391,7 +391,7 @@ export default function GoalDetail() {
                       {isEditing ? (
                         <>
                           <input
-                            type="number"
+                            type="number" inputMode="decimal"
                             value={cycleContribValue}
                             onChange={(e) => setCycleContribValue(e.target.value)}
                             min="0"

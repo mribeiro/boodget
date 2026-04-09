@@ -976,7 +976,7 @@ function AnnualExpensesSection({ entries, annualDeductible, onChangeDeductible, 
         <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.75rem', paddingTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
           <span style={{ color: 'var(--color-text-muted)' }}>Carried over:</span>
           <input
-            type="number"
+            type="number" inputMode="decimal"
             min={0}
             step="0.01"
             value={annualDeductible || ''}
@@ -1132,7 +1132,7 @@ function InlineEditRow({ name, value, onChangeName, onChangeValue, onRemove }) {
         placeholder="Name"
       />
       <input
-        type="number"
+        type="number" inputMode="decimal"
         min={0}
         step="0.01"
         value={value}
@@ -1164,7 +1164,7 @@ function ExpenseEntryRow({ entry, onChangeName, onChangeValue, onChangeClassific
       {entry.isFromTemplate && <TemplateTag />}
       <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{entry.type}</span>
       <input
-        type="number"
+        type="number" inputMode="decimal"
         min={0}
         step="0.01"
         value={entry.value}
@@ -1193,7 +1193,7 @@ function AnnualEntryRow({ entry, onChangeName, onChangeValue, onChangeClassifica
       </td>
       <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
         <input
-          type="number"
+          type="number" inputMode="decimal"
           min={0}
           step="0.01"
           value={entry.value}
@@ -1236,7 +1236,7 @@ function DistributionEntryRow({ entry, onChangeName, onChangeValue, onChangeDeco
         />
         {entry.isFromTemplate && <TemplateTag />}
         <input
-          type="number"
+          type="number" inputMode="decimal"
           min={0}
           step="0.01"
           value={entry.value}
@@ -1251,7 +1251,7 @@ function DistributionEntryRow({ entry, onChangeName, onChangeValue, onChangeDeco
           <div key={field} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
             <span style={{ color: 'var(--color-text-muted)' }}>{label}:</span>
             <input
-              type="number"
+              type="number" inputMode="decimal"
               min={0}
               step="0.01"
               value={entry[field] ?? ''}
@@ -1417,7 +1417,7 @@ function SyncToTemplateModal({ title, warning, entries, needsDay, dayFieldLabel,
                   {needsDayMonth ? (
                     <>
                       <input
-                        type="number"
+                        type="number" inputMode="decimal"
                         min={1}
                         max={31}
                         value={dayValues[e._id]?.day ?? ''}
@@ -1436,7 +1436,7 @@ function SyncToTemplateModal({ title, warning, entries, needsDay, dayFieldLabel,
                     </>
                   ) : (
                     <input
-                      type="number"
+                      type="number" inputMode="decimal"
                       min={1}
                       max={31}
                       value={dayValues[e._id] ?? ''}

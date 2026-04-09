@@ -287,7 +287,7 @@ export default function MonthEditor() {
                                 </div>
                               )}
                               <input
-                                type="number"
+                                type="number" inputMode="decimal"
                                 step="0.01"
                                 min="0"
                                 placeholder="0.00"
