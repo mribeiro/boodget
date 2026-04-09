@@ -532,7 +532,7 @@ export default function CycleEditor() {
               title="Budgets"
               icon={faWallet}
               accent="var(--color-warning)"
-              count={budgetExpenses.length}
+              count={`${budgetExpenses.filter((e) => e.spent >= e.value).length}/${budgetExpenses.length}`}
               collapsed={budgetsCollapsed}
               onToggle={() => setBudgetsCollapsed((v) => !v)}
             >
