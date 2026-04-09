@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPencil, faTrash, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faPencil, faTrash, faPlus, faXmark, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 
@@ -189,7 +189,7 @@ export default function ExpenseTemplate({ dossierId }) {
                   <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                     <span>{item.name}</span>
                     <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
-                    <button className="card-expand-btn" tabIndex={-1}>›</button>
+                    <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                   </td>
                   <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
                   <td data-label="Type" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
@@ -251,7 +251,7 @@ export default function ExpenseTemplate({ dossierId }) {
                     <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                       <span>{item.name}</span>
                       <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
-                      <button className="card-expand-btn" tabIndex={-1}>›</button>
+                      <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                     </td>
                     <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
                     {['must_amount', 'want_amount', 'save_amount'].map((field, fi) => (

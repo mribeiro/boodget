@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faUserPlus, faTrash, faXmark, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
 import ConfirmModal from './ConfirmModal';
@@ -166,7 +166,7 @@ export default function UserManager() {
                   <span className="mobile-card-inline-value">
                     <span className="badge badge-neutral">{u.is_oidc ? 'SSO' : 'Local'}</span>
                   </span>
-                  <button className="card-expand-btn" tabIndex={-1}>›</button>
+                  <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                 </td>
                 <td data-label="Type" className="mobile-summary-in-title">
                   <span className="badge badge-neutral">

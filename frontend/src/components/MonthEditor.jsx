@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 
@@ -245,7 +245,7 @@ export default function MonthEditor() {
                                   </span>
                                 ) : null}
                               </span>
-                              <button className="card-expand-btn" tabIndex={-1}>›</button>
+                              <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                             </td>
                             <td data-label="Type" className="mobile-detail text-muted" style={{ fontSize: '0.8rem' }}>
                               {entry.type}

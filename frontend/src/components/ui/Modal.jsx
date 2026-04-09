@@ -1,3 +1,5 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+
 /**
  * Modal component
  * Props: title, onClose, footer (ReactNode), children
@@ -9,7 +11,9 @@ export default function Modal({ title, onClose, footer, children, style }) {
         <div className="modal-header">
           <h2>{title}</h2>
           {onClose && (
-            <button className="close-btn" onClick={onClose} aria-label="Close">×</button>
+            <button className="close-btn" onClick={onClose} aria-label="Close">
+              <FontAwesomeIcon icon="xmark" />
+            </button>
           )}
         </div>
         <div className="modal-body">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { api } from '../services/api';
 import Checkbox from '../components/ui/Checkbox';
 
@@ -118,7 +119,7 @@ export default function NotificationSettings() {
       const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
       const isStandalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
       if (isIOS && !isStandalone) {
-        setError('On iOS, push notifications are only available when the app is installed on your Home Screen. Tap the Share button (⬆) in Safari and select "Add to Home Screen", then open the app from there.');
+        setError('On iOS, push notifications are only available when the app is installed on your Home Screen. Tap the Share button in Safari and select "Add to Home Screen", then open the app from there.');
       } else {
         setError('Push notifications are not supported in this browser.');
       }
@@ -248,7 +249,7 @@ export default function NotificationSettings() {
 
         {showIOSHint && (
           <div style={{ color: 'var(--color-warning-text)', fontSize: 13, background: 'var(--color-warning-light)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-            On iOS, push notifications require the app to be installed on your Home Screen. Tap the Share button (⬆) in Safari and select <strong>"Add to Home Screen"</strong>, then open the app from there.
+            On iOS, push notifications require the app to be installed on your Home Screen. Tap the Share button in Safari and select <strong>"Add to Home Screen"</strong>, then open the app from there.
           </div>
         )}
 
@@ -258,7 +259,7 @@ export default function NotificationSettings() {
           </div>
         ) : isCurrentDeviceSubscribed && isRegisteredOnBackend ? (
           <div style={{ color: 'var(--color-success-text)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <span>✓</span> Notifications enabled on this device
+            <FontAwesomeIcon icon="circle-check" style={{ color: 'var(--color-success)', marginRight: '0.4rem' }} /> Notifications enabled on this device
           </div>
         ) : isCurrentDeviceSubscribed && !isRegisteredOnBackend ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -322,7 +323,7 @@ export default function NotificationSettings() {
             </button>
             {testResult?.ok === true && (
               <span style={{ fontSize: 12, color: 'var(--color-success-text)' }}>
-                ✓ Notification sent — check your device
+                <FontAwesomeIcon icon="circle-check" style={{ marginRight: '0.3rem' }} />Notification sent — check your device
               </span>
             )}
             {testResult?.ok === false && (
@@ -422,7 +423,7 @@ export default function NotificationSettings() {
           <table style={{ fontSize: 12, borderCollapse: 'collapse', width: '100%' }}>
             <tbody>
               {[
-                ['Source', vapidInfo.fromEnv ? 'Environment variables ✓' : 'Auto-generated (DB)'],
+                ['Source', vapidInfo.fromEnv ? 'Environment variables (set)' : 'Auto-generated (DB)'],
                 ['Subject', vapidInfo.subject],
                 ['Public key', vapidInfo.publicKey],
                 ['Private key', vapidInfo.privateKey],

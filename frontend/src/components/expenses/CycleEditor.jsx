@@ -1,19 +1,135 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark, faFileArrowDown, faSpinner, faFileLines } from '@fortawesome/free-solid-svg-icons';
+import {
+  faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
+  faFileArrowDown, faSpinner, faFileLines, faCheck, faArrowRotateLeft,
+  faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave,
+  faCircleCheck, faClock, faChevronDown,
+} from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
 import { ItemFormModal } from '../annual-expenses/AnnualExpensesTab';
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+function Toast({ message, visible }) {
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 32,
+      right: 24,
+      background: 'var(--color-success)',
+      color: '#fff',
+      padding: '10px 20px',
+      borderRadius: 'var(--radius)',
+      fontWeight: 700,
+      fontSize: 13,
+      opacity: visible ? 1 : 0,
+      transform: `translateY(${visible ? 0 : 12}px)`,
+      transition: 'all 0.35s cubic-bezier(.22,1,.36,1)',
+      pointerEvents: 'none',
+      zIndex: 500,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    }}>
+      <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 14 }} />
+      {message}
+    </div>
+  );
+}
+
+// ── Collapsible section (mobile) ──────────────────────────────────────────────
+
+function CollapsibleSection({ title, icon, accent, count, collapsed, onToggle, children }) {
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      borderRadius: 'var(--radius)',
+      border: '1px solid var(--border-default)',
+      overflow: 'hidden',
+      marginBottom: '1rem',
+    }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '14px 16px',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--text-primary)',
+          borderBottom: collapsed ? 'none' : '1px solid var(--border-default)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 3, height: 16, borderRadius: 2, background: accent, flexShrink: 0 }} />
+          <FontAwesomeIcon icon={icon} style={{ fontSize: 13, color: accent }} />
+          <span style={{ fontSize: 14, fontWeight: 700 }}>{title}</span>
+          {count != null && (
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: accent,
+              background: `color-mix(in srgb, ${accent} 12%, transparent)`,
+              padding: '2px 7px', borderRadius: 8,
+            }}>{count}</span>
+          )}
+        </div>
+        <FontAwesomeIcon
+          icon={faChevronDown}
+          style={{
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+            transition: 'transform 0.3s ease',
+          }}
+        />
+      </button>
+      {!collapsed && (
+        <div style={{ padding: '14px 16px' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Budget progress bar ───────────────────────────────────────────────────────
+
+function BudgetBar({ spent, max }) {
+  const pct = max > 0 ? Math.min((spent / max) * 100, 100) : 0;
+  const color =
+    pct > 90 ? 'var(--color-danger)' :
+    pct > 60 ? 'var(--color-warning)' :
+    'var(--color-success)';
+  return (
+    <div style={{
+      height: 5, borderRadius: 3,
+      background: 'var(--border-default)',
+      overflow: 'hidden', flexShrink: 0,
+    }}>
+      <div style={{
+        height: '100%', borderRadius: 3,
+        background: color,
+        width: `${pct}%`,
+        transition: 'width 0.5s ease',
+      }} />
+    </div>
+  );
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-// A cycle stored as (year, month) runs to startDay-1 of the following month.
-// The conventional name is the END month.
 function cycleLabel(year, month, startDay) {
   const end = new Date(year, month, startDay - 1);
   return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
@@ -44,6 +160,8 @@ function sortExpenses(expenses, cycleStartDay) {
   return [...firstHalf, ...secondHalf, ...budget];
 }
 
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export default function CycleEditor() {
   const { id: dossierId, cycleId } = useParams();
   const navigate = useNavigate();
@@ -64,16 +182,32 @@ export default function CycleEditor() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditPeriod, setShowEditPeriod] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
-  const [annualEditModal, setAnnualEditModal] = useState(null); // { yearId, item } | null
+  const [annualEditModal, setAnnualEditModal] = useState(null);
 
   const [paperlessSettings, setPaperlessSettings] = useState(null);
   const [fetchingPaperless, setFetchingPaperless] = useState(false);
   const [paperlessModal, setPaperlessModal] = useState(null);
   const [pullingAnnual, setPullingAnnual] = useState(false);
 
+  // Mobile collapsible sections
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const [expensesCollapsed, setExpensesCollapsed] = useState(false);
+  const [distributionsCollapsed, setDistributionsCollapsed] = useState(true);
+
+  // Toast
+  const [toast, setToast] = useState({ msg: '', show: false });
+  const toastTimer = useRef(null);
+
+  function showToast(msg) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, show: true });
+    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
+  }
+
   useEffect(() => {
     load();
     api.getDossierSettings(dossierId).then(setPaperlessSettings).catch(() => {});
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, [cycleId]);
 
   async function load() {
@@ -117,6 +251,7 @@ export default function CycleEditor() {
       });
       await load();
       setShowCloseForm(false);
+      showToast('Cycle closed');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -129,6 +264,7 @@ export default function CycleEditor() {
     try {
       await api.updateCycle(dossierId, cycleId, { is_closed: false });
       await load();
+      showToast('Cycle reopened');
     } catch (err) {
       setError(err.message);
     }
@@ -148,12 +284,7 @@ export default function CycleEditor() {
 
   async function handleTogglePaid(item) {
     try {
-      const updated = await api.updateCycleItem(dossierId, cycleId, item.id, { paid: !item.paid });
-      setCycle((prev) => ({
-        ...prev,
-        items: prev.items.map((i) => (i.id === updated.id ? updated : i)),
-      }));
-      // Refresh summary
+      await api.updateCycleItem(dossierId, cycleId, item.id, { paid: !item.paid });
       const fresh = await api.getCycle(dossierId, cycleId);
       setCycle(fresh);
     } catch (err) {
@@ -163,7 +294,7 @@ export default function CycleEditor() {
 
   async function handleToggleDone(item) {
     try {
-      const updated = await api.updateCycleItem(dossierId, cycleId, item.id, { done: !item.done });
+      await api.updateCycleItem(dossierId, cycleId, item.id, { done: !item.done });
       const fresh = await api.getCycle(dossierId, cycleId);
       setCycle(fresh);
     } catch (err) {
@@ -192,6 +323,7 @@ export default function CycleEditor() {
           await api.deleteCycleItem(dossierId, cycleId, item.id);
           const fresh = await api.getCycle(dossierId, cycleId);
           setCycle(fresh);
+          showToast('Item deleted');
         } catch (err) {
           setError(err.message);
         }
@@ -297,6 +429,7 @@ export default function CycleEditor() {
       const fresh = await api.getCycle(dossierId, cycleId);
       setCycle(fresh);
       setShowAddModal(false);
+      showToast('Item added');
     } catch (err) {
       throw err;
     }
@@ -310,21 +443,36 @@ export default function CycleEditor() {
   );
   const distributions = cycle.items.filter((i) => i.section === 'distribution');
   const paperlessActive = !!(paperlessSettings?.paperless_url && paperlessSettings?.paperless_token_set && paperlessSettings?.paperless_date_field_id && paperlessSettings?.paperless_amount_field_id);
-  const hasPaperlessItems = expenses.some((e) => e.type === 'Fixed' && e.paperless_tag_id != null);
   const { summary } = cycle;
   const expectedCurrentBalance = summary.total_available - summary.total_expenses_paid - summary.total_distributions_done;
+
+  const fixedExpenses = expenses.filter((e) => e.type === 'Fixed');
+  const budgetExpenses = expenses.filter((e) => e.type === 'Budget');
+  const paidFixed = fixedExpenses.filter((e) => e.paid).length;
+  const doneDist = distributions.filter((d) => d.done).length;
+
+  // Difference for close panel
+  const balDiff = finalBalance !== '' ? Number(finalBalance) - summary.expected_balance : null;
 
   return (
     <div className="page-fade-in">
       {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
+      {/* ── Header ── */}
       <div className="page-header">
         <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'expenses' } })}>
           <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
         </button>
         <div style={{ flex: 1 }}>
-          <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
+            <span className={`badge ${cycle.is_closed ? 'badge-secondary' : 'badge-success'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <FontAwesomeIcon icon={cycle.is_closed ? faLock : faLockOpen} style={{ fontSize: 10 }} />
+              {cycle.is_closed ? 'Closed' : 'Open'}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <FontAwesomeIcon icon={faClock} style={{ fontSize: 10 }} />
             {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
           </div>
         </div>
@@ -335,227 +483,215 @@ export default function CycleEditor() {
           <button className="btn-secondary" onClick={() => setEditingInfo(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
             <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Income
           </button>
-          {cycle.is_closed ? (
-            <button className="btn-secondary" onClick={handleReopen} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
-              <FontAwesomeIcon icon={faLockOpen} style={{ marginRight: '0.35rem' }} />Reopen
-            </button>
-          ) : (
-            <button className="btn-secondary" onClick={() => setShowCloseForm(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
-              <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.35rem' }} />Close cycle
-            </button>
-          )}
           <button className="btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
             <FontAwesomeIcon icon={faFileArrowDown} style={{ marginRight: '0.35rem' }} />
-            {pullingAnnual ? 'Pulling…' : 'Pull annual expenses'}
+            {pullingAnnual ? 'Pulling…' : 'Pull annual'}
           </button>
+          {cycle.is_closed ? (
+            <button className="btn-secondary" onClick={handleReopen} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
+              <FontAwesomeIcon icon={faArrowRotateLeft} style={{ marginRight: '0.35rem' }} />Reopen
+            </button>
+          ) : null}
           <button className="btn-danger" onClick={handleDeleteCycle} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
             <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
           </button>
         </div>
       </div>
 
-      {/* Cycle info */}
-      <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div>
-            {editingInfo ? (
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>Salary received (€)</label>
-                  <input type="number" step="0.01" value={infoSalary} onChange={(e) => setInfoSalary(e.target.value)} style={{ width: '8rem' }} />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>Previous balance (€)</label>
-                  <input type="number" step="0.01" value={infoPrevBalance} onChange={(e) => setInfoPrevBalance(e.target.value)} style={{ width: '8rem' }} />
-                </div>
-                <button className="btn-primary" onClick={handleSaveInfo} disabled={savingInfo} style={{ padding: '0.35rem 0.75rem' }}>
-                  {savingInfo ? 'Saving…' : 'Save'}
-                </button>
-                <button className="btn-secondary" onClick={() => { setEditingInfo(false); setInfoSalary(String(cycle.salary)); setInfoPrevBalance(String(cycle.previous_balance)); }} style={{ padding: '0.35rem 0.75rem' }}>
-                  Cancel
-                </button>
+      {/* ── Income row (edit mode) ── */}
+      {editingInfo && (
+        <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>Salary received (€)</label>
+              <input type="number" step="0.01" value={infoSalary} onChange={(e) => setInfoSalary(e.target.value)} style={{ width: '8rem' }} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>Previous balance (€)</label>
+              <input type="number" step="0.01" value={infoPrevBalance} onChange={(e) => setInfoPrevBalance(e.target.value)} style={{ width: '8rem' }} />
+            </div>
+            <button className="btn-primary" onClick={handleSaveInfo} disabled={savingInfo} style={{ padding: '0.35rem 0.75rem' }}>
+              {savingInfo ? 'Saving…' : 'Save'}
+            </button>
+            <button className="btn-secondary" onClick={() => { setEditingInfo(false); setInfoSalary(String(cycle.salary)); setInfoPrevBalance(String(cycle.previous_balance)); }} style={{ padding: '0.35rem 0.75rem' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Summary KPIs ── */}
+      <div className="cycle-editor-summary" style={{ marginBottom: '1.25rem' }}>
+        {/* Desktop: horizontal row of KPI blocks */}
+        <div className="cycle-kpi-row">
+          <KpiBlock label="Salary" value={fmt(cycle.salary)} icon={faMoneyBillWave} />
+          <KpiBlock label="Prev. Balance" value={fmt(cycle.previous_balance)} icon={faWallet} />
+          <KpiBlock label="Available" value={fmt(summary.total_available)} icon={faWallet} highlight="neutral" />
+          <KpiBlock label="Expenses" value={fmt(summary.total_expenses)} icon={faReceipt} highlight="danger" />
+          <KpiBlock label="Paid" value={fmt(summary.total_expenses_paid)} icon={faCircleCheck} highlight="success" />
+          <KpiBlock label="Unpaid" value={fmt(summary.total_expenses_unpaid)} icon={faClock} highlight={summary.total_expenses_unpaid > 0 ? 'warning' : 'neutral'} />
+          <KpiBlock
+            label="Expected Balance"
+            value={fmt(summary.expected_balance)}
+            icon={faWallet}
+            highlight={summary.expected_balance < 0 ? 'danger' : 'success'}
+            large
+          />
+        </div>
+
+        {/* Closed: show final balance and difference */}
+        {cycle.is_closed && (
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <KpiBlock
+              label="Final Real Balance"
+              value={fmt(summary.final_real_balance)}
+              icon={faLock}
+              highlight={summary.balance_difference > 0 ? 'success' : summary.balance_difference < 0 ? 'danger' : 'neutral'}
+            />
+            <KpiBlock
+              label="Difference"
+              value={summary.balance_difference != null ? (summary.balance_difference > 0 ? '+' : '') + fmt(summary.balance_difference) : '—'}
+              icon={faCircleCheck}
+              highlight={summary.balance_difference > 0 ? 'success' : summary.balance_difference < 0 ? 'danger' : 'neutral'}
+            />
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.8rem' }}>Update final balance (€)</label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} />
+                <button className="btn-secondary" onClick={handleUpdateFinalBalance} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>Update</button>
               </div>
-            ) : (
-              <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Salary received</div>
-                  <div style={{ fontWeight: 600 }}>{fmt(cycle.salary)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Previous balance</div>
-                  <div style={{ fontWeight: 600 }}>{fmt(cycle.previous_balance)}</div>
-                </div>
-                <div className="cycle-derived-values">
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Total available</div>
-                    <div style={{ fontWeight: 600 }}>{fmt(summary.total_available)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Leftovers expected</div>
-                    <div style={{ fontWeight: 600, color: summary.expected_balance < 0 ? 'var(--color-danger)' : 'inherit' }}>{fmt(summary.expected_balance)}</div>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Expected current balance</div>
-                  <div style={{ fontWeight: 600, color: expectedCurrentBalance < 0 ? 'var(--color-danger)' : 'inherit' }}>{fmt(expectedCurrentBalance)}</div>
-                </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop two-column layout ── */}
+      <div className="cycle-editor-columns">
+        {/* LEFT: expenses + close form (if open cycle) */}
+        <div className="cycle-editor-left">
+
+          {/* ── Desktop: Paperless fetch button ── */}
+          {paperlessActive && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+              <button className="btn-secondary" onClick={handleFetchPaperless} disabled={fetchingPaperless} style={{ fontSize: '0.8rem', padding: '0.3rem 0.75rem' }}>
+                <FontAwesomeIcon icon={fetchingPaperless ? faSpinner : faFileArrowDown} spin={fetchingPaperless} style={{ marginRight: '0.4rem' }} />
+                {fetchingPaperless ? 'Fetching…' : 'Fetch from Paperless'}
+              </button>
+            </div>
+          )}
+
+          {/* ── Fixed Expenses section ── */}
+          <CollapsibleSection
+            title="Fixed Expenses"
+            icon={faReceipt}
+            accent="var(--color-danger)"
+            count={`${paidFixed}/${fixedExpenses.length + (cycle.annual_payments?.length ?? 0)}`}
+            collapsed={expensesCollapsed}
+            onToggle={() => setExpensesCollapsed((v) => !v)}
+          >
+            <ExpensesList
+              expenses={expenses.filter((e) => e.type === 'Fixed')}
+              annualPayments={cycle.annual_payments ?? []}
+              cycleStartDay={cycle.cycle_start_day ?? 25}
+              paperlessActive={paperlessActive}
+              onTogglePaid={handleTogglePaid}
+              onUpdateSpent={handleUpdateSpent}
+              onDelete={handleDeleteItem}
+              onEdit={handleEditItem}
+              dossierId={dossierId}
+              onAnnualPaymentUpdated={load}
+              onAnnualEdit={handleAnnualEdit}
+              onAnnualDelete={handleAnnualDelete}
+              onlyFixed
+            />
+            <button className="btn-ghost" onClick={() => { setActiveTab('expenses'); setShowAddModal(true); }} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
+              <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add expense
+            </button>
+          </CollapsibleSection>
+
+          {/* ── Budget Expenses section ── */}
+          {budgetExpenses.length > 0 && (
+            <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', overflow: 'hidden', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
+                <div style={{ width: 3, height: 16, borderRadius: 2, background: 'var(--color-warning)', flexShrink: 0 }} />
+                <FontAwesomeIcon icon={faWallet} style={{ fontSize: 13, color: 'var(--color-warning)' }} />
+                <span style={{ fontSize: 14, fontWeight: 700 }}>Budgets</span>
+              </div>
+              <div style={{ padding: '0 16px 14px' }}>
+                <BudgetExpensesList
+                  expenses={budgetExpenses}
+                  onUpdateSpent={handleUpdateSpent}
+                  onDelete={handleDeleteItem}
+                  onEdit={handleEditItem}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── Close Cycle panel (only on desktop, open cycle) ── */}
+          {!cycle.is_closed && (
+            <div className="cycle-close-panel-desktop">
+              <CloseCyclePanel
+                finalBalance={finalBalance}
+                setFinalBalance={setFinalBalance}
+                expectedBalance={summary.expected_balance}
+                balDiff={balDiff}
+                showCloseForm={showCloseForm}
+                setShowCloseForm={setShowCloseForm}
+                savingClose={savingClose}
+                onClose={handleClose}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Distributions + Close panel */}
+        <div className="cycle-editor-right">
+          <CollapsibleSection
+            title="Distributions"
+            icon={faHandHoldingDollar}
+            accent="var(--color-brand)"
+            count={`${doneDist}/${distributions.length}`}
+            collapsed={distributionsCollapsed}
+            onToggle={() => setDistributionsCollapsed((v) => !v)}
+          >
+            <DistributionsList
+              distributions={distributions}
+              onToggleDone={handleToggleDone}
+              onDelete={handleDeleteItem}
+              onEdit={handleEditItem}
+            />
+            {/* Distributions total footer */}
+            {distributions.length > 0 && (
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
+                <span>Total: {fmt(summary.total_distributions)}</span>
+                <span style={{ color: 'var(--color-brand)', fontWeight: 600 }}>Done: {fmt(summary.total_distributions_done)}</span>
               </div>
             )}
-          </div>
+            <button className="btn-ghost" onClick={() => { setActiveTab('distributions'); setShowAddModal(true); }} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
+              <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add distribution
+            </button>
+          </CollapsibleSection>
 
-          {(cycle.is_closed || showCloseForm) && (
-            <div>
-              {cycle.is_closed ? (
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '0.8rem' }}>Final real balance (€)</label>
-                    <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} />
-                  </div>
-                  <button className="btn-secondary" onClick={handleUpdateFinalBalance} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
-                    Update
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '0.8rem' }}>Final real balance (€)</label>
-                    <input type="number" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
-                  </div>
-                  <button className="btn-primary" onClick={handleClose} disabled={savingClose} style={{ padding: '0.35rem 0.75rem' }}>
-                    {savingClose ? 'Closing…' : 'Confirm close'}
-                  </button>
-                  <button className="btn-secondary" onClick={() => setShowCloseForm(false)} style={{ padding: '0.35rem 0.75rem' }}>
-                    Cancel
-                  </button>
-                </div>
-              )}
+          {/* ── Close Cycle panel (right column on desktop, open cycle) ── */}
+          {!cycle.is_closed && (
+            <div className="cycle-close-panel-right">
+              <CloseCyclePanel
+                finalBalance={finalBalance}
+                setFinalBalance={setFinalBalance}
+                expectedBalance={summary.expected_balance}
+                balDiff={balDiff}
+                showCloseForm={showCloseForm}
+                setShowCloseForm={setShowCloseForm}
+                savingClose={savingClose}
+                onClose={handleClose}
+              />
             </div>
           )}
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="card" style={{ padding: '1rem', marginBottom: '1.25rem', background: 'var(--color-surface)' }}>
-        <h3 style={{ margin: '0 0 0.9rem 0', fontSize: '0.95rem' }}>Summary</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
-          {/* Expenses */}
-          <div>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Expenses</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Total</div>
-                <div style={{ fontWeight: 500 }}>{fmt(summary.total_expenses)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Paid</div>
-                <div style={{ fontWeight: 500 }}>{fmt(summary.total_expenses_paid)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Unpaid</div>
-                <div style={{ fontWeight: 500, color: summary.total_expenses_unpaid > 0 ? 'var(--color-warning, #d97706)' : 'inherit' }}>{fmt(summary.total_expenses_unpaid)}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Distributions */}
-          <div>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Distributions</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Total</div>
-                <div style={{ fontWeight: 500 }}>{fmt(summary.total_distributions)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Done</div>
-                <div style={{ fontWeight: 500 }}>{fmt(summary.total_distributions_done)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Pending</div>
-                <div style={{ fontWeight: 500, color: summary.total_distributions_not_done > 0 ? 'var(--color-warning, #d97706)' : 'inherit' }}>{fmt(summary.total_distributions_not_done)}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Closing row (only when closed) */}
-          {!!cycle.is_closed && (
-            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem' }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Closing</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Final real balance</div>
-                  <div style={{ fontWeight: 600 }}>{fmt(summary.final_real_balance)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Difference</div>
-                  <div style={{ fontWeight: 600, color: summary.balance_difference > 0 ? 'var(--color-success)' : summary.balance_difference < 0 ? 'var(--color-danger)' : 'inherit' }}>
-                    {fmt(summary.balance_difference)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Items tabs */}
-      <div className="tabs" style={{ marginBottom: 'var(--space-4)' }}>
-        {[['expenses', 'Expenses'], ['distributions', 'Distributions']].map(([key, label]) => (
-          <button
-            key={key}
-            className={`tab-btn${activeTab === key ? ' active' : ''}`}
-            onClick={() => setActiveTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'expenses' && paperlessActive && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-          <button
-            className="btn-secondary"
-            onClick={handleFetchPaperless}
-            disabled={fetchingPaperless}
-            style={{ fontSize: '0.8rem', padding: '0.3rem 0.75rem' }}
-          >
-            <FontAwesomeIcon
-              icon={fetchingPaperless ? faSpinner : faFileArrowDown}
-              spin={fetchingPaperless}
-              style={{ marginRight: '0.4rem' }}
-            />
-            {fetchingPaperless ? 'Fetching…' : 'Fetch from Paperless'}
-          </button>
-        </div>
-      )}
-
-      {activeTab === 'expenses' ? (
-        <ExpensesList
-          expenses={expenses}
-          annualPayments={cycle.annual_payments ?? []}
-          cycleStartDay={cycle.cycle_start_day ?? 25}
-          paperlessActive={paperlessActive}
-          onTogglePaid={handleTogglePaid}
-          onUpdateSpent={handleUpdateSpent}
-          onDelete={handleDeleteItem}
-          onEdit={handleEditItem}
-          dossierId={dossierId}
-          onAnnualPaymentUpdated={load}
-          onAnnualEdit={handleAnnualEdit}
-          onAnnualDelete={handleAnnualDelete}
-        />
-      ) : (
-        <DistributionsList
-          distributions={distributions}
-          onToggleDone={handleToggleDone}
-          onDelete={handleDeleteItem}
-          onEdit={handleEditItem}
-        />
-      )}
-
-      <button className="btn-primary" onClick={() => setShowAddModal(true)} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
-        <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add {activeTab === 'expenses' ? 'expense' : 'distribution'}
-      </button>
-
+      {/* ── Modals ── */}
       {showAddModal && (
         <AddCycleItemModal
           section={activeTab === 'expenses' ? 'expense' : 'distribution'}
@@ -593,9 +729,107 @@ export default function CycleEditor() {
           onClose={() => setShowEditPeriod(false)}
         />
       )}
+      <Toast message={toast.msg} visible={toast.show} />
     </div>
   );
 }
+
+// ── KPI block ─────────────────────────────────────────────────────────────────
+
+function KpiBlock({ label, value, icon, highlight = 'neutral', large }) {
+  const color =
+    highlight === 'success' ? 'var(--color-success)' :
+    highlight === 'danger'  ? 'var(--color-danger)'  :
+    highlight === 'warning' ? 'var(--color-warning)'  :
+    'var(--text-primary)';
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius)',
+      padding: '10px 14px',
+      minWidth: 0,
+      flex: large ? 2 : 1,
+    }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <FontAwesomeIcon icon={icon} style={{ fontSize: 9 }} />
+        {label}
+      </div>
+      <div style={{ fontSize: large ? 16 : 14, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    </div>
+  );
+}
+
+// ── Close Cycle Panel ─────────────────────────────────────────────────────────
+
+function CloseCyclePanel({ finalBalance, setFinalBalance, expectedBalance, balDiff, showCloseForm, setShowCloseForm, savingClose, onClose }) {
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius)',
+      padding: '16px',
+      marginBottom: '1rem',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <FontAwesomeIcon icon={faLock} style={{ fontSize: 12, color: 'var(--color-success)' }} />
+        Close Cycle
+      </div>
+      {!showCloseForm ? (
+        <button className="btn-secondary" onClick={() => setShowCloseForm(true)} style={{ fontSize: '0.875rem' }}>
+          <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.35rem' }} />Close cycle…
+        </button>
+      ) : (
+        <>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+              Final Real Balance (€)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={finalBalance}
+              onChange={(e) => setFinalBalance(e.target.value)}
+              placeholder="0.00"
+              style={{ width: '100%' }}
+              autoFocus
+            />
+          </div>
+          {balDiff !== null && (
+            <div style={{
+              marginBottom: 12,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 12px',
+              borderRadius: 'var(--radius)',
+              background: balDiff >= 0 ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Difference vs expected</span>
+              <span style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: balDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {balDiff >= 0 ? '+' : ''}{fmt(balDiff)}
+              </span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn-primary" onClick={onClose} disabled={savingClose} style={{ flex: 1 }}>
+              <FontAwesomeIcon icon={faCheck} style={{ marginRight: '0.35rem' }} />
+              {savingClose ? 'Closing…' : 'Confirm close'}
+            </button>
+            <button className="btn-secondary" onClick={() => setShowCloseForm(false)}>Cancel</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Period edit modal ─────────────────────────────────────────────────────────
 
 const MONTH_NAMES_MODAL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -624,6 +858,9 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
   const endDate = new Date(year, month, startDay - 1);
   const cycleDisplayLabel = `${MONTH_NAMES_MODAL[endDate.getMonth()]} ${endDate.getFullYear()}`;
 
+  const startFmt = new Date(year, month - 1, startDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const endFmt = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -636,9 +873,6 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
       setSaving(false);
     }
   }
-
-  const startFmt = new Date(year, month - 1, startDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const endFmt = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -689,26 +923,15 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
   );
 }
 
-function SummaryRow({ label, value, highlight, bold }) {
-  const color =
-    highlight === 'danger' ? 'var(--color-danger)'
-    : highlight === 'warn' ? 'var(--color-warning, #d97706)'
-    : highlight === 'success' ? 'var(--color-success)'
-    : 'inherit';
-  return (
-    <div>
-      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{label}</div>
-      <div style={{ fontWeight: bold ? 600 : 400, color }}>{fmt(value)}</div>
-    </div>
-  );
-}
+// ── Fixed Expenses list ───────────────────────────────────────────────────────
 
-function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit }) {
+function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit, onlyFixed }) {
   const [spentDrafts, setSpentDrafts] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [editDay, setEditDay] = useState('');
   const [editTagId, setEditTagId] = useState('');
+
   function startEdit(item) {
     setEditingId(item.id);
     setEditValue(String(item.value));
@@ -737,13 +960,9 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
     }
   }
 
-  // Merge annual payments into the sorted expenses list
-  // Tag annual items so we can render them differently
   const annualItems = annualPayments.map((p) => ({ ...p, _annual: true }));
-
-  // Re-sort fixed + annual together by the same cycle-day ordering
   const fixedExpenses = expenses.filter((e) => e.type === 'Fixed');
-  const budgetExpenses = expenses.filter((e) => e.type === 'Budget');
+  const budgetExpenses = onlyFixed ? [] : expenses.filter((e) => e.type === 'Budget');
 
   const fixedAndAnnual = [...fixedExpenses, ...annualItems].sort((a, b) => {
     const aDay = a._annual ? (a.day ?? 0) : (a.day_of_payment ?? 0);
@@ -757,7 +976,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
   const allItems = [...fixedAndAnnual, ...budgetExpenses];
 
   if (allItems.length === 0) {
-    return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>No expenses yet.</p>;
+    return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', margin: 0 }}>No expenses yet.</p>;
   }
 
   return (
@@ -778,11 +997,12 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                 alignItems: 'center',
                 gap: '0.75rem',
                 padding: '0.6rem 0.75rem',
-                background: 'var(--color-surface)',
+                background: 'var(--bg-card)',
                 borderRadius: 'var(--radius)',
-                border: '1px solid var(--color-border)',
+                border: '1px solid var(--border-default)',
                 flexWrap: 'wrap',
-                opacity: p.paid ? 0.6 : 1,
+                opacity: p.paid ? 0.5 : 1,
+                transition: 'opacity 0.25s ease',
               }}
             >
               <Checkbox
@@ -791,31 +1011,36 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                 title={p.paid ? 'Mark as unpaid' : 'Mark as paid'}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontWeight: 500, textDecoration: p.paid ? 'line-through' : 'none' }}>
+                <span style={{
+                  fontWeight: 500,
+                  textDecoration: p.paid ? 'line-through' : 'none',
+                  color: p.paid ? 'var(--text-muted)' : 'var(--text-primary)',
+                  transition: 'color 0.25s ease',
+                }}>
                   {p.name}
                 </span>
                 {p.day != null && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
                     day {p.day}
                   </span>
                 )}
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
                   {typeLabel}
                 </span>
               </div>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: p.paid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
                 {fmt(expectedValue)}
               </span>
               <button
                 onClick={() => onAnnualEdit(p)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                 title="Edit annual expense"
               >
                 <FontAwesomeIcon icon={faPencil} />
               </button>
               <button
                 onClick={() => onAnnualDelete(p)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                 title="Delete annual expense"
               >
                 <FontAwesomeIcon icon={faTrash} />
@@ -826,6 +1051,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
 
         // ── Regular expense row ──
         const isEditing = editingId === item.id;
+        const isPaid = item.type === 'Fixed' && item.paid;
         return (
           <div
             key={item.id}
@@ -834,14 +1060,15 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
               alignItems: 'center',
               gap: '0.75rem',
               padding: '0.6rem 0.75rem',
-              background: 'var(--color-surface)',
+              background: 'var(--bg-card)',
               borderRadius: 'var(--radius)',
-              border: '1px solid var(--color-border)',
+              border: '1px solid var(--border-default)',
               flexWrap: 'wrap',
-              opacity: !isEditing && item.type === 'Fixed' && item.paid ? 0.6 : 1,
+              opacity: !isEditing && isPaid ? 0.5 : 1,
+              transition: 'opacity 0.25s ease',
+              borderLeft: !isEditing && isPaid ? '3px solid var(--color-success)' : undefined,
             }}
           >
-            {/* Paid toggle for Fixed */}
             {item.type === 'Fixed' && !isEditing && (
               <Checkbox
                 checked={!!item.paid}
@@ -851,110 +1078,70 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
             )}
 
             <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontWeight: 500, textDecoration: !isEditing && item.type === 'Fixed' && item.paid ? 'line-through' : 'none' }}>
+              <span style={{
+                fontWeight: 500,
+                textDecoration: !isEditing && isPaid ? 'line-through' : 'none',
+                color: !isEditing && isPaid ? 'var(--text-muted)' : 'var(--text-primary)',
+                transition: 'color 0.25s ease, text-decoration 0.25s ease',
+              }}>
                 {item.name}
               </span>
               {paperlessActive && item.type === 'Fixed' && item.paperless_tag_id != null && (
                 <FontAwesomeIcon
                   icon={faFileLines}
                   title={`Linked to Paperless tag ${item.paperless_tag_id}`}
-                  style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginLeft: '0.4rem' }}
+                  style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}
                 />
               )}
               {!isEditing && item.type === 'Fixed' && item.day_of_payment != null && (
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                  <FontAwesomeIcon icon={faClock} style={{ fontSize: '0.65rem', marginRight: 2 }} />
                   day {item.day_of_payment}
                 </span>
               )}
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.5rem' }}>
-                {item.type === 'Budget' ? 'Budget' : 'Fixed'}
-              </span>
             </div>
 
             {isEditing ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {item.type === 'Budget' ? 'Max' : 'Value'}
                   </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    style={{ width: '6rem' }}
-                    autoFocus
-                  />
+                  <input type="number" min={0} step="0.01" value={editValue} onChange={(e) => setEditValue(e.target.value)} style={{ width: '6rem' }} autoFocus />
                 </div>
                 {item.type === 'Fixed' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Day</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={31}
-                      value={editDay}
-                      onChange={(e) => setEditDay(e.target.value)}
-                      style={{ width: '3.5rem' }}
-                    />
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Day</label>
+                    <input type="number" min={1} max={31} value={editDay} onChange={(e) => setEditDay(e.target.value)} style={{ width: '3.5rem' }} />
                   </div>
                 )}
                 {item.type === 'Fixed' && paperlessActive && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Tag ID</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={editTagId}
-                      onChange={(e) => setEditTagId(e.target.value)}
-                      placeholder="—"
-                      style={{ width: '4rem' }}
-                      title="Paperless tag ID"
-                    />
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tag ID</label>
+                    <input type="number" min={1} value={editTagId} onChange={(e) => setEditTagId(e.target.value)} placeholder="—" style={{ width: '4rem' }} title="Paperless tag ID" />
                   </div>
                 )}
                 <button className="btn-primary" onClick={() => confirmEdit(item)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Save</button>
                 <button className="btn-secondary" onClick={() => setEditingId(null)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Cancel</button>
               </div>
-            ) : item.type === 'Budget' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.875rem' }}>
-                <input
-                  type="number"
-                  min={0}
-                  max={item.value}
-                  step="0.01"
-                  value={spentDrafts[item.id] ?? item.spent}
-                  onChange={(e) => setSpentDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                  onBlur={() => {
-                    const val = spentDrafts[item.id];
-                    if (val !== undefined && val !== String(item.spent)) {
-                      onUpdateSpent(item, val).then(() => {
-                        setSpentDrafts((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
-                      });
-                    }
-                  }}
-                  style={{ width: '5rem', textAlign: 'right' }}
-                  title="Spent so far"
-                />
-                <span style={{ color: 'var(--color-text-muted)' }}>/ {fmt(item.value)}</span>
-              </div>
             ) : (
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{fmt(item.value)}</span>
+              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: isPaid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
+                {fmt(item.value)}
+              </span>
             )}
 
             {!isEditing && (
               <>
                 <button
                   onClick={() => startEdit(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Edit"
                 >
                   <FontAwesomeIcon icon={faPencil} />
                 </button>
                 <button
                   onClick={() => onDelete(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Delete"
                 >
                   <FontAwesomeIcon icon={faTrash} />
@@ -967,6 +1154,124 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
     </div>
   );
 }
+
+// ── Budget Expenses list ──────────────────────────────────────────────────────
+
+function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
+  const [spentDrafts, setSpentDrafts] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  function startEdit(item) {
+    setEditingId(item.id);
+    setEditValue(String(item.value));
+  }
+
+  async function confirmEdit(item) {
+    await onEdit(item, { value: Number(editValue) });
+    setEditingId(null);
+  }
+
+  if (expenses.length === 0) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {expenses.map((item) => {
+        const isEditing = editingId === item.id;
+        const spent = spentDrafts[item.id] !== undefined ? Number(spentDrafts[item.id]) : (item.spent ?? 0);
+        const pct = item.value > 0 ? Math.min((spent / item.value) * 100, 100) : 0;
+        const barColor =
+          pct > 90 ? 'var(--color-danger)' :
+          pct > 60 ? 'var(--color-warning)' :
+          'var(--color-success)';
+
+        return (
+          <div
+            key={item.id}
+            style={{
+              background: 'var(--bg-card)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border-default)',
+              padding: '12px 14px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{item.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: barColor, fontVariantNumeric: 'tabular-nums' }}>
+                  {Math.round(pct)}%
+                </span>
+                {!isEditing && (
+                  <>
+                    <button
+                      onClick={() => startEdit(item)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
+                      title="Edit max"
+                    >
+                      <FontAwesomeIcon icon={faPencil} />
+                    </button>
+                    <button
+                      onClick={() => onDelete(item)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
+                      title="Delete"
+                    >
+                      <FontAwesomeIcon icon={faTrash} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* Progress bar */}
+            <BudgetBar spent={spent} max={item.value} />
+            {/* Spent input / max */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              {isEditing ? (
+                <>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Max (€)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    style={{ width: '6rem' }}
+                    autoFocus
+                  />
+                  <button className="btn-primary" onClick={() => confirmEdit(item)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Save</button>
+                  <button className="btn-secondary" onClick={() => setEditingId(null)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="number"
+                    min={0}
+                    max={item.value}
+                    step="0.01"
+                    value={spentDrafts[item.id] ?? item.spent}
+                    onChange={(e) => setSpentDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                    onBlur={() => {
+                      const val = spentDrafts[item.id];
+                      if (val !== undefined && val !== String(item.spent)) {
+                        onUpdateSpent(item, val).then(() => {
+                          setSpentDrafts((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
+                        });
+                      }
+                    }}
+                    style={{ width: '5rem', textAlign: 'right' }}
+                    title="Spent so far"
+                  />
+                  <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>/ {fmt(item.value)}</span>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Distributions list ────────────────────────────────────────────────────────
 
 function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
   const [editingId, setEditingId] = useState(null);
@@ -983,7 +1288,7 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
   }
 
   if (distributions.length === 0) {
-    return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>No distributions yet.</p>;
+    return <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>No distributions yet.</p>;
   }
 
   return (
@@ -998,11 +1303,13 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
               alignItems: 'center',
               gap: '0.75rem',
               padding: '0.6rem 0.75rem',
-              background: 'var(--color-surface)',
+              background: 'var(--bg-card)',
               borderRadius: 'var(--radius)',
-              border: '1px solid var(--color-border)',
+              border: '1px solid var(--border-default)',
               flexWrap: 'wrap',
-              opacity: !isEditing && item.done ? 0.6 : 1,
+              opacity: !isEditing && item.done ? 0.5 : 1,
+              transition: 'opacity 0.25s ease',
+              borderLeft: !isEditing && item.done ? '3px solid var(--color-brand)' : undefined,
             }}
           >
             {!isEditing && (
@@ -1010,9 +1317,16 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
                 checked={!!item.done}
                 onChange={() => onToggleDone(item)}
                 title={item.done ? 'Mark as not done' : 'Mark as done'}
+                style={{ '--checkbox-color': 'var(--color-brand)' }}
               />
             )}
-            <span style={{ flex: 1, fontWeight: 500, textDecoration: !isEditing && item.done ? 'line-through' : 'none' }}>
+            <span style={{
+              flex: 1,
+              fontWeight: 500,
+              textDecoration: !isEditing && item.done ? 'line-through' : 'none',
+              color: !isEditing && item.done ? 'var(--text-muted)' : 'var(--text-primary)',
+              transition: 'color 0.25s ease',
+            }}>
               {item.name}
             </span>
             {isEditing ? (
@@ -1031,17 +1345,23 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
               </div>
             ) : (
               <>
-                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{fmt(item.value)}</span>
+                <span style={{
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  color: item.done ? 'var(--text-muted)' : 'var(--text-primary)',
+                  transition: 'color 0.25s ease',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>{fmt(item.value)}</span>
                 <button
                   onClick={() => startEdit(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Edit"
                 >
                   <FontAwesomeIcon icon={faPencil} />
                 </button>
                 <button
                   onClick={() => onDelete(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
                   title="Delete"
                 >
                   <FontAwesomeIcon icon={faTrash} />
@@ -1054,6 +1374,8 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
     </div>
   );
 }
+
+// ── Add cycle item modal ──────────────────────────────────────────────────────
 
 function AddCycleItemModal({ section, onSave, onClose }) {
   const [name, setName] = useState('');
@@ -1131,6 +1453,8 @@ function AddCycleItemModal({ section, onSave, onClose }) {
   );
 }
 
+// ── Paperless fetch modal ─────────────────────────────────────────────────────
+
 function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
   const [applying, setApplying] = useState(false);
 
@@ -1154,14 +1478,14 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
         </div>
         <div className="modal-body">
           {results.length === 0 ? (
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               No matching documents found in Paperless-ngx for this cycle's date range.
             </p>
           ) : (
             <div className="table-container" style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <thead>
-                  <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
+                  <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border-default)' }}>
                     <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>Expense</th>
                     <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Current</th>
                     <th style={{ padding: '0.4rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Proposed</th>
@@ -1174,25 +1498,25 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
                     const valueChanged = r.proposed_value !== r.current_value;
                     const dayChanged = r.proposed_day_of_payment !== r.current_day_of_payment;
                     return (
-                      <tr key={r.cycle_item_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <tr key={r.cycle_item_id} style={{ borderBottom: '1px solid var(--border-default)' }}>
                         <td style={{ padding: '0.5rem 0.5rem', fontWeight: 500 }}>{r.expense_name}</td>
-                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'right', color: 'var(--text-muted)' }}>
                           {fmt(r.current_value)}
                         </td>
-                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'right', fontWeight: valueChanged ? 700 : 400, color: valueChanged ? 'var(--color-primary, #2563eb)' : 'inherit' }}>
+                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'right', fontWeight: valueChanged ? 700 : 400, color: valueChanged ? 'var(--color-brand)' : 'inherit' }}>
                           {fmt(r.proposed_value)}
                         </td>
-                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'center', color: dayChanged ? 'var(--color-primary, #2563eb)' : 'inherit', fontWeight: dayChanged ? 700 : 400 }}>
-                          {dayChanged ? `${r.current_day_of_payment} → ${r.proposed_day_of_payment}` : r.proposed_day_of_payment}
+                        <td style={{ padding: '0.5rem 0.5rem', textAlign: 'center', color: dayChanged ? 'var(--color-brand)' : 'inherit', fontWeight: dayChanged ? 700 : 400 }}>
+                          {dayChanged ? `${r.current_day_of_payment} to ${r.proposed_day_of_payment}` : r.proposed_day_of_payment}
                         </td>
                         <td style={{ padding: '0.5rem 0.5rem' }}>
                           {r.documents.map((doc) => (
                             <div key={doc.id} style={{ marginBottom: '0.2rem' }}>
-                              <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: 'var(--color-primary, #2563eb)' }}>
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: 'var(--color-brand)' }}>
                                 <FontAwesomeIcon icon={faFileLines} style={{ marginRight: '0.25rem' }} />
                                 {doc.title}
                               </a>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '0.35rem' }}>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.35rem' }}>
                                 ({fmt(doc.value)}, {doc.date})
                               </span>
                             </div>
@@ -1206,10 +1530,10 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
             </div>
           )}
           {warnings.length > 0 && (
-            <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#fef3c7', borderRadius: 'var(--radius)', border: '1px solid #f59e0b' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: '0.25rem', color: '#92400e' }}>Warnings</div>
+            <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--color-warning-light)', borderRadius: 'var(--radius)', border: '1px solid var(--color-warning-border)' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: '0.25rem', color: 'var(--color-warning-text)' }}>Warnings</div>
               {warnings.map((w, i) => (
-                <div key={i} style={{ fontSize: '0.8rem', color: '#92400e' }}>{w}</div>
+                <div key={i} style={{ fontSize: '0.8rem', color: 'var(--color-warning-text)' }}>{w}</div>
               ))}
             </div>
           )}
@@ -1226,4 +1550,3 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
     </div>
   );
 }
-

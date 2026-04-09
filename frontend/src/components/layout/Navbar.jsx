@@ -4,9 +4,9 @@ import { AuthContext, AppContext } from '../../App';
 import { useTheme } from '../../contexts/ThemeContext';
 import { api } from '../../services/api';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faA, faMoon, faSun, faBars } from '@fortawesome/free-solid-svg-icons';
+import { faCircleHalfStroke, faMoon, faSun, faBars } from '@fortawesome/free-solid-svg-icons';
 
-const THEME_ICONS = { system: faA, light: faSun, dark: faMoon };
+const THEME_ICONS = { system: faCircleHalfStroke, light: faSun, dark: faMoon };
 const THEME_LABELS = { system: 'Following system', light: 'Light mode', dark: 'Dark mode' };
 const THEME_ORDER = ['system', 'light', 'dark'];
 

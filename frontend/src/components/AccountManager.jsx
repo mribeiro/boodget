@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGripVertical, faXmark, faPlus, faBoxArchive } from '@fortawesome/free-solid-svg-icons';
+import { faGripVertical, faXmark, faPlus, faBoxArchive, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Checkbox from './ui/Checkbox';
@@ -235,7 +235,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                           <span>{a.name}</span>
                           <span className="text-muted" style={{ fontSize: '0.8rem', marginLeft: '0.4rem' }}>{a.group_name}</span>
                         </span>
-                        <button className="card-expand-btn" tabIndex={-1}>›</button>
+                        <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                       </td>
                       <td data-label="Group" className="mobile-detail text-muted">{a.group_name}</td>
                       <td data-label="Type" className="mobile-detail" style={{ fontSize: '0.8rem' }}>{a.type}</td>

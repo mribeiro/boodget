@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFolderOpen, faCopy, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 
@@ -717,7 +717,7 @@ function SectionHeader({ title, collapsed, onToggle, collapsedSummary, children 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: collapsed ? 0 : '0.75rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }} onClick={onToggle}>
-        <span style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)' }}>{collapsed ? '▶' : '▼'}</span>
+        <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronDown} style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)' }} />
         <h3 style={{ margin: 0, fontSize: '0.95rem' }}>{title}</h3>
         {collapsed && collapsedSummary && (
           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>{collapsedSummary}</span>

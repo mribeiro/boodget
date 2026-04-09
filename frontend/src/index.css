@@ -2002,3 +2002,51 @@ tr:hover td {
     gap: 2rem;
   }
 }
+
+/* ── Font Awesome SVG baseline fix ─────────────────────────────────────── */
+.svg-inline--fa {
+  vertical-align: -0.125em;
+}
+
+/* ── Cycle Editor layout ────────────────────────────────────────────────── */
+.cycle-kpi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.cycle-editor-columns {
+  display: grid;
+  grid-template-columns: 60fr 40fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.cycle-editor-left,
+.cycle-editor-right {
+  min-width: 0;
+}
+
+/* Desktop-only close panel (shown inline in left column) */
+.cycle-close-panel-desktop {
+  display: block;
+}
+
+/* Right-column close panel (desktop: shown; mobile: hidden) */
+.cycle-close-panel-right {
+  display: block;
+}
+
+@media (max-width: 767px) {
+  .cycle-editor-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .cycle-close-panel-desktop {
+    display: none;
+  }
+
+  .cycle-close-panel-right {
+    display: none;
+  }
+}
