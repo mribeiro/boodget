@@ -2008,6 +2008,45 @@ tr:hover td {
   vertical-align: -0.125em;
 }
 
+/* ── Cycle Editor toolbar ───────────────────────────────────────────────── */
+.cycle-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin-bottom: 1.25rem;
+}
+
+.cycle-toolbar-group {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.cycle-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.cycle-toolbar-label { /* shown on desktop, hidden on mobile */ }
+
+@media (max-width: 640px) {
+  .cycle-toolbar-label {
+    display: none;
+  }
+  .cycle-toolbar-btn {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.85rem;
+  }
+}
+
 /* ── Cycle Editor layout ────────────────────────────────────────────────── */
 .cycle-kpi-row {
   display: flex;

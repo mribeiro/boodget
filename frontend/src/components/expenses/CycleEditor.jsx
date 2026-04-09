@@ -394,26 +394,35 @@ export default function CycleEditor() {
             {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button className="btn-secondary" onClick={() => setShowEditPeriod(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
-            <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Period
+      </div>
+
+      {/* ── Action toolbar ── */}
+      <div className="cycle-toolbar">
+        <div className="cycle-toolbar-group">
+          <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEditPeriod(true)}>
+            <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Period</span>
           </button>
-          <button className="btn-secondary" onClick={() => setEditingInfo(true)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
-            <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Income
+          <button className="cycle-toolbar-btn btn-secondary" onClick={() => setEditingInfo(true)}>
+            <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Income</span>
           </button>
-          <button className="btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
-            <FontAwesomeIcon icon={faFileArrowDown} style={{ marginRight: '0.35rem' }} />
-            {pullingAnnual ? 'Pulling…' : 'Pull annual'}
+          <button className="cycle-toolbar-btn btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual}>
+            <FontAwesomeIcon icon={faFileArrowDown} /><span className="cycle-toolbar-label">{pullingAnnual ? 'Pulling…' : 'Pull annual'}</span>
           </button>
-          {cycle.is_closed ? (
-            <button className="btn-secondary" onClick={handleReopen} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
-              <FontAwesomeIcon icon={faArrowRotateLeft} style={{ marginRight: '0.35rem' }} />Reopen
+          {paperlessActive && (
+            <button className="cycle-toolbar-btn btn-secondary" onClick={handleFetchPaperless} disabled={fetchingPaperless}>
+              <FontAwesomeIcon icon={fetchingPaperless ? faSpinner : faFileLines} spin={fetchingPaperless} />
+              <span className="cycle-toolbar-label">{fetchingPaperless ? 'Fetching…' : 'Paperless'}</span>
             </button>
-          ) : null}
-          <button className="btn-danger" onClick={handleDeleteCycle} style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}>
-            <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
-          </button>
+          )}
+          {!!cycle.is_closed && (
+            <button className="cycle-toolbar-btn btn-secondary" onClick={handleReopen}>
+              <FontAwesomeIcon icon={faArrowRotateLeft} /><span className="cycle-toolbar-label">Reopen</span>
+            </button>
+          )}
         </div>
+        <button className="cycle-toolbar-btn btn-danger" onClick={handleDeleteCycle}>
+          <FontAwesomeIcon icon={faTrash} /><span className="cycle-toolbar-label">Delete</span>
+        </button>
       </div>
 
       {/* ── Income row (edit mode) ── */}
@@ -480,16 +489,6 @@ export default function CycleEditor() {
       <div className="cycle-editor-columns">
         {/* LEFT: expenses + close form (if open cycle) */}
         <div className="cycle-editor-left">
-
-          {/* ── Desktop: Paperless fetch button ── */}
-          {paperlessActive && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-              <button className="btn-secondary" onClick={handleFetchPaperless} disabled={fetchingPaperless} style={{ fontSize: '0.8rem', padding: '0.3rem 0.75rem' }}>
-                <FontAwesomeIcon icon={fetchingPaperless ? faSpinner : faFileArrowDown} spin={fetchingPaperless} style={{ marginRight: '0.4rem' }} />
-                {fetchingPaperless ? 'Fetching…' : 'Fetch from Paperless'}
-              </button>
-            </div>
-          )}
 
           {/* ── Fixed Expenses section ── */}
           <CollapsibleSection
