@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
   faFileArrowDown, faSpinner, faFileLines, faCheck, faArrowRotateLeft,
-  faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave, faSackDollar,
+  faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave, faSackDollar, faPiggyBank,
   faCircleCheck, faClock, faCalendarDays, faLeaf,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
@@ -431,8 +431,8 @@ export default function CycleEditor() {
           { label: 'Expenses', value: fmt(summary.total_expenses), icon: faReceipt, highlight: 'danger' },
           { label: 'Paid', value: fmt(summary.total_expenses_paid), icon: faCircleCheck, highlight: 'success' },
           { label: 'Unpaid', value: fmt(summary.total_expenses_unpaid), icon: faClock, highlight: summary.total_expenses_unpaid > 0 ? 'warning' : 'neutral' },
-          { label: 'Curr. balance', value: fmt(expectedCurrentBalance), icon: faWallet, highlight: expectedCurrentBalance < 0 ? 'danger' : 'success' },
-          { label: 'Exp. balance', value: fmt(summary.expected_balance), highlight: summary.expected_balance < 0 ? 'danger' : 'success', large: true },
+          { label: 'Curr. balance', value: fmt(expectedCurrentBalance), icon: faWallet, highlight: expectedCurrentBalance < 0 ? 'danger' : 'success', large: true },
+          { label: 'Exp. balance', value: fmt(summary.expected_balance), icon: faPiggyBank, highlight: summary.expected_balance < 0 ? 'danger' : 'success' },
         ]} />
 
         {/* Closed: show final balance and difference */}
