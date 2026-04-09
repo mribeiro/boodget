@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faPencil, faTrash, faTriangleExclamation, faChevronDown, faChevronRight, faPlus } from '@fortawesome/free-solid-svg-icons';
-import KpiBlock from '../ui/KpiBlock';
+import KpiStrip from '../ui/KpiStrip';
 import Toast from '../ui/Toast';
 import {
   LineChart,
@@ -252,41 +252,17 @@ export default function GoalDetail() {
           </div>
 
           {/* KPI blocks */}
-          <div className="cycle-kpi-row" style={{ marginBottom: 'var(--space-4)' }}>
-            <KpiBlock label="Target" value={formatEur(goal.target_value)} large />
-            <KpiBlock label="Progress" value={formatEur(goal.total_current_progress)} highlight={goal.state === 'completed' ? 'success' : 'neutral'} />
-            <KpiBlock label="Remaining" value={formatEur(goal.remaining_amount)} highlight={goal.remaining_amount > 0 && goal.state === 'active' ? 'neutral' : 'success'} />
-          </div>
-          <div className="cycle-kpi-row" style={{ marginBottom: 'var(--space-4)' }}>
-            <KpiBlock label="Target date" value={formatYM(goal.target_date)} />
-            {!isAdHoc && (
-              <KpiBlock
-                label="Months remaining"
-                value={goal.months_remaining > 0 ? `${goal.months_remaining} mo` : 'Overdue'}
-                highlight={goal.months_remaining <= 0 ? 'danger' : 'neutral'}
-              />
-            )}
-            {!isAdHoc && (
-              <KpiBlock
-                label="Monthly needed"
-                value={formatEur(goal.monthly_value_needed)}
-                highlight={infeasible ? 'warning' : 'neutral'}
-              />
-            )}
-            {!isAdHoc && (
-              <KpiBlock
-                label="Expected contribution"
-                value={formatEur(goal.expected_monthly_contribution)}
-                highlight={infeasible ? 'warning' : 'neutral'}
-              />
-            )}
-            {goal.anticipated_completion_date && (
-              <KpiBlock label="Est. completion" value={formatYM(goal.anticipated_completion_date)} highlight="success" />
-            )}
-            {goal.extra_value > 0 && (
-              <KpiBlock label="Extra value" value={formatEur(goal.extra_value)} note="In accounts — projection only" />
-            )}
-          </div>
+          <KpiStrip style={{ marginBottom: 'var(--space-4)' }} items={[
+            { label: 'Target', value: formatEur(goal.target_value), large: true },
+            { label: 'Progress', value: formatEur(goal.total_current_progress), highlight: goal.state === 'completed' ? 'success' : 'neutral' },
+            { label: 'Remaining', value: formatEur(goal.remaining_amount), highlight: goal.remaining_amount > 0 && goal.state === 'active' ? 'neutral' : 'success' },
+            { label: 'Target date', value: formatYM(goal.target_date) },
+            !isAdHoc ? { label: 'Months left', value: goal.months_remaining > 0 ? `${goal.months_remaining} mo` : 'Overdue', highlight: goal.months_remaining <= 0 ? 'danger' : 'neutral' } : null,
+            !isAdHoc ? { label: 'Mo. needed', value: formatEur(goal.monthly_value_needed), highlight: infeasible ? 'warning' : 'neutral' } : null,
+            !isAdHoc ? { label: 'Mo. expected', value: formatEur(goal.expected_monthly_contribution), highlight: infeasible ? 'warning' : 'neutral' } : null,
+            goal.anticipated_completion_date ? { label: 'Est. done', value: formatYM(goal.anticipated_completion_date), highlight: 'success' } : null,
+            goal.extra_value > 0 ? { label: 'Extra', value: formatEur(goal.extra_value), note: 'In accounts — projection only' } : null,
+          ]} />
 
           {/* Historical contributions */}
           {!isAdHoc && (

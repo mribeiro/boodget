@@ -12,6 +12,7 @@ import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
 import Toast from '../ui/Toast';
 import KpiBlock from '../ui/KpiBlock';
+import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import { ItemFormModal } from '../annual-expenses/AnnualExpensesTab';
 
@@ -438,22 +439,15 @@ export default function CycleEditor() {
 
       {/* ── Summary KPIs ── */}
       <div className="cycle-editor-summary" style={{ marginBottom: '1.25rem' }}>
-        {/* Desktop: horizontal row of KPI blocks */}
-        <div className="cycle-kpi-row">
-          <KpiBlock label="Salary" value={fmt(cycle.salary)} icon={faMoneyBillWave} />
-          <KpiBlock label="Prev. bal." value={fmt(cycle.previous_balance)} icon={faWallet} />
-          <KpiBlock label="Available" value={fmt(summary.total_available)} icon={faWallet} highlight="neutral" />
-          <KpiBlock label="Expenses" value={fmt(summary.total_expenses)} icon={faReceipt} highlight="danger" />
-          <KpiBlock label="Paid" value={fmt(summary.total_expenses_paid)} icon={faCircleCheck} highlight="success" />
-          <KpiBlock label="Unpaid" value={fmt(summary.total_expenses_unpaid)} icon={faClock} highlight={summary.total_expenses_unpaid > 0 ? 'warning' : 'neutral'} />
-          <KpiBlock
-            label="Exp. balance"
-            value={fmt(summary.expected_balance)}
-            icon={faWallet}
-            highlight={summary.expected_balance < 0 ? 'danger' : 'success'}
-            large
-          />
-        </div>
+        <KpiStrip style={{ marginBottom: cycle.is_closed ? '0.75rem' : 0 }} items={[
+          { label: 'Salary', value: fmt(cycle.salary), icon: faMoneyBillWave },
+          { label: 'Prev. bal.', value: fmt(cycle.previous_balance), icon: faWallet },
+          { label: 'Available', value: fmt(summary.total_available) },
+          { label: 'Expenses', value: fmt(summary.total_expenses), icon: faReceipt, highlight: 'danger' },
+          { label: 'Paid', value: fmt(summary.total_expenses_paid), icon: faCircleCheck, highlight: 'success' },
+          { label: 'Unpaid', value: fmt(summary.total_expenses_unpaid), icon: faClock, highlight: summary.total_expenses_unpaid > 0 ? 'warning' : 'neutral' },
+          { label: 'Exp. balance', value: fmt(summary.expected_balance), highlight: summary.expected_balance < 0 ? 'danger' : 'success', large: true },
+        ]} />
 
         {/* Closed: show final balance and difference */}
         {cycle.is_closed && (

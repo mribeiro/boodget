@@ -2015,6 +2015,71 @@ tr:hover td {
   gap: var(--space-3);
 }
 
+/* ── KpiStrip adaptive layout ───────────────────────────────────────────── */
+.kpi-strip--mobile { display: none; }
+
+@media (max-width: 640px) {
+  .kpi-strip--desktop { display: none; }
+  .kpi-strip--mobile  { display: block; }
+}
+
+.kpi-strip-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  cursor: pointer;
+  text-align: left;
+  gap: 8px;
+}
+
+.kpi-strip-toggle-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  font-weight: 700;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.kpi-strip-toggle-value {
+  font-size: 16px;
+  font-weight: 800;
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-strip-list {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.kpi-strip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border-default);
+}
+
+.kpi-strip-row-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.kpi-strip-row-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .cycle-editor-columns {
   display: grid;
   grid-template-columns: 60fr 40fr;

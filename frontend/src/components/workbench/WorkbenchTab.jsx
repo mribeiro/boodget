@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown, faMoneyBillWave, faReceipt, faCalendarDays, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
-import KpiBlock from '../ui/KpiBlock';
+import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import Toast from '../ui/Toast';
 
@@ -562,18 +562,13 @@ export default function WorkbenchTab({ dossierId }) {
       {state && summary && (
         <>
           {/* ── KPI summary strip (always visible) ── */}
-          <div className="cycle-kpi-row" style={{ margin: '1.25rem 0' }}>
-            <KpiBlock label="Income" value={fmt(summary.totalIncome)} icon={faMoneyBillWave} highlight={summary.totalIncome > 0 ? 'success' : 'neutral'} large />
-            <KpiBlock label="Must" value={fmt(summary.totalMust)} icon={faReceipt} />
-            <KpiBlock label="Want" value={fmt(summary.totalWant)} icon={faCalendarDays} />
-            <KpiBlock label="Save" value={fmt(summary.totalSave)} icon={faWallet} />
-            <KpiBlock
-              label="Leftover"
-              value={fmt(summary.leftover)}
-              highlight={summary.leftover >= 0 ? 'success' : 'danger'}
-              large
-            />
-          </div>
+          <KpiStrip style={{ margin: '1.25rem 0' }} items={[
+            { label: 'Income', value: fmt(summary.totalIncome), icon: faMoneyBillWave, highlight: summary.totalIncome > 0 ? 'success' : 'neutral', large: true },
+            { label: 'Must', value: fmt(summary.totalMust), icon: faReceipt },
+            { label: 'Want', value: fmt(summary.totalWant), icon: faCalendarDays },
+            { label: 'Save', value: fmt(summary.totalSave), icon: faWallet },
+            { label: 'Leftover', value: fmt(summary.leftover), highlight: summary.leftover >= 0 ? 'success' : 'danger', large: true },
+          ]} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginTop: '0.5rem' }}>
             <IncomeSection
