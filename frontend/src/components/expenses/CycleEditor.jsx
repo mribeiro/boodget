@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
-  faFileArrowDown, faSpinner, faFileLines, faCheck, faArrowRotateLeft,
+  faFileArrowDown, faSpinner, faFileLines, faArrowRotateLeft,
   faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave, faSackDollar, faPiggyBank,
   faCircleCheck, faClock, faCalendarDays, faLeaf,
 } from '@fortawesome/free-solid-svg-icons';
@@ -89,10 +89,8 @@ export default function CycleEditor() {
 
   const [showEditIncome, setShowEditIncome] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showEditFinalBalance, setShowEditFinalBalance] = useState(false);
 
-  const [showCloseForm, setShowCloseForm] = useState(false);
-  const [finalBalance, setFinalBalance] = useState('');
-  const [savingClose, setSavingClose] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditPeriod, setShowEditPeriod] = useState(false);
@@ -130,29 +128,8 @@ export default function CycleEditor() {
     try {
       const data = await api.getCycle(dossierId, cycleId);
       setCycle(data);
-      if (data.final_real_balance != null) setFinalBalance(String(data.final_real_balance));
     } catch (err) {
       setError(err.message);
-    }
-  }
-
-  async function handleClose() {
-    setError('');
-    const bal = Number(finalBalance);
-    if (isNaN(bal)) { setError('Final balance must be a number'); return; }
-    setSavingClose(true);
-    try {
-      await api.updateCycle(dossierId, cycleId, {
-        is_closed: true,
-        final_real_balance: bal,
-      });
-      await load();
-      setShowCloseForm(false);
-      showToast('Cycle closed');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSavingClose(false);
     }
   }
 
@@ -167,16 +144,9 @@ export default function CycleEditor() {
     }
   }
 
-  async function handleUpdateFinalBalance() {
-    setError('');
-    const bal = Number(finalBalance);
-    if (isNaN(bal)) { setError('Final balance must be a number'); return; }
-    try {
-      await api.updateCycle(dossierId, cycleId, { final_real_balance: bal });
-      await load();
-    } catch (err) {
-      setError(err.message);
-    }
+  async function handleUpdateFinalBalance(bal) {
+    await api.updateCycle(dossierId, cycleId, { final_real_balance: bal });
+    await load();
   }
 
   async function handleTogglePaid(item) {
@@ -355,9 +325,6 @@ export default function CycleEditor() {
   const paidFixed = fixedExpenses.filter((e) => e.paid).length;
   const doneDist = distributions.filter((d) => d.done).length;
 
-  // Difference for close panel
-  const balDiff = finalBalance !== '' ? Number(finalBalance) - summary.expected_balance : null;
-
   return (
     <div className="page-fade-in">
       {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
@@ -430,7 +397,7 @@ export default function CycleEditor() {
       {showCloseModal && (
         <CloseCycleModal
           expectedBalance={summary.expected_balance}
-          initialBalance={finalBalance}
+          initialBalance={cycle.final_real_balance != null ? String(cycle.final_real_balance) : ''}
           onClose={() => setShowCloseModal(false)}
           onConfirm={async (bal) => {
             await api.updateCycle(dossierId, cycleId, { is_closed: true, final_real_balance: bal });
@@ -456,7 +423,7 @@ export default function CycleEditor() {
 
         {/* Closed: show final balance and difference */}
         {!!cycle.is_closed && (
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <KpiBlock
               label="Final balance"
               value={fmt(summary.final_real_balance)}
@@ -469,14 +436,22 @@ export default function CycleEditor() {
               icon={faCircleCheck}
               highlight={summary.balance_difference > 0 ? 'success' : summary.balance_difference < 0 ? 'danger' : 'neutral'}
             />
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: '0.8rem' }}>Update final balance (€)</label>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input type="number" inputMode="decimal" step="0.01" value={finalBalance} onChange={(e) => setFinalBalance(e.target.value)} style={{ width: '8rem' }} />
-                <button className="btn-secondary" onClick={handleUpdateFinalBalance} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>Update</button>
-              </div>
-            </div>
+            <button
+              onClick={() => setShowEditFinalBalance(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', padding: '0.25rem' }}
+              title="Update final balance"
+            >
+              <FontAwesomeIcon icon={faPencil} />
+            </button>
           </div>
+        )}
+        {showEditFinalBalance && (
+          <EditFinalBalanceModal
+            expectedBalance={summary.expected_balance}
+            currentBalance={cycle.final_real_balance}
+            onSave={async (bal) => { await handleUpdateFinalBalance(bal); setShowEditFinalBalance(false); }}
+            onClose={() => setShowEditFinalBalance(false)}
+          />
         )}
       </div>
 
@@ -533,21 +508,6 @@ export default function CycleEditor() {
             </CollapsibleSection>
           )}
 
-          {/* ── Close Cycle panel (only on desktop, open cycle) ── */}
-          {!cycle.is_closed && (
-            <div className="cycle-close-panel-desktop">
-              <CloseCyclePanel
-                finalBalance={finalBalance}
-                setFinalBalance={setFinalBalance}
-                expectedBalance={summary.expected_balance}
-                balDiff={balDiff}
-                showCloseForm={showCloseForm}
-                setShowCloseForm={setShowCloseForm}
-                savingClose={savingClose}
-                onClose={handleClose}
-              />
-            </div>
-          )}
         </div>
 
         {/* RIGHT: Distributions + Close panel */}
@@ -578,21 +538,6 @@ export default function CycleEditor() {
             </button>
           </CollapsibleSection>
 
-          {/* ── Close Cycle panel (right column on desktop, open cycle) ── */}
-          {!cycle.is_closed && (
-            <div className="cycle-close-panel-right">
-              <CloseCyclePanel
-                finalBalance={finalBalance}
-                setFinalBalance={setFinalBalance}
-                expectedBalance={summary.expected_balance}
-                balDiff={balDiff}
-                showCloseForm={showCloseForm}
-                setShowCloseForm={setShowCloseForm}
-                savingClose={savingClose}
-                onClose={handleClose}
-              />
-            </div>
-          )}
         </div>
       </div>
 
@@ -641,76 +586,6 @@ export default function CycleEditor() {
   );
 }
 
-
-
-// ── Close Cycle Panel ─────────────────────────────────────────────────────────
-
-function CloseCyclePanel({ finalBalance, setFinalBalance, expectedBalance, balDiff, showCloseForm, setShowCloseForm, savingClose, onClose }) {
-  return (
-    <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border-default)',
-      borderRadius: 'var(--radius)',
-      padding: '16px',
-      marginBottom: '1rem',
-    }}>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <FontAwesomeIcon icon={faLock} style={{ fontSize: 12, color: 'var(--color-success)' }} />
-        Close Cycle
-      </div>
-      {!showCloseForm ? (
-        <button className="btn-secondary" onClick={() => setShowCloseForm(true)} style={{ fontSize: '0.875rem' }}>
-          <FontAwesomeIcon icon={faLock} style={{ marginRight: '0.35rem' }} />Close cycle…
-        </button>
-      ) : (
-        <>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-              Final Real Balance (€)
-            </label>
-            <input
-              type="number" inputMode="decimal"
-              step="0.01"
-              value={finalBalance}
-              onChange={(e) => setFinalBalance(e.target.value)}
-              placeholder="0.00"
-              style={{ width: '100%' }}
-              autoFocus
-            />
-          </div>
-          {balDiff !== null && (
-            <div style={{
-              marginBottom: 12,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 12px',
-              borderRadius: 'var(--radius)',
-              background: balDiff >= 0 ? 'var(--color-success-light)' : 'var(--color-danger-light)',
-            }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Difference vs expected</span>
-              <span style={{
-                fontSize: 15,
-                fontWeight: 800,
-                color: balDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {balDiff >= 0 ? '+' : ''}{fmt(balDiff)}
-              </span>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn-primary" onClick={onClose} disabled={savingClose} style={{ flex: 1 }}>
-              <FontAwesomeIcon icon={faCheck} style={{ marginRight: '0.35rem' }} />
-              {savingClose ? 'Closing…' : 'Confirm close'}
-            </button>
-            <button className="btn-secondary" onClick={() => setShowCloseForm(false)}>Cancel</button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 // ── Period edit modal ─────────────────────────────────────────────────────────
 
@@ -939,30 +814,7 @@ function EditIncomeModal({ cycle, onSave, onClose }) {
 // ── Fixed Expenses list ───────────────────────────────────────────────────────
 
 function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit, onlyFixed }) {
-  const [spentDrafts, setSpentDrafts] = useState({});
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState('');
-  const [editDay, setEditDay] = useState('');
-  const [editTagId, setEditTagId] = useState('');
-
-  function startEdit(item) {
-    setEditingId(item.id);
-    setEditValue(String(item.value));
-    setEditDay(item.day_of_payment != null ? String(item.day_of_payment) : '');
-    setEditTagId(item.paperless_tag_id != null ? String(item.paperless_tag_id) : '');
-  }
-
-  async function confirmEdit(item) {
-    const data = { value: Number(editValue) };
-    if (item.type === 'Fixed') {
-      data.day_of_payment = Number(editDay);
-      if (paperlessActive) {
-        data.paperless_tag_id = editTagId.trim() !== '' ? Number(editTagId) : null;
-      }
-    }
-    await onEdit(item, data);
-    setEditingId(null);
-  }
+  const [editingItem, setEditingItem] = useState(null);
 
   async function handleAnnualTogglePaid(p) {
     try {
@@ -1064,7 +916,6 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
         }
 
         // ── Regular expense row ──
-        const isEditing = editingId === item.id;
         const isPaid = item.type === 'Fixed' && item.paid;
         return (
           <div
@@ -1078,24 +929,23 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
               borderRadius: 'var(--radius)',
               border: '1px solid var(--border-default)',
               flexWrap: 'wrap',
-              opacity: !isEditing && isPaid ? 0.5 : 1,
+              opacity: isPaid ? 0.5 : 1,
               transition: 'opacity 0.25s ease',
-              borderLeft: !isEditing && isPaid ? '3px solid var(--color-success)' : undefined,
+              borderLeft: isPaid ? '3px solid var(--color-success)' : undefined,
             }}
           >
-            {item.type === 'Fixed' && !isEditing && (
+            {item.type === 'Fixed' && (
               <Checkbox
                 checked={!!item.paid}
                 onChange={() => onTogglePaid(item)}
                 title={item.paid ? 'Mark as unpaid' : 'Mark as paid'}
               />
             )}
-
             <div style={{ flex: 1, minWidth: 0 }}>
               <span style={{
                 fontWeight: 500,
-                textDecoration: !isEditing && isPaid ? 'line-through' : 'none',
-                color: !isEditing && isPaid ? 'var(--text-muted)' : 'var(--text-primary)',
+                textDecoration: isPaid ? 'line-through' : 'none',
+                color: isPaid ? 'var(--text-muted)' : 'var(--text-primary)',
                 transition: 'color 0.25s ease, text-decoration 0.25s ease',
               }}>
                 {item.name}
@@ -1107,64 +957,41 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                   style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}
                 />
               )}
-              {!isEditing && item.type === 'Fixed' && item.day_of_payment != null && (
+              {item.type === 'Fixed' && item.day_of_payment != null && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
                   <FontAwesomeIcon icon={faClock} style={{ fontSize: '0.65rem', marginRight: 2 }} />
                   day {item.day_of_payment}
                 </span>
               )}
             </div>
-
-            {isEditing ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {item.type === 'Budget' ? 'Max' : 'Value'}
-                  </label>
-                  <input type="number" inputMode="decimal" min={0} step="0.01" value={editValue} onChange={(e) => setEditValue(e.target.value)} style={{ width: '6rem' }} autoFocus />
-                </div>
-                {item.type === 'Fixed' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Day</label>
-                    <input type="number" inputMode="numeric" min={1} max={31} value={editDay} onChange={(e) => setEditDay(e.target.value)} style={{ width: '3.5rem' }} />
-                  </div>
-                )}
-                {item.type === 'Fixed' && paperlessActive && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tag ID</label>
-                    <input type="number" inputMode="numeric" min={1} value={editTagId} onChange={(e) => setEditTagId(e.target.value)} placeholder="—" style={{ width: '4rem' }} title="Paperless tag ID" />
-                  </div>
-                )}
-                <button className="btn-primary" onClick={() => confirmEdit(item)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Save</button>
-                <button className="btn-secondary" onClick={() => setEditingId(null)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Cancel</button>
-              </div>
-            ) : (
-              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: isPaid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
-                {fmt(item.value)}
-              </span>
-            )}
-
-            {!isEditing && (
-              <>
-                <button
-                  onClick={() => startEdit(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                  title="Edit"
-                >
-                  <FontAwesomeIcon icon={faPencil} />
-                </button>
-                <button
-                  onClick={() => onDelete(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                  title="Delete"
-                >
-                  <FontAwesomeIcon icon={faTrash} />
-                </button>
-              </>
-            )}
+            <span style={{ fontSize: '0.875rem', fontWeight: 500, color: isPaid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
+              {fmt(item.value)}
+            </span>
+            <button
+              onClick={() => setEditingItem(item)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+              title="Edit"
+            >
+              <FontAwesomeIcon icon={faPencil} />
+            </button>
+            <button
+              onClick={() => onDelete(item)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+              title="Delete"
+            >
+              <FontAwesomeIcon icon={faTrash} />
+            </button>
           </div>
         );
       })}
+      {editingItem && !editingItem._annual && (
+        <EditExpenseItemModal
+          item={editingItem}
+          paperlessActive={paperlessActive}
+          onSave={async (data) => { await onEdit(editingItem, data); setEditingItem(null); }}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1172,27 +999,14 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
 // ── Budget Expenses list ──────────────────────────────────────────────────────
 
 function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
-  const [spentDrafts, setSpentDrafts] = useState({});
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState('');
-
-  function startEdit(item) {
-    setEditingId(item.id);
-    setEditValue(String(item.value));
-  }
-
-  async function confirmEdit(item) {
-    await onEdit(item, { value: Number(editValue) });
-    setEditingId(null);
-  }
+  const [editingItem, setEditingItem] = useState(null);
 
   if (expenses.length === 0) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       {expenses.map((item) => {
-        const isEditing = editingId === item.id;
-        const spent = spentDrafts[item.id] !== undefined ? Number(spentDrafts[item.id]) : (item.spent ?? 0);
+        const spent = item.spent ?? 0;
         const pct = item.value > 0 ? Math.min((spent / item.value) * 100, 100) : 0;
         const barColor =
           pct > 90 ? 'var(--color-danger)' :
@@ -1215,72 +1029,36 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
                 <span style={{ fontSize: 11, fontWeight: 700, color: barColor, fontVariantNumeric: 'tabular-nums' }}>
                   {Math.round(pct)}%
                 </span>
-                {!isEditing && (
-                  <>
-                    <button
-                      onClick={() => startEdit(item)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
-                      title="Edit max"
-                    >
-                      <FontAwesomeIcon icon={faPencil} />
-                    </button>
-                    <button
-                      onClick={() => onDelete(item)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
-                      title="Delete"
-                    >
-                      <FontAwesomeIcon icon={faTrash} />
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => setEditingItem(item)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
+                  title="Edit"
+                >
+                  <FontAwesomeIcon icon={faPencil} />
+                </button>
+                <button
+                  onClick={() => onDelete(item)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
+                  title="Delete"
+                >
+                  <FontAwesomeIcon icon={faTrash} />
+                </button>
               </div>
             </div>
-            {/* Progress bar */}
             <BudgetBar spent={spent} max={item.value} />
-            {/* Spent input / max */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-              {isEditing ? (
-                <>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Max (€)</label>
-                  <input
-                    type="number" inputMode="decimal"
-                    min={0}
-                    step="0.01"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    style={{ width: '6rem' }}
-                    autoFocus
-                  />
-                  <button className="btn-primary" onClick={() => confirmEdit(item)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Save</button>
-                  <button className="btn-secondary" onClick={() => setEditingId(null)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Cancel</button>
-                </>
-              ) : (
-                <>
-                  <input
-                    type="number" inputMode="decimal"
-                    min={0}
-                    max={item.value}
-                    step="0.01"
-                    value={spentDrafts[item.id] ?? item.spent}
-                    onChange={(e) => setSpentDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                    onBlur={() => {
-                      const val = spentDrafts[item.id];
-                      if (val !== undefined && val !== String(item.spent)) {
-                        onUpdateSpent(item, val).then(() => {
-                          setSpentDrafts((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
-                        });
-                      }
-                    }}
-                    style={{ width: '5rem', textAlign: 'right' }}
-                    title="Spent so far"
-                  />
-                  <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>/ {fmt(item.value)}</span>
-                </>
-              )}
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(spent)} / {fmt(item.value)}
             </div>
           </div>
         );
       })}
+      {editingItem && (
+        <EditBudgetItemModal
+          item={editingItem}
+          onSave={async (data) => { await onEdit(editingItem, data); setEditingItem(null); }}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1288,18 +1066,7 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
 // ── Distributions list ────────────────────────────────────────────────────────
 
 function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState('');
-
-  function startEdit(item) {
-    setEditingId(item.id);
-    setEditValue(String(item.value));
-  }
-
-  async function confirmEdit(item) {
-    await onEdit(item, { value: Number(editValue) });
-    setEditingId(null);
-  }
+  const [editingItem, setEditingItem] = useState(null);
 
   if (distributions.length === 0) {
     return <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>No distributions yet.</p>;
@@ -1307,84 +1074,68 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      {distributions.map((item) => {
-        const isEditing = editingId === item.id;
-        return (
-          <div
-            key={item.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              padding: '0.6rem 0.75rem',
-              background: 'var(--bg-card)',
-              borderRadius: 'var(--radius)',
-              border: '1px solid var(--border-default)',
-              flexWrap: 'wrap',
-              opacity: !isEditing && item.done ? 0.5 : 1,
-              transition: 'opacity 0.25s ease',
-              borderLeft: !isEditing && item.done ? '3px solid var(--color-brand)' : undefined,
-            }}
+      {distributions.map((item) => (
+        <div
+          key={item.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '0.6rem 0.75rem',
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border-default)',
+            flexWrap: 'wrap',
+            opacity: item.done ? 0.5 : 1,
+            transition: 'opacity 0.25s ease',
+            borderLeft: item.done ? '3px solid var(--color-brand)' : undefined,
+          }}
+        >
+          <Checkbox
+            checked={!!item.done}
+            onChange={() => onToggleDone(item)}
+            title={item.done ? 'Mark as not done' : 'Mark as done'}
+            style={{ '--checkbox-color': 'var(--color-brand)' }}
+          />
+          <span style={{
+            flex: 1,
+            fontWeight: 500,
+            textDecoration: item.done ? 'line-through' : 'none',
+            color: item.done ? 'var(--text-muted)' : 'var(--text-primary)',
+            transition: 'color 0.25s ease',
+          }}>
+            {item.name}
+          </span>
+          <span style={{
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            color: item.done ? 'var(--text-muted)' : 'var(--text-primary)',
+            transition: 'color 0.25s ease',
+            fontVariantNumeric: 'tabular-nums',
+          }}>{fmt(item.value)}</span>
+          <button
+            onClick={() => setEditingItem(item)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+            title="Edit"
           >
-            {!isEditing && (
-              <Checkbox
-                checked={!!item.done}
-                onChange={() => onToggleDone(item)}
-                title={item.done ? 'Mark as not done' : 'Mark as done'}
-                style={{ '--checkbox-color': 'var(--color-brand)' }}
-              />
-            )}
-            <span style={{
-              flex: 1,
-              fontWeight: 500,
-              textDecoration: !isEditing && item.done ? 'line-through' : 'none',
-              color: !isEditing && item.done ? 'var(--text-muted)' : 'var(--text-primary)',
-              transition: 'color 0.25s ease',
-            }}>
-              {item.name}
-            </span>
-            {isEditing ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input
-                  type="number" inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  style={{ width: '6rem' }}
-                  autoFocus
-                />
-                <button className="btn-primary" onClick={() => confirmEdit(item)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Save</button>
-                <button className="btn-secondary" onClick={() => setEditingId(null)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>Cancel</button>
-              </div>
-            ) : (
-              <>
-                <span style={{
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  color: item.done ? 'var(--text-muted)' : 'var(--text-primary)',
-                  transition: 'color 0.25s ease',
-                  fontVariantNumeric: 'tabular-nums',
-                }}>{fmt(item.value)}</span>
-                <button
-                  onClick={() => startEdit(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                  title="Edit"
-                >
-                  <FontAwesomeIcon icon={faPencil} />
-                </button>
-                <button
-                  onClick={() => onDelete(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                  title="Delete"
-                >
-                  <FontAwesomeIcon icon={faTrash} />
-                </button>
-              </>
-            )}
-          </div>
-        );
-      })}
+            <FontAwesomeIcon icon={faPencil} />
+          </button>
+          <button
+            onClick={() => onDelete(item)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+            title="Delete"
+          >
+            <FontAwesomeIcon icon={faTrash} />
+          </button>
+        </div>
+      ))}
+      {editingItem && (
+        <EditDistributionModal
+          item={editingItem}
+          onSave={async (data) => { await onEdit(editingItem, data); setEditingItem(null); }}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1560,6 +1311,248 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit expense item modal ───────────────────────────────────────────────────
+
+function EditExpenseItemModal({ item, paperlessActive, onSave, onClose }) {
+  const [value, setValue] = useState(String(item.value));
+  const [day, setDay] = useState(String(item.day_of_payment ?? ''));
+  const [tagId, setTagId] = useState(String(item.paperless_tag_id ?? ''));
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    const numValue = Number(value);
+    if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
+    const numDay = Number(day);
+    if (!Number.isInteger(numDay) || numDay < 1 || numDay > 31) { setError('Day of payment must be 1–31'); return; }
+    setSaving(true);
+    try {
+      const data = { value: numValue, day_of_payment: numDay };
+      if (paperlessActive) data.paperless_tag_id = tagId !== '' ? Number(tagId) : null;
+      await onSave(data);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Expense</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 600 }}>{item.name}</div>
+            <div className="form-group">
+              <label>Value (€)</label>
+              <input type="number" inputMode="decimal" step="0.01" min={0} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+            </div>
+            <div className="form-group">
+              <label>Day of payment (1–31)</label>
+              <input type="number" inputMode="numeric" min={1} max={31} value={day} onChange={(e) => setDay(e.target.value)} />
+            </div>
+            {paperlessActive && (
+              <div className="form-group">
+                <label>Paperless tag ID (optional)</label>
+                <input type="number" inputMode="numeric" min={1} value={tagId} onChange={(e) => setTagId(e.target.value)} placeholder="leave blank to unlink" />
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit budget item modal ────────────────────────────────────────────────────
+
+function EditBudgetItemModal({ item, onSave, onClose }) {
+  const [maxValue, setMaxValue] = useState(String(item.value));
+  const [spent, setSpent] = useState(String(item.spent ?? 0));
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    const numMax = Number(maxValue);
+    const numSpent = Number(spent);
+    if (isNaN(numMax) || numMax < 0) { setError('Maximum must be a non-negative number'); return; }
+    if (isNaN(numSpent) || numSpent < 0) { setError('Spent must be a non-negative number'); return; }
+    setSaving(true);
+    try {
+      await onSave({ value: numMax, spent: numSpent });
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Budget</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 600 }}>{item.name}</div>
+            <div className="form-group">
+              <label>Maximum (€)</label>
+              <input type="number" inputMode="decimal" step="0.01" min={0} value={maxValue} onChange={(e) => setMaxValue(e.target.value)} autoFocus />
+            </div>
+            <div className="form-group">
+              <label>Spent (€)</label>
+              <input type="number" inputMode="decimal" step="0.01" min={0} value={spent} onChange={(e) => setSpent(e.target.value)} />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit distribution modal ───────────────────────────────────────────────────
+
+function EditDistributionModal({ item, onSave, onClose }) {
+  const [value, setValue] = useState(String(item.value));
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    const numValue = Number(value);
+    if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
+    setSaving(true);
+    try {
+      await onSave({ value: numValue });
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Distribution</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 600 }}>{item.name}</div>
+            <div className="form-group">
+              <label>Amount (€)</label>
+              <input type="number" inputMode="decimal" step="0.01" min={0} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit final balance modal ──────────────────────────────────────────────────
+
+function EditFinalBalanceModal({ expectedBalance, currentBalance, onSave, onClose }) {
+  const [balance, setBalance] = useState(currentBalance != null ? String(currentBalance) : '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const diff = balance !== '' && !isNaN(Number(balance))
+    ? Number(balance) - expectedBalance
+    : null;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const bal = Number(balance);
+    if (isNaN(bal)) { setError('Enter a valid number'); return; }
+    setError('');
+    setSaving(true);
+    try {
+      await onSave(bal);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Update Final Balance</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div className="form-group">
+              <label>Final real balance (€)</label>
+              <input
+                type="number" inputMode="decimal"
+                step="0.01"
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                placeholder="0.00"
+                autoFocus
+              />
+            </div>
+            {diff !== null && (
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: 'var(--radius)',
+                background: diff >= 0 ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Difference vs expected</span>
+                <span style={{
+                  fontSize: 15, fontWeight: 800,
+                  color: diff >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {diff >= 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(diff)} €
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
