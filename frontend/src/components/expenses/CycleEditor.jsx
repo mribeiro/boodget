@@ -1016,6 +1016,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                 flexWrap: 'wrap',
                 opacity: p.paid ? 0.5 : 1,
                 transition: 'opacity 0.25s ease',
+                borderLeft: p.paid ? '3px solid var(--color-success)' : undefined,
               }}
             >
               <Checkbox
