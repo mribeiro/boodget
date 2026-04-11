@@ -1870,6 +1870,10 @@ tr:hover td {
     border-radius: var(--radius-md);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-cards tbody tr:hover td {
+    background: unset;
   }
 
   /* Group-header rows: flat section label, not a card */
@@ -1878,7 +1882,6 @@ tr:hover td {
     border: none;
     border-radius: 0;
     box-shadow: none;
-    margin-bottom: calc(-1 * var(--space-2));
   }
   .mobile-cards tbody tr.group-header td {
     font-size: 11px;
