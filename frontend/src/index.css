@@ -1571,6 +1571,30 @@ tr:hover td {
   letter-spacing: 0.1em;
   color: var(--text-muted);
   margin-bottom: var(--space-3);
+  display: block;
+}
+
+.glances-label--toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+  width: 100%;
+  text-align: left;
+}
+
+.glances-chevron {
+  display: none;
+  transition: transform 0.2s ease;
+  margin-left: var(--space-2);
+}
+
+.glances-chevron--collapsed {
+  transform: rotate(-90deg);
+}
+
+.glances-grid--hidden {
+  display: none;
 }
 
 .glances-grid {
@@ -1777,6 +1801,14 @@ tr:hover td {
 
   .navbar-breadcrumb {
     display: none;
+  }
+
+  .glances-label--toggle {
+    cursor: pointer;
+  }
+
+  .glances-chevron {
+    display: inline;
   }
 
   .glances-grid {
