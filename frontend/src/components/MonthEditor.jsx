@@ -204,12 +204,27 @@ export default function MonthEditor() {
           return s + (v - e.prev_value);
         }, 0);
         const hasDelta = monthData.entries.some((e) => e.prev_value != null && values[e.id] !== '');
+        const idleEntries = monthData.entries.filter((e) => e.is_idle_money);
+        const idleTotal = idleEntries.reduce((s, e) => {
+          const v = parseFloat(values[e.id]);
+          return s + (isNaN(v) ? 0 : v);
+        }, 0);
+        const idleDelta = idleEntries.reduce((s, e) => {
+          if (e.prev_value == null) return s;
+          const v = parseFloat(values[e.id]);
+          if (isNaN(v)) return s;
+          return s + (v - e.prev_value);
+        }, 0);
+        const hasIdleDelta = idleEntries.some((e) => e.prev_value != null && values[e.id] !== '');
+        const hasIdleFilled = idleEntries.some((e) => values[e.id] !== '');
         const fmt = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' €';
         return (
           <KpiStrip style={{ marginBottom: '1.25rem' }} items={[
             { label: 'Filled', value: `${filledCount} / ${monthData.entries.length}`, highlight: filledCount === monthData.entries.length ? 'success' : 'neutral' },
             { label: 'Total', value: filledCount > 0 ? fmt(total) : '—', large: true },
             hasDelta ? { label: 'Net change', value: `${deltaSum >= 0 ? '+' : ''}${fmt(deltaSum)}`, highlight: deltaSum > 0 ? 'success' : deltaSum < 0 ? 'danger' : 'neutral' } : null,
+            idleEntries.length > 0 && hasIdleFilled ? { label: 'Idle', value: fmt(idleTotal) } : null,
+            idleEntries.length > 0 && hasIdleDelta ? { label: 'Idle change', value: `${idleDelta >= 0 ? '+' : ''}${fmt(idleDelta)}`, highlight: idleDelta > 0 ? 'success' : idleDelta < 0 ? 'danger' : 'neutral' } : null,
           ]} />
         );
       })()}
