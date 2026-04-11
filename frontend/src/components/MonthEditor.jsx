@@ -38,6 +38,7 @@ export default function MonthEditor() {
   }
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     api
       .getMonth(dossierId, monthId)
       .then((data) => {
