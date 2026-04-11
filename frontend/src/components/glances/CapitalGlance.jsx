@@ -114,15 +114,13 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
         </div>
       )}
       {latest.idle_total != null && latest.idle_total > 0 && (
-        <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)' }}>
-          <div className="text-sm tabular" style={{ color: 'var(--text-muted)' }}>
-            {formatEur(latest.idle_total)} idle
-          </div>
+        <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
+          <span className="tabular">{formatEur(latest.idle_total)} idle</span>
           {idleVariation != null && (
-            <div className="text-xs" style={{ color: idleVariationColor }}>
-              <FontAwesomeIcon icon={idleVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.3rem' }} />
-              {idleVariation > 0 ? '+' : ''}{idleVariation.toFixed(1)}% vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
-            </div>
+            <span style={{ color: idleVariationColor }}>
+              <FontAwesomeIcon icon={idleVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
+              {idleVariation > 0 ? '+' : ''}{idleVariation.toFixed(1)}%
+            </span>
           )}
         </div>
       )}
