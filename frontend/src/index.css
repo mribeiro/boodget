@@ -1726,6 +1726,31 @@ tr:hover td {
   display: block;
 }
 
+/* ── Sticky first column (CapitalCompareTable) ──────────── */
+
+.table-sticky-first-col th:first-child,
+.table-sticky-first-col td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
+}
+.table-sticky-first-col th:first-child {
+  z-index: 3;
+  background: var(--bg-table-header);
+}
+.table-sticky-first-col tr.group-header td {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-table-group-header);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
+}
+.table-sticky-first-col tr.compare-footer-row td:first-child {
+  background: var(--bg-app);
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 767px) {
@@ -1961,26 +1986,6 @@ tr:hover td {
 
   /* Drag-handle column: pointless on mobile, hide it */
   .mobile-cards td.mobile-drag-col { display: none; }
-
-  /* ── Sticky first column (CapitalCompareTable) ──────────── */
-  .table-sticky-first-col th:first-child,
-  .table-sticky-first-col td:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: var(--bg-card);
-    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
-  }
-  .table-sticky-first-col th:first-child {
-    z-index: 3;
-    background: var(--bg-table-header);
-  }
-  .table-sticky-first-col tr.group-header td:first-child {
-    background: var(--bg-table-group-header);
-  }
-  .table-sticky-first-col tr.compare-footer-row td:first-child {
-    background: var(--bg-app);
-  }
 
   .value-input {
     width: 100px;
