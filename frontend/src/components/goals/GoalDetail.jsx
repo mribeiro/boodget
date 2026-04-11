@@ -208,9 +208,6 @@ export default function GoalDetail() {
       <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
         <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}><FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back to Goals</button>
         <h1 style={{ flex: 1, margin: 0 }}>{goal.name}</h1>
-        <span className={`badge badge-${goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand'}`}>
-          {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
-        </span>
       </div>
 
       {/* ── Action toolbar ── */}
@@ -240,9 +237,11 @@ export default function GoalDetail() {
         <div className="cycle-editor-left">
           {/* Progress bar */}
           <div style={{ marginBottom: 'var(--space-4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted)' }}>Progress</span>
-              <span style={{ fontWeight: 600 }}>{progressPct.toFixed(1)}%</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+              <span className={`badge badge-${goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand'}`}>
+                {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{progressPct.toFixed(1)}%</span>
             </div>
             <div className="progress-track">
               <div
