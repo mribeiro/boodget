@@ -1816,6 +1816,10 @@ tr:hover td {
     grid-template-columns: 1fr 1fr;
   }
 
+  .glances-grid--hidden {
+    display: none;
+  }
+
   /* 5 cards (EF underfunded): still 2 columns; last (5th) card spans full width */
   .glances-grid--5 > :nth-child(5) {
     grid-column: span 2;
