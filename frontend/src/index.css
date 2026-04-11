@@ -1872,14 +1872,24 @@ tr:hover td {
     box-shadow: var(--shadow-sm);
   }
 
-  /* Group-header rows: section separator, not a card */
+  /* Group-header rows: flat section label, not a card */
   .mobile-cards tbody tr.group-header {
-    background: var(--bg-table-group-header);
-    border-radius: var(--radius-sm);
-    border-left: 3px solid var(--color-primary, #6366f1);
+    background: transparent;
+    border: none;
+    border-radius: 0;
     box-shadow: none;
+    margin-bottom: calc(-1 * var(--space-2));
   }
-  .mobile-cards tbody tr.group-header td { border-bottom: none; }
+  .mobile-cards tbody tr.group-header td {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary);
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+    border-bottom: none;
+  }
   .mobile-cards tbody tr.group-header td::before { display: none; }
 
   /* Each cell → label + value row */
