@@ -119,6 +119,7 @@ export default function CycleEditor() {
   }
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     load();
     api.getDossierSettings(dossierId).then(setPaperlessSettings).catch(() => {});
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
