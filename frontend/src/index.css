@@ -1909,11 +1909,10 @@ tr:hover td {
   .mobile-cards td[data-label='']::before { display: none; }
   .mobile-cards td[data-label='']         { justify-content: flex-end; }
 
-  /* Card title row: bold, slightly tinted bg, acts as expand toggle */
+  /* Card title row: bold, acts as expand toggle */
   .mobile-cards td.mobile-card-title {
     font-weight: 600;
     font-size: 14px;
-    background: var(--bg-table-group-header);
     border-bottom: none;
     cursor: pointer;
     justify-content: space-between;

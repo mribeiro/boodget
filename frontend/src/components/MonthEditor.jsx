@@ -286,7 +286,7 @@ export default function MonthEditor() {
                                   </span>
                                 ) : null}
                               </span>
-                              <button type="button" className="card-expand-btn" tabIndex={-1} onClick={() => toggleRow(entry.id)}><FontAwesomeIcon icon={faChevronRight} /></button>
+                              <button type="button" className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                             </td>
                             <td data-label="Type" className="mobile-detail text-muted" style={{ fontSize: '0.8rem' }}>
                               {entry.type}
