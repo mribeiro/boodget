@@ -46,7 +46,7 @@ export default function CapitalCompareTable({ dossierId }) {
 
   const hasIdleAccounts = data.rows.some((r) => r.is_idle_money);
 
-  const numericStyle = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.875rem' };
+  const numericStyle = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.875rem', whiteSpace: 'nowrap' };
 
   return (
     <div className="table-container">
