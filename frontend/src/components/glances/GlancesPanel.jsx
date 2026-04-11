@@ -71,7 +71,8 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
           className={`glances-chevron${collapsed ? ' glances-chevron--collapsed' : ''}`}
         />
       </button>
-      <div className={`glances-grid${showEF ? ' glances-grid--5' : ''}${collapsed ? ' glances-grid--hidden' : ''}`}>
+      <div className={`glances-grid-wrapper${collapsed ? ' glances-grid-wrapper--collapsed' : ''}`}>
+      <div className={`glances-grid${showEF ? ' glances-grid--5' : ''}`}>
         <CapitalGlance
           months={months}
           settings={settings}
@@ -111,6 +112,7 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
           efStatus={efStatus}
           onClick={() => onNavigate('emergency-fund')}
         />
+      </div>
       </div>
     </div>
   );

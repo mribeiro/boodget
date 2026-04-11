@@ -1593,8 +1593,16 @@ tr:hover td {
   transform: rotate(-90deg);
 }
 
-.glances-grid--hidden {
-  display: none;
+.glances-grid-wrapper {
+  overflow: hidden;
+  max-height: 800px;
+  opacity: 1;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+
+.glances-grid-wrapper--collapsed {
+  max-height: 0;
+  opacity: 0;
 }
 
 .glances-grid {
@@ -1814,10 +1822,6 @@ tr:hover td {
   .glances-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-  }
-
-  .glances-grid--hidden {
-    display: none;
   }
 
   /* 5 cards (EF underfunded): still 2 columns; last (5th) card spans full width */
