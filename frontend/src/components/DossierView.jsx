@@ -24,7 +24,6 @@ import GoalsTab from './goals/GoalsTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
 import GlancesPanel from './glances/GlancesPanel';
-import KpiStrip from './ui/KpiStrip';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -143,21 +142,6 @@ export default function DossierView() {
       <div key={activeTab} className="tab-content">
       {activeTab === 'capital' && (
         <div>
-          {/* ── Capital KPI strip ── */}
-          {months.length > 0 && (() => {
-            const filled = months.filter((m) => m.filled && m.capital_total != null);
-            const latest = filled[0];
-            const prev   = filled[1];
-            const mom = latest && prev ? latest.capital_total - prev.capital_total : null;
-            return (
-              <KpiStrip style={{ marginBottom: '1.25rem' }} items={[
-                { label: 'Current capital', value: latest ? formatEur(latest.capital_total) : '—', large: true },
-                { label: 'MoM', value: mom != null ? `${mom >= 0 ? '+' : ''}${formatEur(mom)}` : '—', highlight: mom == null ? 'neutral' : mom >= 0 ? 'success' : 'danger' },
-                { label: 'Months', value: months.length },
-                { label: 'Filled', value: `${filled.length} / ${months.length}`, highlight: filled.length === months.length ? 'success' : filled.length > 0 ? 'neutral' : 'warning' },
-              ]} />
-            );
-          })()}
           <CapitalChart months={months} />
 
           <div className="months-section">
