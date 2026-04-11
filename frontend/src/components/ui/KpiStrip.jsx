@@ -3,8 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import KpiBlock from './KpiBlock';
 
-export default function KpiStrip({ items, style }) {
-  const [open, setOpen] = useState(false);
+export default function KpiStrip({ items, style, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
   const visible = (items || []).filter(Boolean);
   const primary = visible.find((i) => i.large) || visible[0];
 

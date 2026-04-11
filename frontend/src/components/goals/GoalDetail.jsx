@@ -262,7 +262,7 @@ export default function GoalDetail() {
           </div>
 
           {/* KPI blocks */}
-          <KpiStrip style={{ marginBottom: 'var(--space-4)' }} items={[
+          <KpiStrip style={{ marginBottom: 'var(--space-4)' }} defaultOpen items={[
             { label: 'Target', value: formatEur(goal.target_value), large: true },
             { label: 'Progress', value: formatEur(goal.total_current_progress), highlight: goal.state === 'completed' ? 'success' : 'neutral' },
             { label: 'Remaining', value: formatEur(goal.remaining_amount), highlight: goal.remaining_amount > 0 && goal.state === 'active' ? 'neutral' : 'success' },
