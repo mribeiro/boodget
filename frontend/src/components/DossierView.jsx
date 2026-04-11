@@ -179,16 +179,6 @@ export default function DossierView() {
               </div>
             ) : (
               <div className="months-list">
-                {/* Top placeholder: nudge to fill the newest month if it's unfilled */}
-                {!months[0].filled && (
-                  <div
-                    className="month-row month-row-placeholder"
-                    onClick={() => navigate(`/dossiers/${id}/months/${months[0].id}`)}
-                  >
-                    <span className="month-row-name">Fill {monthLabel(months[0].year, months[0].month)}</span>
-                  </div>
-                )}
-
                 {months.flatMap((m, i) => {
                   const older = months[i + 1];
                   const newer = months[i - 1];
