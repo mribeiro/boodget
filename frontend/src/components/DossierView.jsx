@@ -214,34 +214,31 @@ export default function DossierView() {
                       onClick={() => navigate(`/dossiers/${id}/months/${m.id}`)}
                     >
                       <span className="month-row-name">{monthLabel(m.year, m.month)}</span>
-                      <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
-                        {m.filled && (
-                          <div style={{ textAlign: 'right' }}>
-                            {m.capital_total != null && (
-                              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-                                {formatEur(m.capital_total)}
-                                {capitalDiff != null && (
-                                  <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: capitalDiff > 0 ? 'var(--color-success)' : capitalDiff < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>
-                                    {capitalDiff > 0 ? '+' : ''}{formatEur(capitalDiff)}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                      <div style={{ textAlign: 'right' }}>
+                        {m.filled && m.capital_total != null ? (
+                          <>
+                            <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                              {formatEur(m.capital_total)}
+                              {capitalDiff != null && (
+                                <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: capitalDiff > 0 ? 'var(--color-success)' : capitalDiff < 0 ? 'var(--color-danger)' : 'var(--text-muted)' }}>
+                                  {capitalDiff > 0 ? '+' : ''}{formatEur(capitalDiff)}
+                                </span>
+                              )}
+                            </div>
                             {m.idle_total != null && (
-                              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.15rem' }}>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                                 Idle: {formatEur(m.idle_total)}
                                 {idleDiff != null && (
-                                  <span style={{ marginLeft: '0.4rem', color: idleDiff > 0 ? 'var(--color-success)' : idleDiff < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>
+                                  <span style={{ marginLeft: '0.4rem', color: idleDiff > 0 ? 'var(--color-success)' : idleDiff < 0 ? 'var(--color-danger)' : 'var(--text-muted)' }}>
                                     {idleDiff > 0 ? '+' : ''}{formatEur(idleDiff)}
                                   </span>
                                 )}
                               </div>
                             )}
-                          </div>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>not filled</span>
                         )}
-                        <span className={`badge ${m.filled ? 'badge-filled' : 'badge-empty'}`}>
-                          {m.filled ? 'Filled' : 'Not filled'}
-                        </span>
                       </div>
                     </div>
                   );
