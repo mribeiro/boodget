@@ -399,23 +399,25 @@ export default function AnnualExpensesTab({ dossierId }) {
         <>
           {/* ── Summary card ──────────────────────────────────────────────── */}
           <div className="card card--flat" style={{ marginBottom: 'var(--space-5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-default)', paddingBottom: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{selectedYear.year} Summary</h2>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button className="annual-action-btn" onClick={handleSyncFromTemplate} title="Sync from template">
-                  <FontAwesomeIcon icon={faFileArrowDown} />
-                </button>
-                <button className="annual-action-btn" onClick={handleSyncToTemplate} title="Sync to template">
-                  <FontAwesomeIcon icon={faFileArrowUp} />
-                </button>
+            <div style={{ borderBottom: '1px solid var(--border-default)', paddingBottom: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 var(--space-3) 0' }}>{selectedYear.year} Summary</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="annual-action-btn" onClick={handleSyncFromTemplate} title="Sync from template">
+                    <FontAwesomeIcon icon={faFileArrowDown} />
+                  </button>
+                  <button className="annual-action-btn" onClick={handleSyncToTemplate} title="Sync to template">
+                    <FontAwesomeIcon icon={faFileArrowUp} />
+                  </button>
+                  <button className="annual-action-btn" onClick={openAccountPicker} title="Contributing accounts">
+                    <FontAwesomeIcon icon={faBuildingColumns} />
+                  </button>
+                  <button className="annual-action-btn" onClick={openDistPicker} title="Contributing distributions">
+                    <FontAwesomeIcon icon={faHandHoldingDollar} />
+                  </button>
+                </div>
                 <button className="annual-action-btn annual-action-btn--danger" onClick={handleDeleteYear} title="Delete year">
                   <FontAwesomeIcon icon={faTrash} />
-                </button>
-                <button className="annual-action-btn" onClick={openAccountPicker} title="Contributing accounts">
-                  <FontAwesomeIcon icon={faBuildingColumns} />
-                </button>
-                <button className="annual-action-btn" onClick={openDistPicker} title="Contributing distributions">
-                  <FontAwesomeIcon icon={faHandHoldingDollar} />
                 </button>
               </div>
             </div>
