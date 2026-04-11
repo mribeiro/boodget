@@ -1758,6 +1758,38 @@ tr:hover td {
   display: block;
 }
 
+/* ── Annual expenses action buttons ─────────────────────── */
+
+.annual-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 8px 10px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.annual-action-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.annual-action-btn--danger {
+  color: var(--color-danger);
+}
+
+.annual-action-btn--danger:hover {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
 /* ── Sticky first column (CapitalCompareTable) ──────────── */
 
 .table-sticky-first-col th:first-child,

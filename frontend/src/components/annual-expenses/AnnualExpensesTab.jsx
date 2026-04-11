@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faPencil, faTrash, faXmark, faChevronDown, faChevronRight,
-  faSync, faListCheck,
+  faFileArrowDown, faFileArrowUp, faBuildingColumns, faHandHoldingDollar,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -176,8 +176,8 @@ export default function AnnualExpensesTab({ dossierId }) {
 
   // UI state
   const [expandedItems, setExpandedItems] = useState({});
-  const [editingCarryover, setEditingCarryover] = useState(false);
-  const [carryoverInput, setCarryoverInput] = useState('');
+  const [showCarryoverModal, setShowCarryoverModal] = useState(false);
+  const [showOtherYearModal, setShowOtherYearModal] = useState(false);
   const [itemModal, setItemModal] = useState(null); // null | {} | item
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [pickerAccountSelection, setPickerAccountSelection] = useState([]);
@@ -287,13 +287,11 @@ export default function AnnualExpensesTab({ dossierId }) {
     });
   }
 
-  async function handleSaveCarryover() {
-    const v = parseFloat(carryoverInput);
-    if (isNaN(v)) return;
+  async function handleSaveCarryover(v) {
     try {
       const result = await api.updateAnnualYear(dossierId, selectedYearId, { carryover: v });
       setYearData(result);
-      setEditingCarryover(false);
+      setShowCarryoverModal(false);
     } catch (e) {
       setError(e.message);
     }
@@ -382,10 +380,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                 <FontAwesomeIcon icon={faPlus} style={{ marginRight: 4 }} />Open {currentYear}
               </button>
             )}
-            <button className="btn-secondary" style={{ fontSize: 13 }} onClick={() => {
-              const y = parseInt(window.prompt('Open year (e.g. 2027):', String(currentYear + 1)));
-              if (!isNaN(y) && y > 2000) handleCreateYear(y);
-            }}>
+            <button className="btn-secondary" style={{ fontSize: 13 }} onClick={() => setShowOtherYearModal(true)}>
               <FontAwesomeIcon icon={faPlus} style={{ marginRight: 4 }} />Other year…
             </button>
           </div>
@@ -406,15 +401,21 @@ export default function AnnualExpensesTab({ dossierId }) {
           <div className="card card--flat" style={{ marginBottom: 'var(--space-5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-default)', paddingBottom: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{selectedYear.year} Summary</h2>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn-secondary" style={{ fontSize: 12 }} onClick={handleSyncFromTemplate} title="Reset template-derived items from template">
-                  <FontAwesomeIcon icon={faSync} style={{ marginRight: 4 }} />Sync from template
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="annual-action-btn" onClick={handleSyncFromTemplate} title="Sync from template">
+                  <FontAwesomeIcon icon={faFileArrowDown} />
                 </button>
-                <button className="btn-secondary" style={{ fontSize: 12 }} onClick={handleSyncToTemplate} title="Replace template with this year's items">
-                  <FontAwesomeIcon icon={faSync} style={{ marginRight: 4 }} />Sync to template
+                <button className="annual-action-btn" onClick={handleSyncToTemplate} title="Sync to template">
+                  <FontAwesomeIcon icon={faFileArrowUp} />
                 </button>
-                <button className="btn-ghost" style={{ fontSize: 12, color: 'var(--color-danger)' }} onClick={handleDeleteYear}>
-                  <FontAwesomeIcon icon={faTrash} style={{ marginRight: 4 }} />Delete year
+                <button className="annual-action-btn annual-action-btn--danger" onClick={handleDeleteYear} title="Delete year">
+                  <FontAwesomeIcon icon={faTrash} />
+                </button>
+                <button className="annual-action-btn" onClick={openAccountPicker} title="Contributing accounts">
+                  <FontAwesomeIcon icon={faBuildingColumns} />
+                </button>
+                <button className="annual-action-btn" onClick={openDistPicker} title="Contributing distributions">
+                  <FontAwesomeIcon icon={faHandHoldingDollar} />
                 </button>
               </div>
             </div>
@@ -425,20 +426,12 @@ export default function AnnualExpensesTab({ dossierId }) {
                   {/* Carryover */}
                   <div style={{ background: 'var(--surface-secondary)', padding: 12, borderRadius: 'var(--radius)' }}>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Carryover</div>
-                    {editingCarryover ? (
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <input type="number" inputMode="decimal" value={carryoverInput} onChange={(e) => setCarryoverInput(e.target.value)} step="0.01" style={{ width: 90, fontSize: 14 }} autoFocus />
-                        <button className="btn-primary" style={{ fontSize: 11, padding: '3px 8px' }} onClick={handleSaveCarryover}>Save</button>
-                        <button className="btn-ghost" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => setEditingCarryover(false)}>Cancel</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(yearData.carryover)}</span>
-                        <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => { setCarryoverInput(String(yearData.carryover)); setEditingCarryover(true); }}>
-                          <FontAwesomeIcon icon={faPencil} />
-                        </button>
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(yearData.carryover)}</span>
+                      <button className="annual-action-btn" style={{ fontSize: '0.75rem' }} onClick={() => setShowCarryoverModal(true)} title="Edit carryover">
+                        <FontAwesomeIcon icon={faPencil} />
+                      </button>
+                    </div>
                   </div>
 
                   {(() => {
@@ -494,17 +487,6 @@ export default function AnnualExpensesTab({ dossierId }) {
                   ))}
                 </div>
 
-                {/* Contributing sources */}
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <button className="btn-secondary" style={{ fontSize: 12 }} onClick={openAccountPicker}>
-                    <FontAwesomeIcon icon={faListCheck} style={{ marginRight: 4 }} />
-                    Contributing accounts ({yearData.contributing_accounts?.length ?? 0})
-                  </button>
-                  <button className="btn-secondary" style={{ fontSize: 12 }} onClick={openDistPicker}>
-                    <FontAwesomeIcon icon={faListCheck} style={{ marginRight: 4 }} />
-                    Contributing distributions ({selectedDistIds.length})
-                  </button>
-                </div>
               </>
             ) : (
               <div className="loading">Loading year data…</div>
@@ -732,6 +714,102 @@ export default function AnnualExpensesTab({ dossierId }) {
       )}
 
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+
+      {showOtherYearModal && (
+        <OtherYearModal
+          currentYear={currentYear}
+          existingYears={years.map((y) => y.year)}
+          onSave={(y) => { setShowOtherYearModal(false); handleCreateYear(y); }}
+          onClose={() => setShowOtherYearModal(false)}
+        />
+      )}
+
+      {showCarryoverModal && yearData && (
+        <EditCarryoverModal
+          current={yearData.carryover}
+          onSave={handleSaveCarryover}
+          onClose={() => setShowCarryoverModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Other year modal ──────────────────────────────────────────────────────────
+
+function OtherYearModal({ currentYear, existingYears, onSave, onClose }) {
+  const [year, setYear] = useState(String(currentYear + 1));
+  const [error, setError] = useState('');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const y = parseInt(year, 10);
+    if (isNaN(y) || y < 2000 || y > 2100) { setError('Enter a valid year (2000–2100)'); return; }
+    if (existingYears.includes(y)) { setError(`Year ${y} already exists`); return; }
+    onSave(y);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 320 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Open other year</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div className="form-group">
+              <label>Year</label>
+              <input type="number" inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value)} min="2000" max="2100" autoFocus />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary">Open</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit carryover modal ──────────────────────────────────────────────────────
+
+function EditCarryoverModal({ current, onSave, onClose }) {
+  const [value, setValue] = useState(current != null ? String(current) : '0');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const v = parseFloat(value);
+    if (isNaN(v)) { setError('Enter a valid number'); return; }
+    setSaving(true);
+    try { await onSave(v); } catch (err) { setError(err.message); setSaving(false); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 320 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Carryover</h2>
+          <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <div className="alert alert-error">{error}</div>}
+            <div className="form-group">
+              <label>Carryover (€)</label>
+              <input type="number" inputMode="decimal" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
