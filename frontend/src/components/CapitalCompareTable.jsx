@@ -116,7 +116,7 @@ export default function CapitalCompareTable({ dossierId }) {
             </React.Fragment>
           ))}
 
-          <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg)' }}>
+          <tr className="compare-footer-row" style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg)' }}>
             <td style={{ fontWeight: 600 }}>Total</td>
             {data.months.map((m, mi) => {
               const hasAny = data.rows.some((r) => r.values[m.id] != null);
@@ -135,7 +135,7 @@ export default function CapitalCompareTable({ dossierId }) {
           </tr>
 
           {hasIdleAccounts && (
-            <tr style={{ background: 'var(--color-bg)' }}>
+            <tr className="compare-footer-row" style={{ background: 'var(--color-bg)' }}>
               <td style={{ fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem' }}>Idle total</td>
               {data.months.map((m, mi) => {
                 const idleRows = data.rows.filter((r) => r.is_idle_money);
