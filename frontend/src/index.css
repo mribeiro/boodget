@@ -1826,7 +1826,6 @@ tr:hover td {
 
   .app-shell-main {
     margin-left: 0 !important;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
 
   .bottom-nav {
