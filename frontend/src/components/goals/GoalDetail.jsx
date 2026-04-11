@@ -205,7 +205,7 @@ export default function GoalDetail() {
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
         <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}><FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back to Goals</button>
         <h1 style={{ flex: 1, margin: 0 }}>{goal.name}</h1>
         <span className={`badge badge-${goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand'}`}>
@@ -214,7 +214,7 @@ export default function GoalDetail() {
       </div>
 
       {/* ── Action toolbar ── */}
-      <div className="cycle-toolbar" style={{ marginBottom: 'var(--space-6)' }}>
+      <div className="cycle-toolbar">
         <div className="cycle-toolbar-group">
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEdit(true)}>
             <FontAwesomeIcon icon={faPencil} />
