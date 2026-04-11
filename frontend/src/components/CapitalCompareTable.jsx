@@ -86,7 +86,11 @@ export default function CapitalCompareTable({ dossierId }) {
           {Object.entries(groups).map(([groupName, rows]) => (
             <React.Fragment key={groupName}>
               <tr className="group-header">
-                <td colSpan={data.months.length + 1}>{groupName}</td>
+                <td colSpan={data.months.length + 1} style={{ padding: 0 }}>
+                  <div style={{ position: 'sticky', left: 0, width: 'max-content', padding: '8px 12px' }}>
+                    {groupName}
+                  </div>
+                </td>
               </tr>
               {rows.map((row) => (
                 <tr key={row.id}>

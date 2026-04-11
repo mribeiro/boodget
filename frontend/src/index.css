@@ -1741,11 +1741,7 @@ tr:hover td {
   background: var(--bg-table-header);
 }
 .table-sticky-first-col tr.group-header td {
-  position: sticky;
-  left: 0;
-  z-index: 2;
   background: var(--bg-table-group-header);
-  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
 }
 .table-sticky-first-col tr.compare-footer-row td:first-child {
   background: var(--bg-app);
