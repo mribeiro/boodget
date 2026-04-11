@@ -162,7 +162,7 @@ export default function MonthEditor() {
     <div>
       <div className="page-header">
         <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`)}>
-          <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
+          <FontAwesomeIcon icon={faArrowLeft} />
         </button>
         <h1 style={{ flex: 1 }}>
           {monthLabel(monthData.year, monthData.month)}

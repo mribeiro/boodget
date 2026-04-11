@@ -206,7 +206,7 @@ export default function GoalDetail() {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
-        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}><FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back to Goals</button>
+        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}><FontAwesomeIcon icon={faArrowLeft} /></button>
         <h1 style={{ flex: 1, margin: 0 }}>{goal.name}</h1>
       </div>
 
