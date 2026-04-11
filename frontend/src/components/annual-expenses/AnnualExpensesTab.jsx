@@ -112,7 +112,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label>Annual value (€)</label>
+                <label>Annual value</label>
                 <input type="number" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" step="0.01" min="0" required />
               </div>
               <div className="form-group">
