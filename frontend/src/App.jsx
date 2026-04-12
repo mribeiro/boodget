@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { api } from './services/api';
 import { ThemeProvider } from './contexts/ThemeContext';
 import AppShell from './components/layout/AppShell';
@@ -53,7 +54,7 @@ export default function App() {
       <ThemeProvider>
         <div className="server-error-screen">
           <div className="server-error-card">
-            <div className="server-error-icon">⚠</div>
+            <div className="server-error-icon"><FontAwesomeIcon icon="triangle-exclamation" /></div>
             <h2 className="server-error-title">Server unavailable</h2>
             <p className="server-error-message">
               Could not connect to the server. Check your connection and try again.

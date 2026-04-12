@@ -1,9 +1,10 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faUserPlus, faTrash, faXmark, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
 import ConfirmModal from './ConfirmModal';
+import Toast from './ui/Toast';
 
 export default function UserManager() {
   const { user: currentUser } = useContext(AuthContext);
@@ -11,8 +12,14 @@ export default function UserManager() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ username: '', password: '', confirm: '' });
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState({ msg: '', show: false });
+  const toastTimer = useRef(null);
+  function showToast(msg) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, show: true });
+    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
+  }
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
 
@@ -35,7 +42,6 @@ export default function UserManager() {
   async function handleCreate(e) {
     e.preventDefault();
     setError('');
-    setSuccess('');
     if (form.password !== form.confirm) {
       setError('Passwords do not match');
       return;
@@ -45,7 +51,7 @@ export default function UserManager() {
       setUsers((prev) => [...prev, u].sort((a, b) => a.username.localeCompare(b.username)));
       setForm({ username: '', password: '', confirm: '' });
       setShowForm(false);
-      setSuccess(`User "${u.username}" created successfully`);
+      showToast('User created');
     } catch (err) {
       setError(err.message);
     }
@@ -59,11 +65,10 @@ export default function UserManager() {
       danger: true,
       onConfirm: async () => {
         setError('');
-        setSuccess('');
         try {
           await api.deleteUser(user.id);
           setUsers((prev) => prev.filter((u) => u.id !== user.id));
-          setSuccess(`User "${user.username}" deleted`);
+          showToast('User deleted');
         } catch (err) {
           setError(err.message);
         }
@@ -87,7 +92,6 @@ export default function UserManager() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
 
       {showForm && (
         <div className="card card--flat" style={{ marginBottom: 'var(--space-5)', maxWidth: 480 }}>
@@ -166,7 +170,7 @@ export default function UserManager() {
                   <span className="mobile-card-inline-value">
                     <span className="badge badge-neutral">{u.is_oidc ? 'SSO' : 'Local'}</span>
                   </span>
-                  <button className="card-expand-btn" tabIndex={-1}>›</button>
+                  <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                 </td>
                 <td data-label="Type" className="mobile-summary-in-title">
                   <span className="badge badge-neutral">
@@ -195,6 +199,7 @@ export default function UserManager() {
         </table>
       </div>
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      <Toast message={toast.msg} visible={toast.show} />
     </div>
   );
 }

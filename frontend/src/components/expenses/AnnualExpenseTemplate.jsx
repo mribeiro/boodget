@@ -282,11 +282,11 @@ function AnnualTemplateItemModal({ item, onSave, onClose }) {
             <div style={{ display: 'flex', gap: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Annual value (€)</label>
-                <input type="number" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
+                <input type="number" inputMode="decimal" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
               </div>
               <div className="form-group" style={{ flex: 0, minWidth: 120 }}>
                 <label>Installments</label>
-                <input type="number" value={numInst} onChange={(e) => handleNumInstChange(e.target.value)} min="1" max="12" />
+                <input type="number" inputMode="numeric" value={numInst} onChange={(e) => handleNumInstChange(e.target.value)} min="1" max="12" />
               </div>
             </div>
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12 }}>
@@ -301,7 +301,7 @@ function AnnualTemplateItemModal({ item, onSave, onClose }) {
                   </select>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <input type="number" value={inst.day} onChange={(e) => setInstField(idx, 'day', e.target.value)} placeholder="Day" min="1" max="31" />
+                  <input type="number" inputMode="numeric" value={inst.day} onChange={(e) => setInstField(idx, 'day', e.target.value)} placeholder="Day" min="1" max="31" />
                 </div>
               </div>
             ))}

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import CapitalGlance from './CapitalGlance';
 import CycleGlance from './CycleGlance';
@@ -22,8 +24,19 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
   const [currentCycleDetail, setCurrentCycleDetail] = useState(null);
   const [goals, setGoals] = useState([]);
   const [efStatus, setEfStatus] = useState(null);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('glances-collapsed') === 'true'; } catch { return false; }
+  });
   const today = new Date();
   const navigate = useNavigate();
+
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem('glances-collapsed', String(next)); } catch {}
+      return next;
+    });
+  }
 
   useEffect(() => {
     Promise.all([
@@ -51,7 +64,14 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
 
   return (
     <div className="glances-panel">
-      <div className="glances-label">Glances</div>
+      <button className="glances-label glances-label--toggle" onClick={toggleCollapsed}>
+        Glances
+        <FontAwesomeIcon
+          icon={faChevronDown}
+          className={`glances-chevron${collapsed ? ' glances-chevron--collapsed' : ''}`}
+        />
+      </button>
+      <div className={`glances-grid-wrapper${collapsed ? ' glances-grid-wrapper--collapsed' : ''}`}>
       <div className={`glances-grid${showEF ? ' glances-grid--5' : ''}`}>
         <CapitalGlance
           months={months}
@@ -92,6 +112,7 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
           efStatus={efStatus}
           onClick={() => onNavigate('emergency-fund')}
         />
+      </div>
       </div>
     </div>
   );

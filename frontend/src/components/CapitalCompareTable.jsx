@@ -46,7 +46,7 @@ export default function CapitalCompareTable({ dossierId }) {
 
   const hasIdleAccounts = data.rows.some((r) => r.is_idle_money);
 
-  const numericStyle = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.875rem' };
+  const numericStyle = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.875rem', whiteSpace: 'nowrap' };
 
   return (
     <div className="table-container">
@@ -86,7 +86,11 @@ export default function CapitalCompareTable({ dossierId }) {
           {Object.entries(groups).map(([groupName, rows]) => (
             <React.Fragment key={groupName}>
               <tr className="group-header">
-                <td colSpan={data.months.length + 1}>{groupName}</td>
+                <td colSpan={data.months.length + 1} style={{ padding: 0 }}>
+                  <div style={{ position: 'sticky', left: 0, width: 'max-content', padding: '8px 12px' }}>
+                    {groupName}
+                  </div>
+                </td>
               </tr>
               {rows.map((row) => (
                 <tr key={row.id}>
@@ -116,7 +120,7 @@ export default function CapitalCompareTable({ dossierId }) {
             </React.Fragment>
           ))}
 
-          <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg)' }}>
+          <tr className="compare-footer-row" style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg)' }}>
             <td style={{ fontWeight: 600 }}>Total</td>
             {data.months.map((m, mi) => {
               const hasAny = data.rows.some((r) => r.values[m.id] != null);
@@ -135,7 +139,7 @@ export default function CapitalCompareTable({ dossierId }) {
           </tr>
 
           {hasIdleAccounts && (
-            <tr style={{ background: 'var(--color-bg)' }}>
+            <tr className="compare-footer-row" style={{ background: 'var(--color-bg)' }}>
               <td style={{ fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem' }}>Idle total</td>
               {data.months.map((m, mi) => {
                 const idleRows = data.rows.filter((r) => r.is_idle_money);
