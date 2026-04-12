@@ -618,8 +618,6 @@ body:has(.modal-overlay) {
 .page-body {
   flex: 1;
   padding: var(--space-6);
-  overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 /* ── Loading ─────────────────────────────────────────────── */
@@ -766,6 +764,21 @@ button:disabled {
 }
 
 .btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-warning {
+  background: var(--color-warning);
+  color: #fff;
+  font-weight: 500;
+}
+
+.btn-warning:hover:not(:disabled) {
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+}
+
+.btn-warning:active:not(:disabled) {
   transform: translateY(0);
 }
 
@@ -1556,6 +1569,38 @@ tr:hover td {
   letter-spacing: 0.1em;
   color: var(--text-muted);
   margin-bottom: var(--space-3);
+  display: block;
+}
+
+.glances-label--toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+  width: 100%;
+  text-align: left;
+}
+
+.glances-chevron {
+  display: none;
+  transition: transform 0.2s ease;
+  margin-left: var(--space-2);
+}
+
+.glances-chevron--collapsed {
+  transform: rotate(-90deg);
+}
+
+.glances-grid-wrapper {
+  overflow: hidden;
+  max-height: 800px;
+  opacity: 1;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+
+.glances-grid-wrapper--collapsed {
+  max-height: 0;
+  opacity: 0;
 }
 
 .glances-grid {
@@ -1711,6 +1756,59 @@ tr:hover td {
   display: block;
 }
 
+/* ── Annual expenses action buttons ─────────────────────── */
+
+.annual-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 8px 10px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.annual-action-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.annual-action-btn--danger {
+  color: var(--color-danger);
+}
+
+.annual-action-btn--danger:hover {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+/* ── Sticky first column (CapitalCompareTable) ──────────── */
+
+.table-sticky-first-col th:first-child,
+.table-sticky-first-col td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
+}
+.table-sticky-first-col th:first-child {
+  z-index: 3;
+  background: var(--bg-table-header);
+}
+.table-sticky-first-col tr.group-header td {
+  background: var(--bg-table-group-header);
+}
+.table-sticky-first-col tr.compare-footer-row td:first-child {
+  background: var(--bg-app);
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 767px) {
@@ -1726,7 +1824,6 @@ tr:hover td {
 
   .app-shell-main {
     margin-left: 0 !important;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
 
   .bottom-nav {
@@ -1741,6 +1838,14 @@ tr:hover td {
 
   .navbar-breadcrumb {
     display: none;
+  }
+
+  .glances-label--toggle {
+    cursor: pointer;
+  }
+
+  .glances-chevron {
+    display: inline;
   }
 
   .glances-grid {
@@ -1855,16 +1960,29 @@ tr:hover td {
     border-radius: var(--radius-md);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-cards tbody tr:hover td {
+    background: unset;
   }
 
-  /* Group-header rows: section separator, not a card */
+  /* Group-header rows: flat section label, not a card */
   .mobile-cards tbody tr.group-header {
-    background: var(--bg-table-group-header);
-    border-radius: var(--radius-sm);
-    border-left: 3px solid var(--color-primary, #6366f1);
+    background: transparent;
+    border: none;
+    border-radius: 0;
     box-shadow: none;
   }
-  .mobile-cards tbody tr.group-header td { border-bottom: none; }
+  .mobile-cards tbody tr.group-header td {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary);
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+    border-bottom: none;
+  }
   .mobile-cards tbody tr.group-header td::before { display: none; }
 
   /* Each cell → label + value row */
@@ -1894,11 +2012,10 @@ tr:hover td {
   .mobile-cards td[data-label='']::before { display: none; }
   .mobile-cards td[data-label='']         { justify-content: flex-end; }
 
-  /* Card title row: bold, slightly tinted bg, acts as expand toggle */
+  /* Card title row: bold, acts as expand toggle */
   .mobile-cards td.mobile-card-title {
     font-weight: 600;
     font-size: 14px;
-    background: var(--bg-table-group-header);
     border-bottom: none;
     cursor: pointer;
     justify-content: space-between;
@@ -1934,23 +2051,6 @@ tr:hover td {
 
   /* Drag-handle column: pointless on mobile, hide it */
   .mobile-cards td.mobile-drag-col { display: none; }
-
-  /* ── Sticky first column (CapitalCompareTable) ──────────── */
-  .table-sticky-first-col th:first-child,
-  .table-sticky-first-col td:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: inherit;
-    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
-  }
-  .table-sticky-first-col th:first-child {
-    z-index: 3;
-    background: var(--bg-table-header);
-  }
-  .table-sticky-first-col tr.group-header td:first-child {
-    background: var(--bg-table-group-header);
-  }
 
   .value-input {
     width: 100px;
@@ -2000,5 +2100,142 @@ tr:hover td {
   .cycle-derived-values {
     display: flex;
     gap: 2rem;
+  }
+}
+
+/* ── Font Awesome SVG baseline fix ─────────────────────────────────────── */
+.svg-inline--fa {
+  vertical-align: -0.125em;
+}
+
+/* ── Cycle Editor toolbar ───────────────────────────────────────────────── */
+.cycle-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin-bottom: 1rem;
+}
+
+.cycle-toolbar-group {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.cycle-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.cycle-toolbar-spacer { display: none; }
+
+@media (max-width: 640px) {
+  .cycle-toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-top: 1px solid var(--border-default);
+    margin-bottom: 0;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 200;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+  }
+  .cycle-toolbar-label {
+    display: none;
+  }
+  .cycle-toolbar-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+  }
+  .cycle-toolbar-spacer {
+    display: block;
+    height: calc(56px + env(safe-area-inset-bottom));
+  }
+  .cycle-status-badge {
+    display: none;
+  }
+}
+
+/* ── Cycle Editor layout ────────────────────────────────────────────────── */
+.cycle-kpi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* ── KpiStrip adaptive layout ───────────────────────────────────────────── */
+.kpi-strip--mobile { display: none; }
+
+@media (max-width: 640px) {
+  .kpi-strip--desktop { display: none; }
+  .kpi-strip--mobile  { display: block; }
+}
+
+.kpi-strip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 16px;
+  border-top: 1px solid var(--border-default);
+}
+
+.kpi-strip-row-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.kpi-strip-row-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cycle-editor-columns {
+  display: grid;
+  grid-template-columns: 60fr 40fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.cycle-editor-left,
+.cycle-editor-right {
+  min-width: 0;
+}
+
+/* Desktop-only close panel (shown inline in left column) */
+.cycle-close-panel-desktop {
+  display: block;
+}
+
+/* Right-column close panel (desktop: shown; mobile: hidden) */
+.cycle-close-panel-right {
+  display: block;
+}
+
+@media (max-width: 767px) {
+  .cycle-editor-columns {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .cycle-close-panel-desktop {
+    display: none;
+  }
+
+  .cycle-close-panel-right {
+    display: none;
   }
 }

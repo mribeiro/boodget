@@ -1,3 +1,5 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+
 /**
  * Custom checkbox — mobile-friendly, dark-mode-aware, fully controlled.
  *
@@ -18,7 +20,7 @@ export default function Checkbox({ checked, onChange, label, title, style, label
       onClick={disabled ? undefined : onChange}
       onKeyDown={disabled ? undefined : (e) => (e.key === ' ' || e.key === 'Enter') && onChange(e)}
     >
-      {checked && '✓'}
+      {checked && <FontAwesomeIcon icon="check" style={{ fontSize: 10 }} />}
       {label && (
         <span className="checkbox-custom__label" style={labelStyle}>{label}</span>
       )}

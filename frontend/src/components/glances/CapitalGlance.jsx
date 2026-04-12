@@ -91,6 +91,17 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
     variation < 0 ? 'var(--color-value-negative)' :
     'var(--text-muted)';
 
+  const idleVariation =
+    previous && previous.idle_total != null && latest.idle_total != null && previous.idle_total !== 0
+      ? ((latest.idle_total - previous.idle_total) / Math.abs(previous.idle_total)) * 100
+      : null;
+
+  const idleVariationColor =
+    idleVariation == null ? 'var(--text-muted)' :
+    idleVariation > 0 ? 'var(--color-value-positive)' :
+    idleVariation < 0 ? 'var(--color-value-negative)' :
+    'var(--text-muted)';
+
   return (
     <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={onClick}>
       <div className="text-2xl tabular" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
@@ -103,8 +114,14 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
         </div>
       )}
       {latest.idle_total != null && latest.idle_total > 0 && (
-        <div className="text-xs" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          {formatEur(latest.idle_total)} in idle
+        <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
+          <span className="tabular">{formatEur(latest.idle_total)} idle</span>
+          {idleVariation != null && (
+            <span style={{ color: idleVariationColor }}>
+              <FontAwesomeIcon icon={idleVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
+              {idleVariation > 0 ? '+' : ''}{idleVariation.toFixed(1)}%
+            </span>
+          )}
         </div>
       )}
     </GlanceCard>
