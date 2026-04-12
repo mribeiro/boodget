@@ -206,14 +206,21 @@ export default function GoalDetail() {
   return (
     <div>
       <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
-        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}><FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back to Goals</button>
+        <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'goals' } })}><FontAwesomeIcon icon={faArrowLeft} /></button>
         <h1 style={{ flex: 1, margin: 0 }}>{goal.name}</h1>
-        <span className={`badge badge-${goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand'}`}>
-          {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
-        </span>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button className="btn-secondary btn-sm" onClick={() => setShowEdit(true)}><FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit</button>
-          <button className="btn-danger btn-sm" onClick={handleDelete}><FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete</button>
+      </div>
+
+      {/* ── Action toolbar ── */}
+      <div className="cycle-toolbar">
+        <div className="cycle-toolbar-group">
+          <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEdit(true)}>
+            <FontAwesomeIcon icon={faPencil} />
+          </button>
+        </div>
+        <div className="cycle-toolbar-group">
+          <button className="cycle-toolbar-btn btn-danger" onClick={handleDelete}>
+            <FontAwesomeIcon icon={faTrash} />
+          </button>
         </div>
       </div>
 
@@ -230,9 +237,11 @@ export default function GoalDetail() {
         <div className="cycle-editor-left">
           {/* Progress bar */}
           <div style={{ marginBottom: 'var(--space-4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted)' }}>Progress</span>
-              <span style={{ fontWeight: 600 }}>{progressPct.toFixed(1)}%</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+              <span className={`badge badge-${goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand'}`}>
+                {goal.state.charAt(0).toUpperCase() + goal.state.slice(1)}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{progressPct.toFixed(1)}%</span>
             </div>
             <div className="progress-track">
               <div
@@ -252,7 +261,7 @@ export default function GoalDetail() {
           </div>
 
           {/* KPI blocks */}
-          <KpiStrip style={{ marginBottom: 'var(--space-4)' }} items={[
+          <KpiStrip style={{ marginBottom: 'var(--space-4)' }} defaultOpen items={[
             { label: 'Target', value: formatEur(goal.target_value), large: true },
             { label: 'Progress', value: formatEur(goal.total_current_progress), highlight: goal.state === 'completed' ? 'success' : 'neutral' },
             { label: 'Remaining', value: formatEur(goal.remaining_amount), highlight: goal.remaining_amount > 0 && goal.state === 'active' ? 'neutral' : 'success' },
@@ -481,6 +490,8 @@ export default function GoalDetail() {
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
       <Toast message={toast.msg} visible={toast.show} />
+      {/* Spacer so fixed bottom toolbar doesn't overlap content on mobile */}
+      <div className="cycle-toolbar-spacer" />
     </div>
   );
 }

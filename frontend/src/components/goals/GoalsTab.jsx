@@ -78,7 +78,7 @@ export default function GoalsTab({ dossierId }) {
 
       <div className="section-header" style={{ marginBottom: 'var(--space-5)' }}>
         <h2 style={{ margin: 0 }}>Goals</h2>
-        <button className="btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+        <button className="btn-primary" onClick={() => setShowCreate(true)}>
           <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />New goal
         </button>
       </div>

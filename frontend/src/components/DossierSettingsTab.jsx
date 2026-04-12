@@ -16,6 +16,7 @@ import AccountManager from './AccountManager';
 import ShareManager from './ShareManager';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import Modal from './ui/Modal';
 
 function SettingsCard({ title, description, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -80,8 +81,7 @@ function SettingsCard({ title, description, children, defaultOpen = false }) {
 
 function EmergencyFundSettings({ dossierId }) {
   const [settings, setSettings] = useState({ emergency_fund_months_multiplier: 6, emergency_fund_cycles_to_average: 6 });
-  const [editing, setEditing] = useState(null);
-  const [draft, setDraft] = useState('');
+  const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -89,23 +89,26 @@ function EmergencyFundSettings({ dossierId }) {
     api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
   }, [dossierId]);
 
-  function startEdit(key) {
-    setEditing(key);
-    setDraft(String(settings[key] ?? ''));
+  const fields = [
+    { key: 'emergency_fund_months_multiplier', label: 'Emergency fund should cover', suffix: 'months of expenses' },
+    { key: 'emergency_fund_cycles_to_average', label: 'Calculate average expenses from the last', suffix: 'cycles' },
+  ];
+
+  function openModal(field) {
+    setModal({ ...field, draft: String(settings[field.key] ?? '') });
     setError('');
   }
 
-  function cancelEdit() { setEditing(null); setDraft(''); setError(''); }
+  function closeModal() { setModal(null); setError(''); }
 
-  async function handleSave(key) {
-    setError('');
-    const v = Number(draft);
+  async function handleSave() {
+    const v = Number(modal.draft);
     if (!Number.isInteger(v) || v < 1) { setError('Must be an integer ≥ 1'); return; }
     setSaving(true);
     try {
-      const updated = await api.updateDossierSettings(dossierId, { [key]: v });
+      const updated = await api.updateDossierSettings(dossierId, { [modal.key]: v });
       setSettings(updated);
-      setEditing(null);
+      closeModal();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -113,45 +116,46 @@ function EmergencyFundSettings({ dossierId }) {
     }
   }
 
-  const fields = [
-    { key: 'emergency_fund_months_multiplier', label: 'Emergency fund should cover', suffix: 'months of expenses' },
-    { key: 'emergency_fund_cycles_to_average', label: 'Calculate average expenses from the last', suffix: 'cycles' },
-  ];
-
   return (
     <div>
-      {fields.map(({ key, label, suffix }) => (
-        <div key={key} style={{ marginBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{label}</span>
-            {editing === key ? (
-              <>
-                <input
-                  type="number" inputMode="numeric"
-                  min={1}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  style={{ width: '4rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
-                />
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{suffix}</span>
-                <button className="btn-primary" onClick={() => handleSave(key)} disabled={saving} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-                <button className="btn-secondary" onClick={cancelEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <strong>{settings[key]}</strong>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{suffix}</span>
-                <button className="btn-secondary" onClick={() => startEdit(key)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}><FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit</button>
-              </>
-            )}
-          </div>
-          {editing === key && error && (
-            <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>
-          )}
+      {fields.map((field) => (
+        <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
+          <strong>{settings[field.key]}</strong>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.suffix}</span>
+          <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
+            <FontAwesomeIcon icon={faPencil} />
+          </button>
         </div>
       ))}
+
+      {modal && (
+        <Modal
+          title={modal.label}
+          onClose={closeModal}
+          footer={
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={closeModal}>Cancel</button>
+              <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <input
+              type="number" inputMode="numeric" min={1}
+              value={modal.draft}
+              onChange={(e) => setModal((m) => ({ ...m, draft: e.target.value }))}
+              autoFocus
+              style={{ width: '5rem' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+            />
+            {modal.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{modal.suffix}</span>}
+          </div>
+          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+        </Modal>
+      )}
     </div>
   );
 }
@@ -163,9 +167,12 @@ function PaperlessSettings({ dossierId }) {
     paperless_date_field_id: null,
     paperless_amount_field_id: null,
   });
+  // inline editing state for text/password fields
   const [editing, setEditing] = useState(null);
-  const [draft, setDraft] = useState('');
+  const [inlineDraft, setInlineDraft] = useState('');
   const [showToken, setShowToken] = useState(false);
+  // modal state for number fields
+  const [modal, setModal] = useState(null); // { key, label, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -173,28 +180,18 @@ function PaperlessSettings({ dossierId }) {
     api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
   }, [dossierId]);
 
-  function startEdit(key) {
+  // --- inline (text/password) ---
+  function startInlineEdit(key) {
     setEditing(key);
-    setDraft(key === 'paperless_token' ? '' : String(settings[key] ?? ''));
+    setInlineDraft(key === 'paperless_token' ? '' : String(settings[key] ?? ''));
     setError('');
   }
 
-  function cancelEdit() { setEditing(null); setDraft(''); setError(''); }
+  function cancelInlineEdit() { setEditing(null); setInlineDraft(''); setError(''); }
 
-  async function handleSave(key) {
+  async function saveInline(key) {
     setError('');
-    let val;
-    if (key === 'paperless_date_field_id' || key === 'paperless_amount_field_id') {
-      if (draft === '') { val = null; }
-      else {
-        val = Number(draft);
-        if (!Number.isInteger(val) || val < 1) { setError('Must be a positive integer'); return; }
-      }
-    } else if (key === 'paperless_token') {
-      val = draft.trim() || null;
-    } else {
-      val = draft.trim() || null;
-    }
+    const val = inlineDraft.trim() || null;
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [key]: val });
@@ -207,15 +204,55 @@ function PaperlessSettings({ dossierId }) {
     }
   }
 
-  const fields = [
-    { key: 'paperless_url',             label: 'Paperless-ngx URL',            type: 'text',     placeholder: 'https://paperless.example.com', isToken: false },
-    { key: 'paperless_token',           label: 'API Token',                    type: 'password', placeholder: 'Token value',                   isToken: true  },
-    { key: 'paperless_date_field_id',   label: 'Payment date custom field ID', type: 'number',   placeholder: '',                              isToken: false },
-    { key: 'paperless_amount_field_id', label: 'Amount custom field ID',       type: 'number',   placeholder: '',                              isToken: false },
+  // --- modal (number) ---
+  function openModal(field) {
+    setModal({ ...field, draft: String(settings[field.key] ?? '') });
+    setError('');
+  }
+
+  function closeModal() { setModal(null); setError(''); }
+
+  async function handleModalSave() {
+    if (modal.draft === '') {
+      // allow clearing
+      setSaving(true);
+      try {
+        const updated = await api.updateDossierSettings(dossierId, { [modal.key]: null });
+        setSettings(updated);
+        closeModal();
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    const val = Number(modal.draft);
+    if (!Number.isInteger(val) || val < 1) { setError('Must be a positive integer'); return; }
+    setSaving(true);
+    try {
+      const updated = await api.updateDossierSettings(dossierId, { [modal.key]: val });
+      setSettings(updated);
+      closeModal();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const textFields = [
+    { key: 'paperless_url',   label: 'Paperless-ngx URL', type: 'text',     placeholder: 'https://paperless.example.com', isToken: false },
+    { key: 'paperless_token', label: 'API Token',          type: 'password', placeholder: 'Token value',                   isToken: true  },
+  ];
+
+  const numberFields = [
+    { key: 'paperless_date_field_id',   label: 'Payment date custom field ID' },
+    { key: 'paperless_amount_field_id', label: 'Amount custom field ID' },
   ];
 
   function displayValue(key) {
-    if (key === 'paperless_token') return settings.paperless_token_set ? '••••••••' : 'Not set';
+    if (key === 'paperless_token') return settings.paperless_token_set ? '••••••••' : <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
     const v = settings[key];
     if (v == null || v === '') return <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
     return String(v);
@@ -226,40 +263,44 @@ function PaperlessSettings({ dossierId }) {
       <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 0, marginBottom: '1rem' }}>
         All four fields must be set for the integration to be active.
       </p>
-      {fields.map(({ key, label, type, placeholder, isToken }) => (
+
+      {/* Text / password fields — inline editing, icon-only button */}
+      {textFields.map(({ key, label, type, placeholder, isToken }) => (
         <div key={key} style={{ marginBottom: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', minWidth: '14rem' }}>{label}</span>
+            <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{label}</span>
             {editing === key ? (
               <>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <input
-                    type={isToken && !showToken ? 'password' : (type === 'password' ? 'text' : type)}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    type={isToken && !showToken ? 'password' : 'text'}
+                    value={inlineDraft}
+                    onChange={(e) => setInlineDraft(e.target.value)}
                     placeholder={placeholder}
-                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem', width: isToken ? '16rem' : type === 'number' ? '6rem' : '20rem', paddingRight: isToken ? '2rem' : undefined }}
+                    autoFocus
+                    style={{ width: isToken ? '16rem' : '20rem', paddingRight: isToken ? '2rem' : undefined }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveInline(key); if (e.key === 'Escape') cancelInlineEdit(); }}
                   />
                   {isToken && (
                     <button
+                      type="button"
                       onClick={() => setShowToken((v) => !v)}
                       style={{ position: 'absolute', right: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
-                      type="button"
                     >
                       <FontAwesomeIcon icon={showToken ? faEyeSlash : faEye} />
                     </button>
                   )}
                 </div>
-                <button className="btn-primary" onClick={() => handleSave(key)} disabled={saving} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
+                <button className="btn-primary" onClick={() => saveInline(key)} disabled={saving}>
                   {saving ? 'Saving…' : 'Save'}
                 </button>
-                <button className="btn-secondary" onClick={cancelEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>Cancel</button>
+                <button className="btn-secondary" onClick={cancelInlineEdit}>Cancel</button>
               </>
             ) : (
               <>
                 <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{displayValue(key)}</span>
-                <button className="btn-secondary" onClick={() => startEdit(key)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                  <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
+                <button className="btn-secondary" onClick={() => startInlineEdit(key)} style={{ padding: '0.5rem 0.75rem' }}>
+                  <FontAwesomeIcon icon={faPencil} />
                 </button>
               </>
             )}
@@ -269,13 +310,50 @@ function PaperlessSettings({ dossierId }) {
           )}
         </div>
       ))}
+
+      {/* Number fields — modal editing */}
+      {numberFields.map((field) => (
+        <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
+          <strong>{displayValue(field.key)}</strong>
+          <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
+            <FontAwesomeIcon icon={faPencil} />
+          </button>
+        </div>
+      ))}
+
+      {modal && (
+        <Modal
+          title={modal.label}
+          onClose={closeModal}
+          footer={
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={closeModal}>Cancel</button>
+              <button className="btn-primary" onClick={handleModalSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <input
+            type="number" inputMode="numeric" min={1}
+            value={modal.draft}
+            onChange={(e) => setModal((m) => ({ ...m, draft: e.target.value }))}
+            autoFocus
+            style={{ width: '8rem' }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleModalSave(); }}
+            placeholder="Leave blank to clear"
+          />
+          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+        </Modal>
+      )}
     </div>
   );
 }
 
 function NotificationDossierSettings({ dossierId }) {
   const [value, setValue] = useState(1);
-  const [editing, setEditing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -286,23 +364,22 @@ function NotificationDossierSettings({ dossierId }) {
     }).catch(() => {});
   }, [dossierId]);
 
-  function startEdit() {
-    setEditing(true);
+  function openModal() {
     setDraft(String(value));
     setError('');
+    setModalOpen(true);
   }
 
-  function cancelEdit() { setEditing(false); setDraft(''); setError(''); }
+  function closeModal() { setModalOpen(false); setError(''); }
 
   async function handleSave() {
-    setError('');
     const v = Number(draft);
     if (!Number.isInteger(v) || v < 0 || v > 7) { setError('Must be an integer between 0 and 7'); return; }
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { expense_notification_days_before: v });
       setValue(updated.expense_notification_days_before ?? v);
-      setEditing(false);
+      closeModal();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -313,34 +390,41 @@ function NotificationDossierSettings({ dossierId }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Notify me</span>
-        {editing ? (
-          <>
+        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Notify me</span>
+        <strong>{value}</strong>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
+        <button className="btn-secondary" onClick={openModal} style={{ padding: '0.5rem 0.75rem' }}>
+          <FontAwesomeIcon icon={faPencil} />
+        </button>
+      </div>
+
+      {modalOpen && (
+        <Modal
+          title="Notification timing"
+          onClose={closeModal}
+          footer={
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={closeModal}>Cancel</button>
+              <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <input
-              type="number" inputMode="numeric"
-              min={0}
-              max={7}
+              type="number" inputMode="numeric" min={0} max={7}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              style={{ width: '4rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
+              autoFocus
+              style={{ width: '5rem' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
-            <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-            <button className="btn-secondary" onClick={cancelEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>Cancel</button>
-          </>
-        ) : (
-          <>
-            <strong>{value}</strong>
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
-            <button className="btn-secondary" onClick={startEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-              <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-            </button>
-          </>
-        )}
-      </div>
-      {editing && error && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>}
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
+          </div>
+          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+        </Modal>
+      )}
     </div>
   );
 }

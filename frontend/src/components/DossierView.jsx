@@ -106,7 +106,7 @@ export default function DossierView() {
       <div className="page-header">
         {!autoOpened && (
           <button className="btn-ghost" onClick={() => navigate('/')}>
-            <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
+            <FontAwesomeIcon icon={faArrowLeft} />
           </button>
         )}
         <h1 style={{ flex: 1 }}>{dossier.name}</h1>

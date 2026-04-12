@@ -618,8 +618,6 @@ body:has(.modal-overlay) {
 .page-body {
   flex: 1;
   padding: var(--space-6);
-  overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 /* ── Loading ─────────────────────────────────────────────── */
@@ -1826,7 +1824,6 @@ tr:hover td {
 
   .app-shell-main {
     margin-left: 0 !important;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
 
   .bottom-nav {

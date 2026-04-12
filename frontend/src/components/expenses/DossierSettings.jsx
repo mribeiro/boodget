@@ -2,23 +2,14 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPencil } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import Modal from '../ui/Modal';
+
+const CYCLE_FIELD = { key: 'cycle_start_day', label: 'Cycle starts on day', suffix: null };
 
 const WARNING_FIELDS = [
-  {
-    key: 'capital_snapshot_warning_day',
-    label: 'Warn about missing capital snapshot from day',
-    default: 7,
-  },
-  {
-    key: 'next_cycle_warning_day',
-    label: 'Warn about next cycle not opened from day',
-    default: 22,
-  },
-  {
-    key: 'previous_cycle_close_warning_day',
-    label: 'Warn about previous cycle not closed from day',
-    default: 25,
-  },
+  { key: 'capital_snapshot_warning_day',      label: 'Warn about missing capital snapshot from day', suffix: 'of the month' },
+  { key: 'next_cycle_warning_day',            label: 'Warn about next cycle not opened from day',    suffix: 'of the month' },
+  { key: 'previous_cycle_close_warning_day',  label: 'Warn about previous cycle not closed from day', suffix: 'of the month' },
 ];
 
 export default function DossierSettings({ dossierId }) {
@@ -28,8 +19,7 @@ export default function DossierSettings({ dossierId }) {
     next_cycle_warning_day: 22,
     previous_cycle_close_warning_day: 25,
   });
-  const [editing, setEditing] = useState(null); // key of the field being edited
-  const [draft, setDraft] = useState('');
+  const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,30 +27,24 @@ export default function DossierSettings({ dossierId }) {
     api.getDossierSettings(dossierId).then((s) => setSettings(s));
   }, [dossierId]);
 
-  function startEdit(key) {
-    setEditing(key);
-    setDraft(String(settings[key] ?? ''));
+  function openModal(field) {
+    setModal({ ...field, draft: String(settings[field.key] ?? '') });
     setError('');
   }
 
-  function cancelEdit() {
-    setEditing(null);
-    setDraft('');
-    setError('');
-  }
+  function closeModal() { setModal(null); setError(''); }
 
-  async function handleSave(key) {
-    setError('');
-    const day = Number(draft);
+  async function handleSave() {
+    const day = Number(modal.draft);
     if (!Number.isInteger(day) || day < 1 || day > 28) {
-      setError('Day must be between 1 and 28');
+      setError('Must be an integer between 1 and 28');
       return;
     }
     setSaving(true);
     try {
-      const updated = await api.updateDossierSettings(dossierId, { [key]: day });
+      const updated = await api.updateDossierSettings(dossierId, { [modal.key]: day });
       setSettings(updated);
-      setEditing(null);
+      closeModal();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -68,96 +52,57 @@ export default function DossierSettings({ dossierId }) {
     }
   }
 
-  function renderField(key, label) {
-    const value = settings[key] ?? '';
-    const isEditing = editing === key;
+  function renderRow(field) {
     return (
-      <div key={key} style={{ marginBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-            {label}
-          </span>
-          {isEditing ? (
-            <>
-              <input
-                type="number" inputMode="numeric"
-                min={1}
-                max={28}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                style={{ width: '4rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
-              />
-              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>of the month</span>
-              <button className="btn-primary" onClick={() => handleSave(key)} disabled={saving} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button className="btn-secondary" onClick={cancelEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <strong>{value}</strong>
-              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>of the month</span>
-              <button className="btn-secondary" onClick={() => startEdit(key)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-              </button>
-            </>
-          )}
-        </div>
-        {isEditing && error && (
-          <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>
-        )}
+      <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
+        <strong>{settings[field.key] ?? ''}</strong>
+        {field.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.suffix}</span>}
+        <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
+          <FontAwesomeIcon icon={faPencil} />
+        </button>
       </div>
     );
   }
 
   return (
     <div style={{ marginBottom: '1.5rem' }}>
-      {/* Cycle start day */}
-      <div style={{ marginBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-            Cycle starts on day
-          </span>
-          {editing === 'cycle_start_day' ? (
-            <>
-              <input
-                type="number" inputMode="numeric"
-                min={1}
-                max={28}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                style={{ width: '4rem', padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
-              />
-              <button className="btn-primary" onClick={() => handleSave('cycle_start_day')} disabled={saving} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button className="btn-secondary" onClick={cancelEdit} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <strong>{settings.cycle_start_day}</strong>
-              <button className="btn-secondary" onClick={() => startEdit('cycle_start_day')} style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}>
-                <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-              </button>
-            </>
-          )}
-        </div>
-        {editing === 'cycle_start_day' && error && (
-          <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>
-        )}
-      </div>
+      {renderRow(CYCLE_FIELD)}
 
-      {/* Warning day fields */}
-      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem', marginTop: '0.75rem' }}>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginBottom: '0.6rem' }}>
+      <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem', marginTop: '0.75rem' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
           Glances warning thresholds
         </div>
-        {WARNING_FIELDS.map((f) => renderField(f.key, f.label))}
+        {WARNING_FIELDS.map(renderRow)}
       </div>
+
+      {modal && (
+        <Modal
+          title={modal.label}
+          onClose={closeModal}
+          footer={
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={closeModal}>Cancel</button>
+              <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <input
+              type="number" inputMode="numeric" min={1} max={28}
+              value={modal.draft}
+              onChange={(e) => setModal((m) => ({ ...m, draft: e.target.value }))}
+              autoFocus
+              style={{ width: '5rem' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+            />
+            {modal.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{modal.suffix}</span>}
+          </div>
+          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+        </Modal>
+      )}
     </div>
   );
 }

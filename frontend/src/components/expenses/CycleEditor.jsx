@@ -333,7 +333,7 @@ export default function CycleEditor() {
       {/* ── Header ── */}
       <div className="page-header">
         <button className="btn-ghost" onClick={() => navigate(`/dossiers/${dossierId}`, { state: { tab: 'expenses' } })}>
-          <FontAwesomeIcon icon={faArrowLeft} style={{ marginRight: '0.4rem' }} />Back
+          <FontAwesomeIcon icon={faArrowLeft} />
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
