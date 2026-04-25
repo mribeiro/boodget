@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { parseDecimalInput } from '../../utils/numbers';
 import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faReceipt, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -131,7 +132,11 @@ export default function ExpenseTemplate({ dossierId }) {
   }
 
   async function handleDecompositionChange(item, field, rawVal) {
-    const val = rawVal === '' ? null : Number(rawVal);
+    if (rawVal !== '') {
+      const parsed = parseDecimalInput(rawVal);
+      if (isNaN(parsed)) return;
+    }
+    const val = rawVal === '' ? null : parseDecimalInput(rawVal);
     try {
       const updated = await api.updateTemplateItem(dossierId, item.id, { [field]: val });
       setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
@@ -291,9 +296,7 @@ export default function ExpenseTemplate({ dossierId }) {
                       {['must_amount', 'want_amount', 'save_amount'].map((field, fi) => (
                         <td key={field} data-label={['Must', 'Want', 'Save'][fi]} className="mobile-detail" style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
                           <input
-                            type="number" inputMode="decimal"
-                            min={0}
-                            step="0.01"
+                            type="text" inputMode="decimal"
                             value={item[field] ?? ''}
                             onChange={(e) => handleDecompositionChange(item, field, e.target.value)}
                             placeholder="—"
@@ -375,7 +378,7 @@ function TemplateItemModal({ section, item, paperlessActive, onSave, onClose }) 
     e.preventDefault();
     setError('');
     if (!name.trim()) { setError('Name is required'); return; }
-    const numValue = Number(value);
+    const numValue = parseDecimalInput(value);
     if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
     if (section === 'expense' && type === 'Fixed') {
       const day = Number(dayOfPayment);
@@ -423,7 +426,7 @@ function TemplateItemModal({ section, item, paperlessActive, onSave, onClose }) 
             )}
             <div className="form-group">
               <label>{section === 'expense' && type === 'Budget' ? 'Maximum amount (€)' : 'Value (€)'}</label>
-              <input type="number" inputMode="decimal" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
+              <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
             </div>
             {isFixed && (
               <div className="form-group">
