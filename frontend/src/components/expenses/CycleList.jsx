@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { parseDecimalInput } from '../../utils/numbers';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
@@ -173,11 +174,11 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
     e.preventDefault();
     setError('');
     if (isTaken(year, month)) { setError('A cycle for this month already exists'); return; }
-    if (!salary || isNaN(Number(salary))) { setError('Salary is required'); return; }
-    if (previousBalance === '' || isNaN(Number(previousBalance))) { setError('Previous balance is required'); return; }
+    if (!salary || isNaN(parseDecimalInput(salary))) { setError('Salary is required'); return; }
+    if (previousBalance === '' || isNaN(parseDecimalInput(previousBalance))) { setError('Previous balance is required'); return; }
     setSaving(true);
     try {
-      await onCreate({ year, month, salary: Number(salary), previous_balance: Number(previousBalance) });
+      await onCreate({ year, month, salary: parseDecimalInput(salary), previous_balance: parseDecimalInput(previousBalance) });
     } catch (err) {
       setError(err.message);
       setSaving(false);
@@ -224,11 +225,11 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
             {taken && <div className="alert alert-error">This month already has a cycle.</div>}
             <div className="form-group">
               <label>Salary received (€)</label>
-              <input type="number" inputMode="decimal" min={0} step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="0.00" />
+              <input type="text" inputMode="decimal" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="0.00" />
             </div>
             <div className="form-group">
               <label>Previous balance (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" value={previousBalance} onChange={(e) => setPreviousBalance(e.target.value)} placeholder="0.00" />
+              <input type="text" inputMode="decimal" value={previousBalance} onChange={(e) => setPreviousBalance(e.target.value)} placeholder="0.00" />
             </div>
           </div>
           <div className="modal-footer">
