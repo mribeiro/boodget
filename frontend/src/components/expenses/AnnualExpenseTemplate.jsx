@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { parseDecimalInput } from '../../utils/numbers';
 import { faPencil, faTrash, faPlus, faXmark, faChevronDown, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -240,7 +241,7 @@ function AnnualTemplateItemModal({ item, onSave, onClose }) {
     e.preventDefault();
     setError('');
     if (!name.trim()) { setError('Name is required'); return; }
-    const numValue = Number(value);
+    const numValue = parseDecimalInput(value);
     if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
 
     setSaving(true);
@@ -263,7 +264,7 @@ function AnnualTemplateItemModal({ item, onSave, onClose }) {
     }
   }
 
-  const expectedPerInst = numInst > 0 && value ? formatValue(parseFloat(value) / numInst) : '—';
+  const expectedPerInst = numInst > 0 && value ? formatValue(parseDecimalInput(value) / numInst) : '—';
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -282,7 +283,7 @@ function AnnualTemplateItemModal({ item, onSave, onClose }) {
             <div style={{ display: 'flex', gap: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Annual value (€)</label>
-                <input type="number" inputMode="decimal" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
+                <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
               </div>
               <div className="form-group" style={{ flex: 0, minWidth: 120 }}>
                 <label>Installments</label>

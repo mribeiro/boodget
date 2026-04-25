@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { parseDecimalInput } from '../../utils/numbers';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
@@ -689,13 +690,13 @@ function CloseCycleModal({ expectedBalance, initialBalance, onConfirm, onClose }
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const diff = balance !== '' && !isNaN(Number(balance))
-    ? Number(balance) - expectedBalance
+  const diff = balance !== '' && !isNaN(parseDecimalInput(balance))
+    ? parseDecimalInput(balance) - expectedBalance
     : null;
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const bal = Number(balance);
+    const bal = parseDecimalInput(balance);
     if (isNaN(bal)) { setError('Enter a valid number'); return; }
     setError('');
     setSaving(true);
@@ -720,8 +721,7 @@ function CloseCycleModal({ expectedBalance, initialBalance, onConfirm, onClose }
             <div className="form-group">
               <label>Final real balance (€)</label>
               <input
-                type="number" inputMode="decimal"
-                step="0.01"
+                type="text" inputMode="decimal"
                 value={balance}
                 onChange={(e) => setBalance(e.target.value)}
                 placeholder="0.00"
@@ -774,7 +774,7 @@ function EditIncomeModal({ cycle, onSave, onClose }) {
     setError('');
     setSaving(true);
     try {
-      await onSave(Number(salary), Number(prevBalance));
+      await onSave(parseDecimalInput(salary), parseDecimalInput(prevBalance));
     } catch (err) {
       setError(err.message);
       setSaving(false);
@@ -793,11 +793,11 @@ function EditIncomeModal({ cycle, onSave, onClose }) {
             {error && <div className="alert alert-error">{error}</div>}
             <div className="form-group">
               <label>Salary received (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} autoFocus />
+              <input type="text" inputMode="decimal" value={salary} onChange={(e) => setSalary(e.target.value)} autoFocus />
             </div>
             <div className="form-group">
               <label>Previous balance (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" value={prevBalance} onChange={(e) => setPrevBalance(e.target.value)} />
+              <input type="text" inputMode="decimal" value={prevBalance} onChange={(e) => setPrevBalance(e.target.value)} />
             </div>
           </div>
           <div className="modal-footer">
@@ -1155,7 +1155,7 @@ function AddCycleItemModal({ section, onSave, onClose }) {
     e.preventDefault();
     setError('');
     if (!name.trim()) { setError('Name is required'); return; }
-    const numValue = Number(value);
+    const numValue = parseDecimalInput(value);
     if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
     if (section === 'expense' && type === 'Fixed') {
       const day = Number(dayOfPayment);
@@ -1200,7 +1200,7 @@ function AddCycleItemModal({ section, onSave, onClose }) {
             )}
             <div className="form-group">
               <label>{section === 'expense' && type === 'Budget' ? 'Maximum amount (€)' : 'Value (€)'}</label>
-              <input type="number" inputMode="decimal" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
+              <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" />
             </div>
             {section === 'expense' && type === 'Fixed' && (
               <div className="form-group">
@@ -1329,7 +1329,7 @@ function EditExpenseItemModal({ item, paperlessActive, onSave, onClose }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    const numValue = Number(value);
+    const numValue = parseDecimalInput(value);
     if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
     const numDay = Number(day);
     if (!Number.isInteger(numDay) || numDay < 1 || numDay > 31) { setError('Day of payment must be 1–31'); return; }
@@ -1357,7 +1357,7 @@ function EditExpenseItemModal({ item, paperlessActive, onSave, onClose }) {
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 600 }}>{item.name}</div>
             <div className="form-group">
               <label>Value (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" min={0} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+              <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
             </div>
             <div className="form-group">
               <label>Day of payment (1–31)</label>
@@ -1391,8 +1391,8 @@ function EditBudgetItemModal({ item, onSave, onClose }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    const numMax = Number(maxValue);
-    const numSpent = Number(spent);
+    const numMax = parseDecimalInput(maxValue);
+    const numSpent = parseDecimalInput(spent);
     if (isNaN(numMax) || numMax < 0) { setError('Maximum must be a non-negative number'); return; }
     if (isNaN(numSpent) || numSpent < 0) { setError('Spent must be a non-negative number'); return; }
     setSaving(true);
@@ -1417,11 +1417,11 @@ function EditBudgetItemModal({ item, onSave, onClose }) {
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 600 }}>{item.name}</div>
             <div className="form-group">
               <label>Maximum (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" min={0} value={maxValue} onChange={(e) => setMaxValue(e.target.value)} autoFocus />
+              <input type="text" inputMode="decimal" value={maxValue} onChange={(e) => setMaxValue(e.target.value)} autoFocus />
             </div>
             <div className="form-group">
               <label>Spent (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" min={0} value={spent} onChange={(e) => setSpent(e.target.value)} />
+              <input type="text" inputMode="decimal" value={spent} onChange={(e) => setSpent(e.target.value)} />
             </div>
           </div>
           <div className="modal-footer">
@@ -1444,7 +1444,7 @@ function EditDistributionModal({ item, onSave, onClose }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    const numValue = Number(value);
+    const numValue = parseDecimalInput(value);
     if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
     setSaving(true);
     try {
@@ -1468,7 +1468,7 @@ function EditDistributionModal({ item, onSave, onClose }) {
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 600 }}>{item.name}</div>
             <div className="form-group">
               <label>Amount (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" min={0} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+              <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
             </div>
           </div>
           <div className="modal-footer">
@@ -1488,13 +1488,13 @@ function EditFinalBalanceModal({ expectedBalance, currentBalance, onSave, onClos
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const diff = balance !== '' && !isNaN(Number(balance))
-    ? Number(balance) - expectedBalance
+  const diff = balance !== '' && !isNaN(parseDecimalInput(balance))
+    ? parseDecimalInput(balance) - expectedBalance
     : null;
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const bal = Number(balance);
+    const bal = parseDecimalInput(balance);
     if (isNaN(bal)) { setError('Enter a valid number'); return; }
     setError('');
     setSaving(true);
@@ -1519,8 +1519,7 @@ function EditFinalBalanceModal({ expectedBalance, currentBalance, onSave, onClos
             <div className="form-group">
               <label>Final real balance (€)</label>
               <input
-                type="number" inputMode="decimal"
-                step="0.01"
+                type="text" inputMode="decimal"
                 value={balance}
                 onChange={(e) => setBalance(e.target.value)}
                 placeholder="0.00"
