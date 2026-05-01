@@ -44,7 +44,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -97,13 +97,13 @@ router.post('/import', (req, res) => {
     }
 
     const insertTemplateItem = db.prepare(
-      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const templateNameToId = {};
     for (const ti of (data.expense_template || [])) {
       const newId = uuidv4();
       if (ti.section === 'distribution') templateNameToId[ti.name] = newId;
-      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null);
+      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0);
     }
 
     const insertAnnualTemplateItem = db.prepare(
@@ -134,7 +134,7 @@ router.post('/import', (req, res) => {
       'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertCycleItem = db.prepare(
-      'INSERT INTO cycle_items (id, cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO cycle_items (id, cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const cycleYMToId = {};
     for (const c of (data.cycles || [])) {
@@ -142,7 +142,7 @@ router.post('/import', (req, res) => {
       cycleYMToId[`${c.year}-${c.month}`] = cycleId;
       insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null);
       for (const ci of (c.items || [])) {
-        insertCycleItem.run(uuidv4(), cycleId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0, ci.paperless_tag_id ?? null);
+        insertCycleItem.run(uuidv4(), cycleId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0, ci.paperless_tag_id ?? null, ci.exclude_from_emergency_fund ? 1 : 0);
       }
     }
 
@@ -310,7 +310,7 @@ router.get('/:id/export', (req, res) => {
   }
 
   const expenseTemplate = db
-    .prepare('SELECT section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
+    .prepare('SELECT section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
     .all(req.params.id);
 
   const annualExpenseTemplateRaw = db
@@ -340,11 +340,11 @@ router.get('/:id/export', (req, res) => {
   if (cycles.length > 0) {
     const ph = cycles.map(() => '?').join(',');
     const cycleItems = db
-      .prepare(`SELECT cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id FROM cycle_items WHERE cycle_id IN (${ph}) ORDER BY section, position, created_at`)
+      .prepare(`SELECT cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund FROM cycle_items WHERE cycle_id IN (${ph}) ORDER BY section, position, created_at`)
       .all(...cycles.map((c) => c.id));
     for (const ci of cycleItems) {
       if (!cycleItemsByCycleId[ci.cycle_id]) cycleItemsByCycleId[ci.cycle_id] = [];
-      cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position, paperless_tag_id: ci.paperless_tag_id });
+      cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position, paperless_tag_id: ci.paperless_tag_id, exclude_from_emergency_fund: ci.exclude_from_emergency_fund });
     }
   }
 
@@ -443,7 +443,7 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 7,
+    version: 8,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,

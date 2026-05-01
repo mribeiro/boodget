@@ -958,6 +958,25 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                   style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}
                 />
               )}
+              {item.exclude_from_emergency_fund === 1 && (
+                <span
+                  title="Excluded from emergency fund average (set on the template)"
+                  style={{
+                    marginLeft: '0.4rem',
+                    fontSize: '0.65rem',
+                    padding: '0.1rem 0.4rem',
+                    borderRadius: '999px',
+                    background: 'var(--bg-muted, var(--bg-card))',
+                    color: 'var(--text-muted)',
+                    border: '1px solid var(--border-default)',
+                    fontWeight: 500,
+                    verticalAlign: 'middle',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  EF excluded
+                </span>
+              )}
               {item.type === 'Fixed' && item.day_of_payment != null && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
                   <FontAwesomeIcon icon={faClock} style={{ fontSize: '0.65rem', marginRight: 2 }} />
@@ -1025,7 +1044,26 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>{item.name}</span>
+              <span style={{ fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                {item.name}
+                {item.exclude_from_emergency_fund === 1 && (
+                  <span
+                    title="Excluded from emergency fund average (set on the template)"
+                    style={{
+                      fontSize: '0.65rem',
+                      padding: '0.1rem 0.4rem',
+                      borderRadius: '999px',
+                      background: 'var(--bg-muted, var(--bg-card))',
+                      color: 'var(--text-muted)',
+                      border: '1px solid var(--border-default)',
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    EF excluded
+                  </span>
+                )}
+              </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: barColor, fontVariantNumeric: 'tabular-nums' }}>
                   {Math.round(pct)}%

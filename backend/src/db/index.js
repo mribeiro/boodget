@@ -538,6 +538,19 @@ const migrations = [
       }
     },
   },
+  {
+    id: '021_add_exclude_from_emergency_fund',
+    up() {
+      const tplCols = db.prepare('PRAGMA table_info(expense_template_items)').all();
+      if (!tplCols.find((c) => c.name === 'exclude_from_emergency_fund')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN exclude_from_emergency_fund INTEGER NOT NULL DEFAULT 0');
+      }
+      const ciCols = db.prepare('PRAGMA table_info(cycle_items)').all();
+      if (!ciCols.find((c) => c.name === 'exclude_from_emergency_fund')) {
+        db.exec('ALTER TABLE cycle_items ADD COLUMN exclude_from_emergency_fund INTEGER NOT NULL DEFAULT 0');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

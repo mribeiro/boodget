@@ -184,9 +184,9 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool. |
 | `month_account_snapshot` | Accounts active when a month was created. |
 | `month_entries` | `(month_id, account_id)` → `value`, optional `comment`. |
-| `expense_template_items` | Monthly template. `section` ∈ `{expense, distribution}`, `type` ∈ `{Fixed, Budget}`. Expenses have `classification`, `day_of_payment`, `paperless_tag_id`. Distributions have `must_amount`, `want_amount`, `save_amount`. |
+| `expense_template_items` | Monthly template. `section` ∈ `{expense, distribution}`, `type` ∈ `{Fixed, Budget}`. Expenses have `classification`, `day_of_payment`, `paperless_tag_id`, `exclude_from_emergency_fund`. Distributions have `must_amount`, `want_amount`, `save_amount`. |
 | `expense_cycles` | `(dossier_id, year, month)` UNIQUE. `salary`, `previous_balance`, `is_closed`, `final_real_balance`. |
-| `cycle_items` | Items within a cycle. Fixed: `paid`. Budget: `spent`. Distributions: `done`. `template_item_id` FK (nullable). |
+| `cycle_items` | Items within a cycle. Fixed: `paid`. Budget: `spent`. Distributions: `done`. Expenses additionally carry `exclude_from_emergency_fund` (denormalized from template; toggling on the template propagates to all linked rows). `template_item_id` FK (nullable). |
 | `annual_expense_template_items` | Annual template. `name`, `value`, `classification`, `num_installments`, `position`. |
 | `annual_expense_template_installments` | `template_item_id` FK, `installment_number`, `month`, `day`. |
 | `annual_expense_years` | `(dossier_id, year)` UNIQUE. `carryover`. Auto-created from template when a cycle spanning that year opens. |
@@ -216,7 +216,7 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - `schema_migrations` table tracks applied migrations by `id`.
 - IDs follow `NNN_description` pattern (e.g. `003_add_foo_to_bar`).
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
-- **Last applied migration**: `020_pwa_push_notifications`. **Next id must be `021_...`**
+- **Last applied migration**: `021_add_exclude_from_emergency_fund`. **Next id must be `022_...`**
 - Never modify or remove existing migration entries — only append.
 
 **To add a new migration**, append to the `migrations` array:
@@ -427,7 +427,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 8. **Cycle start day**: `cycle_start_day` (default 25). Display name: `new Date(year, month, startDay - 1)`. Range: start = `new Date(year, month - 1, startDay)`, end = `new Date(year, month, startDay - 1)`. Example: stored `month=3`, `startDay=25` → Mar 25 – Apr 24 → "April 2025".
 9. **Template → cycle copy**: All template items copied to `cycle_items`. `day_of_payment` clamped to last day of cycle's calendar month.
 10. **Expense sorting**: Fixed expenses sort by day — days ≥ `cycle_start_day` first (asc), then days < `cycle_start_day` (asc). Budget items always last. Applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format**: version `7`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Import accepts versions 1–7. Goals and EF accounts re-linked by account name on import. Paperless token excluded for security.
+11. **Export format**: version `8`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions). Import accepts versions 1–8. Goals and EF accounts re-linked by account name on import. Paperless token excluded for security.
 12. **Emergency Fund**: `target = multiplier × (avg_monthly_expense + extra_monthly_total)`. Average from Y most recent cycles: budget items use `spent` (closed) or `max` (open). Archived accounts excluded.
 
 ## Environment Variables
