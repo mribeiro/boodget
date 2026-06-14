@@ -8,6 +8,7 @@ import {
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
+import { parseDecimalInput } from '../../utils/numbers';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -75,7 +76,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const v = parseFloat(value);
+    const v = parseDecimalInput(value);
     if (!name.trim() || isNaN(v) || v < 0) { setError('Please fill all fields correctly.'); return; }
     setSaving(true);
     try {
@@ -94,7 +95,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
     }
   }
 
-  const expectedPerInst = numInst > 0 && value ? fmt(parseFloat(value) / numInst) : '—';
+  const expectedPerInst = numInst > 0 && value ? fmt(parseDecimalInput(value) / numInst) : '—';
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -113,7 +114,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div className="form-group">
                 <label>Annual value</label>
-                <input type="number" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" step="0.01" min="0" required />
+                <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0.00" required />
               </div>
               <div className="form-group">
                 <label>Classification</label>
@@ -785,7 +786,7 @@ function EditCarryoverModal({ current, onSave, onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const v = parseFloat(value);
+    const v = parseDecimalInput(value);
     if (isNaN(v)) { setError('Enter a valid number'); return; }
     setSaving(true);
     try { await onSave(v); } catch (err) { setError(err.message); setSaving(false); }
@@ -803,7 +804,7 @@ function EditCarryoverModal({ current, onSave, onClose }) {
             {error && <div className="alert alert-error">{error}</div>}
             <div className="form-group">
               <label>Carryover (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+              <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
             </div>
           </div>
           <div className="modal-footer">
