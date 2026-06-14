@@ -463,7 +463,7 @@ export default function GoalDetail() {
                     dataKey={(d) => `${MONTH_NAMES[d.month - 1]} ${d.year}`}
                     tick={{ fontSize: 11 }}
                   />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`)} />
                   <Tooltip formatter={(v) => formatEur(v)} />
                   <Legend />
                   <Line type="monotone" dataKey="expected_cumulative" name="Expected" stroke="#6366f1" dot={false} strokeWidth={2} />
