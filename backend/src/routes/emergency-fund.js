@@ -178,7 +178,7 @@ router.get('/emergency-fund/status', (req, res) => {
   let totalExpenses = 0;
   for (const cycle of cycles) {
     const items = db
-      .prepare("SELECT type, value, spent FROM cycle_items WHERE cycle_id = ? AND section = 'expense' AND exclude_from_emergency_fund = 0")
+      .prepare("SELECT type, value, spent FROM cycle_items WHERE cycle_id = ? AND section = 'expense' AND exclude_from_emergency_fund = 0 AND template_item_id IS NOT NULL")
       .all(cycle.id);
     for (const item of items) {
       if (item.type === 'Fixed') {

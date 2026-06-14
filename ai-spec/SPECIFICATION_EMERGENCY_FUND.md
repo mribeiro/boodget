@@ -85,7 +85,9 @@ For each cycle, the expense total is:
 
 Distributions are **not included** in this calculation.
 
-**Excluded items**: cycle items whose `exclude_from_emergency_fund = 1` are skipped from this sum (both Fixed and Budget). The flag is managed on the **monthly expense template** (per dossier) — when a template item is toggled, the new value is propagated to every linked `cycle_items` row (matched by `template_item_id`), so the EF average updates retroactively across the Y-cycle window. Items added directly to a cycle without a template link default to counting toward the average and cannot be excluded from the UI.
+**Excluded items**: cycle items whose `exclude_from_emergency_fund = 1` are skipped from this sum (both Fixed and Budget). The flag is managed on the **monthly expense template** (per dossier) — when a template item is toggled, the new value is propagated to every linked `cycle_items` row (matched by `template_item_id`), so the EF average updates retroactively across the Y-cycle window.
+
+**Ad-hoc items**: cycle items with no template link (`template_item_id IS NULL`, i.e. added directly to a cycle) are always excluded from this sum, since they have no template entry through which `exclude_from_emergency_fund` could be set.
 
 ```
 cycle_expense_total = Σ fixed_expense_values + Σ budget_values_per_rules_above

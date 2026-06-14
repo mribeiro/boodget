@@ -428,7 +428,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 9. **Template → cycle copy**: All template items copied to `cycle_items`. `day_of_payment` clamped to last day of cycle's calendar month.
 10. **Expense sorting**: Fixed expenses sort by day — days ≥ `cycle_start_day` first (asc), then days < `cycle_start_day` (asc). Budget items always last. Applies in both `CycleEditor` and `ExpenseTemplate`.
 11. **Export format**: version `8`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions). Import accepts versions 1–8. Goals and EF accounts re-linked by account name on import. Paperless token excluded for security.
-12. **Emergency Fund**: `target = multiplier × (avg_monthly_expense + extra_monthly_total)`. Average from Y most recent cycles: budget items use `spent` (closed) or `max` (open). Archived accounts excluded.
+12. **Emergency Fund**: `target = multiplier × (avg_monthly_expense + extra_monthly_total)`. Average from Y most recent cycles: budget items use `spent` (closed) or `max` (open). Archived accounts excluded. Cycle items with no template link (ad-hoc) are always excluded from the average.
 
 ## Environment Variables
 
