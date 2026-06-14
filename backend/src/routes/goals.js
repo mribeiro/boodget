@@ -131,7 +131,7 @@ function computeGoalValues(goal, dossierId) {
   };
 }
 
-function buildChartData(goal, dossierId) {
+function buildChartData(goal, dossierId, currentAccumulatedValue) {
   if (goal.contribution_mode === 'ad_hoc') return null;
 
   // Get all cycles for this dossier from goal creation onwards
@@ -155,8 +155,6 @@ function buildChartData(goal, dossierId) {
       'SELECT year, month, amount FROM goal_historical_contributions WHERE goal_id = ? ORDER BY year ASC, month ASC'
     )
     .all(goal.id);
-
-  if (cycles.length === 0 && historicalRows.length === 0) return [];
 
   let expectedMonthlyContribution = 0;
   if (goal.contribution_mode === 'via_distributions') {
@@ -248,6 +246,48 @@ function buildChartData(goal, dossierId) {
       real_cumulative: realCumulative,
       real_contribution: realContribution,
     });
+  }
+
+  // Projected trend line: from now to target_date, based on current accumulated
+  // value and the expected monthly contribution. Requires accounts to be linked
+  // (so a current value is known) and a target_date in the future.
+  const hasAccounts = !!db.prepare('SELECT 1 FROM goal_accounts WHERE goal_id = ?').get(goal.id);
+  const nowYM = currentYearMonth();
+  const monthsRemaining = monthsDiff(nowYM, goal.target_date);
+  if (hasAccounts && monthsRemaining > 0) {
+    let projectedCumulative = currentAccumulatedValue || 0;
+
+    if (chartData.length > 0) {
+      chartData[chartData.length - 1].projected_cumulative = projectedCumulative;
+    } else {
+      const [ny, nm] = nowYM.split('-').map(Number);
+      chartData.push({
+        cycle_id: null,
+        year: ny,
+        month: nm,
+        expected_cumulative: null,
+        real_cumulative: null,
+        real_contribution: null,
+        projected_cumulative: projectedCumulative,
+        is_projected: true,
+      });
+    }
+
+    const [ny, nm] = nowYM.split('-').map(Number);
+    for (let i = 1; i <= monthsRemaining; i++) {
+      projectedCumulative += expectedMonthlyContribution;
+      const d = new Date(ny, nm - 1 + i, 1);
+      chartData.push({
+        cycle_id: null,
+        year: d.getFullYear(),
+        month: d.getMonth() + 1,
+        expected_cumulative: null,
+        real_cumulative: null,
+        real_contribution: null,
+        projected_cumulative: projectedCumulative,
+        is_projected: true,
+      });
+    }
   }
 
   return chartData;
@@ -383,7 +423,7 @@ router.get('/goals/:goalId', (req, res) => {
   const historicalContributions = db
     .prepare('SELECT year, month, amount FROM goal_historical_contributions WHERE goal_id = ? ORDER BY year, month')
     .all(goal.id);
-  const chartData = buildChartData(goal, req.params.id);
+  const chartData = buildChartData(goal, req.params.id, computed.current_accumulated_value);
 
   res.json({
     ...goal,
@@ -507,7 +547,7 @@ router.put('/goals/:goalId', (req, res) => {
     .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
     .all(goal.id)
     .map((r) => r.distribution_template_id);
-  const chartData = buildChartData(updated, req.params.id);
+  const chartData = buildChartData(updated, req.params.id, computed.current_accumulated_value);
 
   res.json({
     ...updated,
