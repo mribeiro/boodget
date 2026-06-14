@@ -1205,7 +1205,7 @@ function AddCycleItemModal({ section, onSave, onClose }) {
             {section === 'expense' && type === 'Fixed' && (
               <div className="form-group">
                 <label>Day of payment (1–31)</label>
-                <input type="number" inputMode="numeric" min={1} max={31} value={dayOfPayment} onChange={(e) => setDayOfPayment(e.target.value)} placeholder="e.g. 5" />
+                <input type="number" inputMode="numeric" step="1" min={1} max={31} value={dayOfPayment} onChange={(e) => setDayOfPayment(e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 5" />
               </div>
             )}
           </div>
@@ -1361,7 +1361,7 @@ function EditExpenseItemModal({ item, paperlessActive, onSave, onClose }) {
             </div>
             <div className="form-group">
               <label>Day of payment (1–31)</label>
-              <input type="number" inputMode="numeric" min={1} max={31} value={day} onChange={(e) => setDay(e.target.value)} />
+              <input type="number" inputMode="numeric" step="1" min={1} max={31} value={day} onChange={(e) => setDay(e.target.value.replace(/[^0-9]/g, ''))} />
             </div>
             {paperlessActive && (
               <div className="form-group">
