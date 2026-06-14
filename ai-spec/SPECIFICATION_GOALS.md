@@ -178,6 +178,10 @@ A line chart showing, per cycle:
 
 Both lines start from the goal creation cycle. The chart allows the user to visually compare actual progress against the original projection.
 
+### 8.3 Future Trend Line
+
+When the goal has at least one linked account (so a current value is known) and the target date has not yet passed, the chart also shows a **Projected** line (`projected_cumulative`, dashed) extending from the current month to the target date. It starts at the current accumulated value (`current_accumulated_value`) and increases by the expected monthly contribution for each month until the target date, showing where the goal balance is trending towards. If no cycle/historical data points exist yet, a single anchor point for the current month is added so the projected line has a starting point.
+
 -----
 
 ## 9. UI Notes
