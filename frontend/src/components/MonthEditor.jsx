@@ -5,6 +5,7 @@ import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk, faChevronRight
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import KpiStrip from './ui/KpiStrip';
+import { parseDecimalInput } from '../utils/numbers';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -64,7 +65,7 @@ export default function MonthEditor() {
     try {
       const entries = (monthData?.entries || []).map((entry) => ({
         accountId: entry.id,
-        value: values[entry.id] !== '' ? parseFloat(values[entry.id]) : null,
+        value: values[entry.id] !== '' ? parseDecimalInput(values[entry.id]) : null,
         comment: comments[entry.id] || null,
       }));
       await api.saveMonth(dossierId, monthId, { entries, comment: overallComment || null });
@@ -195,24 +196,24 @@ export default function MonthEditor() {
       {monthData && monthData.entries.length > 0 && (() => {
         const filledCount = monthData.entries.filter((e) => values[e.id] !== '').length;
         const total = monthData.entries.reduce((s, e) => {
-          const v = parseFloat(values[e.id]);
+          const v = parseDecimalInput(values[e.id]);
           return s + (isNaN(v) ? 0 : v);
         }, 0);
         const deltaSum = monthData.entries.reduce((s, e) => {
           if (e.prev_value == null) return s;
-          const v = parseFloat(values[e.id]);
+          const v = parseDecimalInput(values[e.id]);
           if (isNaN(v)) return s;
           return s + (v - e.prev_value);
         }, 0);
         const hasDelta = monthData.entries.some((e) => e.prev_value != null && values[e.id] !== '');
         const idleEntries = monthData.entries.filter((e) => e.is_idle_money);
         const idleTotal = idleEntries.reduce((s, e) => {
-          const v = parseFloat(values[e.id]);
+          const v = parseDecimalInput(values[e.id]);
           return s + (isNaN(v) ? 0 : v);
         }, 0);
         const idleDelta = idleEntries.reduce((s, e) => {
           if (e.prev_value == null) return s;
-          const v = parseFloat(values[e.id]);
+          const v = parseDecimalInput(values[e.id]);
           if (isNaN(v)) return s;
           return s + (v - e.prev_value);
         }, 0);
@@ -303,9 +304,7 @@ export default function MonthEditor() {
                                 </div>
                               )}
                               <input
-                                type="number" inputMode="decimal"
-                                step="0.01"
-                                min="0"
+                                type="text" inputMode="decimal"
                                 placeholder="0.00"
                                 className="value-input"
                                 data-value-idx={entryIndexMap[entry.id]}
@@ -317,7 +316,7 @@ export default function MonthEditor() {
                               />
                               {(() => {
                                 if (entry.prev_value == null) return null;
-                                const current = values[entry.id] !== '' ? parseFloat(values[entry.id]) : null;
+                                const current = values[entry.id] !== '' ? parseDecimalInput(values[entry.id]) : null;
                                 if (current == null) return null;
                                 const diff = current - entry.prev_value;
                                 const color = diff > 0 ? 'var(--color-success, #16a34a)' : diff < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)';
