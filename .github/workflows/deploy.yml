@@ -26,4 +26,6 @@ jobs:
     steps:
       - name: Deploy
         working-directory: /home/mothership/docker/stacks/capital-tracker${{ env.SUFFIX }}
-        run: docker compose up -d --force-recreate
+        env:
+          GIT_COMMIT: ${{ github.sha }}
+        run: docker compose up -d --build --force-recreate
