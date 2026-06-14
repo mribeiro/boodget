@@ -551,6 +551,32 @@ const migrations = [
       }
     },
   },
+  {
+    id: '022_backfill_cycle_item_template_links',
+    up() {
+      // Older imports left template_item_id NULL on every cycle item. Re-link items to
+      // their matching template item (by dossier + section + name) so the emergency
+      // fund average correctly recognizes them as template-derived rather than ad-hoc.
+      db.exec(`
+        UPDATE cycle_items
+        SET template_item_id = (
+          SELECT eti.id FROM expense_template_items eti
+          JOIN expense_cycles ec ON ec.id = cycle_items.cycle_id
+          WHERE eti.dossier_id = ec.dossier_id
+            AND eti.section = cycle_items.section
+            AND eti.name = cycle_items.name
+        )
+        WHERE template_item_id IS NULL
+          AND EXISTS (
+            SELECT 1 FROM expense_template_items eti
+            JOIN expense_cycles ec ON ec.id = cycle_items.cycle_id
+            WHERE eti.dossier_id = ec.dossier_id
+              AND eti.section = cycle_items.section
+              AND eti.name = cycle_items.name
+          )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {
