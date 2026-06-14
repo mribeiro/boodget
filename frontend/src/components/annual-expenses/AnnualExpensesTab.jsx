@@ -59,7 +59,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
   const [error, setError] = useState('');
 
   function handleNumInstChange(n) {
-    const newNum = Math.max(1, Number(n));
+    const newNum = Math.max(1, Math.floor(Number(n)) || 1);
     setNumInst(newNum);
     setInstallments((prev) => {
       const updated = [...prev];
@@ -71,7 +71,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
   }
 
   function setInstField(idx, field, val) {
-    setInstallments((prev) => prev.map((inst, i) => i === idx ? { ...inst, [field]: Number(val) } : inst));
+    setInstallments((prev) => prev.map((inst, i) => i === idx ? { ...inst, [field]: Math.floor(Number(val)) || 0 } : inst));
   }
 
   async function handleSubmit(e) {
@@ -126,7 +126,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
               </div>
               <div className="form-group">
                 <label>Installments</label>
-                <input type="number" inputMode="numeric" value={numInst} onChange={(e) => handleNumInstChange(e.target.value)} min="1" max="12" />
+                <input type="number" inputMode="numeric" step="1" value={numInst} onChange={(e) => handleNumInstChange(e.target.value.replace(/[^0-9]/g, ''))} min="1" max="12" />
               </div>
             </div>
             <div style={{ marginTop: 8 }}>
@@ -142,7 +142,7 @@ export function ItemFormModal({ dossierId, yearId, item, onSave, onClose }) {
                     </select>
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <input type="number" inputMode="numeric" value={inst.day} onChange={(e) => setInstField(idx, 'day', e.target.value)} placeholder="Day" min="1" max="31" />
+                    <input type="number" inputMode="numeric" step="1" value={inst.day} onChange={(e) => setInstField(idx, 'day', e.target.value.replace(/[^0-9]/g, ''))} placeholder="Day" min="1" max="31" />
                   </div>
                 </div>
               ))}
