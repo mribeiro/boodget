@@ -468,6 +468,7 @@ export default function GoalDetail() {
                   <Legend />
                   <Line type="monotone" dataKey="expected_cumulative" name="Expected" stroke="#6366f1" dot={false} strokeWidth={2} />
                   <Line type="monotone" dataKey="real_cumulative" name="Real" stroke="#10b981" dot={false} strokeWidth={2} />
+                  <Line type="monotone" dataKey="projected_cumulative" name="Projected" stroke="#f59e0b" strokeDasharray="5 5" dot={false} strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
