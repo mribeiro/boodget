@@ -6,6 +6,7 @@ import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import Toast from '../ui/Toast';
+import Checkbox from '../ui/Checkbox';
 
 function formatValue(v) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' €';
@@ -202,6 +203,25 @@ export default function ExpenseTemplate({ dossierId }) {
                   <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
                     <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                       <span>{item.name}</span>
+                      {item.exclude_from_emergency_fund === 1 && (
+                        <span
+                          title="Excluded from emergency fund average"
+                          style={{
+                            marginLeft: '0.4rem',
+                            fontSize: '0.65rem',
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '999px',
+                            background: 'var(--color-bg-muted, #f1f5f9)',
+                            color: 'var(--color-text-muted)',
+                            border: '1px solid var(--color-border)',
+                            fontWeight: 500,
+                            verticalAlign: 'middle',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          EF excluded
+                        </span>
+                      )}
                       <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
                       <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                     </td>
@@ -369,6 +389,7 @@ function TemplateItemModal({ section, item, paperlessActive, onSave, onClose }) 
   const [value, setValue] = useState(item?.value != null ? String(item.value) : '');
   const [dayOfPayment, setDayOfPayment] = useState(item?.day_of_payment != null ? String(item.day_of_payment) : '');
   const [paperlessTagId, setPaperlessTagId] = useState(item?.paperless_tag_id != null ? String(item.paperless_tag_id) : '');
+  const [excludeFromEF, setExcludeFromEF] = useState(item?.exclude_from_emergency_fund === 1);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -393,6 +414,7 @@ function TemplateItemModal({ section, item, paperlessActive, onSave, onClose }) 
         if (isFixed && paperlessActive) {
           data.paperless_tag_id = paperlessTagId.trim() !== '' ? Number(paperlessTagId) : null;
         }
+        data.exclude_from_emergency_fund = excludeFromEF ? 1 : 0;
       }
       await onSave(data, item?.id);
     } catch (err) {
@@ -438,6 +460,25 @@ function TemplateItemModal({ section, item, paperlessActive, onSave, onClose }) 
               <div className="form-group">
                 <label>Paperless Tag ID</label>
                 <input type="number" inputMode="numeric" min={1} value={paperlessTagId} onChange={(e) => setPaperlessTagId(e.target.value)} placeholder="e.g. 15" />
+              </div>
+            )}
+            {section === 'expense' && (
+              <div className="form-group" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <Checkbox
+                  checked={excludeFromEF}
+                  onChange={() => setExcludeFromEF((v) => !v)}
+                />
+                <div>
+                  <label
+                    onClick={() => setExcludeFromEF((v) => !v)}
+                    style={{ marginBottom: 2, cursor: 'pointer' }}
+                  >
+                    Exclude from emergency fund average
+                  </label>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                    Spend on this line will be ignored when computing your emergency fund target.
+                  </div>
+                </div>
               </div>
             )}
           </div>
