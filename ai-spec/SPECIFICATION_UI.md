@@ -501,6 +501,12 @@ input:focus, select:focus, textarea:focus {
 
 Label style: `font-size: 13px`, `font-weight: 500`, `color: var(--text-secondary)`, `margin-bottom: 5px`, `display: block`.
 
+#### Currency / decimal inputs
+
+Currency (money) inputs must accept **both `.` and `,`** as the decimal separator. They are rendered as `type="text"` with `inputMode="decimal"` (not `type="number"`, which rejects `,` and is locale-dependent). The raw string is held in component state and parsed on submit/compute with `parseDecimalInput()` from `frontend/src/utils/numbers.js` (`Number(String(str).replace(',', '.'))`). Do **not** add `step` / `min` / `max` numeric attributes to these text inputs.
+
+For inputs that drive live calculations (e.g. the Workbench), use the `MoneyInput` helper in `WorkbenchTab.jsx`: it buffers the raw text locally (so an in-progress trailing separator survives re-renders) while emitting parsed numbers to the parent. Integer-only fields (day-of-month, year, installment count, settings thresholds) remain `type="number"` with `inputMode="numeric"`.
+
 ### 6.5 Modal
 
 - Overlay: `position: fixed`, `inset: 0`, `background: var(--bg-overlay)`, `z-index: var(--z-modal)`, `display: flex`, `align-items: center`, `justify-content: center`.

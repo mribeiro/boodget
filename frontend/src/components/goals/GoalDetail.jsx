@@ -15,6 +15,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { api } from '../../services/api';
+import { parseDecimalInput } from '../../utils/numbers';
 import GoalFormModal from './GoalFormModal';
 import ConfirmModal from '../ConfirmModal';
 
@@ -108,7 +109,7 @@ export default function GoalDetail() {
     setHistError('');
     const y = Number(newHistYear);
     const m = Number(newHistMonth);
-    const a = Number(newHistAmount);
+    const a = parseDecimalInput(newHistAmount);
     if (!Number.isInteger(y) || y < 1900) { setHistError('Invalid year'); return; }
     if (m < 1 || m > 12) { setHistError('Invalid month'); return; }
     if (isNaN(a)) { setHistError('Amount must be a number'); return; }
@@ -136,7 +137,7 @@ export default function GoalDetail() {
     setHistError('');
     const sy = Number(batchStartYear), sm = Number(batchStartMonth);
     const ey = Number(batchEndYear), em = Number(batchEndMonth);
-    const a = Number(batchAmount);
+    const a = parseDecimalInput(batchAmount);
     if (!Number.isInteger(sy) || sy < 1900) { setHistError('Invalid start year'); return; }
     if (!Number.isInteger(ey) || ey < 1900) { setHistError('Invalid end year'); return; }
     if (sy * 12 + sm > ey * 12 + em) { setHistError('Start must be before or equal to end'); return; }
@@ -178,11 +179,11 @@ export default function GoalDetail() {
   }
 
   async function handleSaveCycleContrib(cycleId) {
-    if (cycleContribValue === '' || isNaN(Number(cycleContribValue))) return;
+    if (cycleContribValue === '' || isNaN(parseDecimalInput(cycleContribValue))) return;
     setSavingContrib(true);
     try {
       await api.updateGoalCycleContribution(dossierId, goal.id, cycleId, {
-        real_contribution: Number(cycleContribValue),
+        real_contribution: parseDecimalInput(cycleContribValue),
       });
       setEditingCycle(null);
       setCycleContribValue('');
@@ -333,7 +334,7 @@ export default function GoalDetail() {
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '0.8rem' }}>Amount (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" min="0" value={newHistAmount} onChange={(e) => setNewHistAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+              <input type="text" inputMode="decimal" value={newHistAmount} onChange={(e) => setNewHistAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
             </div>
             <button className="btn-secondary" onClick={handleAddHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
               <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.35rem' }} />Add entry
@@ -364,7 +365,7 @@ export default function GoalDetail() {
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '0.8rem' }}>Amount/month (€)</label>
-              <input type="number" inputMode="decimal" step="0.01" min="0" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
+              <input type="text" inputMode="decimal" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} style={{ width: '8rem' }} placeholder="0.00" />
             </div>
             <button className="btn-secondary" onClick={handleAddBatchHistorical} disabled={savingHist} style={{ padding: '0.35rem 0.75rem' }}>
               <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.35rem' }} />Add range
@@ -400,11 +401,9 @@ export default function GoalDetail() {
                       {isEditing ? (
                         <>
                           <input
-                            type="number" inputMode="decimal"
+                            type="text" inputMode="decimal"
                             value={cycleContribValue}
                             onChange={(e) => setCycleContribValue(e.target.value)}
-                            min="0"
-                            step="0.01"
                             style={{ width: '120px' }}
                             autoFocus
                           />
