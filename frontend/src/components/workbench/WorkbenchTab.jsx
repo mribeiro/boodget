@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown, faMoneyBillWave, faReceipt, faCalendarDays, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { parseDecimalInput } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
@@ -975,12 +976,10 @@ function AnnualExpensesSection({ entries, annualDeductible, onChangeDeductible, 
         ]} />
         <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.75rem', paddingTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
           <span style={{ color: 'var(--color-text-muted)' }}>Carried over:</span>
-          <input
-            type="number" inputMode="decimal"
-            min={0}
-            step="0.01"
-            value={annualDeductible || ''}
-            onChange={(e) => onChangeDeductible(Number(e.target.value) || 0)}
+          <MoneyInput
+            blankWhenZero
+            value={annualDeductible}
+            onChangeValue={(v) => onChangeDeductible(v || 0)}
             placeholder="0.00"
             style={{ width: '8rem', textAlign: 'right', fontSize: '0.875rem' }}
           />
@@ -1087,7 +1086,7 @@ function DistributionsSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom, 
                 entry={e}
                 onChangeName={(v) => onUpdate(e._id, { name: v })}
                 onChangeValue={(v) => onUpdate(e._id, { value: v })}
-                onChangeDecomp={(f, v) => onUpdate(e._id, { [f]: v === '' ? null : Number(v) })}
+                onChangeDecomp={(f, v) => onUpdate(e._id, { [f]: v })}
                 onRemove={() => onRemove(e._id)}
               />
             ))}
@@ -1121,6 +1120,45 @@ function DistributionsSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom, 
 
 // ── Row Components ───────────────────────────────────────────────────────────
 
+// Currency input that accepts both "." and "," as the decimal separator.
+// Buffers the raw text locally so in-progress entries (e.g. a trailing comma)
+// survive re-renders, while emitting parsed numbers for live calculations.
+function MoneyInput({ value, onChangeValue, nullWhenEmpty = false, blankWhenZero = false, ...rest }) {
+  const toStr = (v) => {
+    if (v == null || v === '') return '';
+    if (blankWhenZero && Number(v) === 0) return '';
+    return String(v);
+  };
+  const [raw, setRaw] = useState(() => toStr(value));
+  // Resync when the external value changes (template load, reset, …) without
+  // clobbering what the user is currently typing.
+  useEffect(() => {
+    const parsed = parseDecimalInput(raw);
+    const current = raw === '' ? null : (isNaN(parsed) ? null : parsed);
+    let incoming = value == null || value === '' ? null : Number(value);
+    if (blankWhenZero && incoming === 0) incoming = null;
+    if (current !== incoming) setRaw(toStr(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={raw}
+      onChange={(e) => {
+        const next = e.target.value;
+        setRaw(next);
+        if (next === '') {
+          onChangeValue(nullWhenEmpty ? null : 0);
+          return;
+        }
+        const parsed = parseDecimalInput(next);
+        if (!isNaN(parsed)) onChangeValue(parsed);
+      }}
+      {...rest}
+    />
+  );
+}
+
 function InlineEditRow({ name, value, onChangeName, onChangeValue, onRemove }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem', background: 'var(--color-surface)', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)' }}>
@@ -1131,12 +1169,9 @@ function InlineEditRow({ name, value, onChangeName, onChangeValue, onRemove }) {
         style={{ flex: 1, border: 'none', background: 'transparent', padding: '0', fontSize: '0.875rem' }}
         placeholder="Name"
       />
-      <input
-        type="number" inputMode="decimal"
-        min={0}
-        step="0.01"
+      <MoneyInput
         value={value}
-        onChange={(e) => onChangeValue(Number(e.target.value))}
+        onChangeValue={onChangeValue}
         style={{ width: '7rem', textAlign: 'right', fontSize: '0.875rem' }}
       />
       <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>€</span>
@@ -1163,12 +1198,9 @@ function ExpenseEntryRow({ entry, onChangeName, onChangeValue, onChangeClassific
       />
       {entry.isFromTemplate && <TemplateTag />}
       <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{entry.type}</span>
-      <input
-        type="number" inputMode="decimal"
-        min={0}
-        step="0.01"
+      <MoneyInput
         value={entry.value}
-        onChange={(e) => onChangeValue(Number(e.target.value))}
+        onChangeValue={onChangeValue}
         style={{ width: '7rem', textAlign: 'right', fontSize: '0.875rem' }}
       />
       <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>€</span>
@@ -1192,12 +1224,9 @@ function AnnualEntryRow({ entry, onChangeName, onChangeValue, onChangeClassifica
         {entry.isFromTemplate && <TemplateTag />}
       </td>
       <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
-        <input
-          type="number" inputMode="decimal"
-          min={0}
-          step="0.01"
+        <MoneyInput
           value={entry.value}
-          onChange={(e) => onChangeValue(Number(e.target.value))}
+          onChangeValue={onChangeValue}
           style={{ width: '7rem', textAlign: 'right', fontSize: '0.875rem' }}
         />
         <span style={{ marginLeft: '0.2rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>€</span>
@@ -1235,12 +1264,9 @@ function DistributionEntryRow({ entry, onChangeName, onChangeValue, onChangeDeco
           style={{ flex: 1, minWidth: '6rem', border: 'none', background: 'transparent', padding: 0, fontSize: '0.875rem' }}
         />
         {entry.isFromTemplate && <TemplateTag />}
-        <input
-          type="number" inputMode="decimal"
-          min={0}
-          step="0.01"
+        <MoneyInput
           value={entry.value}
-          onChange={(e) => onChangeValue(Number(e.target.value))}
+          onChangeValue={onChangeValue}
           style={{ width: '7rem', textAlign: 'right', fontSize: '0.875rem' }}
         />
         <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>€</span>
@@ -1250,12 +1276,10 @@ function DistributionEntryRow({ entry, onChangeName, onChangeValue, onChangeDeco
         {[['must_amount', 'Must'], ['want_amount', 'Want'], ['save_amount', 'Save']].map(([field, label]) => (
           <div key={field} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
             <span style={{ color: 'var(--color-text-muted)' }}>{label}:</span>
-            <input
-              type="number" inputMode="decimal"
-              min={0}
-              step="0.01"
+            <MoneyInput
+              nullWhenEmpty
               value={entry[field] ?? ''}
-              onChange={(e) => onChangeDecomp(field, e.target.value)}
+              onChangeValue={(v) => onChangeDecomp(field, v)}
               placeholder="—"
               style={{ width: '5rem', textAlign: 'right', fontSize: '0.8rem', border: mismatch ? '1px solid var(--color-danger)' : '1px solid var(--color-border)' }}
             />

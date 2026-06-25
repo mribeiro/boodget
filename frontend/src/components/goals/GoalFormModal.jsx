@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { parseDecimalInput } from '../../utils/numbers';
 import Checkbox from '../ui/Checkbox';
 
 const MONTH_NAMES = [
@@ -67,18 +68,18 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
     e.preventDefault();
     setError('');
     if (!name.trim()) { setError('Name is required'); return; }
-    if (!targetValue || isNaN(Number(targetValue)) || Number(targetValue) <= 0) {
+    if (!targetValue || isNaN(parseDecimalInput(targetValue)) || parseDecimalInput(targetValue) <= 0) {
       setError('Target value must be a positive number');
       return;
     }
-    const hasExtra = extraValue !== '' && extraValue != null && Number(extraValue) > 0;
+    const hasExtra = extraValue !== '' && extraValue != null && parseDecimalInput(extraValue) > 0;
     const payload = {
       name: name.trim(),
-      target_value: Number(targetValue),
+      target_value: parseDecimalInput(targetValue),
       target_date: targetDate,
       contribution_mode: contributionMode,
-      manual_monthly_value: contributionMode === 'manual' ? Number(manualMonthlyValue) : undefined,
-      extra_value: hasExtra ? Number(extraValue) : null,
+      manual_monthly_value: contributionMode === 'manual' ? parseDecimalInput(manualMonthlyValue) : undefined,
+      extra_value: hasExtra ? parseDecimalInput(extraValue) : null,
       extra_value_impact_mode: hasExtra ? extraValueImpactMode : null,
       account_ids: selectedAccountIds,
       distribution_template_ids: contributionMode === 'via_distributions' ? selectedDistIds : [],
@@ -100,7 +101,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
     }
   }
 
-  const hasExtra = extraValue !== '' && extraValue != null && Number(extraValue) > 0;
+  const hasExtra = extraValue !== '' && extraValue != null && parseDecimalInput(extraValue) > 0;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -121,7 +122,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
             <div style={{ display: 'flex', gap: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Target value (€)</label>
-                <input type="number" inputMode="decimal" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} min="0" step="0.01" placeholder="0.00" />
+                <input type="text" inputMode="decimal" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} placeholder="0.00" />
               </div>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Target date</label>
@@ -169,11 +170,9 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
               <div className="form-group">
                 <label>Monthly contribution amount (€)</label>
                 <input
-                  type="number" inputMode="decimal"
+                  type="text" inputMode="decimal"
                   value={manualMonthlyValue}
                   onChange={(e) => setManualMonthlyValue(e.target.value)}
-                  min="0"
-                  step="0.01"
                   placeholder="0.00"
                 />
               </div>
@@ -228,11 +227,9 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
               <div className="form-group">
                 <label>Extra value already in hand (€, optional)</label>
                 <input
-                  type="number" inputMode="decimal"
+                  type="text" inputMode="decimal"
                   value={extraValue}
                   onChange={(e) => setExtraValue(e.target.value)}
-                  min="0"
-                  step="0.01"
                   placeholder="0.00"
                 />
                 <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>

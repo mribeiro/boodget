@@ -141,12 +141,16 @@ function mkCycle(dossierId, year, month, salary, prevBal, isClosed, items = []) 
   ).run(cycleId, dossierId, year, month, salary, prevBal, isClosed ? 1 : 0);
   const stmt = db.prepare(
     `INSERT INTO cycle_items
-       (id, cycle_id, section, name, type, value, day_of_payment, paid, spent, done)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const findTemplateItem = db.prepare(
+    'SELECT id FROM expense_template_items WHERE dossier_id = ? AND section = ? AND name = ?'
   );
   for (const item of items) {
+    const templateItem = findTemplateItem.get(dossierId, item.section, item.name);
     stmt.run(
-      uuidv4(), cycleId,
+      uuidv4(), cycleId, templateItem?.id ?? null,
       item.section, item.name, item.type ?? null, item.value,
       item.day_of_payment ?? null,
       item.paid  ?? null,

@@ -95,7 +95,7 @@ Each dossier has exactly **one expense template**, divided into two independent 
 - **Expenses** — fixed and budget-type expenses
 - **Distributions** — money allocations to accounts or purposes
 
-Changing the template **does not affect** existing cycles. New template entries only appear in **future cycles**.
+Changing the template **does not affect** existing cycles. New template entries only appear in **future cycles**. **Exception**: toggling an expense entry's `exclude_from_emergency_fund` flag propagates to all already-copied `cycle_items` (matched by `template_item_id`), so the Emergency Fund average updates retroactively. See §4.2.
 
 ### 4.2 Expense Entry (in template)
 
@@ -105,6 +105,7 @@ Changing the template **does not affect** existing cycles. New template entries 
 | **Type** | `Fixed` | `Budget` |
 | **Value** | Exact amount | Maximum amount |
 | **Day of payment** | Day of calendar month | — |
+| **Exclude from emergency fund** | Optional checkbox — when set, this line is skipped from the EF average calculation. Toggling it propagates to all linked cycle items so past cycles in the EF window are reflected immediately. | Same as Fixed. |
 
 ### 4.3 Distribution Entry (in template)
 
