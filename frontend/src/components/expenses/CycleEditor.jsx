@@ -75,6 +75,12 @@ function groupAccounts(accounts) {
   return [...groups.entries()];
 }
 
+// Accounts selectable for a transfer link: must allow transfers, except the
+// item's current account, kept visible even if it was disabled afterward.
+function transferableAccounts(accounts, currentAccountId) {
+  return accounts.filter((a) => a.can_receive_transfers || a.id === currentAccountId);
+}
+
 function sortExpenses(expenses, cycleStartDay) {
   const start = cycleStartDay ?? 25;
   const firstHalf = expenses
@@ -1336,7 +1342,7 @@ function AddCycleItemModal({ section, accounts = [], onSave, onClose }) {
                 <label>Account</label>
                 <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                   <option value="">— None —</option>
-                  {groupAccounts(accounts).map(([groupName, accs]) => (
+                  {groupAccounts(transferableAccounts(accounts, null)).map(([groupName, accs]) => (
                     <optgroup key={groupName} label={groupName}>
                       {accs.map((a) => (
                         <option key={a.id} value={a.id}>{a.name}</option>
@@ -1613,7 +1619,7 @@ function EditDistributionModal({ item, accounts = [], onSave, onClose }) {
               <label>Account</label>
               <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                 <option value="">— None —</option>
-                {groupAccounts(accounts).map(([groupName, accs]) => (
+                {groupAccounts(transferableAccounts(accounts, item.account_id)).map(([groupName, accs]) => (
                   <optgroup key={groupName} label={groupName}>
                     {accs.map((a) => (
                       <option key={a.id} value={a.id}>{a.name}</option>

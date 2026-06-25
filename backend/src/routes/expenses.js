@@ -294,8 +294,9 @@ router.post('/expense-template', (req, res) => {
     }
   }
   if (section === 'distribution' && account_id != null) {
-    const acc = db.prepare('SELECT 1 FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
     if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
   }
 
   const maxPos = db
@@ -345,8 +346,9 @@ router.put('/expense-template/:itemId', (req, res) => {
     return res.status(400).json({ error: 'classification must be "must" or "want"' });
   }
   if (account_id !== undefined && account_id !== null) {
-    const acc = db.prepare('SELECT 1 FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
     if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
   }
 
   const newName = name !== undefined ? name.trim() : item.name;
@@ -475,13 +477,18 @@ router.post('/cycles', (req, res) => {
       .prepare('SELECT * FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
       .all(req.params.id);
 
+    const transferableAccountIds = new Set(
+      db.prepare('SELECT id FROM accounts WHERE dossier_id = ? AND can_receive_transfers = 1').all(req.params.id).map((a) => a.id)
+    );
+
     const insertItem = db.prepare(
       'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const maxDay = daysInMonth(year, month);
     for (const ti of templateItems) {
       const clampedDay = ti.day_of_payment != null ? Math.min(ti.day_of_payment, maxDay) : null;
-      insertItem.run(uuidv4(), id, ti.id, ti.section, ti.name, ti.type, ti.value, clampedDay, ti.position, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ?? 0, ti.account_id ?? null);
+      const accountId = ti.account_id != null && transferableAccountIds.has(ti.account_id) ? ti.account_id : null;
+      insertItem.run(uuidv4(), id, ti.id, ti.section, ti.name, ti.type, ti.value, clampedDay, ti.position, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ?? 0, accountId);
     }
 
     // Auto-create annual years and payment records for this cycle's date range
@@ -632,8 +639,9 @@ router.post('/cycles/:cycleId/items', (req, res) => {
     }
   }
   if (section === 'distribution' && account_id != null) {
-    const acc = db.prepare('SELECT 1 FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
     if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
   }
 
   const maxPos = db
@@ -681,8 +689,9 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
   const { name, value, day_of_payment, paid, spent, done, paperless_tag_id, account_id } = req.body;
 
   if (account_id !== undefined && account_id !== null) {
-    const acc = db.prepare('SELECT 1 FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
     if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
   }
 
   let newValue = item.value;

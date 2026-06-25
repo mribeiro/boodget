@@ -31,7 +31,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/:id/accounts
 router.post('/', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { group_name, name, type, is_idle_money } = req.body;
+  const { group_name, name, type, is_idle_money, can_receive_transfers } = req.body;
   if (!group_name || !name || !type) {
     return res.status(400).json({ error: 'group_name, name, and type are required' });
   }
@@ -42,9 +42,10 @@ router.post('/', (req, res) => {
   const { position: maxPos } = db
     .prepare('SELECT COALESCE(MAX(position), -1) as position FROM accounts WHERE dossier_id = ?')
     .get(req.params.id);
+  const canReceiveTransfers = can_receive_transfers === undefined ? 1 : (can_receive_transfers ? 1 : 0);
   db.prepare(
-    'INSERT INTO accounts (id, dossier_id, group_name, name, type, is_idle_money, position) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, req.params.id, group_name.trim(), name.trim(), type, is_idle_money ? 1 : 0, maxPos + 1);
+    'INSERT INTO accounts (id, dossier_id, group_name, name, type, is_idle_money, can_receive_transfers, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, req.params.id, group_name.trim(), name.trim(), type, is_idle_money ? 1 : 0, canReceiveTransfers, maxPos + 1);
   console.log(`[accounts] Created account "${name.trim()}" (${id}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(201).json({
     id,
@@ -53,6 +54,7 @@ router.post('/', (req, res) => {
     name: name.trim(),
     type,
     is_idle_money: is_idle_money ? 1 : 0,
+    can_receive_transfers: canReceiveTransfers,
     archived: 0,
   });
 });
@@ -77,9 +79,11 @@ router.patch('/:accountId', (req, res) => {
     .prepare('SELECT * FROM accounts WHERE id = ? AND dossier_id = ?')
     .get(req.params.accountId, req.params.id);
   if (!account) return res.status(404).json({ error: 'Account not found' });
-  const { is_idle_money } = req.body;
-  db.prepare('UPDATE accounts SET is_idle_money = ? WHERE id = ?').run(is_idle_money ? 1 : 0, req.params.accountId);
-  res.json({ ...account, is_idle_money: is_idle_money ? 1 : 0 });
+  const { is_idle_money, can_receive_transfers } = req.body;
+  const newIdle = is_idle_money !== undefined ? (is_idle_money ? 1 : 0) : account.is_idle_money;
+  const newCanReceiveTransfers = can_receive_transfers !== undefined ? (can_receive_transfers ? 1 : 0) : account.can_receive_transfers;
+  db.prepare('UPDATE accounts SET is_idle_money = ?, can_receive_transfers = ? WHERE id = ?').run(newIdle, newCanReceiveTransfers, req.params.accountId);
+  res.json({ ...account, is_idle_money: newIdle, can_receive_transfers: newCanReceiveTransfers });
 });
 
 // DELETE /api/dossiers/:id/accounts/:accountId  (archives the account)

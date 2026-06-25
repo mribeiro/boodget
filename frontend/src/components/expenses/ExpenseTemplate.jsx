@@ -66,6 +66,12 @@ function groupAccounts(accounts) {
   return [...groups.entries()];
 }
 
+// Accounts selectable for a transfer link: must allow transfers, except the
+// item's current account, kept visible even if it was disabled afterward.
+function transferableAccounts(accounts, currentAccountId) {
+  return accounts.filter((a) => a.can_receive_transfers || a.id === currentAccountId);
+}
+
 export default function ExpenseTemplate({ dossierId }) {
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -342,7 +348,7 @@ export default function ExpenseTemplate({ dossierId }) {
                           style={{ fontSize: '0.8rem', maxWidth: '11rem' }}
                         >
                           <option value="">— None —</option>
-                          {groupAccounts(accounts).map(([groupName, accs]) => (
+                          {groupAccounts(transferableAccounts(accounts, item.account_id)).map(([groupName, accs]) => (
                             <optgroup key={groupName} label={groupName}>
                               {accs.map((a) => (
                                 <option key={a.id} value={a.id}>{a.name}</option>

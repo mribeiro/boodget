@@ -590,6 +590,15 @@ const migrations = [
       }
     },
   },
+  {
+    id: '024_add_can_receive_transfers_to_accounts',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(accounts)').all();
+      if (!cols.find((c) => c.name === 'can_receive_transfers')) {
+        db.exec('ALTER TABLE accounts ADD COLUMN can_receive_transfers INTEGER DEFAULT 1');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
