@@ -13,16 +13,21 @@ function canAccess(dossierId, userId) {
 }
 
 // GET /api/dossiers/:id/months
-// Includes capital_total (sum of all account values) for filled months
+// Includes capital_total (sum of idle + active account values, excludes stocks) for filled months
 router.get('/', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const months = db
     .prepare(
       `SELECT m.*,
-        (SELECT SUM(me.value) FROM month_entries me WHERE me.month_id = m.id) as capital_total,
         (SELECT SUM(me.value) FROM month_entries me
          JOIN accounts a ON a.id = me.account_id
-         WHERE me.month_id = m.id AND a.is_idle_money = 1) as idle_total
+         WHERE me.month_id = m.id AND a.money_category IN ('idle', 'active')) as capital_total,
+        (SELECT SUM(me.value) FROM month_entries me
+         JOIN accounts a ON a.id = me.account_id
+         WHERE me.month_id = m.id AND a.money_category = 'idle') as idle_total,
+        (SELECT SUM(me.value) FROM month_entries me
+         JOIN accounts a ON a.id = me.account_id
+         WHERE me.month_id = m.id AND a.money_category = 'stocks') as stocks_total
       FROM months m
       WHERE m.dossier_id = ?
       ORDER BY m.year DESC, m.month DESC`
@@ -86,7 +91,7 @@ router.get('/compare', (req, res) => {
 
   const accounts = db
     .prepare(
-      `SELECT DISTINCT a.id, a.group_name, a.name, a.type, a.is_idle_money, a.archived
+      `SELECT DISTINCT a.id, a.group_name, a.name, a.type, a.money_category, a.archived
        FROM month_account_snapshot mas
        JOIN accounts a ON a.id = mas.account_id
        WHERE mas.month_id IN (${ph})
@@ -109,7 +114,7 @@ router.get('/compare', (req, res) => {
     group_name: a.group_name,
     name: a.name,
     type: a.type,
-    is_idle_money: a.is_idle_money,
+    money_category: a.money_category,
     archived: a.archived,
     values: monthIds.reduce((acc, mid) => {
       acc[mid] = lookup[a.id]?.[mid] ?? null;
@@ -132,7 +137,7 @@ router.get('/:monthId', (req, res) => {
   // joined with the current entry values
   const entries = db
     .prepare(
-      `SELECT a.id, a.group_name, a.name, a.type, a.is_idle_money, a.archived,
+      `SELECT a.id, a.group_name, a.name, a.type, a.money_category, a.archived,
         me.value, me.comment,
         (SELECT me2.value
          FROM month_entries me2

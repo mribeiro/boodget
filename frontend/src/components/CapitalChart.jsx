@@ -35,7 +35,7 @@ function CustomTooltip({ active, payload, label }) {
       <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>{label}</div>
       {payload.map((entry) => (
         <div key={entry.dataKey} style={{ color: entry.stroke }}>
-          {entry.dataKey === 'total' ? 'Total: ' : 'Idle: '}
+          {entry.dataKey === 'total' ? 'Total: ' : entry.dataKey === 'idle' ? 'Idle: ' : 'Stocks: '}
           {formatEur(entry.value)}
         </div>
       ))}
@@ -51,6 +51,7 @@ export default function CapitalChart({ months }) {
       label: `${MONTH_NAMES[m.month - 1]} ${m.year}`,
       total: m.capital_total,
       idle: m.idle_total ?? undefined,
+      stocks: m.stocks_total ?? undefined,
     }));
 
   if (data.length < 1) return null;
@@ -93,6 +94,15 @@ export default function CapitalChart({ months }) {
             stroke="var(--color-success)"
             strokeWidth={2}
             dot={{ fill: 'var(--color-success)', stroke: 'var(--bg-card)', strokeWidth: 2, r: 3 }}
+            activeDot={{ r: 5 }}
+            connectNulls={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="stocks"
+            stroke="var(--color-warning)"
+            strokeWidth={2}
+            dot={{ fill: 'var(--color-warning)', stroke: 'var(--bg-card)', strokeWidth: 2, r: 3 }}
             activeDot={{ r: 5 }}
             connectNulls={false}
           />

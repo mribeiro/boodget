@@ -23,8 +23,10 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
   2. Current Cycle
   3. Next Expense
   4. Goals
+- A **Stocks card** is also shown whenever at least one filled month has `stocks_total > 0` (see §6.1, Emergency Fund card position documented in `SPECIFICATION_EMERGENCY_FUND.md` §7).
 - Each card is **clickable** and navigates the user to the relevant section:
   - Capital card → Capital tab
+  - Stocks card → Capital tab
   - Current Cycle card → **CycleEditor page for the relevant cycle** (`/dossiers/:id/cycles/:cycleId`):
     - Normal / loading state → current cycle's editor
     - Red state (previous cycle not closed) → previous cycle's editor
@@ -45,9 +47,9 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
 Displayed when a filled Capital snapshot exists for the current month, **or** when the snapshot warning threshold has not yet been reached.
 
 Shows:
-- **Total capital** — sum of all account values from the most recent filled snapshot, formatted as currency (€).
+- **Total capital** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
 - **Variation** — percentage change relative to the previous filled snapshot (e.g. `↑ +2.4% vs. Feb`). Colour: green if positive, red if negative, neutral if zero or no previous snapshot exists.
-- **Idle money subtitle** — if any accounts are flagged as `is_idle_money`, show the sum of their values (e.g. `€12 000 in idle`).
+- **Idle money subtitle** — if any accounts are in the `Idle` category, show the sum of their values (e.g. `€12 000 in idle`).
 
 ### 3.2 Warning state (amber)
 
@@ -180,6 +182,21 @@ Shows:
 
 ---
 
+## 6.1 Card — Stocks
+
+Shown whenever at least one filled month has `stocks_total > 0`. Rendered as a separate card from Capital, placed last in the Glances grid.
+
+Shows:
+- **Title**: "Stocks"
+- **Total stocks value** — sum of `Stocks`-category account values from the most recent filled snapshot, formatted as currency (€).
+- **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the Capital card.
+- **Overall subtitle** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
+- **Savings potential subtitle** — Active + Stocks (see `SPECIFICATION.md` §11.1).
+
+This card never affects, and is never affected by, the Capital card's total — `Stocks`-category accounts are excluded from `capital_total`.
+
+---
+
 ## 7. Settings Changes
 
 Three new configurable thresholds are added to the **Dossier Settings** section, alongside the existing "Cycle start day" setting.
@@ -252,6 +269,7 @@ Sub-components (one per card) are recommended for clarity:
 - `CycleGlance.jsx`
 - `NextExpenseGlance.jsx`
 - `GoalsGlance.jsx`
+- `StocksGlance.jsx`
 
 `GlancesPanel` is rendered in `DossierView.jsx`, between the dossier title and the tab bar.
 

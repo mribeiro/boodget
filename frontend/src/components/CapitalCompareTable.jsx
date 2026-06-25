@@ -44,7 +44,8 @@ export default function CapitalCompareTable({ dossierId }) {
     return acc;
   }, {});
 
-  const hasIdleAccounts = data.rows.some((r) => r.is_idle_money);
+  const hasIdleAccounts = data.rows.some((r) => r.money_category === 'idle');
+  const hasStocksAccounts = data.rows.some((r) => r.money_category === 'stocks');
 
   const numericStyle = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '0.875rem', whiteSpace: 'nowrap' };
 
@@ -96,8 +97,11 @@ export default function CapitalCompareTable({ dossierId }) {
                 <tr key={row.id}>
                   <td>
                     {row.name}
-                    {row.is_idle_money ? (
+                    {row.money_category === 'idle' ? (
                       <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: 'var(--color-primary)' }}>idle</span>
+                    ) : null}
+                    {row.money_category === 'stocks' ? (
+                      <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: 'var(--color-warning)' }}>stocks</span>
                     ) : null}
                     {row.archived ? (
                       <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>archived</span>
@@ -123,11 +127,12 @@ export default function CapitalCompareTable({ dossierId }) {
           <tr className="compare-footer-row" style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg)' }}>
             <td style={{ fontWeight: 600 }}>Total</td>
             {data.months.map((m, mi) => {
-              const hasAny = data.rows.some((r) => r.values[m.id] != null);
-              const total = data.rows.reduce((sum, r) => sum + (r.values[m.id] ?? 0), 0);
+              const capitalRows = data.rows.filter((r) => r.money_category !== 'stocks');
+              const hasAny = capitalRows.some((r) => r.values[m.id] != null);
+              const total = capitalRows.reduce((sum, r) => sum + (r.values[m.id] ?? 0), 0);
               const prev = mi > 0 ? data.months[mi - 1] : null;
-              const prevHasAny = prev && data.rows.some((r) => r.values[prev.id] != null);
-              const prevTotal = prev ? data.rows.reduce((sum, r) => sum + (r.values[prev.id] ?? 0), 0) : null;
+              const prevHasAny = prev && capitalRows.some((r) => r.values[prev.id] != null);
+              const prevTotal = prev ? capitalRows.reduce((sum, r) => sum + (r.values[prev.id] ?? 0), 0) : null;
               const diff = hasAny && prevHasAny ? total - prevTotal : null;
               return (
                 <td key={m.id} style={{ ...numericStyle, fontWeight: 600 }}>
@@ -142,7 +147,7 @@ export default function CapitalCompareTable({ dossierId }) {
             <tr className="compare-footer-row" style={{ background: 'var(--color-bg)' }}>
               <td style={{ fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.875rem' }}>Idle total</td>
               {data.months.map((m, mi) => {
-                const idleRows = data.rows.filter((r) => r.is_idle_money);
+                const idleRows = data.rows.filter((r) => r.money_category === 'idle');
                 const hasAny = idleRows.some((r) => r.values[m.id] != null);
                 const total = idleRows.reduce((sum, r) => sum + (r.values[m.id] ?? 0), 0);
                 const prev = mi > 0 ? data.months[mi - 1] : null;
@@ -151,6 +156,27 @@ export default function CapitalCompareTable({ dossierId }) {
                 const diff = hasAny && prevHasAny ? total - prevTotal : null;
                 return (
                   <td key={m.id} style={{ ...numericStyle, fontWeight: 600, color: 'var(--color-primary)' }}>
+                    {hasAny ? formatEur(total) : DASH}
+                    <DiffLabel diff={diff} />
+                  </td>
+                );
+              })}
+            </tr>
+          )}
+
+          {hasStocksAccounts && (
+            <tr className="compare-footer-row" style={{ background: 'var(--color-bg)' }}>
+              <td style={{ fontWeight: 600, color: 'var(--color-warning)', fontSize: '0.875rem' }}>Stocks total</td>
+              {data.months.map((m, mi) => {
+                const stocksRows = data.rows.filter((r) => r.money_category === 'stocks');
+                const hasAny = stocksRows.some((r) => r.values[m.id] != null);
+                const total = stocksRows.reduce((sum, r) => sum + (r.values[m.id] ?? 0), 0);
+                const prev = mi > 0 ? data.months[mi - 1] : null;
+                const prevHasAny = prev && stocksRows.some((r) => r.values[prev.id] != null);
+                const prevTotal = prev ? stocksRows.reduce((sum, r) => sum + (r.values[prev.id] ?? 0), 0) : null;
+                const diff = hasAny && prevHasAny ? total - prevTotal : null;
+                return (
+                  <td key={m.id} style={{ ...numericStyle, fontWeight: 600, color: 'var(--color-warning)' }}>
                     {hasAny ? formatEur(total) : DASH}
                     <DiffLabel diff={diff} />
                   </td>
