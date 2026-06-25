@@ -577,6 +577,19 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '023_add_account_id_to_distributions',
+    up() {
+      const tplCols = db.prepare('PRAGMA table_info(expense_template_items)').all();
+      if (!tplCols.find((c) => c.name === 'account_id')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN account_id TEXT');
+      }
+      const ciCols = db.prepare('PRAGMA table_info(cycle_items)').all();
+      if (!ciCols.find((c) => c.name === 'account_id')) {
+        db.exec('ALTER TABLE cycle_items ADD COLUMN account_id TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
