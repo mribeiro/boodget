@@ -129,6 +129,7 @@ The other sections must be visible in the UI but marked as **"Coming Soon"**.
     - `Guaranteed Investment`
     - `Current Account`
   - **Idle money?** — boolean flag
+  - **Can receive transfers?** — boolean flag, default **on**. Controls whether the account can be picked as a distribution's funding account (see `SPECIFICATION_MONTHLY_EXPENSES.md` §6.1). Turning it off only blocks *new* assignments — distributions already linked to the account keep that link.
 
 ### 8.1 Adding Accounts
 - Any user with access to the dossier can add new accounts at any time.

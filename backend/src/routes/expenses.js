@@ -112,6 +112,16 @@ function computeSummary(cycle, items) {
     .filter((i) => i.done)
     .reduce((s, i) => s + (i.value || 0), 0);
 
+  const distributionsByAccountMap = new Map();
+  for (const d of distributions) {
+    const key = d.account_id ?? null;
+    distributionsByAccountMap.set(key, (distributionsByAccountMap.get(key) ?? 0) + (d.value || 0));
+  }
+  const distributionsByAccount = [...distributionsByAccountMap.entries()].map(([account_id, total]) => ({
+    account_id,
+    total,
+  }));
+
   const totalAvailable = (cycle.salary || 0) + (cycle.previous_balance || 0);
   const expectedBalance = totalAvailable - totalExpenses - totalDistributions;
 
@@ -123,6 +133,7 @@ function computeSummary(cycle, items) {
     total_distributions: totalDistributions,
     total_distributions_done: totalDistributionsDone,
     total_distributions_not_done: totalDistributions - totalDistributionsDone,
+    distributions_by_account: distributionsByAccount,
     expected_balance: expectedBalance,
   };
 
@@ -259,7 +270,7 @@ router.get('/expense-template', (req, res) => {
 // POST /expense-template
 router.post('/expense-template', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { section, name, type, value, day_of_payment, paperless_tag_id, exclude_from_emergency_fund } = req.body;
+  const { section, name, type, value, day_of_payment, paperless_tag_id, exclude_from_emergency_fund, account_id } = req.body;
 
   if (!section || !['expense', 'distribution'].includes(section)) {
     return res.status(400).json({ error: 'section must be "expense" or "distribution"' });
@@ -282,6 +293,11 @@ router.post('/expense-template', (req, res) => {
       return res.status(400).json({ error: 'day_of_payment is required for Fixed expenses (1-31)' });
     }
   }
+  if (section === 'distribution' && account_id != null) {
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
+  }
 
   const maxPos = db
     .prepare('SELECT MAX(position) as mp FROM expense_template_items WHERE dossier_id = ? AND section = ?')
@@ -290,10 +306,11 @@ router.post('/expense-template', (req, res) => {
 
   const tagId = section === 'expense' && type === 'Fixed' && paperless_tag_id != null ? Number(paperless_tag_id) : null;
   const excludeFromEF = section === 'expense' && exclude_from_emergency_fund ? 1 : 0;
+  const accountId = section === 'distribution' && account_id != null ? account_id : null;
 
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, paperless_tag_id, exclude_from_emergency_fund) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     id,
     req.params.id,
@@ -304,7 +321,8 @@ router.post('/expense-template', (req, res) => {
     section === 'expense' && type === 'Fixed' ? day_of_payment : null,
     position,
     tagId,
-    excludeFromEF
+    excludeFromEF,
+    accountId
   );
 
   const item = db.prepare('SELECT * FROM expense_template_items WHERE id = ?').get(id);
@@ -319,13 +337,18 @@ router.put('/expense-template/:itemId', (req, res) => {
     .get(req.params.itemId, req.params.id);
   if (!item) return res.status(404).json({ error: 'Template item not found' });
 
-  const { name, value, day_of_payment, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund } = req.body;
+  const { name, value, day_of_payment, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund, account_id } = req.body;
   if (name !== undefined && !name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
   if (value !== undefined && (isNaN(Number(value)) || Number(value) < 0)) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
   }
   if (classification !== undefined && classification !== null && !['must', 'want'].includes(classification)) {
     return res.status(400).json({ error: 'classification must be "must" or "want"' });
+  }
+  if (account_id !== undefined && account_id !== null) {
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
   }
 
   const newName = name !== undefined ? name.trim() : item.name;
@@ -340,11 +363,12 @@ router.put('/expense-template/:itemId', (req, res) => {
     exclude_from_emergency_fund !== undefined
       ? (item.section === 'expense' && exclude_from_emergency_fund ? 1 : 0)
       : item.exclude_from_emergency_fund;
+  const newAccountId = account_id !== undefined ? (account_id || null) : item.account_id;
 
   const apply = db.transaction(() => {
     db.prepare(
-      'UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ?, classification = ?, must_amount = ?, want_amount = ?, save_amount = ?, paperless_tag_id = ?, exclude_from_emergency_fund = ? WHERE id = ?'
-    ).run(newName, newValue, newDop, newClassification, newMustAmount, newWantAmount, newSaveAmount, newTagId, newExcludeFromEF, req.params.itemId);
+      'UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ?, classification = ?, must_amount = ?, want_amount = ?, save_amount = ?, paperless_tag_id = ?, exclude_from_emergency_fund = ?, account_id = ? WHERE id = ?'
+    ).run(newName, newValue, newDop, newClassification, newMustAmount, newWantAmount, newSaveAmount, newTagId, newExcludeFromEF, newAccountId, req.params.itemId);
 
     // Propagate exclusion flag to all linked cycle items so the EF average updates retroactively.
     if (exclude_from_emergency_fund !== undefined && item.section === 'expense') {
@@ -370,11 +394,12 @@ router.post('/expense-template/bulk-replace', (req, res) => {
   const replace = db.transaction(() => {
     db.prepare('DELETE FROM expense_template_items WHERE dossier_id = ? AND section = ?').run(req.params.id, section);
     const insert = db.prepare(
-      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position, paperless_tag_id, exclude_from_emergency_fund) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     items.forEach((item, idx) => {
       const tagId = section === 'expense' && item.type === 'Fixed' && item.paperless_tag_id != null ? Number(item.paperless_tag_id) : null;
       const excludeFromEF = section === 'expense' && item.exclude_from_emergency_fund ? 1 : 0;
+      const accountId = section === 'distribution' && item.account_id != null ? item.account_id : null;
       insert.run(
         uuidv4(),
         req.params.id,
@@ -389,7 +414,8 @@ router.post('/expense-template/bulk-replace', (req, res) => {
         item.save_amount != null ? Number(item.save_amount) : null,
         idx,
         tagId,
-        excludeFromEF
+        excludeFromEF,
+        accountId
       );
     });
   });
@@ -451,13 +477,18 @@ router.post('/cycles', (req, res) => {
       .prepare('SELECT * FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
       .all(req.params.id);
 
+    const transferableAccountIds = new Set(
+      db.prepare('SELECT id FROM accounts WHERE dossier_id = ? AND can_receive_transfers = 1').all(req.params.id).map((a) => a.id)
+    );
+
     const insertItem = db.prepare(
-      'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position, paperless_tag_id, exclude_from_emergency_fund) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const maxDay = daysInMonth(year, month);
     for (const ti of templateItems) {
       const clampedDay = ti.day_of_payment != null ? Math.min(ti.day_of_payment, maxDay) : null;
-      insertItem.run(uuidv4(), id, ti.id, ti.section, ti.name, ti.type, ti.value, clampedDay, ti.position, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ?? 0);
+      const accountId = ti.account_id != null && transferableAccountIds.has(ti.account_id) ? ti.account_id : null;
+      insertItem.run(uuidv4(), id, ti.id, ti.section, ti.name, ti.type, ti.value, clampedDay, ti.position, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ?? 0, accountId);
     }
 
     // Auto-create annual years and payment records for this cycle's date range
@@ -585,7 +616,7 @@ router.post('/cycles/:cycleId/items', (req, res) => {
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
-  const { section, name, type, value, day_of_payment, paperless_tag_id } = req.body;
+  const { section, name, type, value, day_of_payment, paperless_tag_id, account_id } = req.body;
   if (!section || !['expense', 'distribution'].includes(section)) {
     return res.status(400).json({ error: 'section must be "expense" or "distribution"' });
   }
@@ -607,6 +638,11 @@ router.post('/cycles/:cycleId/items', (req, res) => {
       return res.status(400).json({ error: 'day_of_payment is required for Fixed expenses (1-31)' });
     }
   }
+  if (section === 'distribution' && account_id != null) {
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
+  }
 
   const maxPos = db
     .prepare('SELECT MAX(position) as mp FROM cycle_items WHERE cycle_id = ? AND section = ?')
@@ -614,10 +650,11 @@ router.post('/cycles/:cycleId/items', (req, res) => {
   const position = (maxPos.mp ?? -1) + 1;
 
   const tagId = section === 'expense' && type === 'Fixed' && paperless_tag_id != null ? Number(paperless_tag_id) : null;
+  const accountId = section === 'distribution' && account_id != null ? account_id : null;
 
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position, paperless_tag_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, position, paperless_tag_id, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     id,
     req.params.cycleId,
@@ -628,7 +665,8 @@ router.post('/cycles/:cycleId/items', (req, res) => {
     Number(value),
     section === 'expense' && type === 'Fixed' ? day_of_payment : null,
     position,
-    tagId
+    tagId,
+    accountId
   );
 
   const item = db.prepare('SELECT * FROM cycle_items WHERE id = ?').get(id);
@@ -648,7 +686,13 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
     .get(req.params.itemId, req.params.cycleId);
   if (!item) return res.status(404).json({ error: 'Item not found' });
 
-  const { name, value, day_of_payment, paid, spent, done, paperless_tag_id } = req.body;
+  const { name, value, day_of_payment, paid, spent, done, paperless_tag_id, account_id } = req.body;
+
+  if (account_id !== undefined && account_id !== null) {
+    const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
+    if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
+    if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
+  }
 
   let newValue = item.value;
   if (value !== undefined) {
@@ -674,10 +718,11 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
   const newPaid = paid !== undefined ? (paid ? 1 : 0) : item.paid;
   const newDone = done !== undefined ? (done ? 1 : 0) : item.done;
   const newTagId = paperless_tag_id !== undefined ? (paperless_tag_id !== null ? Number(paperless_tag_id) : null) : item.paperless_tag_id;
+  const newAccountId = account_id !== undefined ? (account_id || null) : item.account_id;
 
   db.prepare(
-    'UPDATE cycle_items SET name = ?, value = ?, day_of_payment = ?, paid = ?, spent = ?, done = ?, paperless_tag_id = ? WHERE id = ?'
-  ).run(newName, newValue, newDop, newPaid, newSpent, newDone, newTagId, req.params.itemId);
+    'UPDATE cycle_items SET name = ?, value = ?, day_of_payment = ?, paid = ?, spent = ?, done = ?, paperless_tag_id = ?, account_id = ? WHERE id = ?'
+  ).run(newName, newValue, newDop, newPaid, newSpent, newDone, newTagId, newAccountId, req.params.itemId);
 
   const updated = db.prepare('SELECT * FROM cycle_items WHERE id = ?').get(req.params.itemId);
   res.json(updated);

@@ -577,6 +577,28 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '023_add_account_id_to_distributions',
+    up() {
+      const tplCols = db.prepare('PRAGMA table_info(expense_template_items)').all();
+      if (!tplCols.find((c) => c.name === 'account_id')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN account_id TEXT');
+      }
+      const ciCols = db.prepare('PRAGMA table_info(cycle_items)').all();
+      if (!ciCols.find((c) => c.name === 'account_id')) {
+        db.exec('ALTER TABLE cycle_items ADD COLUMN account_id TEXT');
+      }
+    },
+  },
+  {
+    id: '024_add_can_receive_transfers_to_accounts',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(accounts)').all();
+      if (!cols.find((c) => c.name === 'can_receive_transfers')) {
+        db.exec('ALTER TABLE accounts ADD COLUMN can_receive_transfers INTEGER DEFAULT 1');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

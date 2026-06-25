@@ -57,8 +57,24 @@ function sortTemplateExpenses(expenses, cycleStartDay) {
   return [...firstHalf, ...secondHalf, ...budget];
 }
 
+function groupAccounts(accounts) {
+  const groups = new Map();
+  for (const a of accounts) {
+    if (!groups.has(a.group_name)) groups.set(a.group_name, []);
+    groups.get(a.group_name).push(a);
+  }
+  return [...groups.entries()];
+}
+
+// Accounts selectable for a transfer link: must allow transfers, except the
+// item's current account, kept visible even if it was disabled afterward.
+function transferableAccounts(accounts, currentAccountId) {
+  return accounts.filter((a) => a.can_receive_transfers || a.id === currentAccountId);
+}
+
 export default function ExpenseTemplate({ dossierId }) {
   const [items, setItems] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [cycleStartDay, setCycleStartDay] = useState(25);
   const [paperlessActive, setPaperlessActive] = useState(false);
   const [activeSection, setActiveSection] = useState('expense'); // tracks which modal to open
@@ -91,11 +107,13 @@ export default function ExpenseTemplate({ dossierId }) {
 
   async function load() {
     try {
-      const [data, settings] = await Promise.all([
+      const [data, settings, accountsData] = await Promise.all([
         api.getExpenseTemplate(dossierId),
         api.getDossierSettings(dossierId),
+        api.getAccounts(dossierId, false),
       ]);
       setItems(data);
+      setAccounts(accountsData);
       setCycleStartDay(settings.cycle_start_day ?? 25);
       setPaperlessActive(
         !!(settings.paperless_url && settings.paperless_token_set && settings.paperless_date_field_id && settings.paperless_amount_field_id)
@@ -140,6 +158,15 @@ export default function ExpenseTemplate({ dossierId }) {
     const val = rawVal === '' ? null : parseDecimalInput(rawVal);
     try {
       const updated = await api.updateTemplateItem(dossierId, item.id, { [field]: val });
+      setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleAccountChange(item, accountId) {
+    try {
+      const updated = await api.updateTemplateItem(dossierId, item.id, { account_id: accountId || null });
       setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
     } catch (err) {
       setError(err.message);
@@ -294,6 +321,7 @@ export default function ExpenseTemplate({ dossierId }) {
                 <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value</th>
+                  <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Account</th>
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Must</th>
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Want</th>
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Save</th>
@@ -313,6 +341,22 @@ export default function ExpenseTemplate({ dossierId }) {
                         <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                       </td>
                       <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                      <td data-label="Account" className="mobile-detail" style={{ padding: '0.3rem 0.4rem' }}>
+                        <select
+                          value={item.account_id ?? ''}
+                          onChange={(e) => handleAccountChange(item, e.target.value)}
+                          style={{ fontSize: '0.8rem', maxWidth: '11rem' }}
+                        >
+                          <option value="">— None —</option>
+                          {groupAccounts(transferableAccounts(accounts, item.account_id)).map(([groupName, accs]) => (
+                            <optgroup key={groupName} label={groupName}>
+                              {accs.map((a) => (
+                                <option key={a.id} value={a.id}>{a.name}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </td>
                       {['must_amount', 'want_amount', 'save_amount'].map((field, fi) => (
                         <td key={field} data-label={['Must', 'Want', 'Save'][fi]} className="mobile-detail" style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>
                           <input

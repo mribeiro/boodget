@@ -11,7 +11,7 @@ const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Acco
 
 export default function AccountManager({ dossierId, onClose, inline = false }) {
   const [accounts, setAccounts] = useState([]);
-  const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false });
+  const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false, can_receive_transfers: true });
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(null);
@@ -49,7 +49,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     try {
       const a = await api.createAccount(dossierId, form);
       setAccounts((prev) => [...prev, a]);
-      setForm({ group_name: keepOpen ? form.group_name : '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false });
+      setForm({ group_name: keepOpen ? form.group_name : '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false, can_receive_transfers: true });
       if (!keepOpen) setShowForm(false);
       showToast('Account added');
     } catch (err) {
@@ -95,6 +95,21 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
       setError(err.message);
       setAccounts((prev) =>
         prev.map((a) => (a.id === account.id ? { ...a, is_idle_money: account.is_idle_money } : a))
+      );
+    }
+  }
+
+  async function handleToggleTransfers(account) {
+    const newVal = !account.can_receive_transfers;
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === account.id ? { ...a, can_receive_transfers: newVal ? 1 : 0 } : a))
+    );
+    try {
+      await api.updateAccount(dossierId, account.id, { can_receive_transfers: newVal });
+    } catch (err) {
+      setError(err.message);
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? { ...a, can_receive_transfers: account.can_receive_transfers } : a))
       );
     }
   }
@@ -204,6 +219,15 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                 Idle money
               </label>
             </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="checkbox-label">
+                <Checkbox
+                  checked={form.can_receive_transfers}
+                  onChange={() => setForm((f) => ({ ...f, can_receive_transfers: !f.can_receive_transfers }))}
+                />
+                Can receive transfers
+              </label>
+            </div>
             <button type="submit" className="btn-secondary" onClick={(e) => handleCreate(e, true)}>
               Add &amp; another
             </button>
@@ -237,6 +261,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                   <th>Name</th>
                   <th>Type</th>
                   <th style={{ textAlign: 'center' }}>Idle</th>
+                  <th style={{ textAlign: 'center' }}>Transfers</th>
                   <th></th>
                 </tr>
               </thead>
@@ -268,6 +293,15 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                         onClick={() => handleToggleIdle(a)}
                       >
                         {a.is_idle_money ? 'Yes' : 'No'}
+                      </button>
+                    </td>
+                    <td data-label="Transfers" className="mobile-detail" style={{ textAlign: 'center' }}>
+                      <button
+                        className="btn-ghost"
+                        style={{ fontSize: '0.8rem', color: a.can_receive_transfers ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
+                        onClick={() => handleToggleTransfers(a)}
+                      >
+                        {a.can_receive_transfers ? 'Yes' : 'No'}
                       </button>
                     </td>
                     <td data-label="" className="mobile-detail">
