@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faTriangleExclamation, faListCheck, faPlus, faPencil, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { parseDecimalInput } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
 import Toast from '../ui/Toast';
@@ -136,7 +137,7 @@ export default function EmergencyFundTab({ dossierId }) {
 
   async function saveExtraForm(e) {
     e.preventDefault();
-    const v = parseFloat(extraFormValue);
+    const v = parseDecimalInput(extraFormValue);
     if (!extraFormName.trim() || isNaN(v)) return;
     try {
       if (editingExtra) {
@@ -373,7 +374,7 @@ export default function EmergencyFundTab({ dossierId }) {
                 </div>
                 <div className="form-group">
                   <label>Monthly value (€)</label>
-                  <input type="number" inputMode="decimal" value={extraFormValue} onChange={(e) => setExtraFormValue(e.target.value)} placeholder="0.00" step="0.01" min="0" required />
+                  <input type="text" inputMode="decimal" value={extraFormValue} onChange={(e) => setExtraFormValue(e.target.value)} placeholder="0.00" required />
                 </div>
               </div>
               <div className="modal-footer">
