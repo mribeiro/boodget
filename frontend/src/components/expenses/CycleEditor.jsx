@@ -115,15 +115,16 @@ function TransferPerAccountSection({ distributionsByAccount, accountsById, colla
       count={rows.length}
       collapsed={collapsed}
       onToggle={onToggle}
+      noPad
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {rows.map((row) => (
-          <div key={row.account_id ?? 'unassigned'} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-            <span style={{ color: row.account_id == null ? 'var(--text-muted)' : 'var(--text-primary)' }}>{row.name}</span>
-            <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(row.total)}</span>
-          </div>
-        ))}
-      </div>
+      {rows.map((row) => (
+        <div key={row.account_id ?? 'unassigned'} className="kpi-strip-row">
+          <span className="kpi-strip-row-label" style={{ color: row.account_id == null ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+            {row.name}
+          </span>
+          <span className="kpi-strip-row-value">{fmt(row.total)}</span>
+        </div>
+      ))}
     </CollapsibleSection>
   );
 }
