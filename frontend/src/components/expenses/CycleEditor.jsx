@@ -89,7 +89,7 @@ function sortExpenses(expenses, cycleStartDay) {
 
 // ── Transfer per account summary ──────────────────────────────────────────────
 
-function TransferPerAccountSection({ distributionsByAccount, accountsById }) {
+function TransferPerAccountSection({ distributionsByAccount, accountsById, collapsed, onToggle }) {
   const rows = distributionsByAccount
     .map((row) => {
       const account = row.account_id != null ? accountsById.get(row.account_id) : null;
@@ -102,17 +102,14 @@ function TransferPerAccountSection({ distributionsByAccount, accountsById }) {
   if (rows.length === 0) return null;
 
   return (
-    <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border-default)',
-      borderRadius: 'var(--radius)',
-      padding: '12px 14px',
-      marginBottom: '0.75rem',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
-        <FontAwesomeIcon icon={faBuildingColumns} style={{ color: 'var(--color-brand)' }} />
-        Transfer per account
-      </div>
+    <CollapsibleSection
+      title="Transfer per Account"
+      icon={faBuildingColumns}
+      accent="var(--color-brand)"
+      count={rows.length}
+      collapsed={collapsed}
+      onToggle={onToggle}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {rows.map((row) => (
           <div key={row.account_id ?? 'unassigned'} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
@@ -121,7 +118,7 @@ function TransferPerAccountSection({ distributionsByAccount, accountsById }) {
           </div>
         ))}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -156,6 +153,7 @@ export default function CycleEditor() {
   const [expensesCollapsed, setExpensesCollapsed] = useState(false);
   const [budgetsCollapsed, setBudgetsCollapsed] = useState(false);
   const [distributionsCollapsed, setDistributionsCollapsed] = useState(true);
+  const [transferCollapsed, setTransferCollapsed] = useState(false);
 
   // Toast
   const [toast, setToast] = useState({ msg: '', show: false });
@@ -564,13 +562,6 @@ export default function CycleEditor() {
 
         {/* RIGHT: Distributions + Close panel */}
         <div className="cycle-editor-right">
-          {summary.distributions_by_account?.length > 0 && (
-            <TransferPerAccountSection
-              distributionsByAccount={summary.distributions_by_account}
-              accountsById={accountsById}
-            />
-          )}
-
           <CollapsibleSection
             title="Distributions"
             icon={faHandHoldingDollar}
@@ -601,6 +592,13 @@ export default function CycleEditor() {
 
         </div>
       </div>
+
+      <TransferPerAccountSection
+        distributionsByAccount={summary.distributions_by_account ?? []}
+        accountsById={accountsById}
+        collapsed={transferCollapsed}
+        onToggle={() => setTransferCollapsed((v) => !v)}
+      />
 
       {/* ── Modals ── */}
       {showAddModal && (
