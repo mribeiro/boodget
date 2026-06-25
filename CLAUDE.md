@@ -82,7 +82,7 @@ money_manager/
 │   │       ├── emergency-fund/EmergencyFundTab.jsx
 │   │       ├── expenses/ExpensesTab.jsx, CycleList.jsx, CycleEditor.jsx,
 │   │       │          ExpenseTemplate.jsx, AnnualExpenseTemplate.jsx, DossierSettings.jsx
-│   │       ├── ui/Checkbox.jsx, Badge.jsx, Button.jsx, Card.jsx, Modal.jsx
+│   │       ├── ui/Checkbox.jsx, Badge.jsx, Button.jsx, Card.jsx, Modal.jsx, UpdateBanner.jsx
 │   │       ├── workbench/WorkbenchTab.jsx
 │   │       └── goals/GoalsTab.jsx, GoalFormModal.jsx, GoalDetail.jsx
 ├── ai-spec/

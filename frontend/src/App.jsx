@@ -14,6 +14,7 @@ import UserManager from './components/UserManager';
 import PasswordChange from './components/PasswordChange';
 import GoalDetail from './components/goals/GoalDetail';
 import NotificationSettings from './pages/NotificationSettings';
+import UpdateBanner from './components/ui/UpdateBanner';
 
 export const AuthContext = createContext(null);
 export const AppContext = createContext({ currentDossier: null, setCurrentDossier: () => {} });
@@ -52,6 +53,7 @@ export default function App() {
   if (serverError) {
     return (
       <ThemeProvider>
+        <UpdateBanner />
         <div className="server-error-screen">
           <div className="server-error-card">
             <div className="server-error-icon"><FontAwesomeIcon icon="triangle-exclamation" /></div>
@@ -70,6 +72,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+      <UpdateBanner />
       <AuthContext.Provider value={{ ...authState, setAuthState }}>
         <BrowserRouter>
           <AppRoutes />

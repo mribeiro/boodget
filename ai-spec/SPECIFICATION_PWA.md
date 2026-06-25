@@ -106,7 +106,7 @@ export default defineConfig({
   plugins: [
     // ... existing plugins
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         navigateFallback: '/index.html',
@@ -161,6 +161,19 @@ When the app is opened as a PWA and the initial server check (`getSetupStatus`) 
   - Retry button (`.server-error-retry`): calls `init()`, resetting both `serverError` and `authState.loading` before re-running the full init sequence.
 
 **CSS classes:** `.server-error-screen`, `.server-error-card`, `.server-error-icon`, `.server-error-title`, `.server-error-message`, `.server-error-retry`.
+
+### 2.7 Update-Available Banner
+
+Because the service worker precaches the app shell (§2.4), a browser tab left open across a deploy keeps rendering the old cached bundle indefinitely. With `registerType: 'prompt'`, a new service worker is downloaded and put into the "waiting" state but does not activate on its own — the app must explicitly prompt the user.
+
+**Behaviour:**
+- `frontend/src/components/ui/UpdateBanner.jsx` imports `registerSW` from the virtual module `virtual:pwa-register` (resolved by `vite-plugin-pwa` at build time) and calls it once on mount with `immediate: true`.
+- `onNeedRefresh()` — fired when a new service worker is waiting — sets local state to show the banner.
+- `onRegisteredSW(url, registration)` — schedules `registration.update()` every hour, so tabs left open for a long time still detect new deploys without requiring a manual reload or browser restart.
+- The banner is a small fixed bottom-center card (styled like `Toast.jsx`) with the text "A new version is available.", a "Refresh" button that calls `updateSW(true)` (tells the waiting worker to `skipWaiting` and reloads the page), and a dismiss (`×`) button that hides the banner without losing the pending update.
+- Mounted once, near the top of `App.jsx`, so it is visible regardless of route or auth state.
+
+This is the only place `virtual:pwa-register` is imported in the codebase — because of this, `vite-plugin-pwa`'s default `injectRegister: 'auto'` skips injecting its own auto-registration script tag, avoiding a double service-worker registration.
 
 -----
 
@@ -698,6 +711,7 @@ Both icons share the same "C" + upward trend line design. The dark variant uses 
 | `backend/src/routes/push.js` | Push subscription and VAPID key API routes |
 | `backend/src/routes/notifications.js` | Notification settings and dossier opt-in API routes |
 | `backend/src/db/index.js` | Migration `020_pwa_push_notifications` |
+| `frontend/src/components/ui/UpdateBanner.jsx` | Update-available prompt banner using `vite-plugin-pwa`'s `virtual:pwa-register` |
 
 -----
 
