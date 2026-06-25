@@ -119,9 +119,7 @@ function TransferPerAccountSection({ distributionsByAccount, accountsById, colla
     >
       {rows.map((row) => (
         <div key={row.account_id ?? 'unassigned'} className="kpi-strip-row">
-          <span className="kpi-strip-row-label" style={{ color: row.account_id == null ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-            {row.name}
-          </span>
+          <span className="kpi-strip-row-label">{row.name}</span>
           <span className="kpi-strip-row-value">{fmt(row.total)}</span>
         </div>
       ))}
