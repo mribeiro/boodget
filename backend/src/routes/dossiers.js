@@ -71,12 +71,19 @@ router.post('/import', (req, res) => {
 
     const accountIdMap = {};
     const insertAccount = db.prepare(
-      'INSERT INTO accounts (id, dossier_id, group_name, name, type, is_idle_money, archived, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO accounts (id, dossier_id, group_name, name, type, is_idle_money, can_receive_transfers, archived, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     for (const a of (data.accounts || [])) {
       const newId = uuidv4();
       accountIdMap[a.id] = newId;
-      insertAccount.run(newId, dossierId, a.group_name, a.name, a.type, a.is_idle_money ? 1 : 0, a.archived ? 1 : 0, a.position ?? 0);
+      const canReceiveTransfers = a.can_receive_transfers !== undefined ? (a.can_receive_transfers ? 1 : 0) : 1;
+      insertAccount.run(newId, dossierId, a.group_name, a.name, a.type, a.is_idle_money ? 1 : 0, canReceiveTransfers, a.archived ? 1 : 0, a.position ?? 0);
+    }
+
+    // Build account name→newId map for re-linking distributions, goals, and EF accounts
+    const accountNameToId = {};
+    for (const a of (data.accounts || [])) {
+      accountNameToId[a.name] = accountIdMap[a.id];
     }
 
     const insertMonth = db.prepare(
@@ -97,7 +104,7 @@ router.post('/import', (req, res) => {
     }
 
     const insertTemplateItem = db.prepare(
-      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const templateNameToId = {};
     const expenseTemplateNameToId = {};
@@ -105,7 +112,8 @@ router.post('/import', (req, res) => {
       const newId = uuidv4();
       if (ti.section === 'distribution') templateNameToId[ti.name] = newId;
       if (ti.section === 'expense') expenseTemplateNameToId[ti.name] = newId;
-      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0);
+      const accountId = ti.account_name ? (accountNameToId[ti.account_name] ?? null) : null;
+      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0, accountId);
     }
 
     const insertAnnualTemplateItem = db.prepare(
@@ -136,7 +144,7 @@ router.post('/import', (req, res) => {
       'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertCycleItem = db.prepare(
-      'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const cycleYMToId = {};
     for (const c of (data.cycles || [])) {
@@ -145,14 +153,9 @@ router.post('/import', (req, res) => {
       insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null);
       for (const ci of (c.items || [])) {
         const templateItemId = ci.section === 'expense' ? (expenseTemplateNameToId[ci.name] || null) : (templateNameToId[ci.name] || null);
-        insertCycleItem.run(uuidv4(), cycleId, templateItemId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0, ci.paperless_tag_id ?? null, ci.exclude_from_emergency_fund ? 1 : 0);
+        const accountId = ci.account_name ? (accountNameToId[ci.account_name] ?? null) : null;
+        insertCycleItem.run(uuidv4(), cycleId, templateItemId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0, ci.paperless_tag_id ?? null, ci.exclude_from_emergency_fund ? 1 : 0, accountId);
       }
-    }
-
-    // Build account name→newId map for goal re-linking
-    const accountNameToId = {};
-    for (const a of (data.accounts || [])) {
-      accountNameToId[a.name] = accountIdMap[a.id];
     }
 
     const insertGoal = db.prepare(
@@ -294,7 +297,7 @@ router.get('/:id/export', (req, res) => {
 
   const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
-    .prepare('SELECT id, group_name, name, type, is_idle_money, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
+    .prepare('SELECT id, group_name, name, type, is_idle_money, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
   const months = db
     .prepare('SELECT id, year, month, filled, comment, filled_at FROM months WHERE dossier_id = ? ORDER BY year, month')
@@ -313,7 +316,14 @@ router.get('/:id/export', (req, res) => {
   }
 
   const expenseTemplate = db
-    .prepare('SELECT section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
+    .prepare(
+      `SELECT eti.section, eti.name, eti.type, eti.value, eti.day_of_payment, eti.position, eti.classification,
+              eti.must_amount, eti.want_amount, eti.save_amount, eti.paperless_tag_id, eti.exclude_from_emergency_fund,
+              acc.name as account_name
+       FROM expense_template_items eti
+       LEFT JOIN accounts acc ON acc.id = eti.account_id
+       WHERE eti.dossier_id = ? ORDER BY eti.section, eti.position`
+    )
     .all(req.params.id);
 
   const annualExpenseTemplateRaw = db
@@ -343,11 +353,17 @@ router.get('/:id/export', (req, res) => {
   if (cycles.length > 0) {
     const ph = cycles.map(() => '?').join(',');
     const cycleItems = db
-      .prepare(`SELECT cycle_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund FROM cycle_items WHERE cycle_id IN (${ph}) ORDER BY section, position, created_at`)
+      .prepare(
+        `SELECT ci.cycle_id, ci.section, ci.name, ci.type, ci.value, ci.day_of_payment, ci.paid, ci.spent, ci.done,
+                ci.position, ci.paperless_tag_id, ci.exclude_from_emergency_fund, acc.name as account_name
+         FROM cycle_items ci
+         LEFT JOIN accounts acc ON acc.id = ci.account_id
+         WHERE ci.cycle_id IN (${ph}) ORDER BY ci.section, ci.position, ci.created_at`
+      )
       .all(...cycles.map((c) => c.id));
     for (const ci of cycleItems) {
       if (!cycleItemsByCycleId[ci.cycle_id]) cycleItemsByCycleId[ci.cycle_id] = [];
-      cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position, paperless_tag_id: ci.paperless_tag_id, exclude_from_emergency_fund: ci.exclude_from_emergency_fund });
+      cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position, paperless_tag_id: ci.paperless_tag_id, exclude_from_emergency_fund: ci.exclude_from_emergency_fund, account_name: ci.account_name });
     }
   }
 

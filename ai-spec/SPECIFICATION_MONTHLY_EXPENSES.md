@@ -174,6 +174,17 @@ Ad-hoc expenses can be freely edited.
 - When a cycle is opened, all template distributions are **copied** into the cycle as independent entries.
 - Ad-hoc distributions can be added at any time and behave identically after creation.
 
+### 6.1 Funding Account Link
+
+Each distribution (template or cycle item) may optionally be linked to **one funding account** — the bank account from which that distribution's money should be transferred. An account can be the target of any number of distributions; a distribution can have at most one account.
+
+- Set on the **template**: optional, editable inline per distribution row, no propagation to cycle items already created (changing the template's link only affects cycles created from then on — see §4.1's no-propagation rule, which this field follows rather than the `exclude_from_emergency_fund` exception).
+- Copied to `cycle_items.account_id` only **at cycle-creation time**, from the template item's `account_id`. If the account's "Can receive transfers?" flag (see `SPECIFICATION.md` §8) has since been turned off, the link is **not** copied — the cycle item is created unassigned instead.
+- Editable independently per cycle item afterward (including on ad-hoc distributions, which have no template link to begin with).
+- Only accounts with "Can receive transfers?" enabled can be **newly** picked in the account selector. An account already linked to a distribution remains shown and assigned even if the flag is later turned off — turning it off blocks new assignments only, it does not unlink existing ones.
+- Status (`done`/not done) is irrelevant to this feature — the account link is purely informational, to help the user know where to send money.
+- The **cycle view** shows a "Transfer per account" summary, rendered as a collapsible section below the Expenses/Distributions columns: the total value of distributions linked to each account, plus an "Unassigned" bucket for distributions with no account (shown only when non-zero). This lets the user see at a glance how much to transfer into each account before doing the actual bank transfers.
+
 ---
 
 ## 7. Cycle Summary
@@ -192,6 +203,7 @@ The following values must be displayed in a summary section for each cycle:
 | **Expected balance** | Total available − Total expenses − Total distributions |
 | **Final real balance** | Entered manually when closing the cycle (shown only if cycle is closed) |
 | **Balance difference** | Final real balance − Expected balance (shown only if cycle is closed) |
+| **Distributions by account** | Sum of distribution values grouped by linked `account_id` (including an "unassigned" bucket); see §6.1 |
 
 > Additional calculated fields may be defined in future iterations.
 

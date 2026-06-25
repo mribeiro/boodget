@@ -6,7 +6,7 @@ import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
   faFileArrowDown, faSpinner, faFileLines, faArrowRotateLeft,
   faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave, faSackDollar, faPiggyBank,
-  faCircleCheck, faClock, faCalendarDays, faLeaf,
+  faCircleCheck, faClock, faCalendarDays, faLeaf, faBuildingColumns,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -66,6 +66,21 @@ function cycleDateRange(year, month, startDay) {
   return `${fmtDate(start)} – ${fmtDate(end)}`;
 }
 
+function groupAccounts(accounts) {
+  const groups = new Map();
+  for (const a of accounts) {
+    if (!groups.has(a.group_name)) groups.set(a.group_name, []);
+    groups.get(a.group_name).push(a);
+  }
+  return [...groups.entries()];
+}
+
+// Accounts selectable for a transfer link: must allow transfers, except the
+// item's current account, kept visible even if it was disabled afterward.
+function transferableAccounts(accounts, currentAccountId) {
+  return accounts.filter((a) => a.can_receive_transfers || a.id === currentAccountId);
+}
+
 function sortExpenses(expenses, cycleStartDay) {
   const start = cycleStartDay ?? 25;
   const firstHalf = expenses
@@ -78,6 +93,40 @@ function sortExpenses(expenses, cycleStartDay) {
   return [...firstHalf, ...secondHalf, ...budget];
 }
 
+// ── Transfer per account summary ──────────────────────────────────────────────
+
+function TransferPerAccountSection({ distributionsByAccount, accountsById, collapsed, onToggle }) {
+  const rows = distributionsByAccount
+    .map((row) => {
+      const account = row.account_id != null ? accountsById.get(row.account_id) : null;
+      const name = account ? `${account.group_name} — ${account.name}` : 'Unassigned';
+      return { ...row, name };
+    })
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+
+  if (rows.length === 0) return null;
+
+  return (
+    <CollapsibleSection
+      title="Transfer per Account"
+      icon={faBuildingColumns}
+      accent="var(--color-brand)"
+      count={rows.length}
+      collapsed={collapsed}
+      onToggle={onToggle}
+      noPad
+    >
+      {rows.map((row) => (
+        <div key={row.account_id ?? 'unassigned'} className="kpi-strip-row">
+          <span className="kpi-strip-row-label">{row.name}</span>
+          <span className="kpi-strip-row-value">{fmt(row.total)}</span>
+        </div>
+      ))}
+    </CollapsibleSection>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function CycleEditor() {
@@ -85,6 +134,7 @@ export default function CycleEditor() {
   const navigate = useNavigate();
 
   const [cycle, setCycle] = useState(null);
+  const [accounts, setAccounts] = useState([]);
   const [activeTab, setActiveTab] = useState('expenses');
   const [error, setError] = useState('');
 
@@ -108,6 +158,7 @@ export default function CycleEditor() {
   const [expensesCollapsed, setExpensesCollapsed] = useState(false);
   const [budgetsCollapsed, setBudgetsCollapsed] = useState(false);
   const [distributionsCollapsed, setDistributionsCollapsed] = useState(true);
+  const [transferCollapsed, setTransferCollapsed] = useState(false);
 
   // Toast
   const [toast, setToast] = useState({ msg: '', show: false });
@@ -123,6 +174,7 @@ export default function CycleEditor() {
     window.scrollTo(0, 0);
     load();
     api.getDossierSettings(dossierId).then(setPaperlessSettings).catch(() => {});
+    api.getAccounts(dossierId, true).then(setAccounts).catch(() => {});
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, [cycleId]);
 
@@ -319,6 +371,7 @@ export default function CycleEditor() {
   );
   const distributions = cycle.items.filter((i) => i.section === 'distribution');
   const paperlessActive = !!(paperlessSettings?.paperless_url && paperlessSettings?.paperless_token_set && paperlessSettings?.paperless_date_field_id && paperlessSettings?.paperless_amount_field_id);
+  const accountsById = new Map(accounts.map((a) => [a.id, a]));
   const { summary } = cycle;
   const expectedCurrentBalance = summary.total_available - summary.total_expenses_paid - summary.total_distributions_done;
 
@@ -524,6 +577,8 @@ export default function CycleEditor() {
           >
             <DistributionsList
               distributions={distributions}
+              accounts={accounts}
+              accountsById={accountsById}
               onToggleDone={handleToggleDone}
               onDelete={handleDeleteItem}
               onEdit={handleEditItem}
@@ -543,10 +598,18 @@ export default function CycleEditor() {
         </div>
       </div>
 
+      <TransferPerAccountSection
+        distributionsByAccount={summary.distributions_by_account ?? []}
+        accountsById={accountsById}
+        collapsed={transferCollapsed}
+        onToggle={() => setTransferCollapsed((v) => !v)}
+      />
+
       {/* ── Modals ── */}
       {showAddModal && (
         <AddCycleItemModal
           section={activeTab === 'expenses' ? 'expense' : 'distribution'}
+          accounts={accounts}
           onSave={handleAddItem}
           onClose={() => setShowAddModal(false)}
         />
@@ -1104,7 +1167,7 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
 
 // ── Distributions list ────────────────────────────────────────────────────────
 
-function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
+function DistributionsList({ distributions, accounts, accountsById, onToggleDone, onDelete, onEdit }) {
   const [editingItem, setEditingItem] = useState(null);
 
   if (distributions.length === 0) {
@@ -1113,7 +1176,9 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      {distributions.map((item) => (
+      {distributions.map((item) => {
+        const account = item.account_id != null ? accountsById.get(item.account_id) : null;
+        return (
         <div
           key={item.id}
           style={{
@@ -1136,15 +1201,35 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
             title={item.done ? 'Mark as not done' : 'Mark as done'}
             style={{ '--checkbox-color': 'var(--color-brand)' }}
           />
-          <span style={{
-            flex: 1,
-            fontWeight: 500,
-            textDecoration: item.done ? 'line-through' : 'none',
-            color: item.done ? 'var(--text-muted)' : 'var(--text-primary)',
-            transition: 'color 0.25s ease',
-          }}>
-            {item.name}
-          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{
+              fontWeight: 500,
+              textDecoration: item.done ? 'line-through' : 'none',
+              color: item.done ? 'var(--text-muted)' : 'var(--text-primary)',
+              transition: 'color 0.25s ease',
+            }}>
+              {item.name}
+            </span>
+            {account && (
+              <span
+                title={`Funded from ${account.group_name} — ${account.name}`}
+                style={{
+                  marginLeft: '0.4rem',
+                  fontSize: '0.65rem',
+                  padding: '0.1rem 0.4rem',
+                  borderRadius: '999px',
+                  background: 'var(--bg-muted, var(--bg-card))',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border-default)',
+                  fontWeight: 500,
+                  verticalAlign: 'middle',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {account.name}
+              </span>
+            )}
+          </div>
           <span style={{
             fontSize: '0.875rem',
             fontWeight: 500,
@@ -1167,10 +1252,12 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
             <FontAwesomeIcon icon={faTrash} />
           </button>
         </div>
-      ))}
+        );
+      })}
       {editingItem && (
         <EditDistributionModal
           item={editingItem}
+          accounts={accounts}
           onSave={async (data) => { await onEdit(editingItem, data); setEditingItem(null); }}
           onClose={() => setEditingItem(null)}
         />
@@ -1181,11 +1268,12 @@ function DistributionsList({ distributions, onToggleDone, onDelete, onEdit }) {
 
 // ── Add cycle item modal ──────────────────────────────────────────────────────
 
-function AddCycleItemModal({ section, onSave, onClose }) {
+function AddCycleItemModal({ section, accounts = [], onSave, onClose }) {
   const [name, setName] = useState('');
   const [type, setType] = useState('Fixed');
   const [value, setValue] = useState('');
   const [dayOfPayment, setDayOfPayment] = useState('');
+  const [accountId, setAccountId] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -1205,6 +1293,8 @@ function AddCycleItemModal({ section, onSave, onClose }) {
       if (section === 'expense') {
         data.type = type;
         if (type === 'Fixed') data.day_of_payment = Number(dayOfPayment);
+      } else {
+        data.account_id = accountId || null;
       }
       await onSave(data);
     } catch (err) {
@@ -1244,6 +1334,21 @@ function AddCycleItemModal({ section, onSave, onClose }) {
               <div className="form-group">
                 <label>Day of payment (1–31)</label>
                 <input type="number" inputMode="numeric" step="1" min={1} max={31} value={dayOfPayment} onChange={(e) => setDayOfPayment(e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 5" />
+              </div>
+            )}
+            {section === 'distribution' && (
+              <div className="form-group">
+                <label>Account</label>
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  <option value="">— None —</option>
+                  {groupAccounts(transferableAccounts(accounts, null)).map(([groupName, accs]) => (
+                    <optgroup key={groupName} label={groupName}>
+                      {accs.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
             )}
           </div>
@@ -1474,8 +1579,9 @@ function EditBudgetItemModal({ item, onSave, onClose }) {
 
 // ── Edit distribution modal ───────────────────────────────────────────────────
 
-function EditDistributionModal({ item, onSave, onClose }) {
+function EditDistributionModal({ item, accounts = [], onSave, onClose }) {
   const [value, setValue] = useState(String(item.value));
+  const [accountId, setAccountId] = useState(item.account_id ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -1486,7 +1592,7 @@ function EditDistributionModal({ item, onSave, onClose }) {
     if (isNaN(numValue) || numValue < 0) { setError('Value must be a non-negative number'); return; }
     setSaving(true);
     try {
-      await onSave({ value: numValue });
+      await onSave({ value: numValue, account_id: accountId || null });
     } catch (err) {
       setError(err.message);
       setSaving(false);
@@ -1507,6 +1613,19 @@ function EditDistributionModal({ item, onSave, onClose }) {
             <div className="form-group">
               <label>Amount (€)</label>
               <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+            </div>
+            <div className="form-group">
+              <label>Account</label>
+              <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">— None —</option>
+                {groupAccounts(transferableAccounts(accounts, item.account_id)).map(([groupName, accs]) => (
+                  <optgroup key={groupName} label={groupName}>
+                    {accs.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
           </div>
           <div className="modal-footer">
