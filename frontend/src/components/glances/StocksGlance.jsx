@@ -25,7 +25,7 @@ export default function StocksGlance({ months, onClick }) {
     'var(--text-muted)';
 
   const overall = (latest.capital_total ?? 0) + latest.stocks_total;
-  const savingsPotential = (latest.capital_total ?? 0) - (latest.idle_total ?? 0) + latest.stocks_total;
+  const savingsPotential = (latest.idle_total ?? 0) + latest.stocks_total;
 
   return (
     <GlanceCard title="Stocks" icon={faSackDollar} color="neutral" onClick={onClick}>
