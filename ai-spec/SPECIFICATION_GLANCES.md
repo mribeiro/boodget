@@ -191,7 +191,7 @@ Shows:
 - **Total stocks value** — sum of `Stocks`-category account values from the most recent filled snapshot, formatted as currency (€).
 - **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the Capital card.
 - **Overall subtitle** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
-- **Savings potential subtitle** — Active + Stocks (see `SPECIFICATION.md` §11.1).
+- **Savings potential subtitle** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
 
 This card never affects, and is never affected by, the Capital card's total — `Stocks`-category accounts are excluded from `capital_total`.
 
