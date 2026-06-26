@@ -46,7 +46,7 @@ db.exec(`
     group_name TEXT NOT NULL,
     name TEXT NOT NULL,
     type TEXT NOT NULL CHECK(type IN ('Risk Investment', 'Guaranteed Investment', 'Current Account')),
-    is_idle_money INTEGER DEFAULT 0,
+    money_category TEXT NOT NULL DEFAULT 'active' CHECK(money_category IN ('idle', 'active', 'stocks')),
     archived INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
   );
@@ -596,6 +596,24 @@ const migrations = [
       const cols = db.prepare('PRAGMA table_info(accounts)').all();
       if (!cols.find((c) => c.name === 'can_receive_transfers')) {
         db.exec('ALTER TABLE accounts ADD COLUMN can_receive_transfers INTEGER DEFAULT 1');
+      }
+    },
+  },
+  {
+    id: '025_add_money_category_to_accounts',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(accounts)').all();
+      if (!cols.find((c) => c.name === 'money_category')) {
+        db.exec(
+          "ALTER TABLE accounts ADD COLUMN money_category TEXT DEFAULT 'active' CHECK(money_category IN ('idle', 'active', 'stocks'))"
+        );
+        db.exec(
+          "UPDATE accounts SET money_category = CASE WHEN is_idle_money = 1 THEN 'idle' ELSE 'active' END"
+        );
+      }
+      const colsAfterAdd = db.prepare('PRAGMA table_info(accounts)').all();
+      if (colsAfterAdd.find((c) => c.name === 'is_idle_money')) {
+        db.exec('ALTER TABLE accounts DROP COLUMN is_idle_money');
       }
     },
   },

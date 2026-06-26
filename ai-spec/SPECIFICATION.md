@@ -128,8 +128,8 @@ The other sections must be visible in the UI but marked as **"Coming Soon"**.
     - `Risk Investment`
     - `Guaranteed Investment`
     - `Current Account`
-  - **Idle money?** — boolean flag
-  - **Can receive transfers?** — boolean flag, default **on**. Controls whether the account can be picked as a distribution's funding account (see `SPECIFICATION_MONTHLY_EXPENSES.md` §6.1). Turning it off only blocks *new* assignments — distributions already linked to the account keep that link.
+  - **Money category** — one of `Idle`, `Active`, `Stocks`. `Stocks` is meant for unvested/illiquid holdings (e.g. unvested company equity) that should never be mixed into the regular Capital total. Defaults to `Active`. See §11.1 below for how each category feeds into totals.
+  - **Can receive transfers?** — boolean flag, default **on** (defaults to **off** for `Stocks` accounts at creation, since unvested stock can't fund a distribution — can still be flipped manually). Controls whether the account can be picked as a distribution's funding account (see `SPECIFICATION_MONTHLY_EXPENSES.md` §6.1). Turning it off only blocks *new* assignments — distributions already linked to the account keep that link.
 
 ### 8.1 Adding Accounts
 - Any user with access to the dossier can add new accounts at any time.
@@ -177,9 +177,22 @@ When a month is opened, the user:
 
 ## 11. Analysis / Visualisation
 
-- A **line chart** showing the evolution of **total capital** (sum of all accounts) month over month, in **chronological order**.
-- Scope for this phase: total only.
+- A **line chart** showing the evolution of **total capital** (sum of `Idle` + `Active` accounts only) month over month, in **chronological order**, plus separate `Idle` and `Stocks` lines.
+- The Capital compare table and month editor mirror this breakdown: a Total row/column that excludes `Stocks`, plus separate Idle and Stocks subtotal rows.
 - *(Further breakdowns — by account type, by group — are planned for future iterations.)*
+
+### 11.1 Money categories and derived totals
+
+Each account belongs to exactly one money category: `Idle`, `Active`, or `Stocks`. Three figures are derived from monthly snapshot values:
+
+| Figure | Formula | Meaning |
+|---|---|---|
+| **Capital** (the headline total everywhere) | Idle + Active | "How much real money I have" — never includes Stocks. |
+| **Stocks** | Stocks only | Unvested/illiquid holdings, tracked separately. |
+| **Overall** | Idle + Active + Stocks | "How much I have overall," including unvested stock. |
+| **Savings potential** | Active + Stocks | "How much savings I potentially have" once stock vests. |
+
+`Overall` and `Savings potential` are shown only alongside the Stocks glance card (see `SPECIFICATION_GLANCES.md`), never as part of the main Capital total.
 
 ---
 

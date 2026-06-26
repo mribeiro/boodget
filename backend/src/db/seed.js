@@ -108,13 +108,13 @@ function mkEmergencyFund(dossierId, accountIds, extraValues = []) {
 
 function mkAccounts(dossierId, defs) {
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, dossier_id, group_name, name, type, is_idle_money, position) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO accounts (id, dossier_id, group_name, name, type, money_category, position) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
   const ids = [];
   defs.forEach((a, i) => {
     const id = uuidv4();
     ids.push(id);
-    stmt.run(id, dossierId, a.group_name, a.name, a.type, a.is_idle_money ? 1 : 0, i + 1);
+    stmt.run(id, dossierId, a.group_name, a.name, a.type, a.money_category, i + 1);
   });
   return ids;
 }
@@ -290,15 +290,16 @@ module.exports = function seed() {
     });
 
     const d0Accs = mkAccounts(d0, [
-      { group_name: 'Main Bank', name: 'Current Account', type: 'Current Account',        is_idle_money: true  },
-      { group_name: 'Main Bank', name: 'Savings',          type: 'Guaranteed Investment',  is_idle_money: false },
-      { group_name: 'Broker',    name: 'Stock Portfolio',  type: 'Risk Investment',        is_idle_money: false },
-      { group_name: 'Broker',    name: 'Index Funds',      type: 'Risk Investment',        is_idle_money: false },
+      { group_name: 'Main Bank', name: 'Current Account', type: 'Current Account',        money_category: 'idle'   },
+      { group_name: 'Main Bank', name: 'Savings',          type: 'Guaranteed Investment',  money_category: 'active' },
+      { group_name: 'Broker',    name: 'Stock Portfolio',  type: 'Risk Investment',        money_category: 'active' },
+      { group_name: 'Broker',    name: 'Index Funds',      type: 'Risk Investment',        money_category: 'active' },
+      { group_name: 'Broker',    name: 'Unvested RSUs',    type: 'Risk Investment',        money_category: 'stocks' },
     ]);
 
-    mkMonth(d0, d0Accs, twoCalAgoYear,  twoCalAgoMonth, [3200, 8500, 4100, 6200]);
-    mkMonth(d0, d0Accs, prevCalYear,    prevCalMonth,   [3450, 8800, 4400, 6600]);
-    mkMonth(d0, d0Accs, calYear,        calMonth,       [3600, 9200, 4250, 7100]);
+    mkMonth(d0, d0Accs, twoCalAgoYear,  twoCalAgoMonth, [3200, 8500, 4100, 6200, 7800]);
+    mkMonth(d0, d0Accs, prevCalYear,    prevCalMonth,   [3450, 8800, 4400, 6600, 8400]);
+    mkMonth(d0, d0Accs, calYear,        calMonth,       [3600, 9200, 4250, 7100, 9100]);
 
     // Monthly expense template
     const templateItems = [
@@ -444,8 +445,8 @@ module.exports = function seed() {
     });
 
     const dAAccs = mkAccounts(dA, [
-      { group_name: 'Bank',   name: 'Current Account', type: 'Current Account', is_idle_money: true  },
-      { group_name: 'Broker', name: 'Index Funds',     type: 'Risk Investment', is_idle_money: false },
+      { group_name: 'Bank',   name: 'Current Account', type: 'Current Account', money_category: 'idle'   },
+      { group_name: 'Broker', name: 'Index Funds',     type: 'Risk Investment', money_category: 'active' },
     ]);
 
     mkMonth(dA, dAAccs, prevCalYear, prevCalMonth, [2800, 7500]);
@@ -488,8 +489,8 @@ module.exports = function seed() {
     });
 
     const dBAccs = mkAccounts(dB, [
-      { group_name: 'Bank',   name: 'Savings',         type: 'Guaranteed Investment', is_idle_money: false },
-      { group_name: 'Broker', name: 'Stock Portfolio', type: 'Risk Investment',       is_idle_money: false },
+      { group_name: 'Bank',   name: 'Savings',         type: 'Guaranteed Investment', money_category: 'active' },
+      { group_name: 'Broker', name: 'Stock Portfolio', type: 'Risk Investment',       money_category: 'active' },
     ]);
 
     // Only two older months — NO current-month snapshot
@@ -526,8 +527,8 @@ module.exports = function seed() {
     });
 
     const dCAccs = mkAccounts(dC, [
-      { group_name: 'Bank',   name: 'Current Account', type: 'Current Account', is_idle_money: true  },
-      { group_name: 'Broker', name: 'Bonds',           type: 'Guaranteed Investment', is_idle_money: false },
+      { group_name: 'Bank',   name: 'Current Account', type: 'Current Account', money_category: 'idle'   },
+      { group_name: 'Broker', name: 'Bonds',           type: 'Guaranteed Investment', money_category: 'active' },
     ]);
 
     mkMonth(dC, dCAccs, prevCalYear, prevCalMonth, [1500, 3000]);
@@ -570,8 +571,8 @@ module.exports = function seed() {
     });
 
     const dDAccs = mkAccounts(dD, [
-      { group_name: 'Bank',   name: 'Savings',     type: 'Guaranteed Investment', is_idle_money: false },
-      { group_name: 'Broker', name: 'Index Funds', type: 'Risk Investment',       is_idle_money: false },
+      { group_name: 'Bank',   name: 'Savings',     type: 'Guaranteed Investment', money_category: 'active' },
+      { group_name: 'Broker', name: 'Index Funds', type: 'Risk Investment',       money_category: 'active' },
     ]);
 
     mkMonth(dD, dDAccs, prevCalYear, prevCalMonth, [4800, 14000]);
@@ -613,8 +614,8 @@ module.exports = function seed() {
     });
 
     const dEAccs = mkAccounts(dE, [
-      { group_name: 'Bank', name: 'Current Account',   type: 'Current Account',       is_idle_money: true  },
-      { group_name: 'Bank', name: 'Emergency Savings', type: 'Guaranteed Investment',  is_idle_money: false },
+      { group_name: 'Bank', name: 'Current Account',   type: 'Current Account',       money_category: 'idle'   },
+      { group_name: 'Bank', name: 'Emergency Savings', type: 'Guaranteed Investment',  money_category: 'active' },
     ]);
 
     mkMonth(dE, dEAccs, prevCalYear, prevCalMonth, [500, 1800]);

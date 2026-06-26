@@ -212,7 +212,7 @@ Key computed values:
 | password | `Preview@Capital2024!` |
 | is_oidc | `0` |
 
-#### Dossiers (5 total)
+#### Dossiers (6 total)
 
 All dossiers use `cycle_start_day = 25` and `currency = EUR`.
 
@@ -221,7 +221,7 @@ All dossiers use `cycle_start_day = 25` and `currency = EUR`.
 **Dossier 0 — "My Finances"** (full-featured preview dossier, all Glances neutral)
 
 - `capital_snapshot_warning_day = warningOff`, `next_cycle_warning_day = warningOff`, `previous_cycle_close_warning_day = warningOff`
-- 4 accounts: Current Account (idle), Savings, Stock Portfolio, Index Funds
+- 5 accounts: Current Account (idle), Savings, Stock Portfolio, Index Funds, Unvested RSUs (stocks) — showcases the Stocks glance card alongside Capital
 - 3 filled months: two months ago, last month, current month
 - Monthly expense template: 5 fixed + 3 budget expenses, 2 distributions
 - Annual expense template: Car Insurance, Home Insurance, Holiday Budget, Tech Subscriptions
@@ -267,6 +267,16 @@ All dossiers use `cycle_start_day = 25` and `currency = EUR`.
 - 2 filled months: previous + current → Capital normal
 - Cycles: previous cycle **closed** (prevents red override); current cycle open with **all fixed expenses paid**; next cycle not created → Cycle card **amber**
 - Goals: 1 completed (current Savings value ≥ target_value)
+
+---
+
+**Dossier E — "Emergency Fund — Underfunded"** (Emergency Fund card: underfunded)
+
+- All warning thresholds: `warningOff`; `emergency_fund_months_multiplier = 6`, `emergency_fund_cycles_to_average = 6`
+- 2 accounts: Current Account (idle), Emergency Savings
+- 2 filled months: previous + current calendar month
+- Cycles: previous cycle closed, current cycle open (used to compute the average monthly expense)
+- Emergency Fund: 1 contributing account (Emergency Savings) + 1 extra monthly value (`Rent (external)` = 400) → target ≈ 6360, current = 2000 → **underfunded**
 
 ---
 

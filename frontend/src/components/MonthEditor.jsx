@@ -16,6 +16,8 @@ function monthLabel(year, month) {
   return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
+const MONEY_CATEGORY_LABELS = { idle: 'Idle', active: 'Active', stocks: 'Stocks' };
+
 export default function MonthEditor() {
   const { id: dossierId, monthId } = useParams();
   const navigate = useNavigate();
@@ -195,18 +197,19 @@ export default function MonthEditor() {
       {/* ── KPI strip ── */}
       {monthData && monthData.entries.length > 0 && (() => {
         const filledCount = monthData.entries.filter((e) => values[e.id] !== '').length;
-        const total = monthData.entries.reduce((s, e) => {
+        const capitalEntries = monthData.entries.filter((e) => e.money_category !== 'stocks');
+        const total = capitalEntries.reduce((s, e) => {
           const v = parseDecimalInput(values[e.id]);
           return s + (isNaN(v) ? 0 : v);
         }, 0);
-        const deltaSum = monthData.entries.reduce((s, e) => {
+        const deltaSum = capitalEntries.reduce((s, e) => {
           if (e.prev_value == null) return s;
           const v = parseDecimalInput(values[e.id]);
           if (isNaN(v)) return s;
           return s + (v - e.prev_value);
         }, 0);
-        const hasDelta = monthData.entries.some((e) => e.prev_value != null && values[e.id] !== '');
-        const idleEntries = monthData.entries.filter((e) => e.is_idle_money);
+        const hasDelta = capitalEntries.some((e) => e.prev_value != null && values[e.id] !== '');
+        const idleEntries = monthData.entries.filter((e) => e.money_category === 'idle');
         const idleTotal = idleEntries.reduce((s, e) => {
           const v = parseDecimalInput(values[e.id]);
           return s + (isNaN(v) ? 0 : v);
@@ -219,6 +222,19 @@ export default function MonthEditor() {
         }, 0);
         const hasIdleDelta = idleEntries.some((e) => e.prev_value != null && values[e.id] !== '');
         const hasIdleFilled = idleEntries.some((e) => values[e.id] !== '');
+        const stocksEntries = monthData.entries.filter((e) => e.money_category === 'stocks');
+        const stocksTotal = stocksEntries.reduce((s, e) => {
+          const v = parseDecimalInput(values[e.id]);
+          return s + (isNaN(v) ? 0 : v);
+        }, 0);
+        const stocksDelta = stocksEntries.reduce((s, e) => {
+          if (e.prev_value == null) return s;
+          const v = parseDecimalInput(values[e.id]);
+          if (isNaN(v)) return s;
+          return s + (v - e.prev_value);
+        }, 0);
+        const hasStocksDelta = stocksEntries.some((e) => e.prev_value != null && values[e.id] !== '');
+        const hasStocksFilled = stocksEntries.some((e) => values[e.id] !== '');
         const fmt = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' €';
         return (
           <KpiStrip style={{ marginBottom: '1.25rem' }} items={[
@@ -227,6 +243,8 @@ export default function MonthEditor() {
             hasDelta ? { label: 'Net change', value: `${deltaSum >= 0 ? '+' : ''}${fmt(deltaSum)}`, highlight: deltaSum > 0 ? 'success' : deltaSum < 0 ? 'danger' : 'neutral' } : null,
             idleEntries.length > 0 && hasIdleFilled ? { label: 'Idle', value: fmt(idleTotal) } : null,
             idleEntries.length > 0 && hasIdleDelta ? { label: 'Idle change', value: `${idleDelta >= 0 ? '+' : ''}${fmt(idleDelta)}`, highlight: idleDelta > 0 ? 'success' : idleDelta < 0 ? 'danger' : 'neutral' } : null,
+            stocksEntries.length > 0 && hasStocksFilled ? { label: 'Stocks', value: fmt(stocksTotal) } : null,
+            stocksEntries.length > 0 && hasStocksDelta ? { label: 'Stocks change', value: `${stocksDelta >= 0 ? '+' : ''}${fmt(stocksDelta)}`, highlight: stocksDelta > 0 ? 'success' : stocksDelta < 0 ? 'danger' : 'neutral' } : null,
           ]} />
         );
       })()}
@@ -257,7 +275,7 @@ export default function MonthEditor() {
                     <tr>
                       <th>Account</th>
                       <th>Type</th>
-                      <th style={{ textAlign: 'center' }}>Idle</th>
+                      <th style={{ textAlign: 'center' }}>Category</th>
                       <th style={{ textAlign: 'right' }}>Value (€)</th>
                       <th>Comment</th>
                     </tr>
@@ -292,10 +310,8 @@ export default function MonthEditor() {
                             <td data-label="Type" className="mobile-detail text-muted" style={{ fontSize: '0.8rem' }}>
                               {entry.type}
                             </td>
-                            <td data-label="Idle" className="mobile-detail" style={{ textAlign: 'center' }}>
-                              {entry.is_idle_money ? (
-                                <span style={{ color: 'var(--color-text-muted)' }}>Yes</span>
-                              ) : <span style={{ color: 'var(--color-text-muted)' }}>No</span>}
+                            <td data-label="Category" className="mobile-detail" style={{ textAlign: 'center' }}>
+                              <span style={{ color: 'var(--color-text-muted)' }}>{MONEY_CATEGORY_LABELS[entry.money_category]}</span>
                             </td>
                             <td data-label="Value">
                               {entry.prev_value != null && (
