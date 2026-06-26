@@ -18,7 +18,7 @@ Rules:
 
 Key concepts:
 - **Dossier**: A named container for a set of accounts, monthly snapshots, and expense cycles. Owned by one user, shareable with others.
-- **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier. `can_receive_transfers` (default `true`) controls whether the account can be picked as a distribution's funding account — disabling it only blocks new assignments, existing links are left untouched.
+- **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier. `money_category` is one of `idle` / `active` / `stocks` (default `active`) — `stocks` is for unvested/illiquid holdings (e.g. unvested company equity) and is always excluded from the Capital total, tracked separately instead. `can_receive_transfers` (default `true`, defaults to `false` for new `stocks` accounts) controls whether the account can be picked as a distribution's funding account — disabling it only blocks new assignments, existing links are left untouched.
 - **Month**: A monthly snapshot capturing the value of all accounts at a point in time.
 - **Expense Cycle**: A monthly budget/expense tracking period. Has a salary, previous balance, and a list of expense/distribution items. Cycles are independent — multiple can be open at the same time; the only uniqueness constraint is `(dossier_id, year, month)`. A cycle stored as `(year, month)` runs from `cycle_start_day` of that calendar month to `cycle_start_day − 1` of the following month, and is **named after the month it ends in** — e.g. a cycle stored as `month=3` with `cycle_start_day=25` runs Mar 25 – Apr 24 and is displayed as "April".
 - **Cycle Item**: An expense or distribution within a cycle. Expenses are either `Fixed` (with a `day_of_payment` and paid checkbox) or `Budget` (with a max and a `spent` amount). Distributions have a `done` checkbox. Distributions may optionally be linked to a funding `account_id`; not propagated from template to existing cycles. The linked account must have `can_receive_transfers = 1` at the time it's assigned; an account already linked is unaffected if later disabled.
@@ -27,7 +27,7 @@ Key concepts:
 - **Annual Expense Year**: A per-dossier, per-calendar-year instance copying items from the annual expense template. Has a `carryover` field. Items sorted by first installment date. The year summary card shows carryover, accumulated, contributed, budgeted, paid, remaining, and several computed fields (amount left needed, raise needed, monthly average needed, needed this cycle). See `ai-spec/SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md` for full formula details.
 - **Workbench**: A scenario calculator. Users model income vs. expenses vs. distributions with Must/Want/Save breakdowns. State is ephemeral per session; can be saved as named **snapshots**. If exactly one snapshot exists, it is auto-loaded on open. A "New from scratch" button resets to the template-based working state.
 - **Goal**: A financial objective with a name, target value, and target date, scoped to a dossier. Tracks progress via contributing accounts and monthly contributions (via distributions, fixed manual amount, or ad-hoc). Supports historical contributions. State is auto-computed: `active`, `completed`, or `failed`.
-- **Glances**: A read-only summary panel above the tab bar in `DossierView`. Shows up to five cards (Emergency Fund, Capital, Current Cycle, Next Expense, Goals) with colour-coded states (neutral / amber / red). Emergency Fund card only shown when underfunded. Current Cycle card navigates to the relevant `CycleEditor`; Next Expense card also navigates to `CycleEditor`. The Next Expense card shows payment date as "Month Day" and, when overdue, shows an inline "Mark as paid" button. Three per-dossier warning day thresholds control amber/red states.
+- **Glances**: A read-only summary panel above the tab bar in `DossierView`. Shows up to six cards (Emergency Fund, Capital, Current Cycle, Next Expense, Goals, Stocks) with colour-coded states (neutral / amber / red). Emergency Fund card only shown when underfunded. Stocks card only shown when at least one filled month has `stocks_total > 0`; shows the Stocks total plus "Overall" (Idle + Active + Stocks) and "Savings potential" (Active + Stocks) sub-figures, and is never folded into the Capital card's total. Current Cycle card navigates to the relevant `CycleEditor`; Next Expense card also navigates to `CycleEditor`. The Next Expense card shows payment date as "Month Day" and, when overdue, shows an inline "Mark as paid" button. Three per-dossier warning day thresholds control amber/red states.
 - **Emergency Fund**: A per-dossier savings buffer target. `target = multiplier × effective_monthly_base`, where `effective_monthly_base = avg_monthly_expense (Y most recent cycles) + extra_monthly_values`. Status is `healthy`, `underfunded`, or `no_data`.
 
 ## Versioning
@@ -126,6 +126,10 @@ money_manager/
 
 ## Development Workflow
 
+### Branch Naming
+
+When creating a new branch for a piece of work, give it a short, meaningful, descriptive name reflecting the feature or fix being developed (e.g. `add-stocks-money-category`, `fix-emergency-fund-rounding`) rather than a generic or auto-generated name.
+
 ### Running Locally (Dev Container)
 
 ```bash
@@ -180,7 +184,7 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 | `sessions` | Express session store. |
 | `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds (`capital_snapshot_warning_day` default 7, `next_cycle_warning_day` default 22, `previous_cycle_close_warning_day` default 25), two EF settings (`emergency_fund_months_multiplier` default 6, `emergency_fund_cycles_to_average` default 6), four Paperless fields (all nullable), `expense_notification_days_before` (default 1). |
 | `dossier_access` | Many-to-many sharing: `(dossier_id, user_id)` PK. |
-| `accounts` | `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived`, `is_idle_money`, `can_receive_transfers` (default `1`; gates eligibility as a distribution funding account), `position`. |
+| `accounts` | `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived`, `money_category` ∈ `{idle, active, stocks}` (default `active`; `stocks` accounts are excluded from `capital_total` and tracked separately), `can_receive_transfers` (default `1`; gates eligibility as a distribution funding account), `position`. |
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool. |
 | `month_account_snapshot` | Accounts active when a month was created. |
 | `month_entries` | `(month_id, account_id)` → `value`, optional `comment`. |
@@ -216,7 +220,7 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - `schema_migrations` table tracks applied migrations by `id`.
 - IDs follow `NNN_description` pattern (e.g. `003_add_foo_to_bar`).
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
-- **Last applied migration**: `024_add_can_receive_transfers_to_accounts`. **Next id must be `025_...`**
+- **Last applied migration**: `025_add_money_category_to_accounts`. **Next id must be `026_...`**
 - Never modify or remove existing migration entries — only append.
 
 **To add a new migration**, append to the `migrations` array:
@@ -269,9 +273,9 @@ POST   /api/dossiers/:id/access { userId }
 DELETE /api/dossiers/:id/access/:userId
 
 GET    /api/dossiers/:id/accounts?includeArchived=true
-POST   /api/dossiers/:id/accounts   { group_name, name, type, is_idle_money? }
+POST   /api/dossiers/:id/accounts   { group_name, name, type, money_category? }
 PUT    /api/dossiers/:id/accounts/reorder   { accountIds: [] }
-PATCH  /api/dossiers/:id/accounts/:accountId  { is_idle_money?, can_receive_transfers? }
+PATCH  /api/dossiers/:id/accounts/:accountId  { money_category?, can_receive_transfers? }
 DELETE /api/dossiers/:id/accounts/:accountId  (archives, not deletes)
 
 GET    /api/dossiers/:id/months
@@ -427,7 +431,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 8. **Cycle start day**: `cycle_start_day` (default 25). Display name: `new Date(year, month, startDay - 1)`. Range: start = `new Date(year, month - 1, startDay)`, end = `new Date(year, month, startDay - 1)`. Example: stored `month=3`, `startDay=25` → Mar 25 – Apr 24 → "April 2025".
 9. **Template → cycle copy**: All template items copied to `cycle_items`. `day_of_payment` clamped to last day of cycle's calendar month.
 10. **Expense sorting**: Fixed expenses sort by day — days ≥ `cycle_start_day` first (asc), then days < `cycle_start_day` (asc). Budget items always last. Applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format**: version `8`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions) and `account_name` for distributions (the funding account, re-linked by name on import; `null`/missing on older exports). `accounts[]` round-trips `can_receive_transfers` (defaults to `1`/true on older exports missing the field). Import accepts versions 1–8. Goals and EF accounts re-linked by account name on import. Cycle items are re-linked to their new template item on import by matching `(section, name)`, so the EF average correctly recognizes them as template-derived. Paperless token excluded for security.
+11. **Export format**: version `9`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions) and `account_name` for distributions (the funding account, re-linked by name on import; `null`/missing on older exports). `accounts[]` round-trips `money_category` (version 9+); imports of versions ≤ 8 (which only have `is_idle_money`) derive it as `is_idle_money ? 'idle' : 'active'`. `accounts[]` also round-trips `can_receive_transfers` (defaults to `1`/true on older exports missing the field). Import accepts versions 1–9. Goals and EF accounts re-linked by account name on import. Cycle items are re-linked to their new template item on import by matching `(section, name)`, so the EF average correctly recognizes them as template-derived. Paperless token excluded for security.
 12. **Emergency Fund**: `target = multiplier × (avg_monthly_expense + extra_monthly_total)`. Average from Y most recent cycles: budget items use `spent` (closed) or `max` (open). Archived accounts excluded. Cycle items with no template link (ad-hoc) are always excluded from the average.
 
 ## Environment Variables

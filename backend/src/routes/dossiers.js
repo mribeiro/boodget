@@ -44,7 +44,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -71,13 +71,15 @@ router.post('/import', (req, res) => {
 
     const accountIdMap = {};
     const insertAccount = db.prepare(
-      'INSERT INTO accounts (id, dossier_id, group_name, name, type, is_idle_money, can_receive_transfers, archived, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO accounts (id, dossier_id, group_name, name, type, money_category, can_receive_transfers, archived, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     for (const a of (data.accounts || [])) {
       const newId = uuidv4();
       accountIdMap[a.id] = newId;
       const canReceiveTransfers = a.can_receive_transfers !== undefined ? (a.can_receive_transfers ? 1 : 0) : 1;
-      insertAccount.run(newId, dossierId, a.group_name, a.name, a.type, a.is_idle_money ? 1 : 0, canReceiveTransfers, a.archived ? 1 : 0, a.position ?? 0);
+      // Versions <= 8 only have the legacy is_idle_money boolean; map it to the new 3-way category.
+      const moneyCategory = a.money_category ?? (a.is_idle_money ? 'idle' : 'active');
+      insertAccount.run(newId, dossierId, a.group_name, a.name, a.type, moneyCategory, canReceiveTransfers, a.archived ? 1 : 0, a.position ?? 0);
     }
 
     // Build account name→newId map for re-linking distributions, goals, and EF accounts
@@ -297,7 +299,7 @@ router.get('/:id/export', (req, res) => {
 
   const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
-    .prepare('SELECT id, group_name, name, type, is_idle_money, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
+    .prepare('SELECT id, group_name, name, type, money_category, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
   const months = db
     .prepare('SELECT id, year, month, filled, comment, filled_at FROM months WHERE dossier_id = ? ORDER BY year, month')
@@ -462,7 +464,7 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 8,
+    version: 9,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,

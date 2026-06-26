@@ -8,10 +8,12 @@ import CollapsibleSection from './ui/CollapsibleSection';
 import Toast from './ui/Toast';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
+const MONEY_CATEGORIES = ['idle', 'active', 'stocks'];
+const MONEY_CATEGORY_LABELS = { idle: 'Idle', active: 'Active', stocks: 'Stocks' };
 
 export default function AccountManager({ dossierId, onClose, inline = false }) {
   const [accounts, setAccounts] = useState([]);
-  const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false, can_receive_transfers: true });
+  const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], money_category: 'active', can_receive_transfers: true });
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(null);
@@ -49,7 +51,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     try {
       const a = await api.createAccount(dossierId, form);
       setAccounts((prev) => [...prev, a]);
-      setForm({ group_name: keepOpen ? form.group_name : '', name: '', type: ACCOUNT_TYPES[0], is_idle_money: false, can_receive_transfers: true });
+      setForm({ group_name: keepOpen ? form.group_name : '', name: '', type: ACCOUNT_TYPES[0], money_category: 'active', can_receive_transfers: true });
       if (!keepOpen) setShowForm(false);
       showToast('Account added');
     } catch (err) {
@@ -84,17 +86,17 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     }
   }
 
-  async function handleToggleIdle(account) {
-    const newVal = !account.is_idle_money;
+  async function handleChangeCategory(account, newCategory) {
+    const prevCategory = account.money_category;
     setAccounts((prev) =>
-      prev.map((a) => (a.id === account.id ? { ...a, is_idle_money: newVal ? 1 : 0 } : a))
+      prev.map((a) => (a.id === account.id ? { ...a, money_category: newCategory } : a))
     );
     try {
-      await api.updateAccount(dossierId, account.id, { is_idle_money: newVal });
+      await api.updateAccount(dossierId, account.id, { money_category: newCategory });
     } catch (err) {
       setError(err.message);
       setAccounts((prev) =>
-        prev.map((a) => (a.id === account.id ? { ...a, is_idle_money: account.is_idle_money } : a))
+        prev.map((a) => (a.id === account.id ? { ...a, money_category: prevCategory } : a))
       );
     }
   }
@@ -210,14 +212,16 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                 ))}
               </select>
             </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="checkbox-label">
-                <Checkbox
-                  checked={form.is_idle_money}
-                  onChange={() => setForm((f) => ({ ...f, is_idle_money: !f.is_idle_money }))}
-                />
-                Idle money
-              </label>
+            <div className="form-group" style={{ minWidth: 130, marginBottom: 0 }}>
+              <label>Category</label>
+              <select
+                value={form.money_category}
+                onChange={(e) => setForm((f) => ({ ...f, money_category: e.target.value }))}
+              >
+                {MONEY_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{MONEY_CATEGORY_LABELS[c]}</option>
+                ))}
+              </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="checkbox-label">
@@ -260,7 +264,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                   <th style={{ width: '1rem' }}></th>
                   <th>Name</th>
                   <th>Type</th>
-                  <th style={{ textAlign: 'center' }}>Idle</th>
+                  <th style={{ textAlign: 'center' }}>Category</th>
                   <th style={{ textAlign: 'center' }}>Transfers</th>
                   <th></th>
                 </tr>
@@ -286,14 +290,17 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                       <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                     </td>
                     <td data-label="Type" className="mobile-detail" style={{ fontSize: '0.8rem' }}>{a.type}</td>
-                    <td data-label="Idle" className="mobile-detail" style={{ textAlign: 'center' }}>
-                      <button
-                        className="btn-ghost"
-                        style={{ fontSize: '0.8rem', color: a.is_idle_money ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
-                        onClick={() => handleToggleIdle(a)}
+                    <td data-label="Category" className="mobile-detail" style={{ textAlign: 'center' }}>
+                      <select
+                        value={a.money_category}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => handleChangeCategory(a, e.target.value)}
+                        style={{ fontSize: '0.8rem', color: a.money_category === 'active' ? 'var(--color-text-muted)' : 'var(--color-primary)' }}
                       >
-                        {a.is_idle_money ? 'Yes' : 'No'}
-                      </button>
+                        {MONEY_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{MONEY_CATEGORY_LABELS[c]}</option>
+                        ))}
+                      </select>
                     </td>
                     <td data-label="Transfers" className="mobile-detail" style={{ textAlign: 'center' }}>
                       <button
