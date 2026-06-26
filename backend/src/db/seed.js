@@ -294,11 +294,12 @@ module.exports = function seed() {
       { group_name: 'Main Bank', name: 'Savings',          type: 'Guaranteed Investment',  money_category: 'active' },
       { group_name: 'Broker',    name: 'Stock Portfolio',  type: 'Risk Investment',        money_category: 'active' },
       { group_name: 'Broker',    name: 'Index Funds',      type: 'Risk Investment',        money_category: 'active' },
+      { group_name: 'Broker',    name: 'Unvested RSUs',    type: 'Risk Investment',        money_category: 'stocks' },
     ]);
 
-    mkMonth(d0, d0Accs, twoCalAgoYear,  twoCalAgoMonth, [3200, 8500, 4100, 6200]);
-    mkMonth(d0, d0Accs, prevCalYear,    prevCalMonth,   [3450, 8800, 4400, 6600]);
-    mkMonth(d0, d0Accs, calYear,        calMonth,       [3600, 9200, 4250, 7100]);
+    mkMonth(d0, d0Accs, twoCalAgoYear,  twoCalAgoMonth, [3200, 8500, 4100, 6200, 7800]);
+    mkMonth(d0, d0Accs, prevCalYear,    prevCalMonth,   [3450, 8800, 4400, 6600, 8400]);
+    mkMonth(d0, d0Accs, calYear,        calMonth,       [3600, 9200, 4250, 7100, 9100]);
 
     // Monthly expense template
     const templateItems = [

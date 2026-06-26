@@ -126,6 +126,10 @@ money_manager/
 
 ## Development Workflow
 
+### Branch Naming
+
+When creating a new branch for a piece of work, give it a short, meaningful, descriptive name reflecting the feature or fix being developed (e.g. `add-stocks-money-category`, `fix-emergency-fund-rounding`) rather than a generic or auto-generated name.
+
 ### Running Locally (Dev Container)
 
 ```bash
