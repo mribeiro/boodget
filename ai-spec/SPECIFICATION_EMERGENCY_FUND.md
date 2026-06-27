@@ -190,42 +190,39 @@ When no expense cycles exist in the dossier:
 
 ### 7.1 Position
 
-The Emergency Fund Glance card is displayed in the **first position** of the Glances panel, before Capital. The panel now shows **five cards** in this order:
+The Emergency Fund warning is rendered as a **banner embedded inside the Goals card** (the 4th and last card), not as its own standalone card. The Glances panel always shows exactly **four cards**, in this fixed order:
 
-1. **Emergency Fund**
-2. Capital
-3. Current Cycle
-4. Next Expense
-5. Goals
+1. Capital
+2. Current Cycle
+3. Next Expense
+4. Goals (with the Emergency Fund banner embedded when applicable)
 
 ### 7.2 Visibility Rules
 
-The Emergency Fund Glance card is shown **only when all of the following are true**:
+The Emergency Fund banner is shown **only when all of the following are true**:
 
 - At least one expense cycle exists in the dossier (average can be computed).
 - The emergency fund status is **Underfunded** (`current_value < target_value`).
 
-When the fund is healthy (`current_value ≥ target_value`) or when no cycles exist, the card is **not rendered** and the panel shows four cards as before.
+When the fund is healthy (`current_value ≥ target_value`) or when no cycles exist, the banner is **not rendered** and the Goals card shows only its normal content.
 
-### 7.3 Card Content (Underfunded — red state)
+### 7.3 Banner Content (Underfunded)
 
-When the card is visible, it always appears in the **red/danger** state:
+When the banner is visible, it appears at the bottom of the Goals card, below the goal counts (or below the "No goals defined" message in the empty state), separated by a top border:
 
 ```
-EMERGENCY FUND  ⚠
-€ X,XXX.XX short
+🛡 Emergency Fund: € X,XXX.XX short  ⚠
 Target: € XX,XXX.XX
 ```
 
-- **Title**: "Emergency Fund"
-- **Main value**: the deficit amount, displayed as "€ [deficit] short"
+- **Main line**: shield icon, "Emergency Fund: € [deficit] short", warning triangle.
 - **Subtitle**: "Target: € [target_value]"
-- **Accent colour**: `--color-danger` (red)
-- **Background**: `--color-danger-light`
+- **Colour**: `--color-danger-text` for the main line, `--text-muted` for the subtitle.
+- While the banner is shown, the **outer Goals card itself also switches to the red colour state** (left border + light red background + header warning icon), even if no goals have failed.
 
 ### 7.4 Navigation
 
-Clicking the Emergency Fund Glance card navigates to the **Emergency Fund tab** within the dossier.
+The banner has its own independent click target: clicking it navigates to the **Emergency Fund tab**, using `stopPropagation` so the click does not also trigger the rest of the Goals card's `onClick` (which navigates to the **Goals tab**).
 
 -----
 
