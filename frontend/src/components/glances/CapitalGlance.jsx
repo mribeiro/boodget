@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTriangleExclamation, faChartLine, faArrowTrendUp, faArrowTrendDown } from '@fortawesome/free-solid-svg-icons';
+import { faTriangleExclamation, faChartLine, faArrowTrendUp, faArrowTrendDown, faSackDollar } from '@fortawesome/free-solid-svg-icons';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -102,6 +102,22 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
     idleVariation < 0 ? 'var(--color-value-negative)' :
     'var(--text-muted)';
 
+  const showStocksBlock = latest.stocks_total != null && latest.stocks_total > 0;
+
+  const stocksVariation =
+    previous && previous.stocks_total != null && previous.stocks_total !== 0
+      ? ((latest.stocks_total - previous.stocks_total) / Math.abs(previous.stocks_total)) * 100
+      : null;
+
+  const stocksVariationColor =
+    stocksVariation == null ? 'var(--text-muted)' :
+    stocksVariation > 0 ? 'var(--color-value-positive)' :
+    stocksVariation < 0 ? 'var(--color-value-negative)' :
+    'var(--text-muted)';
+
+  const overall = (latest.capital_total ?? 0) + (latest.stocks_total ?? 0);
+  const savingsPotential = (latest.idle_total ?? 0) + (latest.stocks_total ?? 0);
+
   return (
     <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={onClick}>
       <div className="text-2xl tabular" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
@@ -122,6 +138,22 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
               {idleVariation > 0 ? '+' : ''}{idleVariation.toFixed(1)}%
             </span>
           )}
+        </div>
+      )}
+      {showStocksBlock && (
+        <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <FontAwesomeIcon icon={faSackDollar} style={{ opacity: 0.6 }} />
+            <span className="tabular">{formatEur(latest.stocks_total)} stocks</span>
+            {stocksVariation != null && (
+              <span style={{ color: stocksVariationColor }}>
+                <FontAwesomeIcon icon={stocksVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
+                {stocksVariation > 0 ? '+' : ''}{stocksVariation.toFixed(1)}%
+              </span>
+            )}
+          </div>
+          <span className="tabular">{formatEur(overall)} overall</span>
+          <span className="tabular">{formatEur(savingsPotential)} savings potential</span>
         </div>
       )}
     </GlanceCard>
