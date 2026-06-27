@@ -18,15 +18,14 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
 
 - The Glances panel is a **horizontal row of cards**, rendered above the tab bar and below the dossier title.
 - On mobile, cards stack vertically.
-- There are always **four cards**, in this fixed order:
+- There are always **exactly four cards**, in this fixed order, with no conditional 5th/6th cards:
   1. Capital
   2. Current Cycle
   3. Next Expense
   4. Goals
-- A **Stocks card** is also shown whenever at least one filled month has `stocks_total > 0` (see §6.1, Emergency Fund card position documented in `SPECIFICATION_EMERGENCY_FUND.md` §7).
+- Stocks figures are folded into the Capital card as a sub-block (see §3.3) rather than shown as a separate card. The Emergency Fund warning is folded into the Goals card as an embedded banner (see §6, and `SPECIFICATION_EMERGENCY_FUND.md` §7).
 - Each card is **clickable** and navigates the user to the relevant section:
   - Capital card → Capital tab
-  - Stocks card → Capital tab
   - Current Cycle card → **CycleEditor page for the relevant cycle** (`/dossiers/:id/cycles/:cycleId`):
     - Normal / loading state → current cycle's editor
     - Red state (previous cycle not closed) → previous cycle's editor
@@ -50,6 +49,7 @@ Shows:
 - **Total capital** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
 - **Variation** — percentage change relative to the previous filled snapshot (e.g. `↑ +2.4% vs. Feb`). Colour: green if positive, red if negative, neutral if zero or no previous snapshot exists.
 - **Idle money subtitle** — if any accounts are in the `Idle` category, show the sum of their values (e.g. `€12 000 in idle`).
+- **Stocks sub-block** (see §3.4) — shown as an additional footer below the idle subtitle whenever `stocks_total > 0`.
 
 ### 3.2 Warning state (amber)
 
@@ -66,6 +66,16 @@ Condition: no filled snapshot exists at all (dossier has no months registered ye
 Shows:
 - Title: "Capital"
 - Message: "No records yet"
+
+### 3.4 Stocks sub-block
+
+Shown only in the normal state (§3.1), as an additional footer below the idle-money subtitle, whenever the most recent filled snapshot has `stocks_total > 0`. Purely informational — never changes the card's colour state and never affects the main capital total above it.
+
+Shows:
+- **Total stocks value** — sum of `Stocks`-category account values from the most recent filled snapshot, formatted as currency (€).
+- **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the main Capital variation.
+- **Overall** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
+- **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
 
 ---
 
@@ -180,20 +190,13 @@ Shows:
 - Title: "Goals"
 - Message: "No goals defined"
 
----
+### 6.4 Emergency Fund banner
 
-## 6.1 Card — Stocks
-
-Shown whenever at least one filled month has `stocks_total > 0`. Rendered as a separate card from Capital, placed last in the Glances grid.
-
-Shows:
-- **Title**: "Stocks"
-- **Total stocks value** — sum of `Stocks`-category account values from the most recent filled snapshot, formatted as currency (€).
-- **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the Capital card.
-- **Overall subtitle** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
-- **Savings potential subtitle** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
-
-This card never affects, and is never affected by, the Capital card's total — `Stocks`-category accounts are excluded from `capital_total`.
+An embedded, independently-clickable banner shown inside the Goals card (in any of the 6.1–6.3 states above) whenever the Emergency Fund status is `underfunded`. See `SPECIFICATION_EMERGENCY_FUND.md` §7 for full details. Summary:
+- Renders below the goal counts (or below the empty-state message), separated by a border.
+- Shows a shield icon, "Emergency Fund: €X short", a "Target: €Y" subtitle, and a warning triangle.
+- Clicking the banner navigates to the Emergency Fund tab (via `stopPropagation`, independent of the rest of the card, which navigates to the Goals tab).
+- When this banner is shown, the outer Goals card itself also switches to the **red** colour state, even if no goals have failed.
 
 ---
 
@@ -265,11 +268,10 @@ The frontend determines "today" using the client's local date (`new Date()`).
 A new component `GlancesPanel` is created under `frontend/src/components/glances/GlancesPanel.jsx`. It receives dossier data as props (or fetches it independently) and renders the four cards.
 
 Sub-components (one per card) are recommended for clarity:
-- `CapitalGlance.jsx`
+- `CapitalGlance.jsx` — also computes and renders the Stocks sub-block (§3.4)
 - `CycleGlance.jsx`
 - `NextExpenseGlance.jsx`
-- `GoalsGlance.jsx`
-- `StocksGlance.jsx`
+- `GoalsGlance.jsx` — also receives `efStatus`/`onEfClick` and renders the Emergency Fund banner (§6.4)
 
 `GlancesPanel` is rendered in `DossierView.jsx`, between the dossier title and the tab bar.
 

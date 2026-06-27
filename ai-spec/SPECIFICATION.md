@@ -192,7 +192,7 @@ Each account belongs to exactly one money category: `Idle`, `Active`, or `Stocks
 | **Overall** | Idle + Active + Stocks | "How much I have overall," including unvested stock. |
 | **Savings potential** | Idle + Stocks | "How much I could still turn into savings" — idle cash not yet invested, plus stock once vested. |
 
-`Overall` and `Savings potential` are shown only alongside the Stocks glance card (see `SPECIFICATION_GLANCES.md`), never as part of the main Capital total.
+`Overall` and `Savings potential` are shown only inside the Capital glance card's stocks sub-block (see `SPECIFICATION_GLANCES.md` §3.4), never as part of the main Capital total figure itself.
 
 ---
 
