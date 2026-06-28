@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTriangleExclamation, faChartLine, faArrowTrendUp, faArrowTrendDown, faSackDollar } from '@fortawesome/free-solid-svg-icons';
+import { faTriangleExclamation, faChartLine, faArrowTrendUp, faArrowTrendDown } from '@fortawesome/free-solid-svg-icons';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -143,7 +143,6 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
       {showStocksBlock && (
         <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-muted)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <FontAwesomeIcon icon={faSackDollar} style={{ opacity: 0.6 }} />
             <span className="tabular">{formatEur(latest.stocks_total)} stocks</span>
             {stocksVariation != null && (
               <span style={{ color: stocksVariationColor }}>
@@ -152,8 +151,7 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
               </span>
             )}
           </div>
-          <span className="tabular">{formatEur(overall)} overall</span>
-          <span className="tabular">{formatEur(savingsPotential)} savings potential</span>
+          <span className="tabular">{formatEur(overall)} overall · {formatEur(savingsPotential)} savings potential</span>
         </div>
       )}
     </GlanceCard>
