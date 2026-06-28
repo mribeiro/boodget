@@ -24,8 +24,8 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
   3. Next Expense
   4. Goals
 - Stocks figures are folded into the Capital card as a sub-block (see §3.3) rather than shown as a separate card. The Emergency Fund warning is folded into the Goals card as an embedded banner (see §6, and `SPECIFICATION_EMERGENCY_FUND.md` §7).
-- Each card is **clickable** and navigates the user to the relevant section:
-  - Capital card → Capital tab
+- Each card is **clickable**:
+  - Capital card → in its normal state (§3.1), opens a details dialog in place (see §3.4); in its warning/empty states (§3.2/§3.3), navigates to the Capital tab instead, since there's nothing to show in a dialog.
   - Current Cycle card → **CycleEditor page for the relevant cycle** (`/dossiers/:id/cycles/:cycleId`):
     - Normal / loading state → current cycle's editor
     - Red state (previous cycle not closed) → previous cycle's editor
@@ -45,11 +45,11 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
 
 Displayed when a filled Capital snapshot exists for the current month, **or** when the snapshot warning threshold has not yet been reached.
 
-Shows:
-- **Total capital** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
-- **Variation** — percentage change relative to the previous filled snapshot (e.g. `↑ +2.4% vs. Feb`). Colour: green if positive, red if negative, neutral if zero or no previous snapshot exists.
-- **Idle money subtitle** — if any accounts are in the `Idle` category, show the sum of their values (e.g. `€12 000 in idle`).
-- **Stocks sub-block** (see §3.4) — shown as an additional footer below the idle subtitle whenever `stocks_total > 0`.
+The card face shows only two rows, matching the Current Cycle card's layout:
+- **Total** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
+- **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+
+Clicking the card opens a details dialog (see §3.4) with the full breakdown — variation, idle subtotal, and (if applicable) the stocks sub-block. No data is hidden, only deferred behind a click, to keep the card the same height as its siblings.
 
 ### 3.2 Warning state (amber)
 
@@ -67,15 +67,18 @@ Shows:
 - Title: "Capital"
 - Message: "No records yet"
 
-### 3.4 Stocks sub-block
+### 3.4 Details dialog
 
-Shown only in the normal state (§3.1), as an additional footer below the idle-money subtitle, whenever the most recent filled snapshot has `stocks_total > 0`. Purely informational — never changes the card's colour state and never affects the main capital total above it.
+Opened by clicking the card in its normal state (§3.1), using the shared `ui/Modal.jsx` component. Purely informational — never changes the card's colour state and never affects the main capital total.
 
 Shows:
-- **Total stocks value** — sum of `Stocks`-category account values from the most recent filled snapshot, formatted as currency (€).
-- **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the main Capital variation.
-- **Overall** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
-- **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+- **Total capital** — same value as the card face, plus **variation**: percentage change relative to the previous filled snapshot (e.g. `↑ +2.4% vs. Feb`). Colour: green if positive, red if negative, neutral if zero or no previous snapshot exists.
+- **Idle money subtotal** — if any accounts are in the `Idle` category, the sum of their values plus variation.
+- **Stocks sub-block** — shown whenever the most recent filled snapshot has `stocks_total > 0`:
+  - **Total stocks value** — sum of `Stocks`-category account values, formatted as currency (€).
+  - **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the main Capital variation.
+  - **Overall** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
+  - **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1) — repeated here for context alongside Overall, even though it's already visible on the card face.
 
 ---
 
