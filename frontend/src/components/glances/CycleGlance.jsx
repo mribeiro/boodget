@@ -113,12 +113,12 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
   return (
     <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${currentCycleMeta.id}`)}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Balance</span>
-        <span className="text-md tabular" style={{ color: balanceColor }}>{formatEur(currentBalance)}</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Balance</span>
+        <span className="text-md tabular" style={{ color: balanceColor, whiteSpace: 'nowrap' }}>{formatEur(currentBalance)}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Expected</span>
-        <span className="text-sm tabular" style={{ color: 'var(--text-secondary)' }}>{formatEur(expectedLeftover)}</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Expected</span>
+        <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(expectedLeftover)}</span>
       </div>
     </GlanceCard>
   );

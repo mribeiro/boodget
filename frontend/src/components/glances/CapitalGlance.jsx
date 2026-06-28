@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTriangleExclamation, faChartLine, faArrowTrendUp, faArrowTrendDown } from '@fortawesome/free-solid-svg-icons';
+import Modal from '../ui/Modal';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -49,6 +51,8 @@ export function GlanceCard({ title, icon, color = 'neutral', onClick, children }
 }
 
 export default function CapitalGlance({ months, settings, today, onClick }) {
+  const [showModal, setShowModal] = useState(false);
+
   const todayDay = today.getDate();
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth() + 1;
@@ -119,42 +123,58 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
   const savingsPotential = (latest.idle_total ?? 0) + (latest.stocks_total ?? 0);
 
   return (
-    <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={onClick}>
-      <div className="text-2xl tabular" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
-        {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
-      </div>
-      {variation != null && (
-        <div className="text-sm" style={{ color: variationColor, marginBottom: 2 }}>
-          <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.3rem' }} />
-          {variation > 0 ? '+' : ''}{variation.toFixed(1)}% vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
+    <>
+      <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={() => setShowModal(true)}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+          <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Total</span>
+          <span className="text-md tabular" style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+            {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
+          </span>
         </div>
-      )}
-      {latest.idle_total != null && latest.idle_total > 0 && (
-        <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
-          <span className="tabular">{formatEur(latest.idle_total)} idle</span>
-          {idleVariation != null && (
-            <span style={{ color: idleVariationColor }}>
-              <FontAwesomeIcon icon={idleVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
-              {idleVariation > 0 ? '+' : ''}{idleVariation.toFixed(1)}%
-            </span>
-          )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+          <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Savings</span>
+          <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(savingsPotential)}</span>
         </div>
-      )}
-      {showStocksBlock && (
-        <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-muted)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="tabular">{formatEur(latest.stocks_total)} stocks</span>
-            {stocksVariation != null && (
-              <span style={{ color: stocksVariationColor }}>
-                <FontAwesomeIcon icon={stocksVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
-                {stocksVariation > 0 ? '+' : ''}{stocksVariation.toFixed(1)}%
-              </span>
-            )}
+      </GlanceCard>
+      {showModal && (
+        <Modal title="Capital" onClose={() => setShowModal(false)}>
+          <div className="text-2xl tabular" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
+            {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
           </div>
-          <span className="tabular">{formatEur(overall)} overall · {formatEur(savingsPotential)} savings potential</span>
-        </div>
+          {variation != null && (
+            <div className="text-sm" style={{ color: variationColor, marginBottom: 2 }}>
+              <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.3rem' }} />
+              {variation > 0 ? '+' : ''}{variation.toFixed(1)}% vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
+            </div>
+          )}
+          {latest.idle_total != null && latest.idle_total > 0 && (
+            <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
+              <span className="tabular">{formatEur(latest.idle_total)} idle</span>
+              {idleVariation != null && (
+                <span style={{ color: idleVariationColor }}>
+                  <FontAwesomeIcon icon={idleVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
+                  {idleVariation > 0 ? '+' : ''}{idleVariation.toFixed(1)}%
+                </span>
+              )}
+            </div>
+          )}
+          {showStocksBlock && (
+            <div className="text-xs" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-muted)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="tabular">{formatEur(latest.stocks_total)} stocks</span>
+                {stocksVariation != null && (
+                  <span style={{ color: stocksVariationColor }}>
+                    <FontAwesomeIcon icon={stocksVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
+                    {stocksVariation > 0 ? '+' : ''}{stocksVariation.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <span className="tabular">{formatEur(overall)} overall · {formatEur(savingsPotential)} savings potential</span>
+            </div>
+          )}
+        </Modal>
       )}
-    </GlanceCard>
+    </>
   );
 }
 
