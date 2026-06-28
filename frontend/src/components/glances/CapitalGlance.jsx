@@ -126,14 +126,14 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
     <>
       <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={() => setShowModal(true)}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Total</span>
-          <span className="text-md tabular" style={{ color: 'var(--text-primary)' }}>
+          <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Total</span>
+          <span className="text-md tabular" style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
             {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Savings potential</span>
-          <span className="text-sm tabular" style={{ color: 'var(--text-secondary)' }}>{formatEur(savingsPotential)}</span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Savings</span>
+          <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(savingsPotential)}</span>
         </div>
       </GlanceCard>
       {showModal && (

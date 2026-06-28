@@ -47,7 +47,9 @@ Displayed when a filled Capital snapshot exists for the current month, **or** wh
 
 The card face shows only two rows, matching the Current Cycle card's layout:
 - **Total** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
-- **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+- **Savings** (label shortened from "Savings potential" on the card face to guarantee a 6-digit value + € fits on one line at the narrowest supported width; the full "Savings potential" wording is used in the details dialog) — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+
+Both row labels and values use `white-space: nowrap` so a large figure never forces the row onto two lines.
 
 Clicking the card opens a details dialog (see §3.4) with the full breakdown — variation, idle subtotal, and (if applicable) the stocks sub-block. No data is hidden, only deferred behind a click, to keep the card the same height as its siblings.
 
