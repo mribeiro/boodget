@@ -332,10 +332,12 @@ Five notification types are supported:
 | `expense_upcoming` | A fixed expense's payment day is within `expense_notification_days_before` days, and the expense is unpaid | "Upcoming expense" | "[Dossier] — [Expense name]: €50.00 due in 2 days" |
 | `expense_overdue` | A fixed expense's payment day has passed in the current cycle and the expense is still unpaid | "Overdue expense" | "[Dossier] — [Expense name]: €50.00 was due on Mar 5" |
 | `cycle_not_closed` | Today's day-of-month ≥ `previous_cycle_close_warning_day` and the previous cycle is not closed | "Cycle not closed" | "[Dossier] — The [Month] cycle has not been closed yet" |
-| `cycle_not_opened` | Today's day-of-month ≥ `next_cycle_warning_day` and the next cycle has not been opened | "Cycle not opened" | "[Dossier] — The [Month] cycle has not been opened yet" |
+| `cycle_not_opened` | Today's day-of-month is in `[next_cycle_warning_day, cycle_start_day)` and the next cycle has not been opened | "Cycle not opened" | "[Dossier] — The [Month] cycle has not been opened yet" |
 | `snapshot_missing` | Today's day-of-month ≥ `capital_snapshot_warning_day` and no filled snapshot exists for the current month | "Snapshot missing" | "[Dossier] — [Month] capital snapshot not yet recorded" |
 
 The warning thresholds for `cycle_not_closed`, `cycle_not_opened`, and `snapshot_missing` are the **same values** already used by Glances (`previous_cycle_close_warning_day`, `next_cycle_warning_day`, `capital_snapshot_warning_day`). No new thresholds are introduced for these.
+
+`cycle_not_opened` is bounded above by `cycle_start_day` (mirroring the Glances `inCycleEndMonth` guard in `CycleGlance.jsx`) so that once the active cycle rolls over, the check doesn't keep firing for the rest of the calendar month against the cycle *after* next.
 
 ### 7.2 Determining the "Current Cycle"
 

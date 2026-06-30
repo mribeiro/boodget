@@ -23,6 +23,7 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
   2. Current Cycle
   3. Next Expense
   4. Goals
+- All four cards share a single **fixed height** (`.glance-card { height: 148px; overflow: hidden; }`), identical in every state and at every viewport width — not just visually similar, but a literal CSS guarantee. Each card's content is condensed to fit this budget (Capital's two-row face, Current Cycle's two-row face, Next Expense's name/value-when/button rows, Goals' single-line count row and compact Emergency Fund banner); `overflow: hidden` is a safety net only, not a content-fitting strategy — every real content combination is measured to fit within the budget without clipping.
 - Stocks figures are folded into the Capital card as a sub-block (see §3.3) rather than shown as a separate card. The Emergency Fund warning is folded into the Goals card as an embedded banner (see §6, and `SPECIFICATION_EMERGENCY_FUND.md` §7).
 - Each card is **clickable**:
   - Capital card → in its normal state (§3.1), opens a details dialog in place (see §3.4); in its warning/empty states (§3.2/§3.3), navigates to the Capital tab instead, since there's nothing to show in a dialog.
@@ -147,7 +148,7 @@ Shows:
 - **Expense name** (annual payments also show installment counter and "Annual" badge)
 - **Value** (€)
 - **When**: days until payment with the calendar date (e.g. "in 3 days (Mar 10)"). If the payment day is today: "Today (Mar N)". If the payment day has already passed in the current cycle but the expense is still unpaid: "Overdue (Mar N)" — card turns amber.
-- **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on the card. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
+- **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on its own row below the value/when row. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
 
 ### 5.2 All paid state (neutral)
 
@@ -177,6 +178,8 @@ Shows:
 - **Title**: "Goals"
 - Count of active goals (e.g. "4 active")
 - Count of completed goals if any (e.g. "1 completed")
+
+Active, completed, and failed counts render as same-line items in a flex-wrapped row (not stacked lines) to keep the card within the shared fixed height.
 
 ### 6.2 Alert state (red)
 

@@ -124,7 +124,7 @@ async function runNotificationScheduler() {
 
       // --- cycle_not_opened ---
       const nextCycleWarnDay = dossier.next_cycle_warning_day || 22;
-      if (todayDay >= nextCycleWarnDay) {
+      if (todayDay >= nextCycleWarnDay && todayDay < cycleStartDay) {
         let nextYear = curYear;
         let nextMonth = curMonth + 1;
         if (nextMonth === 13) { nextMonth = 1; nextYear++; }

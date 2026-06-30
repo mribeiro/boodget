@@ -146,10 +146,10 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
           </>
         )}
       </div>
-      <div className="text-sm tabular" style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
-        {formatEur(next.value)}
+      <div className="text-sm tabular" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', marginTop: 2 }}>
+        <span style={{ whiteSpace: 'nowrap' }}>{formatEur(next.value)}</span>
         {whenLabel && (
-          <span style={{ color: whenColor, marginLeft: 6 }}>· {whenLabel}</span>
+          <span style={{ color: whenColor, whiteSpace: 'nowrap' }}>· {whenLabel}</span>
         )}
       </div>
       {isOverdue && onMarkPaid && (
@@ -157,15 +157,16 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
           onClick={handleMarkPaid}
           disabled={marking}
           style={{
-            marginTop: 8,
-            padding: '3px 10px',
-            fontSize: 12,
+            alignSelf: 'flex-start',
+            padding: '1px 7px',
+            fontSize: 11,
             borderRadius: 'var(--radius-full)',
             border: '1px solid var(--border-default)',
             background: 'var(--surface-secondary)',
             color: 'var(--text-secondary)',
             cursor: marking ? 'default' : 'pointer',
             opacity: marking ? 0.6 : 1,
+            whiteSpace: 'nowrap',
           }}
         >
           {marking ? 'Marking…' : 'Mark as paid'}
