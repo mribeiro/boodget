@@ -1623,7 +1623,8 @@ tr:hover td {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   padding: var(--space-4);
-  min-height: 90px;
+  height: 148px;
+  overflow: hidden;
   cursor: pointer;
   transition: box-shadow var(--transition-fast), background var(--transition-fast),
               transform var(--transition-fast);
