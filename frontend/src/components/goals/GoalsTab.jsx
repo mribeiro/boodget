@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { formatNumber } from '../../utils/numbers';
 import GoalFormModal from './GoalFormModal';
 
 const MONTH_NAMES = [
@@ -12,10 +13,10 @@ const MONTH_NAMES = [
 
 function formatEur(value) {
   if (value == null) return '—';
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(value, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value) + ' €';
+  }) + ' €';
 }
 
 function formatYM(ym) {

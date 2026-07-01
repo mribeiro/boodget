@@ -15,7 +15,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { api } from '../../services/api';
-import { parseDecimalInput } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import GoalFormModal from './GoalFormModal';
 import ConfirmModal from '../ConfirmModal';
 
@@ -26,10 +26,10 @@ const MONTH_NAMES = [
 
 function formatEur(value) {
   if (value == null) return '—';
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(value, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value) + ' €';
+  }) + ' €';
 }
 
 function formatYM(ym) {

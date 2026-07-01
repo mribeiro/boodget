@@ -24,6 +24,7 @@ import GoalsTab from './goals/GoalsTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
 import GlancesPanel from './glances/GlancesPanel';
+import { formatNumber } from '../utils/numbers';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -40,10 +41,10 @@ function prevMonth(year, month) {
 
 function formatEur(value) {
   if (value == null) return null;
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(value, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value) + ' €';
+  }) + ' €';
 }
 
 export default function DossierView() {

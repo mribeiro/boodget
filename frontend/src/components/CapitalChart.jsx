@@ -7,6 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { formatNumber } from '../utils/numbers';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -15,10 +16,10 @@ const MONTH_NAMES = [
 
 function formatEur(value) {
   if (value == null) return '-';
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(value, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value) + ' €';
+  }) + ' €';
 }
 
 function CustomTooltip({ active, payload, label }) {
@@ -72,7 +73,7 @@ export default function CapitalChart({ months }) {
           />
           <YAxis
             tickFormatter={(v) =>
-              new Intl.NumberFormat('en-US', { notation: 'compact' }).format(v) + ' €'
+              formatNumber(v, { notation: 'compact' }) + ' €'
             }
             tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
             axisLine={false}

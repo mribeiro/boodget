@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { parseDecimalInput } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faReceipt, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
@@ -9,7 +9,7 @@ import Toast from '../ui/Toast';
 import Checkbox from '../ui/Checkbox';
 
 function formatValue(v) {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' €';
+  return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
 function ClassificationPills({ value, onChange }) {

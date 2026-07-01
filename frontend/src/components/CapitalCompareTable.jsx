@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { formatNumber } from '../utils/numbers';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function formatEur(value) {
   if (value == null) return null;
-  return new Intl.NumberFormat('en-US', {
+  return formatNumber(value, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value) + ' €';
+  }) + ' €';
 }
 
 const DASH = <span style={{ color: 'var(--color-border)' }}>—</span>;
@@ -18,7 +19,7 @@ function DiffLabel({ diff }) {
   const color = diff > 0 ? 'var(--color-success)' : diff < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)';
   return (
     <div style={{ fontSize: '0.7rem', color, marginTop: '0.15rem' }}>
-      {diff > 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(diff)} €
+      {diff > 0 ? '+' : ''}{formatNumber(diff, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTriangleExclamation, faChartLine, faArrowTrendUp, faArrowTrendDown } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../ui/Modal';
+import { formatNumber } from '../../utils/numbers';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -9,7 +10,7 @@ const MONTH_NAMES = [
 ];
 
 function formatEur(value) {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + ' €';
+  return formatNumber(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 }
 
 export function GlanceCard({ title, icon, color = 'neutral', onClick, children }) {
