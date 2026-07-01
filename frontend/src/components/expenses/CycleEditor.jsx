@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { parseDecimalInput } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faLock, faLockOpen, faPlus, faXmark,
@@ -55,7 +55,7 @@ function cycleLabel(year, month, startDay) {
 
 function fmt(v) {
   if (v == null) return '—';
-  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  const formatted = formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return formatted + ' €';
 }
 
@@ -806,7 +806,7 @@ function CloseCycleModal({ expectedBalance, initialBalance, onConfirm, onClose }
                   color: diff >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
                   fontVariantNumeric: 'tabular-nums',
                 }}>
-                  {diff >= 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(diff)} €
+                  {diff >= 0 ? '+' : ''}{formatNumber(diff, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                 </span>
               </div>
             )}
@@ -1698,7 +1698,7 @@ function EditFinalBalanceModal({ expectedBalance, currentBalance, onSave, onClos
                   color: diff >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
                   fontVariantNumeric: 'tabular-nums',
                 }}>
-                  {diff >= 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(diff)} €
+                  {diff >= 0 ? '+' : ''}{formatNumber(diff, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                 </span>
               </div>
             )}

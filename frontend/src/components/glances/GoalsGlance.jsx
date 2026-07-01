@@ -1,9 +1,10 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBullseye, faCircleCheck, faTriangleExclamation, faShieldHalved } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
+import { formatNumber } from '../../utils/numbers';
 
 function formatEur(value) {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + ' €';
+  return formatNumber(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 }
 
 export default function GoalsGlance({ goals, onClick, efStatus, onEfClick }) {

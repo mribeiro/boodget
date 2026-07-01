@@ -426,7 +426,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 3. **Month snapshots**: On month creation, all non-archived accounts are snapshotted (`month_account_snapshot`).
 4. **Dossier access**: Only `creator_id` can share/unshare or delete. Shared users have full edit rights.
 5. **OIDC users**: `is_oidc=1`; cannot use local login or change-password.
-6. **Currency**: Stored per-dossier, defaulting to `EUR`. Multi-currency out of scope.
+6. **Currency**: Stored per-dossier, defaulting to `EUR`. Multi-currency out of scope. All displayed numbers use `.` as the thousands separator and `,` as the decimal separator (e.g. `1.234,56 €`), via the shared `formatNumber` helper in `frontend/src/utils/numbers.js` — never call `Intl.NumberFormat` directly in components.
 7. **Expense cycles**: `(dossier_id, year, month)` uniqueness only. Stored `(year, month)` is the **start** month; display name uses the **end** month.
 8. **Cycle start day**: `cycle_start_day` (default 25). Display name: `new Date(year, month, startDay - 1)`. Range: start = `new Date(year, month - 1, startDay)`, end = `new Date(year, month, startDay - 1)`. Example: stored `month=3`, `startDay=25` → Mar 25 – Apr 24 → "April 2025".
 9. **Template → cycle copy**: All template items copied to `cycle_items`. `day_of_payment` clamped to last day of cycle's calendar month.
