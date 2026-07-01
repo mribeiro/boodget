@@ -146,7 +146,7 @@ The next expense is the first unpaid fixed expense ordered by **cycle day** (as 
 Shows:
 - **Title**: "Next Expense"
 - **Expense name** (annual payments also show installment counter and "Annual" badge)
-- **Value** (€)
+- **Value** (€, shown to the cent — unlike the Capital and Current Cycle cards, which round to the nearest euro)
 - **When**: days until payment with the calendar date (e.g. "in 3 days (Mar 10)"). If the payment day is today: "Today (Mar N)". If the payment day has already passed in the current cycle but the expense is still unpaid: "Overdue (Mar N)" — card turns amber.
 - **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on its own row below the value/when row. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
 
@@ -178,8 +178,9 @@ Shows:
 - **Title**: "Goals"
 - Count of active goals (e.g. "4 active")
 - Count of completed goals if any (e.g. "1 completed")
+- An **average completion progress bar**: the mean of each goal's `min(100, total_current_progress / target_value × 100)`, with a percentage label to the right. Bar colour follows the same low/medium/high thresholds as `GoalsTab`'s per-goal bars (red < 25%, amber < 75%, green ≥ 75%).
 
-Active, completed, and failed counts render as same-line items in a flex-wrapped row (not stacked lines) to keep the card within the shared fixed height.
+Active, completed, and failed counts render as same-line items in a flex-wrapped row (not stacked lines), with the average completion bar directly below, to keep the card within the shared fixed height.
 
 ### 6.2 Alert state (red)
 
@@ -189,6 +190,7 @@ Shows:
 - Title: "Goals"
 - Count of active goals
 - Count of failed goals with a warning indicator (e.g. "2 failed ⚠")
+- Same average completion progress bar as 6.1 (failed goals count as their raw completion percentage, not 0, and are not excluded from the average)
 
 ### 6.3 Empty state (neutral)
 
@@ -201,8 +203,8 @@ Shows:
 ### 6.4 Emergency Fund banner
 
 An embedded, independently-clickable banner shown inside the Goals card (in any of the 6.1–6.3 states above) whenever the Emergency Fund status is `underfunded`. See `SPECIFICATION_EMERGENCY_FUND.md` §7 for full details. Summary:
-- Renders below the goal counts (or below the empty-state message), separated by a border.
-- Shows a shield icon, "Emergency Fund: €X short", a "Target: €Y" subtitle, and a warning triangle.
+- Renders below the goal counts (and, when goals exist, below the average completion bar too), separated by a border.
+- Shows a shield icon and a warning triangle. When goals exist (6.1/6.2), the text is condensed to a single line — "€X short of €Y" — to fit the card's height budget alongside the progress bar; in the empty state (6.3, no progress bar present) it uses the fuller two-line form: "Emergency Fund: €X short" plus a "Target: €Y" subtitle.
 - Clicking the banner navigates to the Emergency Fund tab (via `stopPropagation`, independent of the rest of the card, which navigates to the Goals tab).
 - When this banner is shown, the outer Goals card itself also switches to the **red** colour state, even if no goals have failed.
 

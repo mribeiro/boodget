@@ -5,7 +5,7 @@ import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk, faChevronRight
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import KpiStrip from './ui/KpiStrip';
-import { parseDecimalInput } from '../utils/numbers';
+import { parseDecimalInput, formatNumber } from '../utils/numbers';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -235,7 +235,7 @@ export default function MonthEditor() {
         }, 0);
         const hasStocksDelta = stocksEntries.some((e) => e.prev_value != null && values[e.id] !== '');
         const hasStocksFilled = stocksEntries.some((e) => values[e.id] !== '');
-        const fmt = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' €';
+        const fmt = (n) => formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
         return (
           <KpiStrip style={{ marginBottom: '1.25rem' }} items={[
             { label: 'Filled', value: `${filledCount} / ${monthData.entries.length}`, highlight: filledCount === monthData.entries.length ? 'success' : 'neutral' },
