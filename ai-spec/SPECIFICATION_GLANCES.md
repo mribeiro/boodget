@@ -146,7 +146,7 @@ The next expense is the first unpaid fixed expense ordered by **cycle day** (as 
 Shows:
 - **Title**: "Next Expense"
 - **Expense name** (annual payments also show installment counter and "Annual" badge)
-- **Value** (€)
+- **Value** (€, shown to the cent — unlike the Capital and Current Cycle cards, which round to the nearest euro)
 - **When**: days until payment with the calendar date (e.g. "in 3 days (Mar 10)"). If the payment day is today: "Today (Mar N)". If the payment day has already passed in the current cycle but the expense is still unpaid: "Overdue (Mar N)" — card turns amber.
 - **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on its own row below the value/when row. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
 

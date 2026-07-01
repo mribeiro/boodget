@@ -4,7 +4,7 @@ import { faClock, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 
 function formatEur(value) {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value) + ' €';
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + ' €';
 }
 
 function cycleYearMonth(today, cycleStartDay) {
