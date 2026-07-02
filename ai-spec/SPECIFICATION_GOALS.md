@@ -184,6 +184,10 @@ Both lines start from the goal creation cycle. The chart allows the user to visu
 
 When the goal has at least one linked account (so a current value is known) and the target date has not yet passed, the chart also shows a **Projected** line (`projected_cumulative`, dashed) extending from the current month to the target date. It starts at the current accumulated value (`current_accumulated_value`) and increases by the expected monthly contribution for each month until the target date, showing where the goal balance is trending towards. If no cycle/historical data points exist yet, a single anchor point for the current month is added so the projected line has a starting point.
 
+### 8.4 Anticipated Completion Milestone
+
+Whenever `anticipated_completion_date` is set (i.e. whenever the "Estimated done" key value from Section 5 is shown — the goal is on pace to finish before its target date), the chart also renders a vertical milestone marker at that month: a dashed reference line labelled "Estimated", styled with a neutral color (distinct from the Expected/Real/Projected line colors) so it reads as an annotation rather than a fourth data series. Not shown for "Ad-hoc" mode (which has no chart) or when the goal is not ahead of pace.
+
 -----
 
 ## 9. UI Notes
