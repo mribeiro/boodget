@@ -29,6 +29,12 @@ function getAnnualPaymentDate(payment) {
   return new Date(payment.expense_year, payment.month - 1, payment.day);
 }
 
+function relativeDayLabel(diffDays) {
+  if (diffDays === 0) return 'Today';
+  if (diffDays < 0) return 'Overdue';
+  return `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+}
+
 export default function NextExpenseGlance({ currentCycleDetail, settings, today, onClick, onMarkPaid }) {
   const cycleStartDay = settings.cycle_start_day ?? 25;
 
@@ -121,6 +127,8 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
   }
 
   const isOverdue = diffDays < 0;
+  const next2 = candidates[1] ?? null;
+  const next2Diff = next2 ? Math.round((next2.date - todayMidnight) / (1000 * 60 * 60 * 24)) : null;
   const [marking, setMarking] = useState(false);
 
   async function handleMarkPaid(e) {
@@ -158,6 +166,11 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
           </span>
         )}
       </div>
+      {!isOverdue && next2 && (
+        <div className="text-xs" style={{ color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+          Then: {next2.name} · {relativeDayLabel(next2Diff)}
+        </div>
+      )}
       {isOverdue && onMarkPaid && (
         <button
           onClick={handleMarkPaid}

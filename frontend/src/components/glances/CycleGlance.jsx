@@ -122,6 +122,14 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
 
   const balanceColor = currentBalance < 0 ? 'var(--color-value-negative)' : 'var(--text-primary)';
 
+  // Days elapsed in the current cycle, for the progress bar below.
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const cycleStart = new Date(current.year, current.month - 1, cycleStartDay);
+  const cycleEnd = new Date(current.year, current.month, cycleStartDay - 1);
+  const totalCycleDays = Math.round((cycleEnd - cycleStart) / (1000 * 60 * 60 * 24)) + 1;
+  const elapsedDays = Math.min(totalCycleDays, Math.max(1, Math.round((todayMidnight - cycleStart) / (1000 * 60 * 60 * 24)) + 1));
+  const cyclePercent = Math.min(100, Math.max(0, (elapsedDays / totalCycleDays) * 100));
+
   return (
     <GlanceCard title={title} icon={faCalendarDays} color="neutral" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${currentCycleMeta.id}`)}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
@@ -131,6 +139,12 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Expected</span>
         <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(expectedLeftover)}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+        <div className="progress-track" style={{ flex: 1 }}>
+          <div className="progress-fill" style={{ width: `${cyclePercent}%` }} />
+        </div>
+        <span className="text-xs tabular" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Day {elapsedDays}/{totalCycleDays}</span>
       </div>
     </GlanceCard>
   );

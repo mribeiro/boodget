@@ -128,8 +128,16 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
       <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={() => setShowModal(true)}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
           <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Total</span>
-          <span className="text-md tabular" style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-            {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            {variation != null && (
+              <span className="text-xs" style={{ color: variationColor, whiteSpace: 'nowrap' }}>
+                <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: 2 }} />
+                {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
+              </span>
+            )}
+            <span className="text-md tabular" style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+              {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
+            </span>
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
