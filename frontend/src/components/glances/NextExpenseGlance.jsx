@@ -29,6 +29,12 @@ function getAnnualPaymentDate(payment) {
   return new Date(payment.expense_year, payment.month - 1, payment.day);
 }
 
+function relativeDayLabel(diffDays) {
+  if (diffDays === 0) return 'Today';
+  if (diffDays < 0) return 'Overdue';
+  return `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+}
+
 export default function NextExpenseGlance({ currentCycleDetail, settings, today, onClick, onMarkPaid }) {
   const cycleStartDay = settings.cycle_start_day ?? 25;
 
@@ -102,6 +108,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   const diffDays = Math.round((next.date - todayMidnight) / (1000 * 60 * 60 * 24));
   let whenLabel = '';
+  let dateSuffix = null; // only set for the upcoming case; hidden on mobile (CSS) to avoid overflow
   let color = 'neutral';
   let whenColor = 'var(--text-secondary)';
 
@@ -115,10 +122,13 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     color = 'amber';
     whenColor = 'var(--color-warning-text)';
   } else {
-    whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (${dayLabel})`;
+    whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+    dateSuffix = ` (${dayLabel})`;
   }
 
   const isOverdue = diffDays < 0;
+  const next2 = candidates[1] ?? null;
+  const next2Diff = next2 ? Math.round((next2.date - todayMidnight) / (1000 * 60 * 60 * 24)) : null;
   const [marking, setMarking] = useState(false);
 
   async function handleMarkPaid(e) {
@@ -150,9 +160,17 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
       <div className="text-sm tabular" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', marginTop: 2 }}>
         <span style={{ whiteSpace: 'nowrap' }}>{formatEur(next.value)}</span>
         {whenLabel && (
-          <span style={{ color: whenColor, whiteSpace: 'nowrap' }}>· {whenLabel}</span>
+          <span style={{ color: whenColor, whiteSpace: 'nowrap' }}>
+            · {whenLabel}
+            {dateSuffix && <span className="next-expense-date-suffix">{dateSuffix}</span>}
+          </span>
         )}
       </div>
+      {!isOverdue && next2 && (
+        <div className="text-xs" style={{ color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+          Then: {next2.name} · {relativeDayLabel(next2Diff)}
+        </div>
+      )}
       {isOverdue && onMarkPaid && (
         <button
           onClick={handleMarkPaid}

@@ -23,7 +23,7 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
   2. Current Cycle
   3. Next Expense
   4. Goals
-- All four cards share a single **fixed height** (`.glance-card { height: 148px; overflow: hidden; }`), identical in every state and at every viewport width — not just visually similar, but a literal CSS guarantee. Each card's content is condensed to fit this budget (Capital's two-row face, Current Cycle's two-row face, Next Expense's name/value-when/button rows, Goals' single-line count row and compact Emergency Fund banner); `overflow: hidden` is a safety net only, not a content-fitting strategy — every real content combination is measured to fit within the budget without clipping.
+- All four cards share a single **fixed height** (`.glance-card { height: 148px; overflow: hidden; }`), identical in every state and at every viewport width — not just visually similar, but a literal CSS guarantee. Each card's content is condensed to fit this budget (Capital's three-row face, Current Cycle's two-row face, Next Expense's name/value-when/button rows, Goals' single-line count row and compact Emergency Fund banner); `overflow: hidden` is a safety net only, not a content-fitting strategy — every real content combination is measured to fit within the budget without clipping.
 - Stocks figures are folded into the Capital card as a sub-block (see §3.3) rather than shown as a separate card. The Emergency Fund warning is folded into the Goals card as an embedded banner (see §6, and `SPECIFICATION_EMERGENCY_FUND.md` §7).
 - Each card is **clickable**:
   - Capital card → in its normal state (§3.1), opens a details dialog in place (see §3.4); in its warning/empty states (§3.2/§3.3), navigates to the Capital tab instead, since there's nothing to show in a dialog.
@@ -46,9 +46,12 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
 
 Displayed when a filled Capital snapshot exists for the current month, **or** when the snapshot warning threshold has not yet been reached.
 
-The card face shows only two rows, matching the Current Cycle card's layout:
+The card face shows three rows:
 - **Total** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
-- **Savings** (label shortened from "Savings potential" on the card face to guarantee a 6-digit value + € fits on one line at the narrowest supported width; the full "Savings potential" wording is used in the details dialog) — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+- **Savings** — Idle only (see `SPECIFICATION.md` §11.1).
+- **Potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+
+Each row's value has a trend arrow/percentage next to it when a previous filled snapshot exists (e.g. "▲ +2.4%", colour-coded green/red/neutral, computed the same way as the Total variation in the details dialog, §3.4, but per-row: Total uses the overall variation, Savings uses the Idle-only variation, Potential uses the Idle+Stocks variation). The badge (`.glance-variation-badge`) is **desktop/tablet only** (`≥768px`) — on the narrower mobile card grid it's hidden entirely, since it would push the value out of the row.
 
 Both row labels and values use `white-space: nowrap` so a large figure never forces the row onto two lines.
 
@@ -81,7 +84,7 @@ Shows:
   - **Total stocks value** — sum of `Stocks`-category account values, formatted as currency (€).
   - **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the main Capital variation.
   - **Overall** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
-  - **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1) — repeated here for context alongside Overall, even though it's already visible on the card face.
+  - **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1) — repeated here for context alongside Overall, even though it's already visible on the card face as the "Potential" row.
 
 ---
 
@@ -99,9 +102,10 @@ The current cycle is the one whose date range covers today, computed using the d
 Condition: a cycle exists for the current period and no warning thresholds are triggered.
 
 Shows:
-- **Title**: "Cycle of [Month Year]" (e.g. "Cycle of March 2025")
+- **Title**: "Cycle of [Month Year]" (e.g. "Cycle of March 2025") — the "Cycle of " prefix is hidden below `768px` (`.cycle-title-prefix`, same breakpoint as the card grid's mobile/desktop switch) so the title fits on one line on the narrower mobile card grid; desktop/tablet keeps the full "Cycle of [Month Year]". Same prefix-hiding rule applies to the title in every state below (4.3, 4.4, 4.5 keeps its own static "Current Cycle" title unaffected since it has no prefix).
 - **Current expected balance**: `Total available − paid fixed expenses − spent budget amounts − done distributions`
 - **Expected leftover**: the `Expected balance` field already computed on the cycle (`Total available − all fixed expense values − all budget maximum values − all distribution values`)
+- **Cycle progress bar**: a slim bar (reusing the same `.progress-track`/`.progress-fill` styling as the Goals card's completion bar) showing how many days of the current cycle have elapsed, with a "Day X/Y" label to the right. Computed from the cycle's start/end dates (§4.1) and today's date, clamped to 1–100%. Only shown in this normal state — not in the warning/no-cycle states (4.3–4.5), which show a message instead.
 
 ### 4.3 Warning: next cycle not opened (amber)
 
@@ -147,8 +151,9 @@ Shows:
 - **Title**: "Next Expense"
 - **Expense name** (annual payments also show installment counter and "Annual" badge)
 - **Value** (€, shown to the cent — unlike the Capital and Current Cycle cards, which round to the nearest euro)
-- **When**: days until payment with the calendar date (e.g. "in 3 days (Mar 10)"). If the payment day is today: "Today (Mar N)". If the payment day has already passed in the current cycle but the expense is still unpaid: just the date, "Mar N" (no "Overdue" prefix) — the card turning amber already signals the overdue state.
+- **When**: days until payment as a relative count, e.g. "in 3 days"; the calendar date suffix ("in 3 days (Mar 10)") is appended only at `≥768px` (`.next-expense-date-suffix`, same breakpoint as the card grid's mobile/desktop switch) — below that the narrower two-column mobile card grid doesn't have room for it. If the payment day is today: "Today (Mar N)" (date always shown, both viewports). If the payment day has already passed in the current cycle but the expense is still unpaid: just the date, "Mar N" (no "Overdue" prefix, always shown) — the card turning amber already signals the overdue state.
 - **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on its own row below the value/when row. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
+- **Next-next preview**: when the expense is **not** overdue and a second unpaid item exists in the same ordered list, a 3rd line previews it — "Then: [name] · [relative day count]" (e.g. "Then: Electricity · in 5 days"; "Today"/"Overdue" for the edge cases), truncating with an ellipsis rather than wrapping. Only shown when not overdue, since the overdue state uses that row for the "Mark as paid" button instead.
 
 ### 5.2 All paid state (neutral)
 
@@ -207,6 +212,8 @@ An embedded, independently-clickable banner shown inside the Goals card (in any 
 - Shows a shield icon and a warning triangle. When goals exist (6.1/6.2), the text is condensed to a single line — "€X short of €Y" — to fit the card's height budget alongside the progress bar; in the empty state (6.3, no progress bar present) it uses the fuller two-line form: "Emergency Fund: €X short" plus a "Target: €Y" subtitle.
 - Clicking the banner navigates to the Emergency Fund tab (via `stopPropagation`, independent of the rest of the card, which navigates to the Goals tab).
 - When this banner is shown, the outer Goals card itself also switches to the **red** colour state, even if no goals have failed.
+
+When the Emergency Fund status is `healthy` instead, a compact one-line status is shown in the same slot — a shield icon, "Emergency Fund: healthy", and a check-circle icon, in the success colour — rather than nothing at all. Same click-through behaviour as the underfunded banner. Does not affect the card's colour state. When the status is `no_data` (or no Emergency Fund accounts are configured), nothing is shown, same as before — there's nothing meaningful to report yet.
 
 ---
 
