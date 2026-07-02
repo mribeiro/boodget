@@ -148,7 +148,7 @@ Shows:
 - **Title**: "Next Expense"
 - **Expense name** (annual payments also show installment counter and "Annual" badge)
 - **Value** (€, shown to the cent — unlike the Capital and Current Cycle cards, which round to the nearest euro)
-- **When**: days until payment with the calendar date (e.g. "in 3 days (Mar 10)"). If the payment day is today: "Today (Mar N)". If the payment day has already passed in the current cycle but the expense is still unpaid: just the date, "Mar N" (no "Overdue" prefix) — the card turning amber already signals the overdue state.
+- **When**: days until payment as a relative count only, no calendar date (e.g. "in 3 days") — the date is omitted here to avoid overflow. If the payment day is today: "Today (Mar N)". If the payment day has already passed in the current cycle but the expense is still unpaid: just the date, "Mar N" (no "Overdue" prefix) — the card turning amber already signals the overdue state.
 - **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on its own row below the value/when row. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
 
 ### 5.2 All paid state (neutral)

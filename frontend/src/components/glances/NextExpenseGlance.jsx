@@ -115,7 +115,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     color = 'amber';
     whenColor = 'var(--color-warning-text)';
   } else {
-    whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'} (${dayLabel})`;
+    whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
   }
 
   const isOverdue = diffDays < 0;
