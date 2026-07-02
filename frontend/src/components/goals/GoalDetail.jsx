@@ -289,8 +289,8 @@ export default function GoalDetail() {
         <KpiStrip defaultOpen items={[
           { label: 'Target date', value: formatYM(goal.target_date) },
           !isAdHoc ? { label: 'Months left', value: goal.months_remaining > 0 ? `${goal.months_remaining}` : 'Overdue', highlight: goal.months_remaining <= 0 ? 'danger' : 'neutral' } : null,
-          !isAdHoc ? { label: 'Mo. needed', value: formatEur(goal.monthly_value_needed), highlight: infeasible ? 'warning' : 'neutral' } : null,
-          !isAdHoc ? { label: 'Mo. expected', value: formatEur(goal.expected_monthly_contribution), highlight: infeasible ? 'warning' : 'neutral' } : null,
+          !isAdHoc ? { label: 'Monthly needed', value: formatEur(goal.monthly_value_needed), highlight: infeasible ? 'warning' : 'neutral' } : null,
+          !isAdHoc ? { label: 'Monthly budgeted', value: formatEur(goal.expected_monthly_contribution), highlight: infeasible ? 'warning' : 'neutral' } : null,
           goal.anticipated_completion_date ? { label: 'Est. done', value: formatYM(goal.anticipated_completion_date), highlight: 'success' } : null,
           goal.extra_value > 0 ? { label: 'Extra', value: formatEur(goal.extra_value), note: 'In accounts — projection only' } : null,
         ]} />
