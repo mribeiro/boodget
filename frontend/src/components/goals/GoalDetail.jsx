@@ -46,6 +46,26 @@ function kpiColor(highlight) {
     'var(--text-primary)';
 }
 
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '8px 12px',
+      fontSize: 13,
+      boxShadow: 'var(--shadow-lg)',
+    }}>
+      <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>{label}</div>
+      {payload.map((entry) => (
+        <div key={entry.dataKey} style={{ color: entry.stroke }}>
+          {entry.name}: {formatEur(entry.value)}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function GoalDetail() {
   const { id: dossierId, goalId } = useParams();
@@ -308,7 +328,7 @@ export default function GoalDetail() {
                   tick={{ fontSize: 11 }}
                 />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`)} />
-                <Tooltip formatter={(v) => formatEur(v)} />
+                <Tooltip content={<ChartTooltip />} />
                 <Legend />
                 <Line type="monotone" dataKey="expected_cumulative" name="Expected" stroke="#6366f1" dot={false} strokeWidth={2} />
                 <Line type="monotone" dataKey="real_cumulative" name="Real" stroke="#10b981" dot={false} strokeWidth={2} />
