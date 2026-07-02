@@ -288,7 +288,7 @@ export default function GoalDetail() {
         {/* Secondary KPI grid */}
         <KpiStrip defaultOpen items={[
           { label: 'Target date', value: formatYM(goal.target_date) },
-          !isAdHoc ? { label: 'Months left', value: goal.months_remaining > 0 ? `${goal.months_remaining} mo` : 'Overdue', highlight: goal.months_remaining <= 0 ? 'danger' : 'neutral' } : null,
+          !isAdHoc ? { label: 'Months left', value: goal.months_remaining > 0 ? `${goal.months_remaining}` : 'Overdue', highlight: goal.months_remaining <= 0 ? 'danger' : 'neutral' } : null,
           !isAdHoc ? { label: 'Mo. needed', value: formatEur(goal.monthly_value_needed), highlight: infeasible ? 'warning' : 'neutral' } : null,
           !isAdHoc ? { label: 'Mo. expected', value: formatEur(goal.expected_monthly_contribution), highlight: infeasible ? 'warning' : 'neutral' } : null,
           goal.anticipated_completion_date ? { label: 'Est. done', value: formatYM(goal.anticipated_completion_date), highlight: 'success' } : null,
