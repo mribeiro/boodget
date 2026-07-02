@@ -168,7 +168,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
       </div>
       {!isOverdue && next2 && (
         <div className="text-xs" style={{ color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-          Then: {next2.name} · {relativeDayLabel(next2Diff)}
+          {next2.name} · {relativeDayLabel(next2Diff)}
         </div>
       )}
       {isOverdue && onMarkPaid && (
