@@ -46,6 +46,26 @@ function kpiColor(highlight) {
     'var(--text-primary)';
 }
 
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '8px 12px',
+      fontSize: 13,
+      boxShadow: 'var(--shadow-lg)',
+    }}>
+      <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>{label}</div>
+      {payload.map((entry) => (
+        <div key={entry.dataKey} style={{ color: entry.stroke }}>
+          {entry.name}: {formatEur(entry.value)}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function GoalDetail() {
   const { id: dossierId, goalId } = useParams();
@@ -221,14 +241,13 @@ export default function GoalDetail() {
 
       {/* ── Action toolbar ── */}
       <div className="cycle-toolbar">
+        <div className="cycle-toolbar-group" />
         <div className="cycle-toolbar-group">
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEdit(true)}>
-            <FontAwesomeIcon icon={faPencil} />
+            <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Edit</span>
           </button>
-        </div>
-        <div className="cycle-toolbar-group">
           <button className="cycle-toolbar-btn btn-danger" onClick={handleDelete}>
-            <FontAwesomeIcon icon={faTrash} />
+            <FontAwesomeIcon icon={faTrash} /><span className="cycle-toolbar-label">Delete</span>
           </button>
         </div>
       </div>
@@ -288,9 +307,9 @@ export default function GoalDetail() {
         {/* Secondary KPI grid */}
         <KpiStrip defaultOpen items={[
           { label: 'Target date', value: formatYM(goal.target_date) },
-          !isAdHoc ? { label: 'Months left', value: goal.months_remaining > 0 ? `${goal.months_remaining} mo` : 'Overdue', highlight: goal.months_remaining <= 0 ? 'danger' : 'neutral' } : null,
-          !isAdHoc ? { label: 'Mo. needed', value: formatEur(goal.monthly_value_needed), highlight: infeasible ? 'warning' : 'neutral' } : null,
-          !isAdHoc ? { label: 'Mo. expected', value: formatEur(goal.expected_monthly_contribution), highlight: infeasible ? 'warning' : 'neutral' } : null,
+          !isAdHoc ? { label: 'Months left', value: goal.months_remaining > 0 ? `${goal.months_remaining}` : 'Overdue', highlight: goal.months_remaining <= 0 ? 'danger' : 'neutral' } : null,
+          !isAdHoc ? { label: 'Monthly needed', value: formatEur(goal.monthly_value_needed), highlight: infeasible ? 'warning' : 'neutral' } : null,
+          !isAdHoc ? { label: 'Monthly budgeted', value: formatEur(goal.expected_monthly_contribution), highlight: infeasible ? 'warning' : 'neutral' } : null,
           goal.anticipated_completion_date ? { label: 'Est. done', value: formatYM(goal.anticipated_completion_date), highlight: 'success' } : null,
           goal.extra_value > 0 ? { label: 'Extra', value: formatEur(goal.extra_value), note: 'In accounts — projection only' } : null,
         ]} />
@@ -309,7 +328,7 @@ export default function GoalDetail() {
                   tick={{ fontSize: 11 }}
                 />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`)} />
-                <Tooltip formatter={(v) => formatEur(v)} />
+                <Tooltip content={<ChartTooltip />} />
                 <Legend />
                 <Line type="monotone" dataKey="expected_cumulative" name="Expected" stroke="#6366f1" dot={false} strokeWidth={2} />
                 <Line type="monotone" dataKey="real_cumulative" name="Real" stroke="#10b981" dot={false} strokeWidth={2} />

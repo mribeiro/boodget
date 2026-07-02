@@ -52,7 +52,8 @@ function computeGoalValues(goal, dossierId) {
   const extraValue = goal.extra_value || 0;
   // Extra value is already included in the account balance — not added again to progress
   const totalCurrentProgress = currentAccumulatedValue;
-  const remainingAmount = goal.target_value - totalCurrentProgress;
+  // Floored at 0 — once the target is reached, nothing is "remaining" even if progress overshoots it
+  const remainingAmount = Math.max(0, goal.target_value - totalCurrentProgress);
 
   const nowYM = currentYearMonth();
   const monthsRemaining = monthsDiff(nowYM, goal.target_date);
@@ -82,7 +83,7 @@ function computeGoalValues(goal, dossierId) {
   let monthlyValueNeeded = 0;
   if (monthsRemaining > 0) {
     if (goal.extra_value_impact_mode === 'reduce_monthly_amount' && extraValue > 0) {
-      monthlyValueNeeded = (remainingAmount - extraValue) / monthsRemaining;
+      monthlyValueNeeded = Math.max(0, (remainingAmount - extraValue) / monthsRemaining);
     } else {
       monthlyValueNeeded = remainingAmount / monthsRemaining;
     }
