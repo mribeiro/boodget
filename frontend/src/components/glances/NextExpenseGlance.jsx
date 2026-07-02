@@ -102,6 +102,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
 
   const diffDays = Math.round((next.date - todayMidnight) / (1000 * 60 * 60 * 24));
   let whenLabel = '';
+  let dateSuffix = null; // only set for the upcoming case; hidden on mobile (CSS) to avoid overflow
   let color = 'neutral';
   let whenColor = 'var(--text-secondary)';
 
@@ -116,6 +117,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     whenColor = 'var(--color-warning-text)';
   } else {
     whenLabel = `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+    dateSuffix = ` (${dayLabel})`;
   }
 
   const isOverdue = diffDays < 0;
@@ -150,7 +152,10 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
       <div className="text-sm tabular" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', marginTop: 2 }}>
         <span style={{ whiteSpace: 'nowrap' }}>{formatEur(next.value)}</span>
         {whenLabel && (
-          <span style={{ color: whenColor, whiteSpace: 'nowrap' }}>· {whenLabel}</span>
+          <span style={{ color: whenColor, whiteSpace: 'nowrap' }}>
+            · {whenLabel}
+            {dateSuffix && <span className="next-expense-date-suffix">{dateSuffix}</span>}
+          </span>
         )}
       </div>
       {isOverdue && onMarkPaid && (
