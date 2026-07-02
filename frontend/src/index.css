@@ -1686,6 +1686,18 @@ tr:hover td {
   }
 }
 
+/* Capital card: trend badges push the value out on the narrower mobile
+   card grid, so they're desktop/tablet only. */
+.glance-variation-badge {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .glance-variation-badge {
+    display: inline;
+  }
+}
+
 /* ── Collapsible section ─────────────────────────────────── */
 
 .collapsible-header {

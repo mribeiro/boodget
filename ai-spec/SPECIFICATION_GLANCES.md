@@ -47,9 +47,11 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
 Displayed when a filled Capital snapshot exists for the current month, **or** when the snapshot warning threshold has not yet been reached.
 
 The card face shows three rows:
-- **Total** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total. Shown inline next to the value (when a previous filled snapshot exists): the same variation arrow/percentage used in the details dialog (§3.4), e.g. "▲ +2.4%", colour-coded green/red/neutral.
+- **Total** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
 - **Savings** — Idle only (see `SPECIFICATION.md` §11.1).
 - **Potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+
+Each row's value has a trend arrow/percentage next to it when a previous filled snapshot exists (e.g. "▲ +2.4%", colour-coded green/red/neutral, computed the same way as the Total variation in the details dialog, §3.4, but per-row: Total uses the overall variation, Savings uses the Idle-only variation, Potential uses the Idle+Stocks variation). The badge (`.glance-variation-badge`) is **desktop/tablet only** (`≥768px`) — on the narrower mobile card grid it's hidden entirely, since it would push the value out of the row.
 
 Both row labels and values use `white-space: nowrap` so a large figure never forces the row onto two lines.
 

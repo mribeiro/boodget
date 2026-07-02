@@ -13,6 +13,19 @@ function formatEur(value) {
   return formatNumber(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 }
 
+// Trend arrow/percentage shown next to a row's value. Hidden on mobile (CSS,
+// `.glance-variation-badge`) — the narrower two-column card grid doesn't have
+// room for it alongside the value; desktop/tablet shows it on all three rows.
+function VariationBadge({ variation, color }) {
+  if (variation == null) return null;
+  return (
+    <span className="glance-variation-badge text-xs" style={{ color, whiteSpace: 'nowrap' }}>
+      <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: 2 }} />
+      {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
+    </span>
+  );
+}
+
 export function GlanceCard({ title, icon, color = 'neutral', onClick, children }) {
   const accentColor =
     color === 'amber' ? 'var(--color-warning)' :
@@ -123,18 +136,25 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
   const overall = (latest.capital_total ?? 0) + (latest.stocks_total ?? 0);
   const savingsPotential = (latest.idle_total ?? 0) + (latest.stocks_total ?? 0);
 
+  const previousSavingsPotential = previous != null ? (previous.idle_total ?? 0) + (previous.stocks_total ?? 0) : null;
+  const potentialVariation =
+    previousSavingsPotential != null && previousSavingsPotential !== 0
+      ? ((savingsPotential - previousSavingsPotential) / Math.abs(previousSavingsPotential)) * 100
+      : null;
+
+  const potentialVariationColor =
+    potentialVariation == null ? 'var(--text-muted)' :
+    potentialVariation > 0 ? 'var(--color-value-positive)' :
+    potentialVariation < 0 ? 'var(--color-value-negative)' :
+    'var(--text-muted)';
+
   return (
     <>
       <GlanceCard title="Capital" icon={faChartLine} color="neutral" onClick={() => setShowModal(true)}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
           <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Total</span>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            {variation != null && (
-              <span className="text-xs" style={{ color: variationColor, whiteSpace: 'nowrap' }}>
-                <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: 2 }} />
-                {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
-              </span>
-            )}
+            <VariationBadge variation={variation} color={variationColor} />
             <span className="text-md tabular" style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
               {latest.capital_total != null ? formatEur(latest.capital_total) : '—'}
             </span>
@@ -142,11 +162,17 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
           <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Savings</span>
-          <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(latest.idle_total ?? 0)}</span>
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <VariationBadge variation={idleVariation} color={idleVariationColor} />
+            <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(latest.idle_total ?? 0)}</span>
+          </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
           <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Potential</span>
-          <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(savingsPotential)}</span>
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <VariationBadge variation={potentialVariation} color={potentialVariationColor} />
+            <span className="text-sm tabular" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatEur(savingsPotential)}</span>
+          </span>
         </div>
       </GlanceCard>
       {showModal && (
