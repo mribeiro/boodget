@@ -26,6 +26,7 @@ export default function KpiBlock({ label, value, icon, highlight = 'neutral', la
       padding: '10px 14px',
       minWidth: 80,
       flex: large ? 2 : 1,
+      gridColumn: large ? 'span 2' : undefined,
     }}>
       <div style={{
         fontSize: 9,

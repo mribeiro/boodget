@@ -599,6 +599,8 @@ Total capital
 - Positive delta: `var(--color-value-positive)` with ↑ arrow.
 - Negative delta: `var(--color-value-negative)` with ↓ arrow.
 
+**KPI strip** (`KpiStrip`/`KpiBlock`, used in `CycleEditor` and Goal Detail): on screens wider than 640px, renders each stat as a `KpiBlock` inside a responsive grid (`display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr))`), so cards stay evenly sized regardless of count instead of wrapping unevenly like a `flex-wrap` row. A block flagged `large` spans 2 grid columns. At ≤640px the strip collapses into a single summary row (primary stat + item count + chevron) that expands into a plain label/value list.
+
 -----
 
 ## 7. Glances Panel
@@ -822,13 +824,15 @@ Entries without a Must/Want classification get a left border in `var(--color-war
 
 ### 11.2 Goal Detail
 
-- Page header: goal name + edit/delete icon buttons + state badge.
-- **Key values block** (`.card`): a grid of stat blocks (Target value | Current progress | Remaining amount | Monthly value needed | Expected monthly contribution | Target date). 2-column grid on desktop, 1-column on mobile.
-- **Progress bar** (large variant, `height: 12px`) below the key values, with percentage label.
-- **Infeasibility warning**: a prominent alert box using `--color-warning-light` background, `--color-warning-border` border, `--color-warning-text` text, with a ⚠ icon. Positioned immediately below the progress bar when applicable.
-- **Month-by-month chart** (`.card`): recharts `LineChart`, two lines — Expected (dashed, `--color-neutral`) and Real (solid, `--color-brand`). Historical contribution points marked differently (e.g. open circle dot).
-- **Cycle contributions list** (Manual mode): `.table` with cycle name | expected | real (editable inline input) | difference.
-- **Historical contributions** (Manual / Via Distributions): collapsible section with a small table (year/month/amount) and a “Save” button.
+A single-column stack (no side-by-side chart column) so each block gets full page width:
+
+- Page header: goal name + edit/delete icon buttons.
+- **Infeasibility warning**: a prominent alert box using `--color-warning-light` background, `--color-warning-border` border, `--color-warning-text` text, with a ⚠ icon. Positioned above the hero card when applicable.
+- **Hero card** (`.card`): state badge + percentage in a header row, the large-variant progress bar (`height: 12px`) below it, then a 3-column headline-number row (`.goal-hero-numbers`) — Target | Progress | Remaining — each a label + large (22px, weight 800) value, divided by vertical rules that become horizontal rules stacking to 1 column at ≤640px.
+- **Secondary KPI grid** (`KpiStrip`, Section 6.10): the remaining stats — Target date, Months left, Mo. needed, Mo. expected, Est. done (if extra value uses "Anticipate End Date"), Extra (if set) — rendered as the shared auto-fit KPI grid, collapsing to a summary row on mobile.
+- **Month-by-month chart** (`.card`, full width): recharts `LineChart` with three lines — Expected, Real, and Projected (dashed, from the current month to the target date). Not shown for Ad-hoc mode.
+- **Historical contributions** (Manual / Via Distributions): a `CollapsibleSection` (Section 6.8) with an item-count badge, containing a small table (year/month/amount) plus single-entry and batch-range add forms.
+- **Cycle contributions list** (Manual mode): below the historical contributions section — cycle name | real (editable inline input).
 
 -----
 
