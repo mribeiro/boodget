@@ -153,7 +153,7 @@ Shows:
 - **Value** (€, shown to the cent — unlike the Capital and Current Cycle cards, which round to the nearest euro)
 - **When**: days until payment as a relative count, e.g. "in 3 days"; the calendar date suffix ("in 3 days (Mar 10)") is appended only at `≥768px` (`.next-expense-date-suffix`, same breakpoint as the card grid's mobile/desktop switch) — below that the narrower two-column mobile card grid doesn't have room for it. If the payment day is today: "Today (Mar N)" (date always shown, both viewports). If the payment day has already passed in the current cycle but the expense is still unpaid: just the date, "Mar N" (no "Overdue" prefix, always shown) — the card turning amber already signals the overdue state.
 - **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on its own row below the value/when row. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
-- **Next-next preview**: when the expense is **not** overdue and a second unpaid item exists in the same ordered list, a 3rd line previews it — "Then: [name] · [relative day count]" (e.g. "Then: Electricity · in 5 days"; "Today"/"Overdue" for the edge cases), truncating with an ellipsis rather than wrapping. Only shown when not overdue, since the overdue state uses that row for the "Mark as paid" button instead.
+- **Next-next preview**: when the expense is **not** overdue and a second unpaid item exists in the same ordered list, a 3rd line previews it — "[name] · [relative day count]" (e.g. "Electricity · in 5 days"; "Today"/"Overdue" for the edge cases), truncating with an ellipsis rather than wrapping. Only shown when not overdue, since the overdue state uses that row for the "Mark as paid" button instead.
 
 ### 5.2 All paid state (neutral)
 
@@ -213,7 +213,7 @@ An embedded, independently-clickable banner shown inside the Goals card (in any 
 - Clicking the banner navigates to the Emergency Fund tab (via `stopPropagation`, independent of the rest of the card, which navigates to the Goals tab).
 - When this banner is shown, the outer Goals card itself also switches to the **red** colour state, even if no goals have failed.
 
-When the Emergency Fund status is `healthy` instead, a compact one-line status is shown in the same slot — a shield icon, "Emergency Fund: healthy", and a check-circle icon, in the success colour — rather than nothing at all. Same click-through behaviour as the underfunded banner. Does not affect the card's colour state. When the status is `no_data` (or no Emergency Fund accounts are configured), nothing is shown, same as before — there's nothing meaningful to report yet.
+When the Emergency Fund status is `healthy` or `no_data` (or no Emergency Fund accounts are configured), nothing is shown in this slot — a healthy fund is the expected default and isn't called out; only the underfunded case warrants a banner, consistent with the rest of the Glances panel only speaking up when something needs attention.
 
 ---
 
