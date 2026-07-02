@@ -419,6 +419,16 @@ Tab state restorable via location state: `navigate('/dossiers/:id', { state: { t
 
 Inline styles + `index.css`. No CSS framework. Match existing inline-style pattern.
 
+### Visual QA — Screenshot Every UI Change
+
+**Mandatory, automatic, no need to be asked.** Whenever a change touches rendered UI (anything under `frontend/src/components`, or CSS affecting it), before ending the turn: run the app, capture screenshots of every distinct visual state the change affects, at both a mobile and a desktop viewport, and send them inline via `SendUserFile` (`display: 'render'`). Skip only for diffs with no visual surface (backend-only, docs-only) — same scoping as the `/verify` skill.
+
+- **Tooling**: `scripts/screenshot.js` — a dependency-free Node script (no `package.json` entry anywhere) that resolves Playwright from `node_modules` if present, else falls back to a known global install path. Logs in via the `#username`/`#password` form, navigates to a path, and saves a PNG (optionally cropped to a `--selector`). Usage: `node scripts/screenshot.js <path> <outFile> --width= --height= --base= [--selector=] [--user=] [--pass=]`.
+- **Isolation**: never point this at a real/shared dev DB. Start a throwaway backend (`NODE_ENV=ephemeral SEED_ON_EMPTY=true DB_PATH=<scratchpad>/screenshot.db`) and frontend (`npm run dev`) in the background, using the **default ports** (3000 / 5173) whenever they're free — `vite.config.js`'s `/api` proxy target is a hardcoded `http://localhost:3000`, and Chromium blocks `page.route()` from rewriting a request to a different origin/port (`ERR_BLOCKED_BY_CLIENT`), so the throwaway backend must run on :3000 for the frontend's proxy to reach it. If :3000/:5173 are already occupied by a real dev session, temporarily change vite.config.js's proxy target to the alternate port for the run and revert it immediately after — never leave that edit committed or uncommitted in the tree. Reuse the running pair for the rest of the session; tear both down (and delete the scratch DB) when done.
+- **Choosing states ("variations")**: prefer the six dossiers `backend/src/db/seed.js` seeds for the `preview` user (password `Preview@Capital2024!`) — they're deliberately engineered to cover most Glances/Capital/Cycle/Goals/Emergency-Fund states: "My Finances" (all-neutral), "Glances — All Good", "Glances — Capital Snapshot Missing" (Capital amber), "Glances — Red Alerts" (cycle red), "Glances — Next Cycle Not Opened" (cycle amber), "Emergency Fund — Underfunded". If the change affects a state none of these cover, create it with a couple of API calls against the throwaway instance rather than editing seed data.
+- **Viewports**: mobile `390×844`, desktop `1440×900` — comfortably inside this codebase's `<768` / `≥1024` breakpoints (`ai-spec/SPECIFICATION_UI.md` §14).
+- Caption each sent image with component + state + viewport so the set is scannable.
+
 ## Key Business Rules
 
 1. **Password policy**: Min 16 chars, uppercase + lowercase + digit + symbol. Validated in `routes/auth.js` and `routes/users.js`.
@@ -476,4 +486,4 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 
 ## No Test Suite
 
-No automated tests. Prefer pure functions and thin route handlers to make logic easy to test in isolation.
+No automated tests. Prefer pure functions and thin route handlers to make logic easy to test in isolation. (The Visual QA screenshot workflow under Frontend Conventions is a manual/AI-driven visual-QA aid, not an automated test suite — it doesn't change this.)
