@@ -9,6 +9,7 @@ function formatEur(value) {
 
 export default function GoalsGlance({ goals, onClick, efStatus, onEfClick }) {
   const efUnderfunded = efStatus?.status === 'underfunded';
+  const efHealthy = efStatus?.status === 'healthy';
 
   function handleEfClick(e) {
     e.stopPropagation();
@@ -16,28 +17,46 @@ export default function GoalsGlance({ goals, onClick, efStatus, onEfClick }) {
   }
 
   function renderEfBanner(compact) {
-    if (!efUnderfunded) return null;
-    return (
-      <div
-        onClick={handleEfClick}
-        style={{ marginTop: compact ? 5 : 4, paddingTop: compact ? 5 : 6, borderTop: '1px solid var(--border-default)', cursor: onEfClick ? 'pointer' : 'default' }}
-      >
-        <div className="text-xs" style={{ color: 'var(--color-danger-text)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <FontAwesomeIcon icon={faShieldHalved} />
-          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {compact
-              ? <>{formatEur(efStatus.deficit)} short of {formatEur(efStatus.target_value)}</>
-              : <>Emergency Fund: {formatEur(efStatus.deficit)} short</>}
-          </span>
-          <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginLeft: 'auto', color: 'var(--color-danger)', flexShrink: 0 }} />
-        </div>
-        {!compact && (
-          <div className="text-xs" style={{ color: 'var(--text-muted)', marginTop: 2 }}>
-            Target: {formatEur(efStatus.target_value)}
+    if (efUnderfunded) {
+      return (
+        <div
+          onClick={handleEfClick}
+          style={{ marginTop: compact ? 5 : 4, paddingTop: compact ? 5 : 6, borderTop: '1px solid var(--border-default)', cursor: onEfClick ? 'pointer' : 'default' }}
+        >
+          <div className="text-xs" style={{ color: 'var(--color-danger-text)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <FontAwesomeIcon icon={faShieldHalved} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {compact
+                ? <>{formatEur(efStatus.deficit)} short of {formatEur(efStatus.target_value)}</>
+                : <>Emergency Fund: {formatEur(efStatus.deficit)} short</>}
+            </span>
+            <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginLeft: 'auto', color: 'var(--color-danger)', flexShrink: 0 }} />
           </div>
-        )}
-      </div>
-    );
+          {!compact && (
+            <div className="text-xs" style={{ color: 'var(--text-muted)', marginTop: 2 }}>
+              Target: {formatEur(efStatus.target_value)}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (efHealthy) {
+      return (
+        <div
+          onClick={handleEfClick}
+          style={{ marginTop: compact ? 5 : 4, paddingTop: compact ? 5 : 6, borderTop: '1px solid var(--border-default)', cursor: onEfClick ? 'pointer' : 'default' }}
+        >
+          <div className="text-xs" style={{ color: 'var(--color-success-text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <FontAwesomeIcon icon={faShieldHalved} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Emergency Fund: healthy</span>
+            <FontAwesomeIcon icon={faCircleCheck} style={{ marginLeft: 'auto', color: 'var(--color-success)', flexShrink: 0 }} />
+          </div>
+        </div>
+      );
+    }
+
+    return null; // no_data (or missing efStatus) — nothing meaningful to report yet
   }
 
   if (goals.length === 0) {
