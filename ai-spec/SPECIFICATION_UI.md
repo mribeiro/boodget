@@ -826,7 +826,7 @@ Entries without a Must/Want classification get a left border in `var(--color-war
 
 A single-column stack (no side-by-side chart column) so each block gets full page width:
 
-- Page header: goal name + edit/delete icon buttons.
+- Page header: goal name. Below it, a `cycle-toolbar` action bar (Section 9.2's convention) with Edit and Delete right-aligned as a single group — icon + text label on desktop, icon-only in the fixed bottom bar on mobile.
 - **Infeasibility warning**: a prominent alert box using `--color-warning-light` background, `--color-warning-border` border, `--color-warning-text` text, with a ⚠ icon. Positioned above the hero card when applicable.
 - **Hero card** (`.card`): state badge + percentage in a header row, the large-variant progress bar (`height: 12px`) below it, then a 3-column headline-number row (`.goal-hero-numbers`) — Target | Progress | Remaining — each a label + large (22px, weight 800) value, divided by vertical rules that become horizontal rules stacking to 1 column at ≤640px.
 - **Secondary KPI grid** (`KpiStrip`, Section 6.10): the remaining stats — Target date, Months left, Monthly needed, Monthly budgeted, Est. done (if extra value uses "Anticipate End Date"), Extra (if set) — rendered as the shared auto-fit KPI grid, collapsing to a summary row on mobile.

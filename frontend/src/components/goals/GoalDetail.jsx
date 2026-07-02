@@ -221,14 +221,13 @@ export default function GoalDetail() {
 
       {/* ── Action toolbar ── */}
       <div className="cycle-toolbar">
+        <div className="cycle-toolbar-group" />
         <div className="cycle-toolbar-group">
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEdit(true)}>
-            <FontAwesomeIcon icon={faPencil} />
+            <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Edit</span>
           </button>
-        </div>
-        <div className="cycle-toolbar-group">
           <button className="cycle-toolbar-btn btn-danger" onClick={handleDelete}>
-            <FontAwesomeIcon icon={faTrash} />
+            <FontAwesomeIcon icon={faTrash} /><span className="cycle-toolbar-label">Delete</span>
           </button>
         </div>
       </div>
