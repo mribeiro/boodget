@@ -16,6 +16,17 @@ function cycleDisplayName(year, month, startDay) {
   return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
 }
 
+// "Cycle of " is dropped on mobile (narrower two-column card grid) so the
+// title fits on a single line; desktop/tablet has room to keep it.
+function cycleTitle(name) {
+  return (
+    <>
+      <span className="cycle-title-prefix">Cycle of </span>
+      {name}
+    </>
+  );
+}
+
 function cycleYearMonth(today, cycleStartDay) {
   const d = today.getDate();
   if (d >= cycleStartDay) {
@@ -51,7 +62,7 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
   // Red: previous cycle not closed
   if (prevCycle && !prevCycle.is_closed && todayDay >= prevCloseWarningDay) {
     return (
-      <GlanceCard title={`Cycle of ${cycleDisplayName(prev.year, prev.month, cycleStartDay)}`} icon={faCalendarDays} color="red" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${prevCycle.id}`)}>
+      <GlanceCard title={cycleTitle(cycleDisplayName(prev.year, prev.month, cycleStartDay))} icon={faCalendarDays} color="red" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${prevCycle.id}`)}>
         <p style={msgStyle}>Previous cycle has not been closed yet</p>
       </GlanceCard>
     );
@@ -65,7 +76,7 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
     today.getMonth() === cycleEndDate.getMonth();
   if (!nextCycle && inCycleEndMonth && todayDay >= nextCycleWarningDay) {
     return (
-      <GlanceCard title={`Cycle of ${cycleDisplayName(next.year, next.month, cycleStartDay)}`} icon={faCalendarDays} color="amber" onClick={onClick}>
+      <GlanceCard title={cycleTitle(cycleDisplayName(next.year, next.month, cycleStartDay))} icon={faCalendarDays} color="amber" onClick={onClick}>
         <p style={msgStyle}>Next cycle has not been opened yet</p>
       </GlanceCard>
     );
@@ -80,7 +91,7 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
     );
   }
 
-  const title = `Cycle of ${cycleDisplayName(current.year, current.month, cycleStartDay)}`;
+  const title = cycleTitle(cycleDisplayName(current.year, current.month, cycleStartDay));
 
   if (!currentCycleDetail) {
     return (

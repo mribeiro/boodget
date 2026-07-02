@@ -100,7 +100,7 @@ The current cycle is the one whose date range covers today, computed using the d
 Condition: a cycle exists for the current period and no warning thresholds are triggered.
 
 Shows:
-- **Title**: "Cycle of [Month Year]" (e.g. "Cycle of March 2025")
+- **Title**: "Cycle of [Month Year]" (e.g. "Cycle of March 2025") — the "Cycle of " prefix is hidden below `768px` (`.cycle-title-prefix`, same breakpoint as the card grid's mobile/desktop switch) so the title fits on one line on the narrower mobile card grid; desktop/tablet keeps the full "Cycle of [Month Year]". Same prefix-hiding rule applies to the title in every state below (4.3, 4.4, 4.5 keeps its own static "Current Cycle" title unaffected since it has no prefix).
 - **Current expected balance**: `Total available − paid fixed expenses − spent budget amounts − done distributions`
 - **Expected leftover**: the `Expected balance` field already computed on the cycle (`Total available − all fixed expense values − all budget maximum values − all distribution values`)
 

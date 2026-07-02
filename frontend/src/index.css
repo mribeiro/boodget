@@ -1674,6 +1674,18 @@ tr:hover td {
   }
 }
 
+/* Current Cycle card: "Cycle of " prefix only fits on a single line once
+   cards get the wider desktop/tablet row layout. */
+.cycle-title-prefix {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .cycle-title-prefix {
+    display: inline;
+  }
+}
+
 /* ── Collapsible section ─────────────────────────────────── */
 
 .collapsible-header {
