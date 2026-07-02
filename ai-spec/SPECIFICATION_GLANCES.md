@@ -23,7 +23,7 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
   2. Current Cycle
   3. Next Expense
   4. Goals
-- All four cards share a single **fixed height** (`.glance-card { height: 148px; overflow: hidden; }`), identical in every state and at every viewport width — not just visually similar, but a literal CSS guarantee. Each card's content is condensed to fit this budget (Capital's two-row face, Current Cycle's two-row face, Next Expense's name/value-when/button rows, Goals' single-line count row and compact Emergency Fund banner); `overflow: hidden` is a safety net only, not a content-fitting strategy — every real content combination is measured to fit within the budget without clipping.
+- All four cards share a single **fixed height** (`.glance-card { height: 148px; overflow: hidden; }`), identical in every state and at every viewport width — not just visually similar, but a literal CSS guarantee. Each card's content is condensed to fit this budget (Capital's three-row face, Current Cycle's two-row face, Next Expense's name/value-when/button rows, Goals' single-line count row and compact Emergency Fund banner); `overflow: hidden` is a safety net only, not a content-fitting strategy — every real content combination is measured to fit within the budget without clipping.
 - Stocks figures are folded into the Capital card as a sub-block (see §3.3) rather than shown as a separate card. The Emergency Fund warning is folded into the Goals card as an embedded banner (see §6, and `SPECIFICATION_EMERGENCY_FUND.md` §7).
 - Each card is **clickable**:
   - Capital card → in its normal state (§3.1), opens a details dialog in place (see §3.4); in its warning/empty states (§3.2/§3.3), navigates to the Capital tab instead, since there's nothing to show in a dialog.
@@ -46,9 +46,10 @@ Glances is a read-only summary panel displayed **above the dossier tabs** (Capit
 
 Displayed when a filled Capital snapshot exists for the current month, **or** when the snapshot warning threshold has not yet been reached.
 
-The card face shows only two rows, matching the Current Cycle card's layout:
+The card face shows three rows:
 - **Total** — sum of `Idle` + `Active` account values from the most recent filled snapshot, formatted as currency (€). `Stocks`-category accounts are never included in this total.
-- **Savings** (label shortened from "Savings potential" on the card face to guarantee a 6-digit value + € fits on one line at the narrowest supported width; the full "Savings potential" wording is used in the details dialog) — Idle + Stocks (see `SPECIFICATION.md` §11.1).
+- **Savings** — Idle only (see `SPECIFICATION.md` §11.1).
+- **Potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1).
 
 Both row labels and values use `white-space: nowrap` so a large figure never forces the row onto two lines.
 
@@ -81,7 +82,7 @@ Shows:
   - **Total stocks value** — sum of `Stocks`-category account values, formatted as currency (€).
   - **Variation** — percentage change relative to the previous filled snapshot, same colour rules as the main Capital variation.
   - **Overall** — Idle + Active + Stocks (see `SPECIFICATION.md` §11.1).
-  - **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1) — repeated here for context alongside Overall, even though it's already visible on the card face.
+  - **Savings potential** — Idle + Stocks (see `SPECIFICATION.md` §11.1) — repeated here for context alongside Overall, even though it's already visible on the card face as the "Potential" row.
 
 ---
 
