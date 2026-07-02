@@ -89,18 +89,20 @@ function computeGoalValues(goal, dossierId) {
     }
   }
 
-  // Anticipated completion date (only for "anticipate_end_date" mode with extra value)
-  // months_needed = (remaining - extra) / expected, then date = today + months_needed
+  // Anticipated completion date: shown whenever the goal is on pace to finish before
+  // the target date — either because the budgeted contribution alone outpaces the
+  // monthly amount needed, or (in "Anticipate End Date" mode) because an extra value
+  // accelerates it further. months_needed = (remaining - extra) / expected, where
+  // extra is only subtracted in "Anticipate End Date" mode; date = today + months_needed.
   let anticipatedCompletionDate = null;
-  if (
-    goal.extra_value_impact_mode === 'anticipate_end_date' &&
-    extraValue > 0 &&
-    expectedMonthlyContribution > 0
-  ) {
-    const monthsNeeded = Math.max(0, Math.ceil((remainingAmount - extraValue) / expectedMonthlyContribution));
-    const now = new Date();
-    const d = new Date(now.getFullYear(), now.getMonth() + monthsNeeded, 1);
-    anticipatedCompletionDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  if (expectedMonthlyContribution > 0 && remainingAmount > 0) {
+    const effectiveExtra = goal.extra_value_impact_mode === 'anticipate_end_date' ? extraValue : 0;
+    const monthsNeeded = Math.max(0, Math.ceil((remainingAmount - effectiveExtra) / expectedMonthlyContribution));
+    if (monthsNeeded < monthsRemaining) {
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth() + monthsNeeded, 1);
+      anticipatedCompletionDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
   }
 
   // Feasibility (not applicable for ad_hoc)

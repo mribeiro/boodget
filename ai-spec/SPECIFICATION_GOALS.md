@@ -85,6 +85,8 @@ When an **extra value already in hand** is provided, it represents a one-off inj
 
 > If no extra value is provided, this field has no effect and does not need to be set.
 
+> **Note:** an anticipated completion date is also shown independently of any extra value — see **Anticipated completion date** in Section 5 — whenever the expected monthly contribution alone outpaces the monthly value needed.
+
 -----
 
 ## 5. Calculated Values
@@ -99,7 +101,7 @@ The following values are computed and displayed for each goal:
 |**Months remaining**             |Number of months from today to the target date                                                                                                                                                                           |
 |**Monthly value needed**         |max(0, Remaining amount ÷ Months remaining), adjusted by extra value if “Reduce Monthly Amount” is selected                                                                                                              |
 |**Expected monthly contribution**|Sum of selected distribution template values (“Via Distributions”) or fixed manual value (“Manual”)                                                                                                                      |
-|**Anticipated completion date**  |Displayed only when extra value impact mode “Anticipate End Date” is selected. Calculated as: (Remaining amount − Extra value) ÷ Expected monthly contribution, subtracted from the target date.                         |
+|**Anticipated completion date**  |Not applicable for “Ad-hoc” mode. Months needed = ceil((Remaining amount − Extra value) ÷ Expected monthly contribution) — Extra value is only subtracted when impact mode “Anticipate End Date” is selected, otherwise 0. Displayed (today + months needed) only when this is strictly earlier than the target date, i.e. the goal is on pace to finish early — whether from “Anticipate End Date” or simply because the expected monthly contribution outpaces the monthly value needed.|
 |**Feasibility**                  |Whether the goal is achievable given the current contribution. A goal is **infeasible** if: (Expected monthly contribution × Months remaining) + Total current progress < Target value. Not applicable for “Ad-hoc” mode.|
 
 
