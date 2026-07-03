@@ -147,10 +147,12 @@ In the chart, historical contributions are prepended before the first cycle data
 
 The system maintains a cumulative view of:
 
-- **Expected cumulative**: sum of expected monthly contributions per cycle from the goal's creation month onwards.
-- **Real cumulative**: sum of historical contributions (pre-cycle) followed by real contributions per cycle.
+- **Expected cumulative**: sum of expected monthly contributions per cycle across **all of the dossier's cycles** (not limited to cycles on/after the goal's creation date — the underlying distributions are dossier-wide and may predate the goal object itself).
+- **Real cumulative**: sum of historical contributions (pre-cycle) followed by real contributions per cycle, across that same full cycle range.
 
-Both lines start from the goal creation month. Historical contribution points carry `is_historical: true` in the chart data and have no `expected_cumulative` value (since no cycle existed yet).
+Historical contribution points carry `is_historical: true` in the chart data and have no `expected_cumulative` value (since no cycle existed yet).
+
+Both cumulative series are then **shifted by a constant offset** (`current_accumulated_value` minus the last tracked `real_cumulative` value) so that the most recent point always lands exactly on the goal's true current balance — see Section 8.3. This means earlier points are an approximation (real accounts also earn interest or receive deposits the tracked "done" distributions don't capture), but the join into the Projected line is always exact.
 
 -----
 
@@ -178,11 +180,11 @@ A line chart showing, per cycle:
 - **Expected cumulative** contribution (projected line)
 - **Real cumulative** contribution (actual line)
 
-Both lines start from the goal creation cycle. The chart allows the user to visually compare actual progress against the original projection.
+The chart allows the user to visually compare actual progress against the original projection. See Section 7.3 for how these two lines are computed across the dossier's full cycle history and anchored to the goal's true current balance.
 
 ### 8.3 Future Trend Line
 
-When the goal has at least one linked account (so a current value is known) and the target date has not yet passed, the chart also shows a **Projected** line (`projected_cumulative`, dashed) extending from the current month to the target date. It starts at the current accumulated value (`current_accumulated_value`) and increases by the expected monthly contribution for each month until the target date, showing where the goal balance is trending towards. If no cycle/historical data points exist yet, a single anchor point for the current month is added so the projected line has a starting point.
+When the goal has at least one linked account (so a current value is known) and the target date has not yet passed, the chart also shows a **Projected** line (`projected_cumulative`, dashed) extending from the current month to the target date. It starts at the current accumulated value (`current_accumulated_value`) and increases by the expected monthly contribution for each month until the target date, showing where the goal balance is trending towards. If no cycle/historical data points exist yet, a single anchor point for the current month is added so the projected line has a starting point. Because Real cumulative (Section 7.3) is anchored to end at this same `current_accumulated_value`, the Projected line is always a seamless continuation of Real rather than a disconnected jump.
 
 ### 8.4 Anticipated Completion Milestone
 
