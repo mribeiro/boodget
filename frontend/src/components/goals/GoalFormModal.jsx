@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
@@ -15,7 +15,7 @@ function parseYM(ym) {
   return { year: parseInt(y, 10), month: parseInt(m, 10) };
 }
 
-export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
+export default function GoalFormModal({ dossierId, goal, onSave, onClose, focusContributionMode = false }) {
   const isEdit = !!goal;
   const now = new Date();
   const defaultYear = now.getFullYear() + 1;
@@ -41,6 +41,19 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
   const [distributions, setDistributions] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [contributionModeHighlighted, setContributionModeHighlighted] = useState(false);
+  const contributionModeRef = useRef(null);
+  const firstRadioRef = useRef(null);
+
+  useEffect(() => {
+    if (!focusContributionMode) return;
+    contributionModeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    firstRadioRef.current?.focus();
+    setContributionModeHighlighted(true);
+    const timer = setTimeout(() => setContributionModeHighlighted(false), 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -144,16 +157,25 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose }) {
               </div>
             </div>
 
-            <div className="form-group">
+            <div
+              className="form-group"
+              ref={contributionModeRef}
+              style={{
+                borderRadius: 'var(--radius)',
+                boxShadow: contributionModeHighlighted ? '0 0 0 3px var(--color-brand-light), 0 0 0 1px var(--color-brand)' : 'none',
+                transition: 'box-shadow 0.3s ease',
+              }}
+            >
               <label>Monthly contribution mode</label>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {[
                   { value: 'via_distributions', label: 'Via distributions' },
                   { value: 'manual', label: 'Manual' },
                   { value: 'ad_hoc', label: 'Ad-hoc' },
-                ].map((opt) => (
+                ].map((opt, i) => (
                   <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontWeight: 'normal' }}>
                     <input
+                      ref={i === 0 ? firstRadioRef : undefined}
                       type="radio"
                       name="contribution_mode"
                       value={opt.value}

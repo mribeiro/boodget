@@ -63,6 +63,7 @@ The user must choose one of three mutually exclusive modes to define the expecte
 - Progress is tracked purely through the value of the selected contributing accounts, read from the most recent Capital snapshot.
 - No feasibility warning is shown for goals in this mode.
 - No month-by-month chart is shown — only the progress bar and key values.
+- While the goal is **active** and has a positive **Monthly value needed** (Section 5 — computed the same way as for other modes), the goal detail page shows a faded, clickable suggestion below the key values: *"To reach this goal by [target date], you'd need to budget roughly [monthly value needed] per month — consider switching to a monthly-reinforced goal to track this automatically."* Clicking it opens the Edit Goal form with the "Monthly contribution mode" field scrolled into view and highlighted, encouraging a switch to "Via Distributions" or "Manual". Hidden for completed, failed, or overdue goals (where the monthly figure is zero or meaningless).
 
 -----
 
