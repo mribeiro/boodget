@@ -137,20 +137,14 @@ function computeGoalValues(goal, dossierId) {
 function buildChartData(goal, dossierId, currentAccumulatedValue) {
   if (goal.contribution_mode === 'ad_hoc') return null;
 
-  // Get all cycles for this dossier from goal creation onwards
-  const goalCreatedAt = goal.created_at; // e.g. "2026-03-12 10:00:00"
-  const goalYM = goalCreatedAt.substring(0, 7); // "2026-03"
-
+  // All of the dossier's cycles — not gated by the goal's creation date, since the
+  // distributions being tracked are dossier-wide and may predate the goal itself.
   const cycles = db
     .prepare(
       `SELECT id, year, month FROM expense_cycles WHERE dossier_id = ?
        ORDER BY year ASC, month ASC`
     )
-    .all(dossierId)
-    .filter((c) => {
-      const ym = `${c.year}-${String(c.month).padStart(2, '0')}`;
-      return ym >= goalYM;
-    });
+    .all(dossierId);
 
   // Fetch historical contributions (sorted)
   const historicalRows = db
@@ -249,6 +243,22 @@ function buildChartData(goal, dossierId, currentAccumulatedValue) {
       real_cumulative: realCumulative,
       real_contribution: realContribution,
     });
+  }
+
+  // Anchor Real/Expected to today's true balance: shift the whole series by a constant
+  // so the most recent point lands exactly on current_accumulated_value, guaranteeing a
+  // seamless join into the Projected line below (which starts from that same value).
+  // Older points become an approximation, since real accounts also earn interest / receive
+  // deposits the tracked "done" distributions don't capture.
+  const lastRealPoint = [...chartData].reverse().find((p) => p.real_cumulative != null);
+  if (lastRealPoint) {
+    const offset = (currentAccumulatedValue || 0) - lastRealPoint.real_cumulative;
+    if (offset !== 0) {
+      for (const point of chartData) {
+        if (point.real_cumulative != null) point.real_cumulative += offset;
+        if (point.expected_cumulative != null) point.expected_cumulative += offset;
+      }
+    }
   }
 
   // Projected trend line: from now to target_date, based on current accumulated

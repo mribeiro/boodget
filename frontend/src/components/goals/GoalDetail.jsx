@@ -13,6 +13,7 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
 } from 'recharts';
 import { api } from '../../services/api';
@@ -231,6 +232,12 @@ export default function GoalDetail() {
   const progressPct = Math.min(100, (goal.total_current_progress / goal.target_value) * 100);
   const infeasible = goal.feasible === false;
   const isAdHoc = goal.contribution_mode === 'ad_hoc';
+  // Matches the XAxis dataKey's category label so the ReferenceLine lands on the right tick
+  let anticipatedLabel = null;
+  if (goal.anticipated_completion_date) {
+    const [anticipatedYear, anticipatedMonth] = goal.anticipated_completion_date.split('-');
+    anticipatedLabel = `${MONTH_NAMES[Number(anticipatedMonth) - 1]} ${anticipatedYear}`;
+  }
 
   return (
     <div>
@@ -321,7 +328,7 @@ export default function GoalDetail() {
               Cumulative contributions
             </h3>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={goal.chart_data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <LineChart data={goal.chart_data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis
                   dataKey={(d) => `${MONTH_NAMES[d.month - 1]} ${d.year}`}
@@ -333,6 +340,15 @@ export default function GoalDetail() {
                 <Line type="monotone" dataKey="expected_cumulative" name="Expected" stroke="#6366f1" dot={false} strokeWidth={2} />
                 <Line type="monotone" dataKey="real_cumulative" name="Real" stroke="#10b981" dot={false} strokeWidth={2} />
                 <Line type="monotone" dataKey="projected_cumulative" name="Projected" stroke="#f59e0b" strokeDasharray="5 5" dot={false} strokeWidth={2} />
+                {anticipatedLabel && (
+                  <ReferenceLine
+                    x={anticipatedLabel}
+                    stroke="var(--text-primary)"
+                    strokeDasharray="4 4"
+                    strokeWidth={1.5}
+                    label={{ value: 'Estimated', position: 'top', fill: 'var(--text-primary)', fontSize: 11, fontWeight: 700 }}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
