@@ -76,6 +76,7 @@ export default function GoalDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showEdit, setShowEdit] = useState(false);
+  const [focusContributionMode, setFocusContributionMode] = useState(false);
   const [editingCycle, setEditingCycle] = useState(null);
   const [cycleContribValue, setCycleContribValue] = useState('');
   const [savingContrib, setSavingContrib] = useState(false);
@@ -250,7 +251,7 @@ export default function GoalDetail() {
       <div className="cycle-toolbar">
         <div className="cycle-toolbar-group" />
         <div className="cycle-toolbar-group">
-          <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEdit(true)}>
+          <button className="cycle-toolbar-btn btn-secondary" onClick={() => { setFocusContributionMode(false); setShowEdit(true); }}>
             <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Edit</span>
           </button>
           <button className="cycle-toolbar-btn btn-danger" onClick={handleDelete}>
@@ -309,6 +310,27 @@ export default function GoalDetail() {
               </div>
             </div>
           </div>
+          {isAdHoc && goal.state === 'active' && goal.monthly_value_needed > 0 && (
+            <button
+              type="button"
+              onClick={() => { setFocusContributionMode(true); setShowEdit(true); }}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                marginTop: 'var(--space-3)',
+                fontSize: 12.5,
+                fontStyle: 'italic',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              To reach this goal by {formatYM(goal.target_date)}, you'd need to budget roughly {formatEur(goal.monthly_value_needed)} per month — consider switching to a monthly-reinforced goal to track this automatically.
+            </button>
+          )}
         </div>
 
         {/* Secondary KPI grid */}
@@ -528,12 +550,14 @@ export default function GoalDetail() {
         <GoalFormModal
           dossierId={dossierId}
           goal={goal}
+          focusContributionMode={focusContributionMode}
           onSave={(updated) => {
             setGoal(updated);
             setShowEdit(false);
+            setFocusContributionMode(false);
             load();
           }}
-          onClose={() => setShowEdit(false)}
+          onClose={() => { setShowEdit(false); setFocusContributionMode(false); }}
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
