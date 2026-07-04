@@ -245,6 +245,8 @@ A summary card at the top shows:
 | Monthly average needed | `Amount left needed / cycles_remaining`, where `cycles_remaining` = number of cycles in the viewed calendar year whose start date is still in the future. A cycle displayed as "Month M" starts on `cycle_start_day` of the prior calendar month (`new Date(year, M-1, cycleStartDay)`). The label shows the count: "Monthly average needed (N cycles left)". When `cycles_remaining = 0` (past year or all cycles elapsed), shows `Amount left needed` as-is. Subtitle shows projected monthly distributions, colour-coded green/amber vs. target. |
 | Needed this cycle | Sum of unpaid installment expected values assigned to the current cycle |
 
+The card's header holds 5 action buttons using the `cycle-toolbar` convention (Section 9.2 of `SPECIFICATION_UI.md`): 4 left-aligned (Sync from template, Sync to template, Contributing accounts, Contributing distributions) and Delete right-aligned — icon + text label inline on desktop, icon-only in a fixed bottom bar on mobile (`<640px`).
+
 ### 6.4 Year Items Detail
 
 Below the summary, year items are **sorted by their first installment date ascending** (month × 100 + day of installment #1). Items with no installments sort last.
