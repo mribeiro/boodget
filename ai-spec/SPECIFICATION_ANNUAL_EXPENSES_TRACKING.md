@@ -230,20 +230,31 @@ At the top of the tab, a year selector allows switching between years. The curre
 
 ### 6.3 Year Summary Card
 
-A summary card at the top shows:
+The card's header holds 5 action buttons using the `cycle-toolbar` convention (Section 9.2 of `SPECIFICATION_UI.md`): 4 left-aligned (Sync from template, Sync to template, Contributing accounts, Contributing distributions) and Delete right-aligned — icon + text label inline on desktop, icon-only in a fixed bottom bar on mobile (`<640px`).
+
+Below the header, the summary is presented as a goal-style progress view (mirroring the Goals feature's `GoalDetail` hero, Section 8.1 of `SPECIFICATION_GOALS.md`), not a flat stat grid:
+
+**Hero block** (`card card--flat`):
+- A status badge — **Fully funded** (green) when `raised_to_date >= total_budgeted`, otherwise **In progress** (brand blue) — plus the progress percentage, top-right.
+- A value progress bar (`progress-track lg`) showing `raised_to_date` against `total_budgeted`, where **`raised_to_date = accumulated_accounts + total_paid`**. This reconstructs a monotonically-increasing "total money raised this year" figure: `accumulated_accounts` is a live, volatile snapshot of the tracked accounts' current balance that *drops* whenever an annual expense is paid from it (unlike a savings Goal's account, which is only ever added to) — adding `total_paid` back undoes that netting so the bar doesn't visually regress just because a bill got paid. Bar colour: green when fully funded, otherwise red `<25%` / amber `<75%` / green `≥75%` progress.
+- A slim time-progress bar (`progress-track`, styled like the Cycle Glance's day-elapsed bar) showing elapsed days from **Jan 1 of the year through the date of the last annual expense installment in that year** (not Dec 31), labelled "Day X/Y".
+- Three headline numbers (`goal-hero-numbers`): **Target** (`total_budgeted`), **Raised to date**, **Remaining** (`max(0, total_budgeted − raised_to_date)` — algebraically the same value as "Amount left needed" below, just relabelled for the hero).
+
+**Carryover row**: a standalone compact row (amount carried from the previous year, editable) directly below the hero, since it's the only editable stat.
+
+**Secondary KPIs** (`KpiStrip`, collapsible on mobile):
 
 | Field | Description |
 |---|---|
-| Carryover | Amount carried from previous year (editable) |
-| Accumulated (accounts) | Sum of contributing account values from last Capital snapshot (already includes carryover and is net of paid expenses) |
+| In tracked accounts | Raw `accumulated_accounts` — current balance of the contributing accounts, net of paid expenses. Kept visible separately from the hero (which folds it into "Raised to date") so its volatility (rises with contributions, drops when an expense is paid) stays transparent. |
 | Contributed (distributions) | Sum of "done" distributions from cycles in this calendar year |
-| Total budgeted | Sum of all year item budgeted values |
 | Total paid | Sum of all real_value where paid = true |
 | Total expenses remaining | Total budgeted − Total paid (amber when > 0, green when 0) |
-| Amount left needed | max(0, Total expenses remaining − Accumulated accounts) — how much still needs to be raised beyond what is already on hand; green when accumulated covers remaining, amber otherwise |
-| Total raise needed | max(0, Total budgeted − Carryover) — total amount to be raised over the year; subtitle shows projected annual distributions (selected distribution template values × 12), colour-coded green/amber vs. target |
-| Monthly average needed | `Amount left needed / cycles_remaining`, where `cycles_remaining` = number of cycles in the viewed calendar year whose start date is still in the future. A cycle displayed as "Month M" starts on `cycle_start_day` of the prior calendar month (`new Date(year, M-1, cycleStartDay)`). The label shows the count: "Monthly average needed (N cycles left)". When `cycles_remaining = 0` (past year or all cycles elapsed), shows `Amount left needed` as-is. Subtitle shows projected monthly distributions, colour-coded green/amber vs. target. |
-| Needed this cycle | Sum of unpaid installment expected values assigned to the current cycle |
+| Needed this cycle | Sum of unpaid installment expected values assigned to the current cycle; note shows "Covered" / "Shortfall: X" / "Nothing due this cycle" |
+| Total raise needed | max(0, Total budgeted − Carryover) — total amount to be raised over the year; note shows projected annual distributions (selected distribution template values × 12), colour-coded green/amber vs. target |
+| Monthly average needed | `Amount left needed / cycles_remaining`, where `cycles_remaining` = number of cycles in the viewed calendar year whose start date is still in the future. A cycle displayed as "Month M" starts on `cycle_start_day` of the prior calendar month (`new Date(year, M-1, cycleStartDay)`). The label shows the count: "Monthly average needed (N cycles left)". When `cycles_remaining = 0` (past year or all cycles elapsed), shows `Amount left needed` as-is. Note shows projected monthly distributions, colour-coded green/amber vs. target. |
+
+No pace-based "on track / behind" feasibility logic exists yet (unlike Goals' infeasibility check) — deferred to a future iteration.
 
 ### 6.4 Year Items Detail
 
