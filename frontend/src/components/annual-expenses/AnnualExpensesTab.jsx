@@ -8,6 +8,7 @@ import {
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
+import KpiStrip from '../ui/KpiStrip';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 
 const MONTH_NAMES = [
@@ -425,75 +426,121 @@ export default function AnnualExpensesTab({ dossierId }) {
               </div>
             </div>
 
-            {yearData ? (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-                  {/* Carryover */}
-                  <div style={{ background: 'var(--surface-secondary)', padding: 12, borderRadius: 'var(--radius)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Carryover</div>
+            {yearData ? (() => {
+              const monthlyDistProjected = distributionTemplate
+                .filter((d) => selectedDistIds.includes(d.id))
+                .reduce((sum, d) => sum + (d.value || 0), 0);
+              const annualDistProjected = monthlyDistProjected * 12;
+              const totalRaiseNeeded = Math.max(0, (yearData.total_budgeted || 0) - (yearData.carryover || 0));
+              const amountLeftNeeded = Math.max(0, (yearData.total_remaining || 0) - (yearData.accumulated_accounts || 0));
+              const cyclesLeft = cyclesRemainingInYear(yearData.year, cycleStartDay);
+              const monthlyAverageNeeded = cyclesLeft > 0 ? amountLeftNeeded / cyclesLeft : amountLeftNeeded;
+
+              // ── Goal-style progress: how close is this year to being fully funded? ──
+              const raisedToDate = (yearData.accumulated_accounts || 0) + (yearData.total_paid || 0);
+              const target = yearData.total_budgeted || 0;
+              const fullyFunded = target === 0 || raisedToDate >= target;
+              const progressPct = target > 0 ? Math.min(100, (raisedToDate / target) * 100) : 100;
+              const statusLabel = fullyFunded ? 'Fully funded' : 'In progress';
+              const statusVariant = fullyFunded ? 'success' : 'brand';
+              const fillColor = fullyFunded ? 'var(--color-success)'
+                : progressPct < 25 ? 'var(--color-danger)'
+                : progressPct < 75 ? 'var(--color-warning)'
+                : 'var(--color-success)';
+
+              // ── Timeframe: Jan 1 of the year through the last installment due date ──
+              const allInstallments = (yearData.items || []).flatMap((i) => i.installments || []);
+              const lastInstallmentDate = allInstallments.length
+                ? allInstallments.reduce((max, inst) => {
+                    const d = new Date(yearData.year, inst.month - 1, inst.day);
+                    return d > max ? d : max;
+                  }, new Date(yearData.year, 0, 1))
+                : new Date(yearData.year, 11, 31);
+              const yearStart = new Date(yearData.year, 0, 1);
+              const todayMidnight = new Date();
+              todayMidnight.setHours(0, 0, 0, 0);
+              const totalDays = Math.round((lastInstallmentDate - yearStart) / 86400000) + 1;
+              const elapsedDays = Math.min(totalDays, Math.max(0, Math.round((todayMidnight - yearStart) / 86400000) + 1));
+              const yearPercent = totalDays > 0 ? Math.min(100, Math.max(0, (elapsedDays / totalDays) * 100)) : 100;
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                  {/* Hero: funding status + progress bar + timeline + headline numbers */}
+                  <div className="card card--flat">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                      <span className={`badge badge-${statusVariant}`}>{statusLabel}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{progressPct.toFixed(1)}%</span>
+                    </div>
+                    <div className="progress-track lg" style={{ marginBottom: 'var(--space-4)' }}>
+                      <div className="progress-fill" style={{ width: `${progressPct}%`, background: fillColor }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 'var(--space-4)' }}>
+                      <div className="progress-track" style={{ flex: 1 }}>
+                        <div className="progress-fill" style={{ width: `${yearPercent}%` }} />
+                      </div>
+                      <span className="text-xs tabular" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Day {elapsedDays}/{totalDays}</span>
+                    </div>
+                    <div className="goal-hero-numbers">
+                      <div className="goal-hero-num">
+                        <div className="goal-hero-num-label">Target</div>
+                        <div className="goal-hero-num-value">{fmt(target)}</div>
+                      </div>
+                      <div className="goal-hero-num">
+                        <div className="goal-hero-num-label">Raised to date</div>
+                        <div className="goal-hero-num-value">{fmt(raisedToDate)}</div>
+                      </div>
+                      <div className="goal-hero-num">
+                        <div className="goal-hero-num-label">Remaining</div>
+                        <div className="goal-hero-num-value" style={{ color: amountLeftNeeded <= 0 ? 'var(--color-success)' : 'var(--text-primary)' }}>
+                          {fmt(amountLeftNeeded)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Carryover — the one editable stat, kept standalone */}
+                  <div className="card card--flat" style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="kpi-strip-row-label">Carryover</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(yearData.carryover)}</span>
+                      <span className="kpi-strip-row-value">{fmt(yearData.carryover)}</span>
                       <button className="annual-action-btn" style={{ fontSize: '0.75rem' }} onClick={() => setShowCarryoverModal(true)} title="Edit carryover">
                         <FontAwesomeIcon icon={faPencil} />
                       </button>
                     </div>
                   </div>
 
-                  {(() => {
-                    const monthlyDistProjected = distributionTemplate
-                      .filter((d) => selectedDistIds.includes(d.id))
-                      .reduce((sum, d) => sum + (d.value || 0), 0);
-                    const annualDistProjected = monthlyDistProjected * 12;
-                    const totalRaiseNeeded = Math.max(0, (yearData.total_budgeted || 0) - (yearData.carryover || 0));
-                    const amountLeftNeeded = Math.max(0, (yearData.total_remaining || 0) - (yearData.accumulated_accounts || 0));
-                    const cyclesLeft = cyclesRemainingInYear(yearData.year, cycleStartDay);
-                    const monthlyAverageNeeded = cyclesLeft > 0 ? amountLeftNeeded / cyclesLeft : amountLeftNeeded;
-
-                    return [
-                      { label: 'Accumulated (accounts)', value: fmt(yearData.accumulated_accounts) },
-                      { label: 'Contributed (distributions)', value: fmt(yearData.contributed_distributions) },
-                      { label: 'Total budgeted', value: fmt(yearData.total_budgeted) },
-                      { label: 'Total paid', value: fmt(yearData.total_paid) },
-                      { label: 'Total expenses remaining', value: fmt(yearData.total_remaining), style: { color: yearData.total_remaining > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' } },
-                      {
-                        label: 'Amount left needed',
-                        value: fmt(amountLeftNeeded),
-                        style: { color: amountLeftNeeded <= 0 ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
-                      },
-                      {
-                        label: 'Needed this cycle',
-                        value: fmt(yearData.needed_this_cycle),
-                        style: yearData.needed_this_cycle > 0
-                          ? { color: yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'var(--color-success-text)' : 'var(--color-danger-text)' }
-                          : { color: 'var(--color-success-text)' },
-                        subtitle: yearData.needed_this_cycle > 0
-                          ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'Covered' : `Shortfall: ${fmt(yearData.needed_this_cycle - yearData.accumulated_accounts)}`)
-                          : 'Nothing due this cycle',
-                      },
-                      {
-                        label: 'Total raise needed',
-                        value: fmt(totalRaiseNeeded),
-                        subtitle: `Distributions/yr: ${fmt(annualDistProjected)}`,
-                        subtitleStyle: { color: annualDistProjected >= totalRaiseNeeded ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
-                      },
-                      {
-                        label: `Monthly average needed (${cyclesLeft} cycle${cyclesLeft !== 1 ? 's' : ''} left)`,
-                        value: fmt(monthlyAverageNeeded),
-                        subtitle: `Distributions/mo: ${fmt(monthlyDistProjected)}`,
-                        subtitleStyle: { color: monthlyDistProjected >= monthlyAverageNeeded ? 'var(--color-success-text)' : 'var(--color-warning-text)' },
-                      },
-                    ];
-                  })().map(({ label, value, style, subtitle, subtitleStyle }) => (
-                    <div key={label} style={{ background: 'var(--surface-secondary)', padding: 12, borderRadius: 'var(--radius)' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
-                      <span style={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...style }}>{value}</span>
-                      {subtitle && <div style={{ fontSize: 11, marginTop: 2, ...subtitleStyle ?? { color: 'var(--text-muted)' } }}>{subtitle}</div>}
-                    </div>
-                  ))}
+                  {/* Secondary KPIs */}
+                  <KpiStrip defaultOpen items={[
+                    { label: 'In tracked accounts', value: fmt(yearData.accumulated_accounts), note: 'Current balance, net of paid expenses' },
+                    { label: 'Contributed (distributions)', value: fmt(yearData.contributed_distributions) },
+                    { label: 'Total paid', value: fmt(yearData.total_paid) },
+                    { label: 'Total expenses remaining', value: fmt(yearData.total_remaining), highlight: yearData.total_remaining > 0 ? 'warning' : 'success' },
+                    {
+                      label: 'Needed this cycle',
+                      value: fmt(yearData.needed_this_cycle),
+                      highlight: yearData.needed_this_cycle > 0
+                        ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'success' : 'danger')
+                        : 'success',
+                      note: yearData.needed_this_cycle > 0
+                        ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'Covered' : `Shortfall: ${fmt(yearData.needed_this_cycle - yearData.accumulated_accounts)}`)
+                        : 'Nothing due this cycle',
+                    },
+                    {
+                      label: 'Total raise needed',
+                      value: fmt(totalRaiseNeeded),
+                      highlight: annualDistProjected >= totalRaiseNeeded ? 'success' : 'warning',
+                      note: `Distributions/yr: ${fmt(annualDistProjected)}`,
+                    },
+                    {
+                      label: `Monthly average needed (${cyclesLeft} cycle${cyclesLeft !== 1 ? 's' : ''} left)`,
+                      value: fmt(monthlyAverageNeeded),
+                      highlight: monthlyDistProjected >= monthlyAverageNeeded ? 'success' : 'warning',
+                      note: `Distributions/mo: ${fmt(monthlyDistProjected)}`,
+                    },
+                  ]} />
                 </div>
-
-              </>
-            ) : (
+              );
+            })() : (
               <div className="loading">Loading year data…</div>
             )}
           </div>
