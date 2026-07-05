@@ -496,14 +496,11 @@ export default function AnnualExpensesTab({ dossierId }) {
                         </div>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Carryover — the one editable stat, kept standalone */}
-                  <div className="card card--flat" style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="kpi-strip-row-label">Carryover</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span className="kpi-strip-row-value">{fmt(yearData.carryover)}</span>
-                      <button className="annual-action-btn" style={{ fontSize: '0.75rem' }} onClick={() => setShowCarryoverModal(true)} title="Edit carryover">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-default)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Starting point: {fmt(yearData.carryover)} carried over from last year
+                      </span>
+                      <button className="annual-action-btn" style={{ fontSize: '0.7rem' }} onClick={() => setShowCarryoverModal(true)} title="Edit carryover">
                         <FontAwesomeIcon icon={faPencil} />
                       </button>
                     </div>
@@ -512,24 +509,22 @@ export default function AnnualExpensesTab({ dossierId }) {
                   {/* Secondary KPIs */}
                   <KpiStrip defaultOpen items={[
                     { label: 'In tracked accounts', value: fmt(yearData.accumulated_accounts), note: 'Current balance, net of paid expenses' },
-                    { label: 'Contributed (distributions)', value: fmt(yearData.contributed_distributions) },
-                    { label: 'Total paid', value: fmt(yearData.total_paid) },
-                    { label: 'Total expenses remaining', value: fmt(yearData.total_remaining), highlight: yearData.total_remaining > 0 ? 'warning' : 'success' },
                     {
-                      label: 'Needed this cycle',
-                      value: fmt(yearData.needed_this_cycle),
-                      highlight: yearData.needed_this_cycle > 0
-                        ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'success' : 'danger')
-                        : 'success',
+                      label: 'Amount paid so far',
+                      value: fmt(yearData.total_paid),
                       note: yearData.needed_this_cycle > 0
-                        ? (yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'Covered' : `Shortfall: ${fmt(yearData.needed_this_cycle - yearData.accumulated_accounts)}`)
-                        : 'Nothing due this cycle',
+                        ? <span style={{ color: yearData.accumulated_accounts >= yearData.needed_this_cycle ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                            Due this cycle: {fmt(yearData.needed_this_cycle)}
+                            {yearData.accumulated_accounts >= yearData.needed_this_cycle ? ' (covered)' : ` (short ${fmt(yearData.needed_this_cycle - yearData.accumulated_accounts)})`}
+                          </span>
+                        : <span style={{ color: 'var(--color-success)' }}>Nothing due this cycle</span>,
                     },
+                    { label: 'Remaining to pay', value: fmt(yearData.total_remaining), highlight: yearData.total_remaining > 0 ? 'warning' : 'success' },
                     {
-                      label: 'Total raise needed',
+                      label: 'Raise needed for the year',
                       value: fmt(totalRaiseNeeded),
                       highlight: annualDistProjected >= totalRaiseNeeded ? 'success' : 'warning',
-                      note: `Distributions/yr: ${fmt(annualDistProjected)}`,
+                      note: `Target ${fmt(target)} − carryover ${fmt(yearData.carryover)} · Distributions/yr: ${fmt(annualDistProjected)}`,
                     },
                     {
                       label: `Monthly average needed (${cyclesLeft} cycle${cyclesLeft !== 1 ? 's' : ''} left)`,
