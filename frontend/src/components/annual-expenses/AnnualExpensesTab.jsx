@@ -5,6 +5,9 @@ import {
   faPlus, faPencil, faTrash, faXmark, faChevronDown, faChevronRight,
   faFileArrowDown, faFileArrowUp, faBuildingColumns, faHandHoldingDollar,
 } from '@fortawesome/free-solid-svg-icons';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer,
+} from 'recharts';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
@@ -21,17 +24,25 @@ function fmt(v) {
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-// Returns the number of cycles in `calendarYear` whose start date is still in the future.
-// A cycle displayed as display-month M (0=Jan) of calendarYear starts on cycleStartDay of
-// the *previous* calendar month: new Date(calendarYear, M - 1, cycleStartDay).
-function cyclesRemainingInYear(calendarYear, cycleStartDay) {
-  const today = new Date();
-  let count = 0;
-  for (let displayMonth = 0; displayMonth < 12; displayMonth++) {
-    const cycleStart = new Date(calendarYear, displayMonth - 1, cycleStartDay);
-    if (cycleStart > today) count++;
-  }
-  return count;
+function formatYM(ym) {
+  if (!ym) return '—';
+  const [y, m] = ym.split('-');
+  return `${MONTH_NAMES[Number(m) - 1].slice(0, 3)} ${y}`;
+}
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: 13, boxShadow: 'var(--shadow-lg)',
+    }}>
+      <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>{label}</div>
+      {payload.map((entry) => (
+        <div key={entry.dataKey} style={{ color: entry.stroke }}>{entry.name}: {fmt(entry.value)}</div>
+      ))}
+    </div>
+  );
 }
 
 function StatRow({ label, value, valueStyle }) {
@@ -170,7 +181,6 @@ export default function AnnualExpensesTab({ dossierId }) {
   const [selectedAccountIds, setSelectedAccountIds] = useState([]);
   const [distributionTemplate, setDistributionTemplate] = useState([]);
   const [selectedDistIds, setSelectedDistIds] = useState([]);
-  const [cycleStartDay, setCycleStartDay] = useState(25);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -188,20 +198,18 @@ export default function AnnualExpensesTab({ dossierId }) {
 
   const loadYears = useCallback(async () => {
     try {
-      const [yrs, accs, selAccs, tmpl, selDists, settings] = await Promise.all([
+      const [yrs, accs, selAccs, tmpl, selDists] = await Promise.all([
         api.getAnnualYears(dossierId),
         api.getAccounts(dossierId, false),
         api.getAnnualExpenseAccounts(dossierId),
         api.getExpenseTemplate(dossierId),
         api.getAnnualExpenseDistributions(dossierId),
-        api.getDossierSettings(dossierId),
       ]);
       setYears(yrs);
       setAllAccounts(accs);
       setSelectedAccountIds(selAccs);
       setDistributionTemplate(tmpl.filter((i) => i.section === 'distribution'));
       setSelectedDistIds(selDists);
-      setCycleStartDay(settings.cycle_start_day ?? 25);
       return yrs;
     } catch (e) {
       setError(e.message);
@@ -427,14 +435,13 @@ export default function AnnualExpensesTab({ dossierId }) {
             </div>
 
             {yearData ? (() => {
-              const monthlyDistProjected = distributionTemplate
-                .filter((d) => selectedDistIds.includes(d.id))
-                .reduce((sum, d) => sum + (d.value || 0), 0);
+              const monthlyDistProjected = yearData.monthly_dist_projected;
               const annualDistProjected = monthlyDistProjected * 12;
-              const totalRaiseNeeded = Math.max(0, (yearData.total_budgeted || 0) - (yearData.carryover || 0));
+              const totalRaiseNeeded = yearData.total_raise_needed;
               const amountLeftNeeded = Math.max(0, (yearData.total_remaining || 0) - (yearData.accumulated_accounts || 0));
-              const cyclesLeft = cyclesRemainingInYear(yearData.year, cycleStartDay);
+              const cyclesLeft = yearData.cycles_left_in_year;
               const monthlyAverageNeeded = cyclesLeft > 0 ? amountLeftNeeded / cyclesLeft : amountLeftNeeded;
+              const anticipatedLabel = yearData.anticipated_fully_funded_date ? formatYM(yearData.anticipated_fully_funded_date) : null;
 
               // ── Goal-style progress: how close is this year to being fully funded? ──
               const raisedToDate = (yearData.accumulated_accounts || 0) + (yearData.total_paid || 0);
@@ -527,12 +534,45 @@ export default function AnnualExpensesTab({ dossierId }) {
                       note: `Target ${fmt(target)} − carryover ${fmt(yearData.carryover)} · Distributions/yr: ${fmt(annualDistProjected)}`,
                     },
                     {
+                      label: 'Contributed via distributions',
+                      value: fmt(yearData.contributed_distributions),
+                      highlight: totalRaiseNeeded > 0 && yearData.contributed_distributions >= totalRaiseNeeded ? 'success' : 'neutral',
+                      note: `Toward ${fmt(totalRaiseNeeded)} needed · pace ${fmt(monthlyDistProjected)}/mo`,
+                    },
+                    yearData.anticipated_fully_funded_date
+                      ? { label: 'Estimated fully funded', value: formatYM(yearData.anticipated_fully_funded_date), highlight: 'success' }
+                      : null,
+                    {
                       label: `Monthly average needed (${cyclesLeft} cycle${cyclesLeft !== 1 ? 's' : ''} left)`,
                       value: fmt(monthlyAverageNeeded),
                       highlight: monthlyDistProjected >= monthlyAverageNeeded ? 'success' : 'warning',
                       note: `Distributions/mo: ${fmt(monthlyDistProjected)}`,
                     },
                   ]} />
+
+                  {yearData.distributions_chart_data?.length > 0 && (
+                    <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
+                      <h3 style={{ marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                        Distributions funding progress
+                      </h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={yearData.distributions_chart_data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                          <XAxis dataKey={(d) => `${MONTH_NAMES[d.month - 1].slice(0, 3)} ${d.year}`} tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`)} />
+                          <Tooltip content={<ChartTooltip />} />
+                          <Legend />
+                          <Line type="monotone" dataKey="expected_cumulative" name="Expected" stroke="#6366f1" dot={false} strokeWidth={2} />
+                          <Line type="monotone" dataKey="real_cumulative" name="Real" stroke="#10b981" dot={false} strokeWidth={2} />
+                          <Line type="monotone" dataKey="projected_cumulative" name="Projected" stroke="#f59e0b" strokeDasharray="5 5" dot={false} strokeWidth={2} />
+                          {anticipatedLabel && (
+                            <ReferenceLine x={anticipatedLabel} stroke="var(--text-primary)" strokeDasharray="4 4" strokeWidth={1.5}
+                              label={{ value: 'Estimated', position: 'top', fill: 'var(--text-primary)', fontSize: 11, fontWeight: 700 }} />
+                          )}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
               );
             })() : (

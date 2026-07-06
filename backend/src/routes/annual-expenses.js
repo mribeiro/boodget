@@ -12,10 +12,26 @@ function canAccess(dossierId, userId) {
     .get(dossierId, userId);
 }
 
+// Returns the 1-based display months (1–12) of `calendarYear` whose cycle start date
+// (cycleStartDay of the *previous* calendar month) is still in the future. Mirrors the
+// frontend's cyclesRemainingInYear helper in AnnualExpensesTab.jsx.
+function remainingCycleMonthsInYear(calendarYear, cycleStartDay) {
+  const today = new Date();
+  const months = [];
+  for (let displayMonth = 0; displayMonth < 12; displayMonth++) {
+    const cycleStart = new Date(calendarYear, displayMonth - 1, cycleStartDay);
+    if (cycleStart > today) months.push(displayMonth + 1);
+  }
+  return months;
+}
+
 // Build the full year status object
 function computeYearStatus(yearId, dossierId) {
   const year = db.prepare('SELECT * FROM annual_expense_years WHERE id = ?').get(yearId);
   if (!year) return null;
+
+  const dossierRow = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(dossierId);
+  const startDay = dossierRow?.cycle_start_day ?? 25;
 
   const items = db.prepare(`
     SELECT ayi.*,
@@ -102,14 +118,23 @@ function computeYearStatus(yearId, dossierId) {
     .prepare('SELECT distribution_template_id FROM annual_expense_distributions WHERE dossier_id = ?')
     .all(dossierId).map((r) => r.distribution_template_id);
 
+  const totalRaiseNeeded = Math.max(0, totalBudgeted - (year.carryover || 0));
+  const cyclesLeftInYear = remainingCycleMonthsInYear(year.year, startDay).length;
+
   let contributedDistributions = 0;
+  let monthlyDistProjected = 0;
+  let distributionsChartData = null;
 
   if (selectedDistIds.length > 0) {
+    const ph = selectedDistIds.map(() => '?').join(',');
+    const projRow = db
+      .prepare(`SELECT COALESCE(SUM(value), 0) as total FROM expense_template_items WHERE id IN (${ph})`)
+      .get(...selectedDistIds);
+    monthlyDistProjected = projRow.total || 0;
+
     // Find cycles whose end date falls within this calendar year
-    const dossier = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(dossierId);
-    const startDay = dossier?.cycle_start_day ?? 25;
     const cycles = db
-      .prepare('SELECT id, year, month FROM expense_cycles WHERE dossier_id = ?')
+      .prepare('SELECT id, year, month FROM expense_cycles WHERE dossier_id = ? ORDER BY year ASC, month ASC')
       .all(dossierId);
 
     const cyclesInYear = cycles.filter((c) => {
@@ -117,40 +142,85 @@ function computeYearStatus(yearId, dossierId) {
       return endDate.getFullYear() === year.year;
     });
 
-    for (const cycle of cyclesInYear) {
-      for (const distId of selectedDistIds) {
-        // Match by template_item_id (primary) OR by name for cycle items whose
-        // template_item_id was orphaned by a bulk-replace of the expense template.
-        const doneItems = db.prepare(`
-          SELECT ci.value FROM cycle_items ci
-          WHERE ci.cycle_id = ?
-            AND ci.section = 'distribution'
-            AND ci.done = 1
-            AND (
-              ci.template_item_id = ?
-              OR (
-                ci.name = (SELECT name FROM expense_template_items WHERE id = ?)
-                AND (
-                  ci.template_item_id IS NULL
-                  OR NOT EXISTS (SELECT 1 FROM expense_template_items WHERE id = ci.template_item_id)
+    if (cyclesInYear.length > 0) {
+      distributionsChartData = [];
+      let expectedCumulative = 0;
+      let realCumulative = 0;
+
+      for (const cycle of cyclesInYear) {
+        let cycleAmount = 0;
+        for (const distId of selectedDistIds) {
+          // Match by template_item_id (primary) OR by name for cycle items whose
+          // template_item_id was orphaned by a bulk-replace of the expense template.
+          const doneItems = db.prepare(`
+            SELECT ci.value FROM cycle_items ci
+            WHERE ci.cycle_id = ?
+              AND ci.section = 'distribution'
+              AND ci.done = 1
+              AND (
+                ci.template_item_id = ?
+                OR (
+                  ci.name = (SELECT name FROM expense_template_items WHERE id = ?)
+                  AND (
+                    ci.template_item_id IS NULL
+                    OR NOT EXISTS (SELECT 1 FROM expense_template_items WHERE id = ci.template_item_id)
+                  )
                 )
               )
-            )
-        `).all(cycle.id, distId, distId);
-        contributedDistributions += doneItems.reduce((s, i) => s + (i.value || 0), 0);
+          `).all(cycle.id, distId, distId);
+          cycleAmount += doneItems.reduce((s, i) => s + (i.value || 0), 0);
+        }
+        contributedDistributions += cycleAmount;
+
+        expectedCumulative += monthlyDistProjected;
+        realCumulative += cycleAmount;
+        distributionsChartData.push({
+          cycle_id: cycle.id, year: cycle.year, month: cycle.month,
+          expected_cumulative: expectedCumulative, real_cumulative: realCumulative,
+        });
+      }
+
+      // Projected tail: extrapolate from the current cumulative through the remaining
+      // calendar-year cycles at the same monthly pace. No anchoring step is needed here
+      // (unlike goals.js) — real_cumulative already IS the running total of done
+      // distributions, with no separate live snapshot to reconcile it against.
+      const existingMonths = new Set(cyclesInYear.map((c) => c.month));
+      const futureMonths = remainingCycleMonthsInYear(year.year, startDay).filter((m) => !existingMonths.has(m));
+      if (monthlyDistProjected > 0 && futureMonths.length > 0) {
+        let projectedCumulative = realCumulative;
+        distributionsChartData[distributionsChartData.length - 1].projected_cumulative = projectedCumulative;
+        for (const m of futureMonths) {
+          projectedCumulative += monthlyDistProjected;
+          distributionsChartData.push({
+            cycle_id: null, year: year.year, month: m,
+            expected_cumulative: null, real_cumulative: null, projected_cumulative: projectedCumulative,
+          });
+        }
       }
     }
   }
 
+  // Anticipated fully-funded date: mirrors goals.js's anticipated_completion_date logic,
+  // scoped to the distributions contribution channel (target = amount that needs to be
+  // raised beyond the starting carryover; progress = actual distributions contributed so far).
+  const remainingViaDistributions = Math.max(0, totalRaiseNeeded - contributedDistributions);
+  let anticipatedFullyFundedDate = null;
+  if (monthlyDistProjected > 0 && remainingViaDistributions > 0) {
+    const cyclesNeeded = Math.max(0, Math.ceil(remainingViaDistributions / monthlyDistProjected));
+    if (cyclesNeeded < cyclesLeftInYear) {
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth() + cyclesNeeded, 1);
+      anticipatedFullyFundedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+  }
+
   // Compute "needed this cycle": unpaid installments assigned to the currently active cycle
-  const dossierRow2 = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(dossierId);
-  const cycleStartDay = dossierRow2?.cycle_start_day ?? 25;
   const allCycles = db.prepare('SELECT id, year, month FROM expense_cycles WHERE dossier_id = ?').all(dossierId);
   const today = new Date();
   let currentCycleId = null;
   for (const cycle of allCycles) {
-    const cycleStart = new Date(cycle.year, cycle.month - 1, cycleStartDay);
-    const cycleEnd = new Date(cycle.year, cycle.month, cycleStartDay - 1);
+    const cycleStart = new Date(cycle.year, cycle.month - 1, startDay);
+    const cycleEnd = new Date(cycle.year, cycle.month, startDay - 1);
     if (today >= cycleStart && today <= cycleEnd) {
       currentCycleId = cycle.id;
       break;
@@ -174,6 +244,11 @@ function computeYearStatus(yearId, dossierId) {
     carryover: year.carryover,
     accumulated_accounts: accumulatedAccounts,
     contributed_distributions: contributedDistributions,
+    monthly_dist_projected: monthlyDistProjected,
+    total_raise_needed: totalRaiseNeeded,
+    cycles_left_in_year: cyclesLeftInYear,
+    anticipated_fully_funded_date: anticipatedFullyFundedDate,
+    distributions_chart_data: distributionsChartData,
     total_budgeted: totalBudgeted,
     total_paid: totalPaid,
     total_remaining: totalBudgeted - totalPaid,
