@@ -23,7 +23,7 @@ The Loans section lets users configure loans per dossier. Each loan is either a 
 |---|---|
 | **Name** | Free text label for the loan |
 | **Status** | `draft` or `active` — see Section 3 |
-| **Interest rate** | Annual nominal percentage (e.g. `3.5` = 3.5%), 0–100 |
+| **Interest rate** | Annual nominal percentage (e.g. `3.5` = 3.5%), 0–100. Always the **TAN** (nominal rate) — the rate that actually drives the amortization formula, labeled "TAN" on draft loans and "Interest rate" on active loans. Never the TAEG/APR, which is a separate, higher, fees-inclusive figure — see the `taeg` field below |
 | **Salary** | Per-loan editable value. Prefilled from the dossier's **most recent expense cycle's salary** when creating a loan; can be changed at any time and does not follow the cycle afterward |
 
 ### 2.2 Draft-only fields
@@ -33,6 +33,8 @@ The Loans section lets users configure loans per dossier. Each loan is either a 
 | **Principal** | Amount financed (must be > 0). Used directly in the amortization formula — unaffected by whether it was typed directly or derived from a purchase-price breakdown |
 | **Term (months)** | Total loan length (integer ≥ 1) |
 | **Down payment** | Optional. When set, the loan also exposes a computed **Purchase price** (`principal + down_payment`) for display. Only meaningful — and only settable — while `status = 'draft'`; forced to `NULL` on promotion to active (400 if the client attempts to set it on an active loan) |
+| **TAEG** | Optional, reference-only. The marketing/legal APR figure (includes fees) as disclosed on the loan offer — stored purely for comparison against the TAN, **never used in any calculation**. Same draft-only rules as Down payment |
+| **Opening fee** | Optional. A one-off processing/opening commission (e.g. a bank's "comissão de abertura de contrato"), added into the computed **Total amount payable** (Section 6). Same draft-only rules as Down payment |
 
 ### 2.3 Active-only fields
 
@@ -48,6 +50,7 @@ The Loans section lets users configure loans per dossier. Each loan is either a 
 - Draft loans **cannot** be linked to an expense template item — the link field is only meaningful once a loan is active.
 - Loans can be edited and deleted at any time.
 - Down payment is **draft-only**: an active loan's `remaining_balance` is already net of any down payment made, so there's nothing to model there. The create/edit form lets the user enter a **Purchase price** and **Down payment** instead of typing Principal directly; Principal is then derived as `purchase_price − down_payment` and that's what feeds the amortization formula. Leaving Purchase price blank falls back to typing Principal directly, with no down payment stored.
+- TAEG and Opening fee are also **draft-only**, for the same reason as Down payment: they describe the terms of a loan being studied before signing, not an ongoing one. TAEG is purely for the user's own reference (e.g. to note the number a lender advertises) and is never read by the amortization formula — only the TAN (the `interest_rate` field) drives `monthly_payment`. Opening fee feeds `total_amount_payable` (Section 8) only.
 
 -----
 
@@ -150,6 +153,8 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 | `linked_item` | Section 5 — `null` unless active + linked + item still exists |
 | `covered` | Section 5 — `null` unless `linked_item` is present |
 | `coverage_difference` | Section 5 — `null` unless `linked_item` is present |
+| `purchase_price` | `principal + down_payment` — `null` unless draft with `down_payment` set |
+| `total_amount_payable` (MTIC) | `monthly_payment × term_months + opening_fee` — `null` unless draft. A **simplified estimate**: principal + total interest + the one modeled fee, not the full legal MTIC (which can include stamp duty, insurance, etc. this app doesn't track) |
 
 -----
 
@@ -158,7 +163,8 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 - Loans is a dedicated tab within the dossier (`Capital · Monthly Expenses · Annual Expenses · Workbench · Goals · Loans · Emergency Fund · Settings`), following the same navigation and access patterns as Goals.
 - The list view (`LoansTab`) shows each loan as a clickable card: name, status badge (`active` → brand, `draft` → neutral), monthly payment, `salary_pct` ("—" if null), interest rate, and — for active + linked loans — a coverage pill.
 - The detail view (`LoanDetail`) shows: a summary card (status, payment, rate, term/months-left, principal/balance, salary + %), a coverage panel (active only), and the two scenario cards (active only).
-- The form modal (`LoanFormModal`) mirrors `GoalFormModal`'s hand-rolled markup: name, status radio toggle, interest rate + salary (`parseDecimalInput`, accepts `,` or `.` as decimal separator), draft fields (principal + term) or active fields (balance + months left + linked-expense `<select>`) shown conditionally, and a live payment preview.
+- The form modal (`LoanFormModal`) mirrors `GoalFormModal`'s hand-rolled markup: name, status radio toggle, interest rate + salary (`parseDecimalInput`, accepts `,` or `.` as decimal separator), draft fields (principal + term) or active fields (balance + months left + linked-expense `<select>`) shown conditionally, and a live payment preview. The interest rate field is labeled "TAN (nominal rate, %)" on draft loans (with a hint not to use the TAEG) and "Interest rate (annual, %)" on active loans. Draft mode additionally shows optional Purchase price/Down payment and TAEG/Opening fee rows, and the preview card adds a live "Total amount payable (MTIC, estimate)" figure below the monthly payment whenever a term is set.
+- `LoanDetail`'s summary card shows the same MTIC estimate under the monthly payment for draft loans, plus Purchase price/Down payment, TAEG (labeled "reference only"), and Opening fee rows whenever those fields are set.
 - All numeric display uses `formatNumber`/`parseDecimalInput` — never `Intl.NumberFormat` directly.
 - Deletion uses `ConfirmModal`, never `window.confirm()`.
 
@@ -181,6 +187,9 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 | `remaining_balance` | REAL (nullable) | Active: amount still owing |
 | `months_left` | INTEGER (nullable) | Active: months remaining |
 | `expense_template_item_id` | TEXT (nullable) | FK → `expense_template_items`, `ON DELETE SET NULL` |
+| `down_payment` | REAL (nullable) | Draft-only; cleared on promotion to active |
+| `taeg` | REAL (nullable) | Draft-only, reference-only (never used in the calc); cleared on promotion to active |
+| `opening_fee` | REAL (nullable) | Draft-only; feeds `total_amount_payable`; cleared on promotion to active |
 | `created_at` | TEXT | Creation timestamp |
 
 No `position` or `updated_at` column (mirrors `goals`). List endpoint orders `ORDER BY created_at ASC`.
@@ -191,7 +200,7 @@ No `position` or `updated_at` column (mirrors `goals`). List endpoint orders `OR
 
 ```
 GET    /api/dossiers/:id/loans
-POST   /api/dossiers/:id/loans           { name, status, interest_rate, salary?, principal?, term_months?, remaining_balance?, months_left?, expense_template_item_id? }
+POST   /api/dossiers/:id/loans           { name, status, interest_rate, salary?, principal?, term_months?, down_payment?, taeg?, opening_fee?, remaining_balance?, months_left?, expense_template_item_id? }
 GET    /api/dossiers/:id/loans/:loanId
 PUT    /api/dossiers/:id/loans/:loanId   (partial merge, goals-style)
 DELETE /api/dossiers/:id/loans/:loanId
@@ -204,13 +213,15 @@ Validation (400 on failure):
 - `salary` null or ≥ 0.
 - Effective-status requirements: `draft` → `principal > 0` and integer `term_months ≥ 1`; `active` → `remaining_balance > 0` and integer `months_left ≥ 1`. The other status's fields are preserved (if present) but not required.
 - `expense_template_item_id`: rejected (400) if the loan's effective status is `draft`; otherwise must resolve to a same-dossier `expense_template_items` row with `section='expense' AND type='Fixed'`, else 400.
+- `down_payment`, `taeg`, `opening_fee`: each null or a non-negative number; rejected (400) if set to a non-null value while the loan's effective status is `active`.
 - `PUT` flipping `active → draft` forces `expense_template_item_id = NULL` regardless of what was sent.
+- `PUT` flipping `draft → active` forces `down_payment`, `taeg`, and `opening_fee` all to `NULL` regardless of what was sent.
 
 -----
 
 ## 12. Export / Import
 
-- Export version **10** adds a `loans` array: `{ name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, created_at, down_payment, linked_expense_name }`. `linked_expense_name` is resolved via a `LEFT JOIN` to the expense template item's name (or `null` if unlinked), matching the Goals resolve-to-name export pattern. `down_payment` is only meaningful for draft loans; imported as `null` for active loans regardless of the exported value.
+- Export version **10** adds a `loans` array: `{ name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, created_at, down_payment, taeg, opening_fee, linked_expense_name }`. `linked_expense_name` is resolved via a `LEFT JOIN` to the expense template item's name (or `null` if unlinked), matching the Goals resolve-to-name export pattern. `down_payment`, `taeg`, and `opening_fee` are only meaningful for draft loans; imported as `null` for active loans regardless of the exported value.
 - Import accepts versions **1–10**. Loans are inserted with new UUIDs inside the same import transaction. The link is re-established only when `status === 'active'`, by matching `linked_expense_name` against the already-built `expenseTemplateNameToId` map (expense-section only) — the same map import already builds for expense template re-linking. A missing or unmatched name leaves the loan unlinked. Older exports (versions 1–9) have no `loans` key and simply import with zero loans.
 
 -----

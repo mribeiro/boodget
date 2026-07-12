@@ -117,11 +117,17 @@ export default function LoanDetail() {
             <span className={`badge badge-${isActive ? 'brand' : 'neutral'}`}>
               {isActive ? 'Active' : 'Draft'}
             </span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% APR</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% {isActive ? 'APR' : 'TAN'}</span>
           </div>
           <div style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Monthly payment</div>
             <div style={{ fontSize: 28, fontWeight: 700 }}>{formatEur(loan.monthly_payment)}</div>
+            {!isActive && loan.total_amount_payable != null && (
+              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total amount payable (MTIC, estimate)</div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>{formatEur(loan.total_amount_payable)}</div>
+              </div>
+            )}
           </div>
           <div>
             {!isActive && loan.down_payment != null && (
@@ -132,6 +138,12 @@ export default function LoanDetail() {
             )}
             <StatRow label={isActive ? 'Remaining balance' : 'Principal'} value={formatEur(isActive ? loan.remaining_balance : loan.principal)} />
             <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={isActive ? loan.months_left : loan.term_months} />
+            {!isActive && loan.taeg != null && (
+              <StatRow label="TAEG (reference only)" value={`${loan.taeg}%`} />
+            )}
+            {!isActive && loan.opening_fee != null && (
+              <StatRow label="Opening fee" value={formatEur(loan.opening_fee)} />
+            )}
             <StatRow label="Salary" value={formatEur(loan.salary)} />
             <StatRow
               label="% of salary"

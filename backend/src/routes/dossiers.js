@@ -269,16 +269,17 @@ router.post('/import', (req, res) => {
 
     // Loans (v10+) — re-linked to the new Fixed expense template item by name, active only
     const insertLoan = db.prepare(
-      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id, created_at, down_payment)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const l of (data.loans || [])) {
       const linkedItemId = l.status === 'active' && l.linked_expense_name ? (expenseTemplateNameToId[l.linked_expense_name] ?? null) : null;
+      const isDraft = l.status !== 'active';
       insertLoan.run(
         uuidv4(),
         dossierId,
         l.name,
-        l.status === 'active' ? 'active' : 'draft',
+        isDraft ? 'draft' : 'active',
         l.interest_rate ?? 0,
         l.salary ?? null,
         l.principal ?? null,
@@ -287,7 +288,9 @@ router.post('/import', (req, res) => {
         l.months_left ?? null,
         linkedItemId,
         l.created_at || null,
-        l.status === 'draft' ? (l.down_payment ?? null) : null
+        isDraft ? (l.down_payment ?? null) : null,
+        isDraft ? (l.taeg ?? null) : null,
+        isDraft ? (l.opening_fee ?? null) : null
       );
     }
   });
@@ -488,7 +491,7 @@ router.get('/:id/export', (req, res) => {
 
   const loansExport = db
     .prepare(
-      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.months_left, l.created_at, l.down_payment,
+      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.months_left, l.created_at, l.down_payment, l.taeg, l.opening_fee,
               eti.name as linked_expense_name
        FROM loans l
        LEFT JOIN expense_template_items eti ON eti.id = l.expense_template_item_id

@@ -52,6 +52,12 @@ function computeLoanValues(loan, dossierId) {
   const purchasePrice =
     loan.status === 'draft' && loan.down_payment != null ? loan.principal + loan.down_payment : null;
 
+  // Total amount payable (MTIC) — a simplified estimate (principal + total interest + the
+  // one modeled fee); the official Portuguese MTIC can include other charges (stamp duty,
+  // insurance) this app doesn't track.
+  const totalAmountPayable =
+    loan.status === 'draft' ? monthlyPayment * loan.term_months + (loan.opening_fee || 0) : null;
+
   return {
     monthly_payment: monthlyPayment,
     salary_pct: salaryPct,
@@ -60,7 +66,27 @@ function computeLoanValues(loan, dossierId) {
     covered,
     coverage_difference: coverageDifference,
     purchase_price: purchasePrice,
+    total_amount_payable: totalAmountPayable,
   };
+}
+
+// down_payment, taeg, and opening_fee are all nullable, draft-only, non-negative numerics
+// with the same "cleared on promotion to active" behavior — shared parsing/validation.
+function parseDraftOnlyNullableNumber(body, existing, field, status) {
+  let value = existing?.[field] ?? null;
+  if (body[field] !== undefined) {
+    const parsed = body[field] === null || body[field] === '' ? null : Number(body[field]);
+    if (parsed != null) {
+      if (isNaN(parsed) || parsed < 0) {
+        return { error: `${field} must be null or a non-negative number` };
+      }
+      if (status !== 'draft') {
+        return { error: `${field} can only be set on draft loans` };
+      }
+    }
+    value = parsed;
+  }
+  return { value };
 }
 
 function validateLoanFields(body, existing) {
@@ -88,19 +114,17 @@ function validateLoanFields(body, existing) {
   const remainingBalance = body.remaining_balance !== undefined ? (body.remaining_balance === null || body.remaining_balance === '' ? null : Number(body.remaining_balance)) : existing?.remaining_balance ?? null;
   const monthsLeft = body.months_left !== undefined ? (body.months_left === null || body.months_left === '' ? null : Number(body.months_left)) : existing?.months_left ?? null;
 
-  let downPayment = existing?.down_payment ?? null;
-  if (body.down_payment !== undefined) {
-    const parsed = body.down_payment === null || body.down_payment === '' ? null : Number(body.down_payment);
-    if (parsed != null) {
-      if (isNaN(parsed) || parsed < 0) {
-        return { error: 'down_payment must be null or a non-negative number' };
-      }
-      if (status !== 'draft') {
-        return { error: 'down_payment can only be set on draft loans' };
-      }
-    }
-    downPayment = parsed;
-  }
+  const downPaymentResult = parseDraftOnlyNullableNumber(body, existing, 'down_payment', status);
+  if (downPaymentResult.error) return { error: downPaymentResult.error };
+  let downPayment = downPaymentResult.value;
+
+  const taegResult = parseDraftOnlyNullableNumber(body, existing, 'taeg', status);
+  if (taegResult.error) return { error: taegResult.error };
+  let taeg = taegResult.value;
+
+  const openingFeeResult = parseDraftOnlyNullableNumber(body, existing, 'opening_fee', status);
+  if (openingFeeResult.error) return { error: openingFeeResult.error };
+  let openingFee = openingFeeResult.value;
 
   if (status === 'draft') {
     if (!(principal > 0)) return { error: 'principal must be a positive number for draft loans' };
@@ -113,6 +137,8 @@ function validateLoanFields(body, existing) {
       return { error: 'months_left must be an integer ≥ 1 for active loans' };
     }
     downPayment = null;
+    taeg = null;
+    openingFee = null;
   }
 
   return {
@@ -125,6 +151,8 @@ function validateLoanFields(body, existing) {
     remaining_balance: remainingBalance,
     months_left: monthsLeft,
     down_payment: downPayment,
+    taeg,
+    opening_fee: openingFee,
   };
 }
 
@@ -158,8 +186,8 @@ router.post('/loans', (req, res) => {
 
   const id = uuidv4();
   db.prepare(
-    `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id, down_payment)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id, down_payment, taeg, opening_fee)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.params.id,
@@ -172,7 +200,9 @@ router.post('/loans', (req, res) => {
     validated.remaining_balance,
     validated.months_left,
     expenseTemplateItemId,
-    validated.down_payment
+    validated.down_payment,
+    validated.taeg,
+    validated.opening_fee
   );
 
   const loan = db.prepare('SELECT * FROM loans WHERE id = ?').get(id);
@@ -219,7 +249,7 @@ router.put('/loans/:loanId', (req, res) => {
 
   db.prepare(
     `UPDATE loans SET name = ?, status = ?, interest_rate = ?, salary = ?, principal = ?, term_months = ?,
-     remaining_balance = ?, months_left = ?, expense_template_item_id = ?, down_payment = ? WHERE id = ?`
+     remaining_balance = ?, months_left = ?, expense_template_item_id = ?, down_payment = ?, taeg = ?, opening_fee = ? WHERE id = ?`
   ).run(
     validated.name,
     validated.status,
@@ -231,6 +261,8 @@ router.put('/loans/:loanId', (req, res) => {
     validated.months_left,
     expenseTemplateItemId,
     validated.down_payment,
+    validated.taeg,
+    validated.opening_fee,
     loan.id
   );
 

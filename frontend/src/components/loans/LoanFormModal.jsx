@@ -32,6 +32,8 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const [expenseTemplateItemId, setExpenseTemplateItemId] = useState(loan?.expense_template_item_id ?? '');
   const [purchasePrice, setPurchasePrice] = useState(loan?.purchase_price != null ? String(loan.purchase_price) : '');
   const [downPayment, setDownPayment] = useState(loan?.down_payment != null ? String(loan.down_payment) : '');
+  const [taeg, setTaeg] = useState(loan?.taeg != null ? String(loan.taeg) : '');
+  const [openingFee, setOpeningFee] = useState(loan?.opening_fee != null ? String(loan.opening_fee) : '');
 
   const [fixedExpenses, setFixedExpenses] = useState([]);
   const [latestCycleSalary, setLatestCycleSalary] = useState(loan?.latest_cycle_salary ?? null);
@@ -72,6 +74,13 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
     ? computeMonthlyPayment(effectiveDraftPrincipal, parseDecimalInput(interestRate), Number(termMonths))
     : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), Number(monthsLeft));
 
+  // Total amount payable (MTIC) — simplified estimate: principal + total interest + the
+  // one modeled fee. The official legal MTIC can include untracked charges (stamp duty, insurance).
+  const parsedOpeningFee = openingFee === '' ? 0 : parseDecimalInput(openingFee);
+  const previewTotalAmountPayable = status === 'draft' && Number.isInteger(Number(termMonths)) && Number(termMonths) > 0
+    ? previewPayment * Number(termMonths) + (isNaN(parsedOpeningFee) ? 0 : parsedOpeningFee)
+    : null;
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -105,8 +114,17 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
       }
       const t = Number(termMonths);
       if (!Number.isInteger(t) || t < 1) { setError('Term must be a whole number of months (≥ 1)'); return; }
+
+      const taegValue = taeg === '' ? null : parseDecimalInput(taeg);
+      if (taegValue != null && (isNaN(taegValue) || taegValue < 0)) { setError('TAEG must be a non-negative number'); return; }
+
+      const openingFeeValue = openingFee === '' ? null : parseDecimalInput(openingFee);
+      if (openingFeeValue != null && (isNaN(openingFeeValue) || openingFeeValue < 0)) { setError('Opening fee must be a non-negative number'); return; }
+
       payload.principal = p;
       payload.term_months = t;
+      payload.taeg = taegValue;
+      payload.opening_fee = openingFeeValue;
       payload.expense_template_item_id = null;
     } else {
       const b = parseDecimalInput(remainingBalance);
@@ -173,8 +191,13 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
 
             <div style={{ display: 'flex', gap: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
-                <label>Interest rate (annual, %)</label>
+                <label>{status === 'draft' ? 'TAN (nominal rate, %)' : 'Interest rate (annual, %)'}</label>
                 <input type="text" inputMode="decimal" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} placeholder="3,5" />
+                {status === 'draft' && (
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    Use the TAN, not the TAEG — the TAEG (below) includes fees and doesn't drive the payment.
+                  </div>
+                )}
               </div>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Salary (€)</label>
@@ -227,6 +250,16 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
                     <input type="number" inputMode="numeric" value={termMonths} onChange={(e) => setTermMonths(e.target.value)} placeholder="300" min="1" />
                   </div>
                 </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>TAEG (%) <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>(optional, reference only)</span></label>
+                    <input type="text" inputMode="decimal" value={taeg} onChange={(e) => setTaeg(e.target.value)} placeholder="e.g. 1,74" />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Opening fee (€) <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <input type="text" inputMode="decimal" value={openingFee} onChange={(e) => setOpeningFee(e.target.value)} placeholder="e.g. 208" />
+                  </div>
+                </div>
               </>
             ) : (
               <div style={{ display: 'flex', gap: '1rem' }}>
@@ -263,6 +296,12 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
             <div className="card card--flat" style={{ padding: 'var(--space-3)', textAlign: 'center' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Estimated monthly payment</div>
               <div style={{ fontSize: 20, fontWeight: 700 }}>{formatEur(previewPayment)}</div>
+              {previewTotalAmountPayable != null && (
+                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total amount payable (MTIC, estimate)</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>{formatEur(previewTotalAmountPayable)}</div>
+                </div>
+              )}
             </div>
           </div>
 

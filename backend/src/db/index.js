@@ -647,6 +647,18 @@ const migrations = [
       }
     },
   },
+  {
+    id: '028_add_taeg_and_opening_fee_to_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'taeg')) {
+        db.exec('ALTER TABLE loans ADD COLUMN taeg REAL');
+      }
+      if (!cols.find((c) => c.name === 'opening_fee')) {
+        db.exec('ALTER TABLE loans ADD COLUMN opening_fee REAL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
