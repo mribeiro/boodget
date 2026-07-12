@@ -74,10 +74,17 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
     ? computeMonthlyPayment(effectiveDraftPrincipal, parseDecimalInput(interestRate), Number(termMonths))
     : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), Number(monthsLeft));
 
+  const hasDraftTerm = status === 'draft' && Number.isInteger(Number(termMonths)) && Number(termMonths) > 0;
+
+  // Total interest paid over the term (excludes the opening fee, which isn't interest).
+  const previewTotalInterest = hasDraftTerm
+    ? previewPayment * Number(termMonths) - effectiveDraftPrincipal
+    : null;
+
   // Total amount payable (MTIC) — simplified estimate: principal + total interest + the
   // one modeled fee. The official legal MTIC can include untracked charges (stamp duty, insurance).
   const parsedOpeningFee = openingFee === '' ? 0 : parseDecimalInput(openingFee);
-  const previewTotalAmountPayable = status === 'draft' && Number.isInteger(Number(termMonths)) && Number(termMonths) > 0
+  const previewTotalAmountPayable = hasDraftTerm
     ? previewPayment * Number(termMonths) + (isNaN(parsedOpeningFee) ? 0 : parsedOpeningFee)
     : null;
 
@@ -296,6 +303,12 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
             <div className="card card--flat" style={{ padding: 'var(--space-3)', textAlign: 'center' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Estimated monthly payment</div>
               <div style={{ fontSize: 20, fontWeight: 700 }}>{formatEur(previewPayment)}</div>
+              {previewTotalInterest != null && (
+                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total interest paid</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-danger-text)' }}>{formatEur(previewTotalInterest)}</div>
+                </div>
+              )}
               {previewTotalAmountPayable != null && (
                 <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total amount payable (MTIC, estimate)</div>

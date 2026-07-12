@@ -122,6 +122,12 @@ export default function LoanDetail() {
           <div style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Monthly payment</div>
             <div style={{ fontSize: 28, fontWeight: 700 }}>{formatEur(loan.monthly_payment)}</div>
+            {!isActive && loan.total_interest != null && (
+              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total interest paid</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-danger-text)' }}>{formatEur(loan.total_interest)}</div>
+              </div>
+            )}
             {!isActive && loan.total_amount_payable != null && (
               <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total amount payable (MTIC, estimate)</div>

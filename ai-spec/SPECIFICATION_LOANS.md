@@ -154,6 +154,7 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 | `covered` | Section 5 — `null` unless `linked_item` is present |
 | `coverage_difference` | Section 5 — `null` unless `linked_item` is present |
 | `purchase_price` | `principal + down_payment` — `null` unless draft with `down_payment` set |
+| `total_interest` | `monthly_payment × term_months − principal` — `null` unless draft. The total interest paid over the term, excluding the opening fee (not interest) |
 | `total_amount_payable` (MTIC) | `monthly_payment × term_months + opening_fee` — `null` unless draft. A **simplified estimate**: principal + total interest + the one modeled fee, not the full legal MTIC (which can include stamp duty, insurance, etc. this app doesn't track) |
 
 -----
@@ -163,8 +164,8 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 - Loans is a dedicated tab within the dossier (`Capital · Monthly Expenses · Annual Expenses · Workbench · Goals · Loans · Emergency Fund · Settings`), following the same navigation and access patterns as Goals.
 - The list view (`LoansTab`) shows each loan as a clickable card: name, status badge (`active` → brand, `draft` → neutral), monthly payment, `salary_pct` ("—" if null), interest rate, and — for active + linked loans — a coverage pill.
 - The detail view (`LoanDetail`) shows: a summary card (status, payment, rate, term/months-left, principal/balance, salary + %), a coverage panel (active only), and the two scenario cards (active only).
-- The form modal (`LoanFormModal`) mirrors `GoalFormModal`'s hand-rolled markup: name, status radio toggle, interest rate + salary (`parseDecimalInput`, accepts `,` or `.` as decimal separator), draft fields (principal + term) or active fields (balance + months left + linked-expense `<select>`) shown conditionally, and a live payment preview. The interest rate field is labeled "TAN (nominal rate, %)" on draft loans (with a hint not to use the TAEG) and "Interest rate (annual, %)" on active loans. Draft mode additionally shows optional Purchase price/Down payment and TAEG/Opening fee rows, and the preview card adds a live "Total amount payable (MTIC, estimate)" figure below the monthly payment whenever a term is set.
-- `LoanDetail`'s summary card shows the same MTIC estimate under the monthly payment for draft loans, plus Purchase price/Down payment, TAEG (labeled "reference only"), and Opening fee rows whenever those fields are set.
+- The form modal (`LoanFormModal`) mirrors `GoalFormModal`'s hand-rolled markup: name, status radio toggle, interest rate + salary (`parseDecimalInput`, accepts `,` or `.` as decimal separator), draft fields (principal + term) or active fields (balance + months left + linked-expense `<select>`) shown conditionally, and a live payment preview. The interest rate field is labeled "TAN (nominal rate, %)" on draft loans (with a hint not to use the TAEG) and "Interest rate (annual, %)" on active loans. Draft mode additionally shows optional Purchase price/Down payment and TAEG/Opening fee rows, and the preview card adds live "Total interest paid" (red, mirroring the scenario calculators' green "interest saved") and "Total amount payable (MTIC, estimate)" figures below the monthly payment whenever a term is set.
+- `LoanDetail`'s summary card shows the same Total interest paid and MTIC estimate under the monthly payment for draft loans, plus Purchase price/Down payment, TAEG (labeled "reference only"), and Opening fee rows whenever those fields are set.
 - All numeric display uses `formatNumber`/`parseDecimalInput` — never `Intl.NumberFormat` directly.
 - Deletion uses `ConfirmModal`, never `window.confirm()`.
 

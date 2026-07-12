@@ -52,6 +52,11 @@ function computeLoanValues(loan, dossierId) {
   const purchasePrice =
     loan.status === 'draft' && loan.down_payment != null ? loan.principal + loan.down_payment : null;
 
+  // Total interest paid over the term — principal + interest minus the principal itself
+  // (excludes the opening fee, which isn't interest).
+  const totalInterest =
+    loan.status === 'draft' ? monthlyPayment * loan.term_months - loan.principal : null;
+
   // Total amount payable (MTIC) — a simplified estimate (principal + total interest + the
   // one modeled fee); the official Portuguese MTIC can include other charges (stamp duty,
   // insurance) this app doesn't track.
@@ -66,6 +71,7 @@ function computeLoanValues(loan, dossierId) {
     covered,
     coverage_difference: coverageDifference,
     purchase_price: purchasePrice,
+    total_interest: totalInterest,
     total_amount_payable: totalAmountPayable,
   };
 }
