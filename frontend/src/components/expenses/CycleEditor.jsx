@@ -595,15 +595,15 @@ export default function CycleEditor() {
             </button>
           </CollapsibleSection>
 
+          <TransferPerAccountSection
+            distributionsByAccount={summary.distributions_by_account ?? []}
+            accountsById={accountsById}
+            collapsed={transferCollapsed}
+            onToggle={() => setTransferCollapsed((v) => !v)}
+          />
+
         </div>
       </div>
-
-      <TransferPerAccountSection
-        distributionsByAccount={summary.distributions_by_account ?? []}
-        accountsById={accountsById}
-        collapsed={transferCollapsed}
-        onToggle={() => setTransferCollapsed((v) => !v)}
-      />
 
       {/* ── Modals ── */}
       {showAddModal && (
