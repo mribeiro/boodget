@@ -392,6 +392,20 @@ router.post('/expense-template/bulk-replace', (req, res) => {
   if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
 
   const replace = db.transaction(() => {
+    // Loans linked to an expense-section template item lose their id-based FK when the
+    // whole section is wiped below — capture (loan_id, item_name) so they can be
+    // re-linked by name after reinsert (same philosophy as migration 022 / import re-linking).
+    let linkedLoans = [];
+    if (section === 'expense') {
+      linkedLoans = db
+        .prepare(
+          `SELECT l.id as loan_id, eti.name as item_name
+           FROM loans l JOIN expense_template_items eti ON eti.id = l.expense_template_item_id
+           WHERE l.dossier_id = ? AND eti.dossier_id = ? AND eti.section = 'expense'`
+        )
+        .all(req.params.id, req.params.id);
+    }
+
     db.prepare('DELETE FROM expense_template_items WHERE dossier_id = ? AND section = ?').run(req.params.id, section);
     const insert = db.prepare(
       'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -418,6 +432,19 @@ router.post('/expense-template/bulk-replace', (req, res) => {
         accountId
       );
     });
+
+    // Re-link loans by matching name on the freshly-inserted Fixed expense items.
+    // Renamed/dropped items stay unlinked (matches cycle-item semantics).
+    if (section === 'expense' && linkedLoans.length > 0) {
+      const findByName = db.prepare(
+        "SELECT id FROM expense_template_items WHERE dossier_id = ? AND section = 'expense' AND type = 'Fixed' AND name = ? LIMIT 1"
+      );
+      const updateLoan = db.prepare('UPDATE loans SET expense_template_item_id = ? WHERE id = ?');
+      for (const { loan_id, item_name } of linkedLoans) {
+        const match = findByName.get(req.params.id, item_name);
+        updateLoan.run(match ? match.id : null, loan_id);
+      }
+    }
   });
 
   replace();

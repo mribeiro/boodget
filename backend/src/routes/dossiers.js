@@ -9,6 +9,7 @@ const expensesRouter = require('./expenses');
 const goalsRouter = require('./goals');
 const emergencyFundRouter = require('./emergency-fund');
 const annualExpensesRouter = require('./annual-expenses');
+const loansRouter = require('./loans');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -44,7 +45,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -265,6 +266,29 @@ router.post('/import', (req, res) => {
       const distId = templateNameToId[name];
       if (distId) insertAEDist.run(dossierId, distId);
     }
+
+    // Loans (v10+) — re-linked to the new Fixed expense template item by name, active only
+    const insertLoan = db.prepare(
+      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const l of (data.loans || [])) {
+      const linkedItemId = l.status === 'active' && l.linked_expense_name ? (expenseTemplateNameToId[l.linked_expense_name] ?? null) : null;
+      insertLoan.run(
+        uuidv4(),
+        dossierId,
+        l.name,
+        l.status === 'active' ? 'active' : 'draft',
+        l.interest_rate ?? 0,
+        l.salary ?? null,
+        l.principal ?? null,
+        l.term_months ?? null,
+        l.remaining_balance ?? null,
+        l.months_left ?? null,
+        linkedItemId,
+        l.created_at || null
+      );
+    }
   });
 
   doImport();
@@ -461,10 +485,20 @@ router.get('/:id/export', (req, res) => {
     .prepare('SELECT eti.name FROM annual_expense_distributions aed JOIN expense_template_items eti ON eti.id = aed.distribution_template_id WHERE aed.dossier_id = ?')
     .all(req.params.id).map((r) => r.name);
 
+  const loansExport = db
+    .prepare(
+      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.months_left, l.created_at,
+              eti.name as linked_expense_name
+       FROM loans l
+       LEFT JOIN expense_template_items eti ON eti.id = l.expense_template_item_id
+       WHERE l.dossier_id = ? ORDER BY l.created_at`
+    )
+    .all(req.params.id);
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 9,
+    version: 10,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
@@ -502,6 +536,7 @@ router.get('/:id/export', (req, res) => {
     annual_expense_years: annualExpenseYears,
     annual_expense_accounts: aeAccountNames,
     annual_expense_distributions: aeDistributionNames,
+    loans: loansExport,
   });
   console.log(`[dossiers] Exported dossier "${dossier.name}" (${req.params.id}) by user ${req.user.username}`);
 });
@@ -575,5 +610,7 @@ router.use('/:id', goalsRouter);
 router.use('/:id', emergencyFundRouter);
 // Annual expenses sub-router
 router.use('/:id', annualExpensesRouter);
+// Loans sub-router
+router.use('/:id', loansRouter);
 
 module.exports = router;

@@ -617,6 +617,27 @@ const migrations = [
       }
     },
   },
+  {
+    id: '026_create_loans',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS loans (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','active')),
+          interest_rate REAL NOT NULL DEFAULT 0,
+          salary REAL,
+          principal REAL,
+          term_months INTEGER,
+          remaining_balance REAL,
+          months_left INTEGER,
+          expense_template_item_id TEXT REFERENCES expense_template_items(id) ON DELETE SET NULL,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {

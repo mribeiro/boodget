@@ -1,0 +1,134 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlus, faCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
+import { api } from '../../services/api';
+import { formatNumber } from '../../utils/numbers';
+import LoanFormModal from './LoanFormModal';
+
+function formatEur(value) {
+  if (value == null) return '—';
+  return formatNumber(value, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + ' €';
+}
+
+function CoveragePill({ loan }) {
+  if (loan.status !== 'active' || !loan.linked_item) return null;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.3rem',
+        padding: '2px 10px',
+        borderRadius: 'var(--radius-full)',
+        fontSize: 11,
+        fontWeight: 600,
+        background: loan.covered ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+        color: loan.covered ? 'var(--color-success-text)' : 'var(--color-danger-text)',
+        border: `1px solid ${loan.covered ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
+      }}
+    >
+      {loan.covered ? (
+        <><FontAwesomeIcon icon={faCheck} style={{ fontSize: 9 }} />Covered</>
+      ) : (
+        <><FontAwesomeIcon icon={faTriangleExclamation} style={{ fontSize: 9 }} />Underbudgeted −{formatEur(Math.abs(loan.coverage_difference))}</>
+      )}
+    </span>
+  );
+}
+
+export default function LoansTab({ dossierId }) {
+  const navigate = useNavigate();
+  const [loans, setLoans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+
+  useEffect(() => {
+    loadLoans();
+  }, [dossierId]);
+
+  async function loadLoans() {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api.getLoans(dossierId);
+      setLoans(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleLoanCreated(newLoan) {
+    setLoans((prev) => [...prev, newLoan]);
+    setShowCreate(false);
+    navigate(`/dossiers/${dossierId}/loans/${newLoan.id}`);
+  }
+
+  if (loading) return <div className="loading">Loading…</div>;
+
+  return (
+    <div>
+      {error && <div className="alert alert-error" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
+
+      <div className="section-header" style={{ marginBottom: 'var(--space-5)' }}>
+        <h2 style={{ margin: 0 }}>Loans</h2>
+        <button className="btn-primary" onClick={() => setShowCreate(true)}>
+          <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />New loan
+        </button>
+      </div>
+
+      {loans.length === 0 ? (
+        <div className="empty-state">
+          <p>No loans yet. Add a draft to study a what-if, or an active loan to track a real one.</p>
+          <button className="btn-primary" onClick={() => setShowCreate(true)}>
+            New loan
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          {loans.map((loan) => (
+            <div
+              key={loan.id}
+              className="card card--clickable"
+              style={{ padding: 'var(--space-4)' }}
+              onClick={() => navigate(`/dossiers/${dossierId}/loans/${loan.id}`)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600, fontSize: 15, flex: 1 }}>{loan.name}</span>
+                <span className={`badge badge-${loan.status === 'active' ? 'brand' : 'neutral'}`}>
+                  {loan.status === 'active' ? 'Active' : 'Draft'}
+                </span>
+                <CoveragePill loan={loan} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 'var(--space-5)', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                <span className="tabular">
+                  <strong style={{ color: 'var(--text-primary)' }}>{formatEur(loan.monthly_payment)}</strong>/mo
+                </span>
+                <span className="tabular">
+                  % of salary: {loan.salary_pct != null ? `${loan.salary_pct.toFixed(1)}%` : '—'}
+                </span>
+                <span className="tabular">{loan.interest_rate}% APR</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreate && (
+        <LoanFormModal
+          dossierId={dossierId}
+          loan={null}
+          onSave={handleLoanCreated}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
+    </div>
+  );
+}

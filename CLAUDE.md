@@ -27,6 +27,7 @@ Key concepts:
 - **Annual Expense Year**: A per-dossier, per-calendar-year instance copying items from the annual expense template. Has a `carryover` field. Items sorted by first installment date. The year summary card shows carryover, accumulated, contributed, budgeted, paid, remaining, and several computed fields (amount left needed, raise needed, monthly average needed, needed this cycle). See `ai-spec/SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md` for full formula details.
 - **Workbench**: A scenario calculator. Users model income vs. expenses vs. distributions with Must/Want/Save breakdowns. State is ephemeral per session; can be saved as named **snapshots**. If exactly one snapshot exists, it is auto-loaded on open. A "New from scratch" button resets to the template-based working state.
 - **Goal**: A financial objective with a name, target value, and target date, scoped to a dossier. Tracks progress via contributing accounts and monthly contributions (via distributions, fixed manual amount, or ad-hoc). Supports historical contributions. State is auto-computed: `active`, `completed`, or `failed`.
+- **Loan**: A per-dossier loan, either `draft` (a study/what-if — principal + term + interest rate) or `active` (a real ongoing loan — remaining balance + months left + interest rate). Both compute a `monthly_payment` via the standard annuity formula and a `salary_pct` (payment ÷ per-loan `salary`, prefilled from the most recent cycle's salary). Status can be toggled both ways, preserving both sides' field values; demoting active → draft always clears the expense link. Active loans may optionally link to a `Fixed` expense template item to check budget coverage (green/red, with a `0.005` epsilon), and offer two ephemeral scenario calculators (downpayment → lower payment or shorter term + interest saved; target payment → lump sum needed). See `ai-spec/SPECIFICATION_LOANS.md`.
 - **Glances**: A read-only summary panel above the tab bar in `DossierView`. Always shows exactly four cards (Capital, Current Cycle, Next Expense, Goals) with colour-coded states (neutral / amber / red) — no conditional 5th/6th card. All four cards share one literal fixed CSS height (`.glance-card { height: 148px; overflow: hidden }`), identical across every state and viewport — each card's content is condensed to fit that budget, with `overflow: hidden` kept only as a safety net, not relied on to hide content. In its normal state, the Capital card face shows three rows — "Total" (Idle + Active), "Savings" (Idle only), and "Potential" (Idle + Stocks, labelled "Savings potential" in the dialog) — each with its own inline trend arrow/percentage next to the value when a previous snapshot exists, shown on desktop/tablet only (`≥768px`; hidden below that since it would push the value out of the row on the narrower mobile card grid); clicking the card opens a dialog (`ui/Modal.jsx`) with the full breakdown — variation, idle subtotal, and (if at least one filled month has `stocks_total > 0`) a stocks sub-block with stocks total, variation, and "Overall" (Idle + Active + Stocks); the warning/empty Capital states still navigate to the Capital tab on click instead of opening the dialog. The Goals card shows active/completed/failed counts on one flex-wrapped line, an average-completion progress bar (mean of each goal's capped `total_current_progress / target_value`) below it, plus an embedded, independently-clickable Emergency Fund banner (deficit + target, condensed to one line when goals exist, navigates to the Emergency Fund tab) whenever the EF status is underfunded, and the whole card turns red while it's shown; healthy/no_data show nothing in that slot — a healthy fund is the expected default and isn't called out. Current Cycle card navigates to the relevant `CycleEditor`; Next Expense card also navigates to `CycleEditor`. The Current Cycle card's title ("Cycle of [Month Year]") drops the "Cycle of " prefix below `768px` so it fits on one line on the narrower mobile card grid, keeping the full prefix at `≥768px`; below the Balance/Expected rows it also shows a slim cycle-progress bar ("Day X/Y" of the current cycle, reusing the Goals card's progress-bar styling). The Next Expense card shows its value to the cent (Capital and Current Cycle values remain rounded to the nearest euro) and a relative "in N days" when-label; the "(Month Day)" date suffix on that label only renders at `≥768px` (hidden on the narrower mobile card grid to avoid overflow) — the "Today" and overdue states always show the payment date as "Month Day" regardless of viewport; when overdue, it shows a "Mark as paid" button on its own row below the value/when row; when not overdue and a second unpaid item exists, a 3rd line previews it ("[name] · in N days"). Three per-dossier warning day thresholds control amber/red states.
 - **Emergency Fund**: A per-dossier savings buffer target. `target = multiplier × effective_monthly_base`, where `effective_monthly_base = avg_monthly_expense (Y most recent cycles) + extra_monthly_values`. Status is `healthy`, `underfunded`, or `no_data`.
 
@@ -50,6 +51,7 @@ money_manager/
 │   │       ├── accounts.js, months.js
 │   │       ├── expenses.js       # Monthly template, cycles, cycle items, workbench snapshots
 │   │       ├── goals.js, emergency-fund.js
+│   │       ├── loans.js          # Loan CRUD + amortization math
 │   │       ├── annual-expenses.js # Annual template, years, payments
 │   │       ├── push.js           # Push subscriptions + VAPID public key
 │   │       └── notifications.js  # User notification settings + dossier opt-in
@@ -70,6 +72,7 @@ money_manager/
 │   ├── src/
 │   │   ├── main.jsx, App.jsx     # Entry, AuthContext/AppContext, routing
 │   │   ├── services/api.js       # Fetch-based API client wrapper
+│   │   ├── utils/numbers.js, loanMath.js  # formatNumber/parseDecimalInput, loan amortization math
 │   │   ├── pages/
 │   │   │   └── NotificationSettings.jsx
 │   │   └── components/
@@ -84,12 +87,14 @@ money_manager/
 │   │       │          ExpenseTemplate.jsx, AnnualExpenseTemplate.jsx, DossierSettings.jsx
 │   │       ├── ui/Checkbox.jsx, Badge.jsx, Button.jsx, Card.jsx, Modal.jsx, UpdateBanner.jsx
 │   │       ├── workbench/WorkbenchTab.jsx
-│   │       └── goals/GoalsTab.jsx, GoalFormModal.jsx, GoalDetail.jsx
+│   │       ├── goals/GoalsTab.jsx, GoalFormModal.jsx, GoalDetail.jsx
+│   │       └── loans/LoansTab.jsx, LoanFormModal.jsx, LoanDetail.jsx
 ├── ai-spec/
 │   ├── SPECIFICATION.md                          # Core product spec (Capital section)
 │   ├── SPECIFICATION_MONTHLY_EXPENSES.md
 │   ├── SPECIFICATION_WORKBENCH.md
 │   ├── SPECIFICATION_GOALS.md
+│   ├── SPECIFICATION_LOANS.md
 │   ├── SPECIFICATION_GLANCES.md
 │   ├── SPECIFICATION_EMERGENCY_FUND.md
 │   ├── SPECIFICATION_PAPERLESS.md
@@ -205,6 +210,7 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 | `goal_distributions` | `(goal_id, distribution_template_id)`. Cascades on delete. |
 | `goal_cycle_contributions` | `(goal_id, cycle_id)`. `real_contribution` upserted. |
 | `goal_historical_contributions` | `(goal_id, year, month)`. Managed via bulk-replace. |
+| `loans` | `name`, `status` (`draft`/`active`), `interest_rate` (annual %), `salary`, `principal`/`term_months` (draft), `remaining_balance`/`months_left` (active), `expense_template_item_id` (nullable FK → `expense_template_items`, `ON DELETE SET NULL`, active only). No `position`/`updated_at`; list ordered `created_at ASC`. |
 | `emergency_fund_accounts` | `(dossier_id, account_id)`. Current value from most recent filled snapshot. |
 | `emergency_fund_extra_values` | `name`, `value`, `position`. |
 | `app_settings` | Key-value. Holds VAPID keys (auto-generated on first startup). |
@@ -220,7 +226,7 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - `schema_migrations` table tracks applied migrations by `id`.
 - IDs follow `NNN_description` pattern (e.g. `003_add_foo_to_bar`).
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
-- **Last applied migration**: `025_add_money_category_to_accounts`. **Next id must be `026_...`**
+- **Last applied migration**: `026_create_loans`. **Next id must be `027_...`**
 - Never modify or remove existing migration entries — only append.
 
 **To add a new migration**, append to the `migrations` array:
@@ -352,6 +358,12 @@ DELETE /api/dossiers/:id/goals/:goalId
 PUT    /api/dossiers/:id/goals/:goalId/cycle-contributions/:cycleId  { real_contribution }
 POST   /api/dossiers/:id/goals/:goalId/historical-contributions/bulk-replace  { items: [{year, month, amount}] }
 
+GET    /api/dossiers/:id/loans
+POST   /api/dossiers/:id/loans   { name, status, interest_rate, salary?, principal?, term_months?, remaining_balance?, months_left?, expense_template_item_id? }
+GET    /api/dossiers/:id/loans/:loanId
+PUT    /api/dossiers/:id/loans/:loanId
+DELETE /api/dossiers/:id/loans/:loanId
+
 GET    /api/dossiers/:id/emergency-fund/accounts
 PUT    /api/dossiers/:id/emergency-fund/accounts         { account_ids: [] }
 GET    /api/dossiers/:id/emergency-fund/extra-values
@@ -388,8 +400,8 @@ All calls go through `frontend/src/services/api.js` (wraps fetch: base URL `/api
 ### Routing
 
 React Router v6. Routes in `App.jsx`. Key routes:
-- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Emergency Fund, Settings)
-- `/dossiers/:id/months/:monthId`, `/dossiers/:id/cycles/:cycleId`, `/dossiers/:id/goals/:goalId`
+- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Loans, Emergency Fund, Settings)
+- `/dossiers/:id/months/:monthId`, `/dossiers/:id/cycles/:cycleId`, `/dossiers/:id/goals/:goalId`, `/dossiers/:id/loans/:loanId`
 - `/notifications` → `NotificationSettings`
 
 Tab state restorable via location state: `navigate('/dossiers/:id', { state: { tab: 'expenses' } })`.
@@ -441,7 +453,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 8. **Cycle start day**: `cycle_start_day` (default 25). Display name: `new Date(year, month, startDay - 1)`. Range: start = `new Date(year, month - 1, startDay)`, end = `new Date(year, month, startDay - 1)`. Example: stored `month=3`, `startDay=25` → Mar 25 – Apr 24 → "April 2025".
 9. **Template → cycle copy**: All template items copied to `cycle_items`. `day_of_payment` clamped to last day of cycle's calendar month.
 10. **Expense sorting**: Fixed expenses sort by day — days ≥ `cycle_start_day` first (asc), then days < `cycle_start_day` (asc). Budget items always last. Applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format**: version `9`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions) and `account_name` for distributions (the funding account, re-linked by name on import; `null`/missing on older exports). `accounts[]` round-trips `money_category` (version 9+); imports of versions ≤ 8 (which only have `is_idle_money`) derive it as `is_idle_money ? 'idle' : 'active'`. `accounts[]` also round-trips `can_receive_transfers` (defaults to `1`/true on older exports missing the field). Import accepts versions 1–9. Goals and EF accounts re-linked by account name on import. Cycle items are re-linked to their new template item on import by matching `(section, name)`, so the EF average correctly recognizes them as template-derived. Paperless token excluded for security.
+11. **Export format**: version `10`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`, `loans[]` (version 10+). Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions) and `account_name` for distributions (the funding account, re-linked by name on import; `null`/missing on older exports). `accounts[]` round-trips `money_category` (version 9+); imports of versions ≤ 8 (which only have `is_idle_money`) derive it as `is_idle_money ? 'idle' : 'active'`. `accounts[]` also round-trips `can_receive_transfers` (defaults to `1`/true on older exports missing the field). `loans[]` round-trips `linked_expense_name` (the linked Fixed expense, re-linked by name on import, active loans only; absent/ignored on versions ≤ 9). Import accepts versions 1–10. Goals and EF accounts re-linked by account name on import. Cycle items are re-linked to their new template item on import by matching `(section, name)`, so the EF average correctly recognizes them as template-derived. Paperless token excluded for security.
 12. **Emergency Fund**: `target = multiplier × (avg_monthly_expense + extra_monthly_total)`. Average from Y most recent cycles: budget items use `spent` (closed) or `max` (open). Archived accounts excluded. Cycle items with no template link (ad-hoc) are always excluded from the average.
 
 ## Environment Variables
@@ -481,6 +493,7 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 | `[cycles]` | Created, closed/reopened, deleted |
 | `[settings]` | Updated (lists changed field names) |
 | `[goals]` | Created, deleted |
+| `[loans]` | Created, updated, deleted |
 | `[emergency-fund]` | Account selection updated |
 | `[push]` | Generated new VAPID keys; removed expired subscription (scheduler and test endpoint) |
 
