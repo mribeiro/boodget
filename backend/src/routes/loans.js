@@ -49,6 +49,9 @@ function computeLoanValues(loan, dossierId) {
     }
   }
 
+  const purchasePrice =
+    loan.status === 'draft' && loan.down_payment != null ? loan.principal + loan.down_payment : null;
+
   return {
     monthly_payment: monthlyPayment,
     salary_pct: salaryPct,
@@ -56,6 +59,7 @@ function computeLoanValues(loan, dossierId) {
     linked_item: linkedItem,
     covered,
     coverage_difference: coverageDifference,
+    purchase_price: purchasePrice,
   };
 }
 
@@ -84,6 +88,20 @@ function validateLoanFields(body, existing) {
   const remainingBalance = body.remaining_balance !== undefined ? (body.remaining_balance === null || body.remaining_balance === '' ? null : Number(body.remaining_balance)) : existing?.remaining_balance ?? null;
   const monthsLeft = body.months_left !== undefined ? (body.months_left === null || body.months_left === '' ? null : Number(body.months_left)) : existing?.months_left ?? null;
 
+  let downPayment = existing?.down_payment ?? null;
+  if (body.down_payment !== undefined) {
+    const parsed = body.down_payment === null || body.down_payment === '' ? null : Number(body.down_payment);
+    if (parsed != null) {
+      if (isNaN(parsed) || parsed < 0) {
+        return { error: 'down_payment must be null or a non-negative number' };
+      }
+      if (status !== 'draft') {
+        return { error: 'down_payment can only be set on draft loans' };
+      }
+    }
+    downPayment = parsed;
+  }
+
   if (status === 'draft') {
     if (!(principal > 0)) return { error: 'principal must be a positive number for draft loans' };
     if (!Number.isInteger(termMonths) || termMonths < 1) {
@@ -94,6 +112,7 @@ function validateLoanFields(body, existing) {
     if (!Number.isInteger(monthsLeft) || monthsLeft < 1) {
       return { error: 'months_left must be an integer ≥ 1 for active loans' };
     }
+    downPayment = null;
   }
 
   return {
@@ -105,6 +124,7 @@ function validateLoanFields(body, existing) {
     term_months: termMonths,
     remaining_balance: remainingBalance,
     months_left: monthsLeft,
+    down_payment: downPayment,
   };
 }
 
@@ -138,8 +158,8 @@ router.post('/loans', (req, res) => {
 
   const id = uuidv4();
   db.prepare(
-    `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id, down_payment)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     req.params.id,
@@ -151,7 +171,8 @@ router.post('/loans', (req, res) => {
     validated.term_months,
     validated.remaining_balance,
     validated.months_left,
-    expenseTemplateItemId
+    expenseTemplateItemId,
+    validated.down_payment
   );
 
   const loan = db.prepare('SELECT * FROM loans WHERE id = ?').get(id);
@@ -198,7 +219,7 @@ router.put('/loans/:loanId', (req, res) => {
 
   db.prepare(
     `UPDATE loans SET name = ?, status = ?, interest_rate = ?, salary = ?, principal = ?, term_months = ?,
-     remaining_balance = ?, months_left = ?, expense_template_item_id = ? WHERE id = ?`
+     remaining_balance = ?, months_left = ?, expense_template_item_id = ?, down_payment = ? WHERE id = ?`
   ).run(
     validated.name,
     validated.status,
@@ -209,6 +230,7 @@ router.put('/loans/:loanId', (req, res) => {
     validated.remaining_balance,
     validated.months_left,
     expenseTemplateItemId,
+    validated.down_payment,
     loan.id
   );
 

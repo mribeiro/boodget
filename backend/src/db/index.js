@@ -638,6 +638,15 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '027_add_down_payment_to_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'down_payment')) {
+        db.exec('ALTER TABLE loans ADD COLUMN down_payment REAL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

@@ -124,6 +124,12 @@ export default function LoanDetail() {
             <div style={{ fontSize: 28, fontWeight: 700 }}>{formatEur(loan.monthly_payment)}</div>
           </div>
           <div>
+            {!isActive && loan.down_payment != null && (
+              <>
+                <StatRow label="Purchase price" value={formatEur(loan.purchase_price)} />
+                <StatRow label="Down payment" value={formatEur(loan.down_payment)} />
+              </>
+            )}
             <StatRow label={isActive ? 'Remaining balance' : 'Principal'} value={formatEur(isActive ? loan.remaining_balance : loan.principal)} />
             <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={isActive ? loan.months_left : loan.term_months} />
             <StatRow label="Salary" value={formatEur(loan.salary)} />

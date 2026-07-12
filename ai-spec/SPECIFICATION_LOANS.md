@@ -30,8 +30,9 @@ The Loans section lets users configure loans per dossier. Each loan is either a 
 
 | Field | Description |
 |---|---|
-| **Principal** | Amount borrowed (must be > 0) |
+| **Principal** | Amount financed (must be > 0). Used directly in the amortization formula — unaffected by whether it was typed directly or derived from a purchase-price breakdown |
 | **Term (months)** | Total loan length (integer ≥ 1) |
+| **Down payment** | Optional. When set, the loan also exposes a computed **Purchase price** (`principal + down_payment`) for display. Only meaningful — and only settable — while `status = 'draft'`; forced to `NULL` on promotion to active (400 if the client attempts to set it on an active loan) |
 
 ### 2.3 Active-only fields
 
@@ -46,6 +47,7 @@ The Loans section lets users configure loans per dossier. Each loan is either a 
 - A dossier can have multiple loans, in either status, simultaneously.
 - Draft loans **cannot** be linked to an expense template item — the link field is only meaningful once a loan is active.
 - Loans can be edited and deleted at any time.
+- Down payment is **draft-only**: an active loan's `remaining_balance` is already net of any down payment made, so there's nothing to model there. The create/edit form lets the user enter a **Purchase price** and **Down payment** instead of typing Principal directly; Principal is then derived as `purchase_price − down_payment` and that's what feeds the amortization formula. Leaving Purchase price blank falls back to typing Principal directly, with no down payment stored.
 
 -----
 
@@ -61,6 +63,7 @@ The Loans section lets users configure loans per dossier. Each loan is either a 
 - Status can be toggled **both ways** (draft → active, active → draft) at any time via the edit form.
 - Toggling **preserves all field values** on both sides — switching to draft doesn't erase `remaining_balance`/`months_left`, and switching to active doesn't erase `principal`/`term_months`. Only the fields relevant to the *new* status are validated as required.
 - Demoting **active → draft** always clears the expense link (`expense_template_item_id` is forced to `NULL`), since draft loans cannot carry a link.
+- Promoting **draft → active** always clears the down payment (`down_payment` is forced to `NULL`), since it's only meaningful for the study/what-if scenario a draft represents.
 
 -----
 
@@ -207,7 +210,7 @@ Validation (400 on failure):
 
 ## 12. Export / Import
 
-- Export version **10** adds a `loans` array: `{ name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, created_at, linked_expense_name }`. `linked_expense_name` is resolved via a `LEFT JOIN` to the expense template item's name (or `null` if unlinked), matching the Goals resolve-to-name export pattern.
+- Export version **10** adds a `loans` array: `{ name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, created_at, down_payment, linked_expense_name }`. `linked_expense_name` is resolved via a `LEFT JOIN` to the expense template item's name (or `null` if unlinked), matching the Goals resolve-to-name export pattern. `down_payment` is only meaningful for draft loans; imported as `null` for active loans regardless of the exported value.
 - Import accepts versions **1–10**. Loans are inserted with new UUIDs inside the same import transaction. The link is re-established only when `status === 'active'`, by matching `linked_expense_name` against the already-built `expenseTemplateNameToId` map (expense-section only) — the same map import already builds for expense template re-linking. A missing or unmatched name leaves the loan unlinked. Older exports (versions 1–9) have no `loans` key and simply import with zero loans.
 
 -----

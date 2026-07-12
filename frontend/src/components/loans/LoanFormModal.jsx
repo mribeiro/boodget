@@ -13,6 +13,11 @@ function formatEur(value) {
   }) + ' €';
 }
 
+function formatDecimal(value) {
+  if (value == null || isNaN(value)) return '';
+  return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const isEdit = !!loan;
 
@@ -25,6 +30,8 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const [remainingBalance, setRemainingBalance] = useState(loan?.remaining_balance != null ? String(loan.remaining_balance) : '');
   const [monthsLeft, setMonthsLeft] = useState(loan?.months_left != null ? String(loan.months_left) : '');
   const [expenseTemplateItemId, setExpenseTemplateItemId] = useState(loan?.expense_template_item_id ?? '');
+  const [purchasePrice, setPurchasePrice] = useState(loan?.purchase_price != null ? String(loan.purchase_price) : '');
+  const [downPayment, setDownPayment] = useState(loan?.down_payment != null ? String(loan.down_payment) : '');
 
   const [fixedExpenses, setFixedExpenses] = useState([]);
   const [latestCycleSalary, setLatestCycleSalary] = useState(loan?.latest_cycle_salary ?? null);
@@ -50,8 +57,19 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
 
+  // Purchase price / down payment is an optional breakdown for draft loans — when a purchase
+  // price is entered, the amount financed (principal) is derived rather than typed directly.
+  const usingPriceBreakdown = status === 'draft' && purchasePrice !== '';
+  const parsedPurchasePrice = parseDecimalInput(purchasePrice);
+  const parsedDownPayment = downPayment === '' ? 0 : parseDecimalInput(downPayment);
+  const computedPrincipal = usingPriceBreakdown
+    ? Math.max(0, (isNaN(parsedPurchasePrice) ? 0 : parsedPurchasePrice) - (isNaN(parsedDownPayment) ? 0 : parsedDownPayment))
+    : null;
+
+  const effectiveDraftPrincipal = usingPriceBreakdown ? computedPrincipal : parseDecimalInput(principal);
+
   const previewPayment = status === 'draft'
-    ? computeMonthlyPayment(parseDecimalInput(principal), parseDecimalInput(interestRate), Number(termMonths))
+    ? computeMonthlyPayment(effectiveDraftPrincipal, parseDecimalInput(interestRate), Number(termMonths))
     : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), Number(monthsLeft));
 
   async function handleSubmit(e) {
@@ -73,9 +91,19 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
     };
 
     if (status === 'draft') {
-      const p = parseDecimalInput(principal);
+      let p;
+      if (usingPriceBreakdown) {
+        if (isNaN(parsedPurchasePrice) || parsedPurchasePrice <= 0) { setError('Purchase price must be a positive number'); return; }
+        if (isNaN(parsedDownPayment) || parsedDownPayment < 0) { setError('Down payment must be a non-negative number'); return; }
+        if (parsedDownPayment >= parsedPurchasePrice) { setError('Down payment must be less than the purchase price'); return; }
+        p = parsedPurchasePrice - parsedDownPayment;
+        payload.down_payment = parsedDownPayment;
+      } else {
+        p = parseDecimalInput(principal);
+        if (isNaN(p) || p <= 0) { setError('Principal must be a positive number'); return; }
+        payload.down_payment = null;
+      }
       const t = Number(termMonths);
-      if (isNaN(p) || p <= 0) { setError('Principal must be a positive number'); return; }
       if (!Number.isInteger(t) || t < 1) { setError('Term must be a whole number of months (≥ 1)'); return; }
       payload.principal = p;
       payload.term_months = t;
@@ -164,16 +192,42 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
             </div>
 
             {status === 'draft' ? (
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Principal (€)</label>
-                  <input type="text" inputMode="decimal" value={principal} onChange={(e) => setPrincipal(e.target.value)} placeholder="0.00" />
+              <>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Purchase price (€) <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <input type="text" inputMode="decimal" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} placeholder="e.g. 20000" />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Down payment (€)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={downPayment}
+                      onChange={(e) => setDownPayment(e.target.value)}
+                      placeholder="0.00"
+                      disabled={!usingPriceBreakdown}
+                    />
+                  </div>
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Term (months)</label>
-                  <input type="number" inputMode="numeric" value={termMonths} onChange={(e) => setTermMonths(e.target.value)} placeholder="300" min="1" />
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Amount financed (€) {usingPriceBreakdown && <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>(computed)</span>}</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={usingPriceBreakdown ? formatDecimal(computedPrincipal) : principal}
+                      onChange={(e) => setPrincipal(e.target.value)}
+                      placeholder="0.00"
+                      disabled={usingPriceBreakdown}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Term (months)</label>
+                    <input type="number" inputMode="numeric" value={termMonths} onChange={(e) => setTermMonths(e.target.value)} placeholder="300" min="1" />
+                  </div>
                 </div>
-              </div>
+              </>
             ) : (
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div className="form-group" style={{ flex: 1 }}>
