@@ -28,6 +28,7 @@ Key concepts:
 - **Workbench**: A scenario calculator. Users model income vs. expenses vs. distributions with Must/Want/Save breakdowns. State is ephemeral per session; can be saved as named **snapshots**. If exactly one snapshot exists, it is auto-loaded on open. A "New from scratch" button resets to the template-based working state.
 - **Goal**: A financial objective with a name, target value, and target date, scoped to a dossier. Tracks progress via contributing accounts and monthly contributions (via distributions, fixed manual amount, or ad-hoc). Supports historical contributions. State is auto-computed: `active`, `completed`, or `failed`.
 - **Glances**: A read-only summary panel above the tab bar in `DossierView`. Always shows exactly four cards (Capital, Current Cycle, Next Expense, Goals) with colour-coded states (neutral / amber / red) — no conditional 5th/6th card. All four cards share one literal fixed CSS height (`.glance-card { height: 148px; overflow: hidden }`), identical across every state and viewport — each card's content is condensed to fit that budget, with `overflow: hidden` kept only as a safety net, not relied on to hide content. In its normal state, the Capital card face shows three rows — "Total" (Idle + Active), "Savings" (Idle only), and "Potential" (Idle + Stocks, labelled "Savings potential" in the dialog) — each with its own inline trend arrow/percentage next to the value when a previous snapshot exists, shown on desktop/tablet only (`≥768px`; hidden below that since it would push the value out of the row on the narrower mobile card grid); clicking the card opens a dialog (`ui/Modal.jsx`) with the full breakdown — variation, idle subtotal, and (if at least one filled month has `stocks_total > 0`) a stocks sub-block with stocks total, variation, and "Overall" (Idle + Active + Stocks); the warning/empty Capital states still navigate to the Capital tab on click instead of opening the dialog. The Goals card shows active/completed/failed counts on one flex-wrapped line, an average-completion progress bar (mean of each goal's capped `total_current_progress / target_value`) below it, plus an embedded, independently-clickable Emergency Fund banner (deficit + target, condensed to one line when goals exist, navigates to the Emergency Fund tab) whenever the EF status is underfunded, and the whole card turns red while it's shown; healthy/no_data show nothing in that slot — a healthy fund is the expected default and isn't called out. Current Cycle card navigates to the relevant `CycleEditor`; Next Expense card also navigates to `CycleEditor`. The Current Cycle card's title ("Cycle of [Month Year]") drops the "Cycle of " prefix below `768px` so it fits on one line on the narrower mobile card grid, keeping the full prefix at `≥768px`; below the Balance/Expected rows it also shows a slim cycle-progress bar ("Day X/Y" of the current cycle, reusing the Goals card's progress-bar styling). The Next Expense card shows its value to the cent (Capital and Current Cycle values remain rounded to the nearest euro) and a relative "in N days" when-label; the "(Month Day)" date suffix on that label only renders at `≥768px` (hidden on the narrower mobile card grid to avoid overflow) — the "Today" and overdue states always show the payment date as "Month Day" regardless of viewport; when overdue, it shows a "Mark as paid" button on its own row below the value/when row; when not overdue and a second unpaid item exists, a 3rd line previews it ("[name] · in N days"). Three per-dossier warning day thresholds control amber/red states.
+- **AI Advisor**: A per-dossier tab that sends a trimmed snapshot of the dossier (accounts, capital series, expense template, recent cycles, goals, EF status, annual years) to the Claude API. An "Analyze dossier" button returns a structured assessment (health score 0–100, summary, highlights, improvements, risks) persisted per dossier (latest only, in `ai_analyses`); a chatbox answers questions with the same context (ephemeral, client-side history, buffered responses). Model is a per-dossier setting `ai_model` (default `claude-opus-4-8`; whitelist: haiku-4-5, sonnet-5, opus-4-8, fable-5) picked in the tab. Requires the operator-supplied `ANTHROPIC_API_KEY` env var; every response shows a USD cost estimate from token usage × a hardcoded pricing table. See `ai-spec/SPECIFICATION_AI_ADVISOR.md`.
 - **Emergency Fund**: A per-dossier savings buffer target. `target = multiplier × effective_monthly_base`, where `effective_monthly_base = avg_monthly_expense (Y most recent cycles) + extra_monthly_values`. Status is `healthy`, `underfunded`, or `no_data`.
 
 ## Versioning
@@ -50,6 +51,7 @@ money_manager/
 │   │       ├── accounts.js, months.js
 │   │       ├── expenses.js       # Monthly template, cycles, cycle items, workbench snapshots
 │   │       ├── goals.js, emergency-fund.js
+│   │       ├── ai-advisor.js     # AI Advisor: dossier context builder, Claude API calls, analysis + chat
 │   │       ├── annual-expenses.js # Annual template, years, payments
 │   │       ├── push.js           # Push subscriptions + VAPID public key
 │   │       └── notifications.js  # User notification settings + dossier opt-in
@@ -79,6 +81,7 @@ money_manager/
 │   │       ├── layout/AppShell.jsx, Navbar.jsx, Sidebar.jsx
 │   │       ├── glances/GlancesPanel.jsx, CapitalGlance.jsx,
 │   │       │         CycleGlance.jsx, NextExpenseGlance.jsx, GoalsGlance.jsx
+│   │       ├── ai-advisor/AIAdvisorTab.jsx, AnalysisPanel.jsx, ChatPanel.jsx, CostLabel.jsx
 │   │       ├── emergency-fund/EmergencyFundTab.jsx
 │   │       ├── expenses/ExpensesTab.jsx, CycleList.jsx, CycleEditor.jsx,
 │   │       │          ExpenseTemplate.jsx, AnnualExpenseTemplate.jsx, DossierSettings.jsx
@@ -92,6 +95,7 @@ money_manager/
 │   ├── SPECIFICATION_GOALS.md
 │   ├── SPECIFICATION_GLANCES.md
 │   ├── SPECIFICATION_EMERGENCY_FUND.md
+│   ├── SPECIFICATION_AI_ADVISOR.md
 │   ├── SPECIFICATION_PAPERLESS.md
 │   ├── SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md
 │   ├── SPECIFICATION_UI.md
@@ -182,7 +186,7 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 |---|---|
 | `users` | User accounts. `is_oidc=1` for SSO users. |
 | `sessions` | Express session store. |
-| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds (`capital_snapshot_warning_day` default 7, `next_cycle_warning_day` default 22, `previous_cycle_close_warning_day` default 25), two EF settings (`emergency_fund_months_multiplier` default 6, `emergency_fund_cycles_to_average` default 6), four Paperless fields (all nullable), `expense_notification_days_before` (default 1). |
+| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds (`capital_snapshot_warning_day` default 7, `next_cycle_warning_day` default 22, `previous_cycle_close_warning_day` default 25), two EF settings (`emergency_fund_months_multiplier` default 6, `emergency_fund_cycles_to_average` default 6), four Paperless fields (all nullable), `expense_notification_days_before` (default 1), `ai_model` (default `claude-opus-4-8`; whitelist enforced in settings PATCH). |
 | `dossier_access` | Many-to-many sharing: `(dossier_id, user_id)` PK. |
 | `accounts` | `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived`, `money_category` ∈ `{idle, active, stocks}` (default `active`; `stocks` accounts are excluded from `capital_total` and tracked separately), `can_receive_transfers` (default `1`; gates eligibility as a distribution funding account), `position`. |
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool. |
@@ -207,6 +211,7 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 | `goal_historical_contributions` | `(goal_id, year, month)`. Managed via bulk-replace. |
 | `emergency_fund_accounts` | `(dossier_id, account_id)`. Current value from most recent filled snapshot. |
 | `emergency_fund_extra_values` | `name`, `value`, `position`. |
+| `ai_analyses` | Latest AI Advisor analysis per dossier. `dossier_id` UNIQUE (upserted on re-run). `model`, `content` (analysis JSON), token counts, `cost_usd`, `created_at`. Not exported. |
 | `app_settings` | Key-value. Holds VAPID keys (auto-generated on first startup). |
 | `push_subscriptions` | `user_id`, `endpoint` (UNIQUE), `keys_p256dh`, `keys_auth`. One per device/browser. |
 | `user_notification_settings` | `enabled`, `send_hour`, `send_minute`, `repeat_enabled`, `repeat_interval_days`. Created on first PATCH. |
@@ -220,7 +225,7 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - `schema_migrations` table tracks applied migrations by `id`.
 - IDs follow `NNN_description` pattern (e.g. `003_add_foo_to_bar`).
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
-- **Last applied migration**: `025_add_money_category_to_accounts`. **Next id must be `026_...`**
+- **Last applied migration**: `026_add_ai_advisor`. **Next id must be `027_...`**
 - Never modify or remove existing migration entries — only append.
 
 **To add a new migration**, append to the `migrations` array:
@@ -291,7 +296,8 @@ PATCH  /api/dossiers/:id/settings   { cycle_start_day?, capital_snapshot_warning
                                        next_cycle_warning_day?, previous_cycle_close_warning_day?,
                                        emergency_fund_months_multiplier?, emergency_fund_cycles_to_average?,
                                        paperless_url?, paperless_token?, paperless_date_field_id?,
-                                       paperless_amount_field_id?, expense_notification_days_before? }
+                                       paperless_amount_field_id?, expense_notification_days_before?,
+                                       ai_model? }
 
 GET    /api/dossiers/:id/expense-template
 POST   /api/dossiers/:id/expense-template     { section, name, type?, value, day_of_payment?, classification?, must_amount?, want_amount?, save_amount? }
@@ -360,6 +366,10 @@ PATCH  /api/dossiers/:id/emergency-fund/extra-values/:itemId  { name?, value? }
 DELETE /api/dossiers/:id/emergency-fund/extra-values/:itemId
 GET    /api/dossiers/:id/emergency-fund/status
 
+GET    /api/dossiers/:id/ai-advisor/analysis   # { configured, analysis|null }
+POST   /api/dossiers/:id/ai-advisor/analysis   # run + persist a new analysis
+POST   /api/dossiers/:id/ai-advisor/chat       { messages: [{role, content}] }
+
 GET    /api/push/vapid-public-key
 POST   /api/push/subscribe              { endpoint, keys: { p256dh, auth } }
 DELETE /api/push/subscribe              { endpoint }
@@ -388,7 +398,7 @@ All calls go through `frontend/src/services/api.js` (wraps fetch: base URL `/api
 ### Routing
 
 React Router v6. Routes in `App.jsx`. Key routes:
-- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Emergency Fund, Settings)
+- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Emergency Fund, AI Advisor, Settings)
 - `/dossiers/:id/months/:monthId`, `/dossiers/:id/cycles/:cycleId`, `/dossiers/:id/goals/:goalId`
 - `/notifications` → `NotificationSettings`
 
@@ -441,7 +451,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 8. **Cycle start day**: `cycle_start_day` (default 25). Display name: `new Date(year, month, startDay - 1)`. Range: start = `new Date(year, month - 1, startDay)`, end = `new Date(year, month, startDay - 1)`. Example: stored `month=3`, `startDay=25` → Mar 25 – Apr 24 → "April 2025".
 9. **Template → cycle copy**: All template items copied to `cycle_items`. `day_of_payment` clamped to last day of cycle's calendar month.
 10. **Expense sorting**: Fixed expenses sort by day — days ≥ `cycle_start_day` first (asc), then days < `cycle_start_day` (asc). Budget items always last. Applies in both `CycleEditor` and `ExpenseTemplate`.
-11. **Export format**: version `9`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions) and `account_name` for distributions (the funding account, re-linked by name on import; `null`/missing on older exports). `accounts[]` round-trips `money_category` (version 9+); imports of versions ≤ 8 (which only have `is_idle_money`) derive it as `is_idle_money ? 'idle' : 'active'`. `accounts[]` also round-trips `can_receive_transfers` (defaults to `1`/true on older exports missing the field). Import accepts versions 1–9. Goals and EF accounts re-linked by account name on import. Cycle items are re-linked to their new template item on import by matching `(section, name)`, so the EF average correctly recognizes them as template-derived. Paperless token excluded for security.
+11. **Export format**: version `10`. Includes dossier settings, `expense_template[]`, `annual_expense_template[]` (with installments), `workbench_snapshots[]`, `cycles[]` (with items), `goals[]` (with account_names, distribution_names, contributions), `emergency_fund_accounts[]`, `emergency_fund_extra_values[]`, `annual_expense_years[]`. Template items and cycle items round-trip `exclude_from_emergency_fund` (default `0` for older versions) and `account_name` for distributions (the funding account, re-linked by name on import; `null`/missing on older exports). `accounts[]` round-trips `money_category` (version 9+); imports of versions ≤ 8 (which only have `is_idle_money`) derive it as `is_idle_money ? 'idle' : 'active'`. `accounts[]` also round-trips `can_receive_transfers` (defaults to `1`/true on older exports missing the field). Dossier settings round-trip `ai_model` (version 10+; imports of versions ≤ 9 default to `claude-opus-4-8`); `ai_analyses` rows are deliberately not exported. Import accepts versions 1–10. Goals and EF accounts re-linked by account name on import. Cycle items are re-linked to their new template item on import by matching `(section, name)`, so the EF average correctly recognizes them as template-derived. Paperless token excluded for security.
 12. **Emergency Fund**: `target = multiplier × (avg_monthly_expense + extra_monthly_total)`. Average from Y most recent cycles: budget items use `spent` (closed) or `max` (open). Archived accounts excluded. Cycle items with no template link (ad-hoc) are always excluded from the average.
 
 ## Environment Variables
@@ -455,6 +465,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 | `VAPID_PUBLIC_KEY` | No | Base64url VAPID public key. If set together with `VAPID_PRIVATE_KEY`, overrides auto-generated DB keys. Recommended in production to pin keys across restarts. |
 | `VAPID_PRIVATE_KEY` | No | Base64url VAPID private key. Must be set together with `VAPID_PUBLIC_KEY`. |
 | `VAPID_SUBJECT` | No | VAPID subject URI (`mailto:` or `https://`). Default: `mailto:admin@capitaltracker.local`. Set to a real email/URL — some push services (Apple) reject `.local` domains. |
+| `ANTHROPIC_API_KEY` | No | Anthropic API key for the AI Advisor. If unset, the AI Advisor tab shows a setup hint and its POST endpoints return 503. |
 | `OIDC_ENABLED` | No | `true` to enable OIDC SSO. |
 | `OIDC_ISSUER_URL` | If OIDC | OIDC provider issuer URL. |
 | `OIDC_CLIENT_ID` | If OIDC | OIDC client ID. |
@@ -482,6 +493,7 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 | `[settings]` | Updated (lists changed field names) |
 | `[goals]` | Created, deleted |
 | `[emergency-fund]` | Account selection updated |
+| `[ai-advisor]` | Analysis run, chat turn (dossier, user, model, tokens, cost — never message content), failures |
 | `[push]` | Generated new VAPID keys; removed expired subscription (scheduler and test endpoint) |
 
 ## No Test Suite

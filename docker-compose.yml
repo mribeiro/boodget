@@ -18,6 +18,7 @@ services:
       - SESSION_SECRET=change-this-to-a-long-random-secret
       - DB_PATH=/data/capital-tracker.db
       # Push notifications — set in .env (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT)
+      # AI Advisor — set ANTHROPIC_API_KEY in .env (get one at console.anthropic.com)
       # OIDC (optional — uncomment and fill in to enable)
       # - OIDC_ENABLED=true
       # - OIDC_ISSUER_URL=https://your-oidc-provider.com

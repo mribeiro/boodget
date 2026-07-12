@@ -204,4 +204,9 @@ export const api = {
   updateNotificationSettings: (data) => request('PATCH', '/notifications/settings', data),
   getNotificationDossiers: () => request('GET', '/notifications/dossiers'),
   setNotificationDossiers: (dossier_ids) => request('PUT', '/notifications/dossiers', { dossier_ids }),
+
+  // AI Advisor
+  getAiAnalysis: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/analysis`),
+  runAiAnalysis: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/analysis`),
+  sendAiChatMessage: (dossierId, data) => request('POST', `/dossiers/${dossierId}/ai-advisor/chat`, data),
 };

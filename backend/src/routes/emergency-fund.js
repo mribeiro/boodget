@@ -108,19 +108,17 @@ router.delete('/emergency-fund/extra-values/:itemId', (req, res) => {
   res.status(204).end();
 });
 
-// GET /emergency-fund/status
-router.get('/emergency-fund/status', (req, res) => {
-  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-
+// Compute the emergency fund status for a dossier. Shared with the AI Advisor context builder.
+function computeEmergencyFundStatus(dossierId) {
   const dossier = db
     .prepare('SELECT emergency_fund_months_multiplier, emergency_fund_cycles_to_average FROM dossiers WHERE id = ?')
-    .get(req.params.id);
+    .get(dossierId);
   const X = dossier.emergency_fund_months_multiplier ?? 6;
   const Y = dossier.emergency_fund_cycles_to_average ?? 6;
 
   const extraValues = db
     .prepare('SELECT * FROM emergency_fund_extra_values WHERE dossier_id = ? ORDER BY position, rowid')
-    .all(req.params.id);
+    .all(dossierId);
   const extra_monthly_total = extraValues.reduce((s, e) => s + (e.value || 0), 0);
 
   const accountRows = db
@@ -130,12 +128,12 @@ router.get('/emergency-fund/status', (req, res) => {
        JOIN accounts a ON a.id = efa.account_id
        WHERE efa.dossier_id = ? AND a.archived = 0`
     )
-    .all(req.params.id);
+    .all(dossierId);
 
   // Get most recent filled snapshot for current value
   const recentMonth = db
     .prepare('SELECT id FROM months WHERE dossier_id = ? AND filled = 1 ORDER BY year DESC, month DESC LIMIT 1')
-    .get(req.params.id);
+    .get(dossierId);
 
   let current_value = 0;
   const contributing_accounts = accountRows.map((a) => {
@@ -155,11 +153,11 @@ router.get('/emergency-fund/status', (req, res) => {
     .prepare(
       'SELECT id, is_closed FROM expense_cycles WHERE dossier_id = ? ORDER BY year DESC, month DESC LIMIT ?'
     )
-    .all(req.params.id, Y);
+    .all(dossierId, Y);
 
   if (cycles.length === 0) {
     const effective_monthly_base = extra_monthly_total;
-    return res.json({
+    return {
       current_value,
       target_value: 0,
       deficit: 0,
@@ -171,7 +169,7 @@ router.get('/emergency-fund/status', (req, res) => {
       cycles_requested: Y,
       status: 'no_data',
       contributing_accounts,
-    });
+    };
   }
 
   // Compute expense total per cycle
@@ -201,7 +199,7 @@ router.get('/emergency-fund/status', (req, res) => {
 
   const status = current_value >= target_value ? 'healthy' : 'underfunded';
 
-  res.json({
+  return {
     current_value,
     target_value,
     deficit,
@@ -213,7 +211,14 @@ router.get('/emergency-fund/status', (req, res) => {
     cycles_requested: Y,
     status,
     contributing_accounts,
-  });
+  };
+}
+
+// GET /emergency-fund/status
+router.get('/emergency-fund/status', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  res.json(computeEmergencyFundStatus(req.params.id));
 });
 
 module.exports = router;
+module.exports.computeEmergencyFundStatus = computeEmergencyFundStatus;

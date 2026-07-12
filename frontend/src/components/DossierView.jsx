@@ -8,6 +8,7 @@ import {
   faScaleBalanced,
   faBullseye,
   faShieldHalved,
+  faWandMagicSparkles,
   faGear,
   faArrowLeft,
   faCalendarPlus,
@@ -23,6 +24,7 @@ import WorkbenchTab from './workbench/WorkbenchTab';
 import GoalsTab from './goals/GoalsTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
+import AIAdvisorTab from './ai-advisor/AIAdvisorTab';
 import GlancesPanel from './glances/GlancesPanel';
 import { formatNumber } from '../utils/numbers';
 
@@ -127,6 +129,7 @@ export default function DossierView() {
           { key: 'workbench',        icon: faScaleBalanced, label: 'Workbench' },
           { key: 'goals',            icon: faBullseye,      label: 'Goals' },
           { key: 'emergency-fund',   icon: faShieldHalved,  label: 'Emergency Fund' },
+          { key: 'ai-advisor',       icon: faWandMagicSparkles, label: 'AI Advisor' },
           { key: 'settings',         icon: faGear,          label: 'Settings' },
         ].map(({ key, icon, label }) => (
           <button
@@ -273,6 +276,10 @@ export default function DossierView() {
 
       {activeTab === 'emergency-fund' && (
         <EmergencyFundTab dossierId={id} />
+      )}
+
+      {activeTab === 'ai-advisor' && (
+        <AIAdvisorTab dossierId={id} />
       )}
 
       {activeTab === 'settings' && (
