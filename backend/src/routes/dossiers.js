@@ -289,9 +289,9 @@ router.post('/import', (req, res) => {
         isDraft ? null : (l.end_date ?? null),
         linkedItemId,
         l.created_at || null,
-        isDraft ? (l.down_payment ?? null) : null,
-        isDraft ? (l.taeg ?? null) : null,
-        isDraft ? (l.opening_fee ?? null) : null
+        l.down_payment ?? null,
+        l.taeg ?? null,
+        l.opening_fee ?? null
       );
     }
   });

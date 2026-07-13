@@ -283,35 +283,52 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
                 </div>
               </>
             ) : (
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Remaining balance (€)</label>
-                  <input type="text" inputMode="decimal" value={remainingBalance} onChange={(e) => setRemainingBalance(e.target.value)} placeholder="0.00" />
-                </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Loan end date</label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 0 }}>
-                      {MONTH_NAMES.map((m, i) => (
-                        <option key={i + 1} value={i + 1}>{m}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="number" inputMode="decimal"
-                      value={endYear}
-                      onChange={(e) => setEndYear(Number(e.target.value))}
-                      min="2020"
-                      max="2100"
-                      style={{ flex: '0 0 70px', minWidth: 0 }}
-                    />
+              <>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Remaining balance (€)</label>
+                    <input type="text" inputMode="decimal" value={remainingBalance} onChange={(e) => setRemainingBalance(e.target.value)} placeholder="0.00" />
                   </div>
-                  {previewMonthsLeft != null && (
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                      {previewMonthsLeft} month{previewMonthsLeft === 1 ? '' : 's'} left — calculated automatically, no need to update this every month.
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Loan end date</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 0 }}>
+                        {MONTH_NAMES.map((m, i) => (
+                          <option key={i + 1} value={i + 1}>{m}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number" inputMode="decimal"
+                        value={endYear}
+                        onChange={(e) => setEndYear(Number(e.target.value))}
+                        min="2020"
+                        max="2100"
+                        style={{ flex: '0 0 70px', minWidth: 0 }}
+                      />
                     </div>
-                  )}
+                    {previewMonthsLeft != null && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        {previewMonthsLeft} month{previewMonthsLeft === 1 ? '' : 's'} left — calculated automatically, no need to update this every month.
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+                {isEdit && (purchasePrice !== '' || downPayment !== '' || principal !== '' || termMonths !== '' || taeg !== '' || openingFee !== '') && (
+                  <div className="card card--flat" style={{ padding: 'var(--space-3)', fontSize: '0.8rem' }}>
+                    <div style={{ color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                      Original purchase structure (from when this loan was a draft — read-only, switch to Draft to edit)
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      {purchasePrice !== '' && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Purchase price</span><strong>{formatEur(parseDecimalInput(purchasePrice))}</strong></div>}
+                      {downPayment !== '' && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Down payment</span><strong>{formatEur(parseDecimalInput(downPayment))}</strong></div>}
+                      {principal !== '' && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Original principal</span><strong>{formatEur(parseDecimalInput(principal))}</strong></div>}
+                      {termMonths !== '' && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Original term (months)</span><strong>{termMonths}</strong></div>}
+                      {taeg !== '' && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>TAEG</span><strong>{taeg}%</strong></div>}
+                      {openingFee !== '' && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Opening fee</span><strong>{formatEur(parseDecimalInput(openingFee))}</strong></div>}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="form-group">

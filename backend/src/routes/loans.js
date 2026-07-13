@@ -62,19 +62,33 @@ function computeLoanValues(loan, dossierId) {
     }
   }
 
+  // purchase_price / total_interest / total_amount_payable describe how the loan was
+  // *originated* (principal + term_months, as set while it was a draft). Those two columns
+  // are never cleared on promotion to active, so these stay available — as a historical
+  // record — for any loan that started life as a draft, regardless of its current status.
   const purchasePrice =
-    loan.status === 'draft' && loan.down_payment != null ? loan.principal + loan.down_payment : null;
+    loan.principal != null && loan.down_payment != null ? loan.principal + loan.down_payment : null;
 
-  // Total interest paid over the term — principal + interest minus the principal itself
-  // (excludes the opening fee, which isn't interest).
+  const originationMonthlyPayment =
+    loan.principal != null && loan.term_months != null
+      ? computeMonthlyPayment(loan.principal, loan.interest_rate, loan.term_months)
+      : null;
+
+  // Total interest paid over the full original term — principal + interest minus the
+  // principal itself (excludes the opening fee, which isn't interest).
   const totalInterest =
-    loan.status === 'draft' ? monthlyPayment * loan.term_months - loan.principal : null;
+    originationMonthlyPayment != null ? originationMonthlyPayment * loan.term_months - loan.principal : null;
 
   // Total amount payable (MTIC) — a simplified estimate (principal + total interest + the
   // one modeled fee); the official Portuguese MTIC can include other charges (stamp duty,
   // insurance) this app doesn't track.
   const totalAmountPayable =
-    loan.status === 'draft' ? monthlyPayment * loan.term_months + (loan.opening_fee || 0) : null;
+    originationMonthlyPayment != null ? originationMonthlyPayment * loan.term_months + (loan.opening_fee || 0) : null;
+
+  // Interest still left to pay from now to payoff, using the loan's *current* balance/term —
+  // the forward-looking counterpart to total_interest's backward-looking full-term figure.
+  const remainingInterest =
+    loan.status === 'active' ? monthlyPayment * monthsLeft - loan.remaining_balance : null;
 
   return {
     monthly_payment: monthlyPayment,
@@ -87,6 +101,7 @@ function computeLoanValues(loan, dossierId) {
     purchase_price: purchasePrice,
     total_interest: totalInterest,
     total_amount_payable: totalAmountPayable,
+    remaining_interest: remainingInterest,
   };
 }
 
@@ -167,9 +182,10 @@ function validateLoanFields(body, existing) {
     if (computeMonthsLeft(endDate) < 1) {
       return { error: 'end_date must be the current month or later' };
     }
-    downPayment = null;
-    taeg = null;
-    openingFee = null;
+    // down_payment/taeg/opening_fee are NOT cleared here on promotion — they describe how
+    // the loan was originated and survive as a historical record once it goes active. They
+    // can still only be explicitly *set* while draft (parseDraftOnlyNullableNumber above);
+    // an active loan just carries forward whatever value it already had.
   }
 
   return {

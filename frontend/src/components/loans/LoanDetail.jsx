@@ -166,23 +166,31 @@ export default function LoanDetail() {
         </div>
       </div>
 
-      {/* Hero: status + rate + monthly payment (+ total interest / MTIC for drafts) */}
+      {/* Hero: status + rate + monthly payment. Total interest / MTIC are historical
+          (from origination) and show for any loan with that data, draft or active.
+          Remaining interest is the forward-looking counterpart, active only. */}
       <div className="card card--flat" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span className={`badge badge-${isActive ? 'brand' : 'neutral'}`}>{isActive ? 'Active' : 'Draft'}</span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% {isActive ? 'APR' : 'TAN'}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-          {!isActive && loan.total_interest != null && (
+          {loan.total_interest != null && (
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total interest paid</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total interest (full term)</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-danger-text)' }}>{formatEur(loan.total_interest)}</div>
             </div>
           )}
-          {!isActive && loan.total_amount_payable != null && (
+          {loan.total_amount_payable != null && (
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total payable (MTIC)</div>
               <div style={{ fontSize: 15, fontWeight: 600 }}>{formatEur(loan.total_amount_payable)}</div>
+            </div>
+          )}
+          {isActive && loan.remaining_interest != null && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Remaining interest</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-danger-text)' }}>{formatEur(loan.remaining_interest)}</div>
             </div>
           )}
           <div style={{ textAlign: 'right' }}>
@@ -201,19 +209,25 @@ export default function LoanDetail() {
             collapsed={detailsCollapsed}
             onToggle={() => setDetailsCollapsed((v) => !v)}
           >
-            {!isActive && loan.down_payment != null && (
+            {loan.down_payment != null && (
               <>
                 <StatRow label="Purchase price" value={formatEur(loan.purchase_price)} />
                 <StatRow label="Down payment" value={formatEur(loan.down_payment)} />
               </>
             )}
+            {isActive && loan.principal != null && (
+              <StatRow label="Original principal" value={formatEur(loan.principal)} />
+            )}
             <StatRow label={isActive ? 'Remaining balance' : 'Principal'} value={formatEur(isActive ? loan.remaining_balance : loan.principal)} />
             {isActive && <StatRow label="End date" value={formatEndDate(loan.end_date)} />}
             <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={isActive ? loan.months_left : loan.term_months} />
-            {!isActive && loan.taeg != null && (
+            {isActive && loan.term_months != null && (
+              <StatRow label="Original term (months)" value={loan.term_months} />
+            )}
+            {loan.taeg != null && (
               <StatRow label="TAEG (reference only)" value={`${loan.taeg}%`} />
             )}
-            {!isActive && loan.opening_fee != null && (
+            {loan.opening_fee != null && (
               <StatRow label="Opening fee" value={formatEur(loan.opening_fee)} />
             )}
             <StatRow label="Salary" value={formatEur(loan.salary)} />
