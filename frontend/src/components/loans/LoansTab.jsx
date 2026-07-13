@@ -5,6 +5,7 @@ import { faPlus, faCheck, faTriangleExclamation } from '@fortawesome/free-solid-
 import { api } from '../../services/api';
 import { formatNumber } from '../../utils/numbers';
 import LoanFormModal from './LoanFormModal';
+import KpiStrip from '../ui/KpiStrip';
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -72,6 +73,12 @@ export default function LoansTab({ dossierId }) {
 
   if (loading) return <div className="loading">Loading…</div>;
 
+  const activeLoans = loans.filter((l) => l.status === 'active');
+  const totalMonthlyAmount = activeLoans.reduce((sum, l) => sum + (l.monthly_payment || 0), 0);
+  const totalAmountDue = activeLoans.reduce((sum, l) => sum + (l.remaining_balance || 0), 0);
+  const latestCycleSalary = loans.find((l) => l.latest_cycle_salary != null)?.latest_cycle_salary ?? null;
+  const totalSalaryPct = latestCycleSalary > 0 ? (totalMonthlyAmount / latestCycleSalary) * 100 : null;
+
   return (
     <div>
       {error && <div className="alert alert-error" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
@@ -82,6 +89,19 @@ export default function LoansTab({ dossierId }) {
           <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />New loan
         </button>
       </div>
+
+      {loans.length > 0 && (
+        <KpiStrip defaultOpen style={{ marginBottom: 'var(--space-5)' }} items={[
+          { label: 'Monthly total', value: formatEur(totalMonthlyAmount), large: true },
+          { label: 'Total amount due', value: formatEur(totalAmountDue) },
+          { label: 'Loans ongoing', value: String(activeLoans.length) },
+          {
+            label: '% of salary',
+            value: totalSalaryPct != null ? `${totalSalaryPct.toFixed(1)}%` : '—',
+            highlight: totalSalaryPct != null && totalSalaryPct > 50 ? 'danger' : 'neutral',
+          },
+        ]} />
+      )}
 
       {loans.length === 0 ? (
         <div className="empty-state">
