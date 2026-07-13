@@ -11,7 +11,7 @@
 
 ## 1. Overview
 
-The Loans section lets users configure loans per dossier. Each loan is either a **draft** (a study/what-if scenario) or an **active** loan (a real, ongoing one being tracked). Both compute a monthly payment via the standard annuity formula and show what percentage of a stored salary that payment represents. Active loans can optionally be linked to a Fixed monthly-expense template item to check whether the budgeted value covers the payment, and offer three ephemeral scenario calculators (downpayment, target payment, interest rate change).
+The Loans section lets users configure loans per dossier. Each loan is either a **draft** (a study/what-if scenario) or an **active** loan (a real, ongoing one being tracked). Both compute a monthly payment via the standard annuity formula and show what percentage of a stored salary that payment represents. Active loans can optionally be linked to a Fixed monthly-expense template item to check whether the budgeted value covers the payment. Both statuses offer the same three ephemeral scenario calculators (downpayment, target payment, interest rate change) — a draft you're still studying is just as worth fine-tuning as a loan you've already signed.
 
 -----
 
@@ -136,13 +136,13 @@ The UI shows a green "Covered" pill when `covered` is true, or a red "Underbudge
 
 -----
 
-## 7. Scenario Calculators (active loans only)
+## 7. Scenario Calculators (draft and active loans)
 
-All three scenarios are **ephemeral** — component-local state on the loan detail page, recomputed on every keystroke via `frontend/src/utils/loanMath.js`. Nothing is persisted.
+All three scenarios are **ephemeral** — component-local state on the loan detail page, recomputed on every keystroke via `frontend/src/utils/loanMath.js`. Nothing is persisted. Available for both statuses: a draft's `(principal, term_months)` stands in for an active loan's `(remaining_balance, months_left)` as the simulation's starting balance/term (`simBalance`/`simMonthsLeft` in `LoanDetail.jsx`), so a purchase study can be fine-tuned immediately after creation, before ever promoting it to active.
 
 ### 7.1 Downpayment Scenario
 
-Given a hypothetical downpayment `X` paid now against the current `remaining_balance` (`balance`), at the current `interest_rate` (`r` monthly) and `months_left`:
+Given a hypothetical downpayment `X` paid now against the current balance (`remaining_balance` if active, `principal` if draft — `balance` below), at the current `interest_rate` (`r` monthly) and term (`months_left` if active, `term_months` if draft):
 
 - **Current payment** `M` = the loan's existing computed monthly payment.
 - If `X ≥ balance`: the loan is paid off entirely; all remaining interest (`M·months_left − balance`) is shown as saved, and no further breakdown is computed.
@@ -196,9 +196,8 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 
 - Loans is a dedicated tab within the dossier (`Capital · Monthly Expenses · Annual Expenses · Workbench · Goals · Loans · Emergency Fund · Settings`), following the same navigation and access patterns as Goals.
 - The list view (`LoansTab`) shows each loan as a clickable card: name, status badge (`active` → brand, `draft` → neutral), monthly payment, `salary_pct` ("—" if null), interest rate, and — for active + linked loans — a coverage pill. Above the list (when at least one loan exists), a `KpiStrip` summary shows four aggregates scoped to **active loans only**: total monthly amount (sum of `monthly_payment`), total amount due (sum of `remaining_balance`), number of loans ongoing (count of active loans), and total % of salary — `total monthly amount ÷ reference_salary × 100` (the dossier's manually-set reference salary, Section 6.1 — not a sum of each loan's individually-stored `salary_pct`, since those can reference different salary values if edited independently), highlighted red above 50%.
-- The detail view (`LoanDetail`) shows: a summary card (status, payment, rate, term/months-left, principal/balance, salary + %), a coverage panel (active only), and the two scenario cards (active only).
+- The detail view (`LoanDetail`) follows `CycleEditor`'s patterns rather than a single dense summary card: a `.cycle-toolbar` (Edit/Delete), a compact hero card (status badge, rate, monthly payment — plus, for drafts, Total interest paid and Total payable/MTIC alongside it), then a `.cycle-editor-columns` two-column layout (60/40 desktop, stacking to one column below 767px, same as `CycleEditor`) used for **every** loan regardless of status: the left column holds the three scenario calculators as `CollapsibleSection`s (`ui/CollapsibleSection.jsx`), the right column holds a "Loan details" `CollapsibleSection` (principal/balance, term/months-left/end-date, purchase price/down payment/TAEG/opening fee when set, salary + %) followed by an "Expense coverage" `CollapsibleSection` for active loans only. Drafts have no coverage panel, so their right column holds just "Loan details" — never left empty, since scenarios and details both render for every status.
 - The form modal (`LoanFormModal`) mirrors `GoalFormModal`'s hand-rolled markup: name, status radio toggle, interest rate + salary (`parseDecimalInput`, accepts `,` or `.` as decimal separator), draft fields (principal + term) or active fields (balance + end date + linked-expense `<select>`) shown conditionally, and a live payment preview. The interest rate field is labeled "TAN (nominal rate, %)" on draft loans (with a hint not to use the TAEG) and "Interest rate (annual, %)" on active loans. Active mode's end date uses the same month-`<select>` + year-`<input>` pattern as `GoalFormModal`'s target date (storing `YYYY-MM`), with a live "N months left — calculated automatically" hint below it computed via `computeMonthsLeft()` — there is no direct months-left input anywhere. Draft mode additionally shows optional Purchase price/Down payment and TAEG/Opening fee rows, and the preview card adds live "Total interest paid" (red, mirroring the scenario calculators' green "interest saved") and "Total amount payable (MTIC, estimate)" figures below the monthly payment whenever a term is set.
-- `LoanDetail`'s summary card shows an "End date" row (formatted as "Month YYYY") above the computed "Months left" row for active loans, and the same Total interest paid and MTIC estimate under the monthly payment for draft loans, plus Purchase price/Down payment, TAEG (labeled "reference only"), and Opening fee rows whenever those fields are set.
 - All numeric display uses `formatNumber`/`parseDecimalInput` — never `Intl.NumberFormat` directly.
 - Deletion uses `ConfirmModal`, never `window.confirm()`.
 

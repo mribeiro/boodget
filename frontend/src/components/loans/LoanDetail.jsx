@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faPencil, faTrash, faCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
+import {
+  faArrowLeft, faPencil, faTrash, faCheck, faTriangleExclamation,
+  faWallet, faCoins, faBullseye, faPercent, faReceipt,
+} from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft } from '../../utils/loanMath';
 import LoanFormModal from './LoanFormModal';
 import ConfirmModal from '../ConfirmModal';
+import CollapsibleSection from '../ui/CollapsibleSection';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -66,6 +70,12 @@ export default function LoanDetail() {
   const [targetPayment, setTargetPayment] = useState('');
   const [newInterestRate, setNewInterestRate] = useState('');
 
+  const [detailsCollapsed, setDetailsCollapsed] = useState(false);
+  const [coverageCollapsed, setCoverageCollapsed] = useState(false);
+  const [downpaymentCollapsed, setDownpaymentCollapsed] = useState(false);
+  const [targetCollapsed, setTargetCollapsed] = useState(false);
+  const [rateCollapsed, setRateCollapsed] = useState(false);
+
   useEffect(() => {
     load();
   }, [dossierId, loanId]);
@@ -105,30 +115,36 @@ export default function LoanDetail() {
   if (!loan) return null;
 
   const isActive = loan.status === 'active';
+  // Scenarios work identically for a draft's (principal, term_months) as for an active
+  // loan's (remaining_balance, months_left) — a study you haven't signed yet is just as
+  // worth fine-tuning as a real one, so both statuses get the same what-if tools.
+  const simBalance = isActive ? loan.remaining_balance : loan.principal;
+  const simMonthsLeft = isActive ? loan.months_left : loan.term_months;
+
   const downpaymentValue = parseDecimalInput(downpayment);
   const targetPaymentValue = parseDecimalInput(targetPayment);
 
   const downpaymentScenario =
-    isActive && !isNaN(downpaymentValue) && downpaymentValue > 0
-      ? scenarioDownpayment(loan.remaining_balance, loan.interest_rate, loan.months_left, downpaymentValue)
+    !isNaN(downpaymentValue) && downpaymentValue > 0
+      ? scenarioDownpayment(simBalance, loan.interest_rate, simMonthsLeft, downpaymentValue)
       : null;
 
   const newEndDate = downpaymentScenario && !downpaymentScenario.paidOff
     ? endDateFromMonthsLeft(downpaymentScenario.newTermSamePayment)
     : null;
   const monthsSaved = downpaymentScenario && !downpaymentScenario.paidOff
-    ? loan.months_left - downpaymentScenario.newTermSamePayment
+    ? simMonthsLeft - downpaymentScenario.newTermSamePayment
     : null;
 
   const targetPaymentScenario =
-    isActive && !isNaN(targetPaymentValue) && targetPaymentValue > 0
-      ? scenarioTargetPayment(loan.remaining_balance, loan.interest_rate, loan.months_left, targetPaymentValue)
+    !isNaN(targetPaymentValue) && targetPaymentValue > 0
+      ? scenarioTargetPayment(simBalance, loan.interest_rate, simMonthsLeft, targetPaymentValue)
       : null;
 
   const newInterestRateValue = parseDecimalInput(newInterestRate);
   const rateChangeScenario =
-    isActive && !isNaN(newInterestRateValue) && newInterestRateValue >= 0
-      ? scenarioRateChange(loan.remaining_balance, loan.interest_rate, loan.months_left, newInterestRateValue)
+    !isNaN(newInterestRateValue) && newInterestRateValue >= 0
+      ? scenarioRateChange(simBalance, loan.interest_rate, simMonthsLeft, newInterestRateValue)
       : null;
 
   return (
@@ -150,33 +166,41 @@ export default function LoanDetail() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', marginBottom: '1.5rem' }}>
+      {/* Hero: status + rate + monthly payment (+ total interest / MTIC for drafts) */}
+      <div className="card card--flat" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <span className={`badge badge-${isActive ? 'brand' : 'neutral'}`}>{isActive ? 'Active' : 'Draft'}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% {isActive ? 'APR' : 'TAN'}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+          {!isActive && loan.total_interest != null && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total interest paid</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-danger-text)' }}>{formatEur(loan.total_interest)}</div>
+            </div>
+          )}
+          {!isActive && loan.total_amount_payable != null && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total payable (MTIC)</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{formatEur(loan.total_amount_payable)}</div>
+            </div>
+          )}
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Monthly payment</div>
+            <div style={{ fontSize: 26, fontWeight: 700 }}>{formatEur(loan.monthly_payment)}</div>
+          </div>
+        </div>
+      </div>
 
-        {/* Summary card */}
-        <div className="card card--flat">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
-            <span className={`badge badge-${isActive ? 'brand' : 'neutral'}`}>
-              {isActive ? 'Active' : 'Draft'}
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% {isActive ? 'APR' : 'TAN'}</span>
-          </div>
-          <div style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Monthly payment</div>
-            <div style={{ fontSize: 28, fontWeight: 700 }}>{formatEur(loan.monthly_payment)}</div>
-            {!isActive && loan.total_interest != null && (
-              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total interest paid</div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-danger-text)' }}>{formatEur(loan.total_interest)}</div>
-              </div>
-            )}
-            {!isActive && loan.total_amount_payable != null && (
-              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-default)' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total amount payable (MTIC, estimate)</div>
-                <div style={{ fontSize: 16, fontWeight: 600 }}>{formatEur(loan.total_amount_payable)}</div>
-              </div>
-            )}
-          </div>
-          <div>
+      {(() => {
+        const details = (
+          <CollapsibleSection
+            title="Loan details"
+            icon={faWallet}
+            accent="var(--text-muted)"
+            collapsed={detailsCollapsed}
+            onToggle={() => setDetailsCollapsed((v) => !v)}
+          >
             {!isActive && loan.down_payment != null && (
               <>
                 <StatRow label="Purchase price" value={formatEur(loan.purchase_price)} />
@@ -198,57 +222,18 @@ export default function LoanDetail() {
               value={loan.salary_pct != null ? `${loan.salary_pct.toFixed(1)}%` : '—'}
               valueStyle={{ color: loan.salary_pct != null && loan.salary_pct > 50 ? 'var(--color-danger-text)' : undefined }}
             />
-          </div>
-        </div>
+          </CollapsibleSection>
+        );
 
-        {/* Coverage panel — active only */}
-        {isActive && (
-          <div className="card card--flat">
-            <h3 style={{ marginBottom: '0.75rem', fontSize: '0.95rem', fontWeight: 600 }}>Expense coverage</h3>
-            {!loan.linked_item ? (
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                Not linked to any expense. Edit this loan to link it to a Fixed expense in the monthly template and see whether it's budgeted for.
-              </p>
-            ) : (
-              <>
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '4px 12px',
-                    borderRadius: 'var(--radius-full)',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    marginBottom: 'var(--space-3)',
-                    background: loan.covered ? 'var(--color-success-light)' : 'var(--color-danger-light)',
-                    color: loan.covered ? 'var(--color-success-text)' : 'var(--color-danger-text)',
-                    border: `1px solid ${loan.covered ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
-                  }}
-                >
-                  {loan.covered
-                    ? <><FontAwesomeIcon icon={faCheck} style={{ marginRight: '0.35rem' }} />Covered</>
-                    : <><FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.35rem' }} />Underbudgeted</>}
-                </div>
-                <StatRow label="Loan payment" value={formatEur(loan.monthly_payment)} />
-                <StatRow label={`Budgeted (${loan.linked_item.name})`} value={formatEur(loan.linked_item.value)} />
-                {!loan.covered && (
-                  <StatRow
-                    label="Difference"
-                    value={formatEur(loan.coverage_difference)}
-                    valueStyle={{ color: 'var(--color-danger-text)' }}
-                  />
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Scenario calculators — active only */}
-        {isActive && (
+        const scenarios = (
           <>
-            <div className="card card--flat">
-              <h3 style={{ marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>Downpayment scenario</h3>
+            <CollapsibleSection
+              title="Downpayment scenario"
+              icon={faCoins}
+              accent="var(--color-brand)"
+              collapsed={downpaymentCollapsed}
+              onToggle={() => setDownpaymentCollapsed((v) => !v)}
+            >
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                 See what a lump-sum payment now would do to your loan — either a lower monthly payment for the same term, or the same payment for a shorter term.
               </p>
@@ -278,10 +263,15 @@ export default function LoanDetail() {
                   </div>
                 )
               )}
-            </div>
+            </CollapsibleSection>
 
-            <div className="card card--flat">
-              <h3 style={{ marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>Target payment scenario</h3>
+            <CollapsibleSection
+              title="Target payment scenario"
+              icon={faBullseye}
+              accent="var(--color-brand)"
+              collapsed={targetCollapsed}
+              onToggle={() => setTargetCollapsed((v) => !v)}
+            >
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                 See how large a lump sum you'd need to bring the monthly payment down to a specific target, over the same remaining term.
               </p>
@@ -300,10 +290,15 @@ export default function LoanDetail() {
                   </div>
                 )
               )}
-            </div>
+            </CollapsibleSection>
 
-            <div className="card card--flat">
-              <h3 style={{ marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>Interest rate scenario</h3>
+            <CollapsibleSection
+              title="Interest rate scenario"
+              icon={faPercent}
+              accent="var(--color-brand)"
+              collapsed={rateCollapsed}
+              onToggle={() => setRateCollapsed((v) => !v)}
+            >
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                 See what a different rate — refinancing, or a variable-rate reset — would do to your payment, keeping the balance and remaining term unchanged.
               </p>
@@ -326,10 +321,71 @@ export default function LoanDetail() {
                   />
                 </div>
               )}
-            </div>
+            </CollapsibleSection>
           </>
-        )}
-      </div>
+        );
+
+        // CycleEditor two-column treatment for every loan, draft or active: scenarios (the
+        // primary, most-interacted-with content) take the wider left column; loan facts —
+        // plus expense coverage, active only — sit alongside in the right column. Mobile
+        // collapses to a single stacked column via the existing .cycle-editor-columns rule.
+        return (
+          <div className="cycle-editor-columns">
+            <div className="cycle-editor-left">
+              {scenarios}
+            </div>
+            <div className="cycle-editor-right">
+              {details}
+              {isActive && (
+                <CollapsibleSection
+                  title="Expense coverage"
+                  icon={faReceipt}
+                  accent={!loan.linked_item ? 'var(--text-muted)' : loan.covered ? 'var(--color-success)' : 'var(--color-danger)'}
+                  collapsed={coverageCollapsed}
+                  onToggle={() => setCoverageCollapsed((v) => !v)}
+                >
+                  {!loan.linked_item ? (
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                      Not linked to any expense. Edit this loan to link it to a Fixed expense in the monthly template and see whether it's budgeted for.
+                    </p>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '4px 12px',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          marginBottom: 'var(--space-3)',
+                          background: loan.covered ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+                          color: loan.covered ? 'var(--color-success-text)' : 'var(--color-danger-text)',
+                          border: `1px solid ${loan.covered ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
+                        }}
+                      >
+                        {loan.covered
+                          ? <><FontAwesomeIcon icon={faCheck} style={{ marginRight: '0.35rem' }} />Covered</>
+                          : <><FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.35rem' }} />Underbudgeted</>}
+                      </div>
+                      <StatRow label="Loan payment" value={formatEur(loan.monthly_payment)} />
+                      <StatRow label={`Budgeted (${loan.linked_item.name})`} value={formatEur(loan.linked_item.value)} />
+                      {!loan.covered && (
+                        <StatRow
+                          label="Difference"
+                          value={formatEur(loan.coverage_difference)}
+                          valueStyle={{ color: 'var(--color-danger-text)' }}
+                        />
+                      )}
+                    </>
+                  )}
+                </CollapsibleSection>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {showEdit && (
         <LoanFormModal
