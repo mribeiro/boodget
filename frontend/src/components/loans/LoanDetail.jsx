@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faPencil, faTrash, faCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
-import { scenarioDownpayment, scenarioTargetPayment, endDateFromMonthsLeft } from '../../utils/loanMath';
+import { scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft } from '../../utils/loanMath';
 import LoanFormModal from './LoanFormModal';
 import ConfirmModal from '../ConfirmModal';
 
@@ -37,6 +37,12 @@ function formatDuration(months) {
   return parts.join(' ') + ' sooner';
 }
 
+function formatSignedEur(value) {
+  if (value == null || isNaN(value)) return '—';
+  const sign = value > 0 ? '+' : value < 0 ? '−' : '';
+  return sign + formatNumber(Math.abs(value), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
 function StatRow({ label, value, valueStyle }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', fontSize: 13.5 }}>
@@ -58,6 +64,7 @@ export default function LoanDetail() {
 
   const [downpayment, setDownpayment] = useState('');
   const [targetPayment, setTargetPayment] = useState('');
+  const [newInterestRate, setNewInterestRate] = useState('');
 
   useEffect(() => {
     load();
@@ -116,6 +123,12 @@ export default function LoanDetail() {
   const targetPaymentScenario =
     isActive && !isNaN(targetPaymentValue) && targetPaymentValue > 0
       ? scenarioTargetPayment(loan.remaining_balance, loan.interest_rate, loan.months_left, targetPaymentValue)
+      : null;
+
+  const newInterestRateValue = parseDecimalInput(newInterestRate);
+  const rateChangeScenario =
+    isActive && !isNaN(newInterestRateValue) && newInterestRateValue >= 0
+      ? scenarioRateChange(loan.remaining_balance, loan.interest_rate, loan.months_left, newInterestRateValue)
       : null;
 
   return (
@@ -286,6 +299,32 @@ export default function LoanDetail() {
                     <StatRow label="Lump sum needed" value={formatEur(targetPaymentScenario.lumpSumNeeded)} />
                   </div>
                 )
+              )}
+            </div>
+
+            <div className="card card--flat">
+              <h3 style={{ marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>Interest rate scenario</h3>
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                See what a different rate — refinancing, or a variable-rate reset — would do to your payment, keeping the balance and remaining term unchanged.
+              </p>
+              <div className="form-group" style={{ maxWidth: 240 }}>
+                <label>New interest rate (%)</label>
+                <input type="text" inputMode="decimal" value={newInterestRate} onChange={(e) => setNewInterestRate(e.target.value)} placeholder="e.g. 2,5" />
+              </div>
+              {rateChangeScenario && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <StatRow label="New payment" value={formatEur(rateChangeScenario.newPayment)} />
+                  <StatRow
+                    label="Payment change"
+                    value={formatSignedEur(rateChangeScenario.paymentDifference)}
+                    valueStyle={{ color: rateChangeScenario.paymentDifference > 0 ? 'var(--color-danger-text)' : rateChangeScenario.paymentDifference < 0 ? 'var(--color-success-text)' : undefined }}
+                  />
+                  <StatRow
+                    label="Interest change (remaining term)"
+                    value={formatSignedEur(rateChangeScenario.interestDifference)}
+                    valueStyle={{ color: rateChangeScenario.interestDifference > 0 ? 'var(--color-danger-text)' : rateChangeScenario.interestDifference < 0 ? 'var(--color-success-text)' : undefined }}
+                  />
+                </div>
               )}
             </div>
           </>

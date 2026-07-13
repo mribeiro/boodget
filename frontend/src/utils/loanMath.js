@@ -89,3 +89,19 @@ export function scenarioTargetPayment(balance, ratePct, monthsLeft, targetPaymen
     alreadyMet: Y >= currentPayment,
   };
 }
+
+// Rate-change scenario: what if the interest rate changed to newRatePct (e.g.
+// refinancing, or a variable-rate reset), holding the remaining balance and term fixed.
+export function scenarioRateChange(balance, currentRatePct, monthsLeft, newRatePct) {
+  const currentPayment = computeMonthlyPayment(balance, currentRatePct, monthsLeft);
+  const newPayment = computeMonthlyPayment(balance, newRatePct, monthsLeft);
+  const currentTotalInterest = currentPayment * monthsLeft - balance;
+  const newTotalInterest = newPayment * monthsLeft - balance;
+
+  return {
+    newPayment,
+    paymentDifference: newPayment - currentPayment,
+    newTotalInterest,
+    interestDifference: newTotalInterest - currentTotalInterest,
+  };
+}

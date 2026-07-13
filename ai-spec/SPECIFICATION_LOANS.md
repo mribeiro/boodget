@@ -11,7 +11,7 @@
 
 ## 1. Overview
 
-The Loans section lets users configure loans per dossier. Each loan is either a **draft** (a study/what-if scenario) or an **active** loan (a real, ongoing one being tracked). Both compute a monthly payment via the standard annuity formula and show what percentage of a stored salary that payment represents. Active loans can optionally be linked to a Fixed monthly-expense template item to check whether the budgeted value covers the payment, and offer two ephemeral scenario calculators (downpayment, target payment).
+The Loans section lets users configure loans per dossier. Each loan is either a **draft** (a study/what-if scenario) or an **active** loan (a real, ongoing one being tracked). Both compute a monthly payment via the standard annuity formula and show what percentage of a stored salary that payment represents. Active loans can optionally be linked to a Fixed monthly-expense template item to check whether the budgeted value covers the payment, and offer three ephemeral scenario calculators (downpayment, target payment, interest rate change).
 
 -----
 
@@ -131,7 +131,7 @@ The UI shows a green "Covered" pill when `covered` is true, or a red "Underbudge
 
 ## 7. Scenario Calculators (active loans only)
 
-Both scenarios are **ephemeral** — component-local state on the loan detail page, recomputed on every keystroke via `frontend/src/utils/loanMath.js`. Nothing is persisted.
+All three scenarios are **ephemeral** — component-local state on the loan detail page, recomputed on every keystroke via `frontend/src/utils/loanMath.js`. Nothing is persisted.
 
 ### 7.1 Downpayment Scenario
 
@@ -153,6 +153,16 @@ Given a desired target monthly payment `Y` (must be less than the current paymen
 
 - `lumpSumNeeded = balance − Y·(1 − (1+r)^−months_left) / r` (or `balance − Y·months_left` when `r = 0`), clamped to a minimum of 0.
 - If `Y` is already greater than or equal to the current payment, no lump sum is needed — the UI shows a message instead of a figure.
+
+### 7.3 Interest Rate Scenario
+
+Given a hypothetical new rate (e.g. refinancing, or a variable-rate reset), holding `remaining_balance` and `months_left` unchanged:
+
+- `newPayment = computeMonthlyPayment(balance, newRatePct, months_left)`.
+- `paymentDifference = newPayment − currentPayment` (positive = payment increases).
+- `newTotalInterest = newPayment · months_left − balance`; `interestDifference = newTotalInterest − currentTotalInterest` (positive = paying more interest overall over the remaining term).
+- No lower bound beyond `newRatePct ≥ 0`; a value equal to the current rate is valid and simply shows a zero difference.
+- The UI colors both difference figures red when positive (worse) and green when negative (better), with a leading `+`/`−` sign (`formatSignedEur` in `LoanDetail.jsx`).
 
 -----
 
