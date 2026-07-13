@@ -21,11 +21,24 @@ function computeMonthlyPayment(principal, ratePct, months) {
   return (principal * r) / (1 - Math.pow(1 + r, -months));
 }
 
+// Months remaining until (and including) an "end_date" (YYYY-MM), counted from the
+// current calendar month — e.g. an end_date equal to this month means 1 payment left.
+// Never stored: always derived fresh from "now" so the user never has to update it.
+function computeMonthsLeft(endDate) {
+  if (!endDate) return null;
+  const [endYear, endMonth] = endDate.split('-').map(Number);
+  const now = new Date();
+  const months = (endYear * 12 + endMonth) - (now.getFullYear() * 12 + (now.getMonth() + 1)) + 1;
+  return Math.max(0, months);
+}
+
 function computeLoanValues(loan, dossierId) {
+  const monthsLeft = loan.status === 'active' ? computeMonthsLeft(loan.end_date) : null;
+
   const monthlyPayment =
     loan.status === 'draft'
       ? computeMonthlyPayment(loan.principal, loan.interest_rate, loan.term_months)
-      : computeMonthlyPayment(loan.remaining_balance, loan.interest_rate, loan.months_left);
+      : computeMonthlyPayment(loan.remaining_balance, loan.interest_rate, monthsLeft);
 
   const salaryPct =
     loan.salary != null && loan.salary > 0 ? (monthlyPayment / loan.salary) * 100 : null;
@@ -65,6 +78,7 @@ function computeLoanValues(loan, dossierId) {
 
   return {
     monthly_payment: monthlyPayment,
+    months_left: monthsLeft,
     salary_pct: salaryPct,
     latest_cycle_salary: latestCycleSalary,
     linked_item: linkedItem,
@@ -118,7 +132,14 @@ function validateLoanFields(body, existing) {
   const principal = body.principal !== undefined ? (body.principal === null || body.principal === '' ? null : Number(body.principal)) : existing?.principal ?? null;
   const termMonths = body.term_months !== undefined ? (body.term_months === null || body.term_months === '' ? null : Number(body.term_months)) : existing?.term_months ?? null;
   const remainingBalance = body.remaining_balance !== undefined ? (body.remaining_balance === null || body.remaining_balance === '' ? null : Number(body.remaining_balance)) : existing?.remaining_balance ?? null;
-  const monthsLeft = body.months_left !== undefined ? (body.months_left === null || body.months_left === '' ? null : Number(body.months_left)) : existing?.months_left ?? null;
+
+  let endDate = existing?.end_date ?? null;
+  if (body.end_date !== undefined) {
+    endDate = body.end_date === null || body.end_date === '' ? null : String(body.end_date);
+    if (endDate != null && status !== 'active') {
+      return { error: 'end_date can only be set on active loans' };
+    }
+  }
 
   const downPaymentResult = parseDraftOnlyNullableNumber(body, existing, 'down_payment', status);
   if (downPaymentResult.error) return { error: downPaymentResult.error };
@@ -137,10 +158,14 @@ function validateLoanFields(body, existing) {
     if (!Number.isInteger(termMonths) || termMonths < 1) {
       return { error: 'term_months must be an integer ≥ 1 for draft loans' };
     }
+    endDate = null;
   } else {
     if (!(remainingBalance > 0)) return { error: 'remaining_balance must be a positive number for active loans' };
-    if (!Number.isInteger(monthsLeft) || monthsLeft < 1) {
-      return { error: 'months_left must be an integer ≥ 1 for active loans' };
+    if (!endDate || !/^\d{4}-\d{2}$/.test(endDate)) {
+      return { error: 'end_date is required for active loans, in YYYY-MM format' };
+    }
+    if (computeMonthsLeft(endDate) < 1) {
+      return { error: 'end_date must be the current month or later' };
     }
     downPayment = null;
     taeg = null;
@@ -154,8 +179,8 @@ function validateLoanFields(body, existing) {
     salary,
     principal,
     term_months: termMonths,
+    end_date: endDate,
     remaining_balance: remainingBalance,
-    months_left: monthsLeft,
     down_payment: downPayment,
     taeg,
     opening_fee: openingFee,
@@ -192,7 +217,7 @@ router.post('/loans', (req, res) => {
 
   const id = uuidv4();
   db.prepare(
-    `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, months_left, expense_template_item_id, down_payment, taeg, opening_fee)
+    `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, expense_template_item_id, down_payment, taeg, opening_fee)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
@@ -204,7 +229,7 @@ router.post('/loans', (req, res) => {
     validated.principal,
     validated.term_months,
     validated.remaining_balance,
-    validated.months_left,
+    validated.end_date,
     expenseTemplateItemId,
     validated.down_payment,
     validated.taeg,
@@ -255,7 +280,7 @@ router.put('/loans/:loanId', (req, res) => {
 
   db.prepare(
     `UPDATE loans SET name = ?, status = ?, interest_rate = ?, salary = ?, principal = ?, term_months = ?,
-     remaining_balance = ?, months_left = ?, expense_template_item_id = ?, down_payment = ?, taeg = ?, opening_fee = ? WHERE id = ?`
+     remaining_balance = ?, end_date = ?, expense_template_item_id = ?, down_payment = ?, taeg = ?, opening_fee = ? WHERE id = ?`
   ).run(
     validated.name,
     validated.status,
@@ -264,7 +289,7 @@ router.put('/loans/:loanId', (req, res) => {
     validated.principal,
     validated.term_months,
     validated.remaining_balance,
-    validated.months_left,
+    validated.end_date,
     expenseTemplateItemId,
     validated.down_payment,
     validated.taeg,

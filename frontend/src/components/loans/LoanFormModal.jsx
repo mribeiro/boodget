@@ -3,7 +3,17 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
-import { computeMonthlyPayment } from '../../utils/loanMath';
+import { computeMonthlyPayment, computeMonthsLeft } from '../../utils/loanMath';
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function parseYM(ym) {
+  const [y, m] = ym.split('-');
+  return { year: parseInt(y, 10), month: parseInt(m, 10) };
+}
 
 function formatEur(value) {
   if (value == null || isNaN(value)) return '—';
@@ -20,6 +30,8 @@ function formatDecimal(value) {
 
 export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const isEdit = !!loan;
+  const now = new Date();
+  const initialEndYM = loan?.end_date ? parseYM(loan.end_date) : { year: now.getFullYear(), month: now.getMonth() + 1 };
 
   const [name, setName] = useState(loan?.name ?? '');
   const [status, setStatus] = useState(loan?.status ?? 'draft');
@@ -28,7 +40,8 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const [principal, setPrincipal] = useState(loan?.principal != null ? String(loan.principal) : '');
   const [termMonths, setTermMonths] = useState(loan?.term_months != null ? String(loan.term_months) : '');
   const [remainingBalance, setRemainingBalance] = useState(loan?.remaining_balance != null ? String(loan.remaining_balance) : '');
-  const [monthsLeft, setMonthsLeft] = useState(loan?.months_left != null ? String(loan.months_left) : '');
+  const [endYear, setEndYear] = useState(initialEndYM.year);
+  const [endMonth, setEndMonth] = useState(initialEndYM.month);
   const [expenseTemplateItemId, setExpenseTemplateItemId] = useState(loan?.expense_template_item_id ?? '');
   const [purchasePrice, setPurchasePrice] = useState(loan?.purchase_price != null ? String(loan.purchase_price) : '');
   const [downPayment, setDownPayment] = useState(loan?.down_payment != null ? String(loan.down_payment) : '');
@@ -70,9 +83,12 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
 
   const effectiveDraftPrincipal = usingPriceBreakdown ? computedPrincipal : parseDecimalInput(principal);
 
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}`;
+  const previewMonthsLeft = status === 'active' ? computeMonthsLeft(endDate) : null;
+
   const previewPayment = status === 'draft'
     ? computeMonthlyPayment(effectiveDraftPrincipal, parseDecimalInput(interestRate), Number(termMonths))
-    : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), Number(monthsLeft));
+    : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), previewMonthsLeft);
 
   const hasDraftTerm = status === 'draft' && Number.isInteger(Number(termMonths)) && Number(termMonths) > 0;
 
@@ -135,11 +151,10 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
       payload.expense_template_item_id = null;
     } else {
       const b = parseDecimalInput(remainingBalance);
-      const m = Number(monthsLeft);
       if (isNaN(b) || b <= 0) { setError('Remaining balance must be a positive number'); return; }
-      if (!Number.isInteger(m) || m < 1) { setError('Months left must be a whole number (≥ 1)'); return; }
+      if (computeMonthsLeft(endDate) < 1) { setError('End date must be the current month or later'); return; }
       payload.remaining_balance = b;
-      payload.months_left = m;
+      payload.end_date = endDate;
       payload.expense_template_item_id = expenseTemplateItemId || null;
     }
 
@@ -275,8 +290,27 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
                   <input type="text" inputMode="decimal" value={remainingBalance} onChange={(e) => setRemainingBalance(e.target.value)} placeholder="0.00" />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label>Months left</label>
-                  <input type="number" inputMode="numeric" value={monthsLeft} onChange={(e) => setMonthsLeft(e.target.value)} placeholder="120" min="1" />
+                  <label>Loan end date</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 0 }}>
+                      {MONTH_NAMES.map((m, i) => (
+                        <option key={i + 1} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number" inputMode="decimal"
+                      value={endYear}
+                      onChange={(e) => setEndYear(Number(e.target.value))}
+                      min="2020"
+                      max="2100"
+                      style={{ flex: '0 0 70px', minWidth: 0 }}
+                    />
+                  </div>
+                  {previewMonthsLeft != null && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      {previewMonthsLeft} month{previewMonthsLeft === 1 ? '' : 's'} left — calculated automatically, no need to update this every month.
+                    </div>
+                  )}
                 </div>
               </div>
             )}

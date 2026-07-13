@@ -10,6 +10,16 @@ export function computeMonthlyPayment(principal, ratePct, months) {
   return (principal * r) / (1 - Math.pow(1 + r, -months));
 }
 
+// Months remaining until (and including) an "end_date" (YYYY-MM), counted from the
+// current calendar month — e.g. an end_date equal to this month means 1 payment left.
+export function computeMonthsLeft(endDate) {
+  if (!endDate) return null;
+  const [endYear, endMonth] = endDate.split('-').map(Number);
+  const now = new Date();
+  const months = (endYear * 12 + endMonth) - (now.getFullYear() * 12 + (now.getMonth() + 1)) + 1;
+  return Math.max(0, months);
+}
+
 // Downpayment scenario: paying X now against an active loan with the given balance,
 // rate, and months left. Returns both outcomes — keeping the term (lower payment) and
 // keeping the payment (shorter term) — plus the interest saved by the second option.

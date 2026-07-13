@@ -659,6 +659,19 @@ const migrations = [
       }
     },
   },
+  {
+    id: '029_replace_months_left_with_end_date_on_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'end_date')) {
+        db.exec('ALTER TABLE loans ADD COLUMN end_date TEXT');
+      }
+      const colsAfterAdd = db.prepare('PRAGMA table_info(loans)').all();
+      if (colsAfterAdd.find((c) => c.name === 'months_left')) {
+        db.exec('ALTER TABLE loans DROP COLUMN months_left');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

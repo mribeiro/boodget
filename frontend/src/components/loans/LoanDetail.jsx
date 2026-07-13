@@ -8,12 +8,23 @@ import { scenarioDownpayment, scenarioTargetPayment } from '../../utils/loanMath
 import LoanFormModal from './LoanFormModal';
 import ConfirmModal from '../ConfirmModal';
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 function formatEur(value) {
   if (value == null || isNaN(value)) return '—';
   return formatNumber(value, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }) + ' €';
+}
+
+function formatEndDate(ym) {
+  if (!ym) return '—';
+  const [year, month] = ym.split('-').map(Number);
+  return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
 function StatRow({ label, value, valueStyle }) {
@@ -143,6 +154,7 @@ export default function LoanDetail() {
               </>
             )}
             <StatRow label={isActive ? 'Remaining balance' : 'Principal'} value={formatEur(isActive ? loan.remaining_balance : loan.principal)} />
+            {isActive && <StatRow label="End date" value={formatEndDate(loan.end_date)} />}
             <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={isActive ? loan.months_left : loan.term_months} />
             {!isActive && loan.taeg != null && (
               <StatRow label="TAEG (reference only)" value={`${loan.taeg}%`} />
