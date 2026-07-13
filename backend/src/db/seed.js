@@ -80,8 +80,8 @@ function mkDossier(userId, name, opts = {}) {
         capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day,
         emergency_fund_months_multiplier, emergency_fund_cycles_to_average,
         paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id,
-        creator_id)
-     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        reference_salary, creator_id)
+     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, name,
     opts.cycle_start_day ?? CYCLE_START,
@@ -94,6 +94,7 @@ function mkDossier(userId, name, opts = {}) {
     opts.paperless_token ?? null,
     opts.paperless_date_field_id ?? null,
     opts.paperless_amount_field_id ?? null,
+    opts.reference_salary ?? null,
     userId
   );
   db.prepare('INSERT INTO dossier_access (dossier_id, user_id) VALUES (?, ?)').run(id, userId);
@@ -311,6 +312,8 @@ module.exports = function seed() {
       paperless_token: 'preview-token-not-real',
       paperless_date_field_id: 2,
       paperless_amount_field_id: 1,
+      // Loans reference salary — manually set, matches the cycles' salary in this demo
+      reference_salary: 1950,
     });
 
     const d0Accs = mkAccounts(d0, [

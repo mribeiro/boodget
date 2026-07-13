@@ -76,8 +76,8 @@ export default function LoansTab({ dossierId }) {
   const activeLoans = loans.filter((l) => l.status === 'active');
   const totalMonthlyAmount = activeLoans.reduce((sum, l) => sum + (l.monthly_payment || 0), 0);
   const totalAmountDue = activeLoans.reduce((sum, l) => sum + (l.remaining_balance || 0), 0);
-  const latestCycleSalary = loans.find((l) => l.latest_cycle_salary != null)?.latest_cycle_salary ?? null;
-  const totalSalaryPct = latestCycleSalary > 0 ? (totalMonthlyAmount / latestCycleSalary) * 100 : null;
+  const referenceSalary = loans.find((l) => l.reference_salary != null)?.reference_salary ?? null;
+  const totalSalaryPct = referenceSalary > 0 ? (totalMonthlyAmount / referenceSalary) * 100 : null;
 
   return (
     <div>

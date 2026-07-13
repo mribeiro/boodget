@@ -43,10 +43,10 @@ function computeLoanValues(loan, dossierId) {
   const salaryPct =
     loan.salary != null && loan.salary > 0 ? (monthlyPayment / loan.salary) * 100 : null;
 
-  const latestCycle = db
-    .prepare('SELECT salary FROM expense_cycles WHERE dossier_id = ? ORDER BY year DESC, month DESC LIMIT 1')
-    .get(dossierId);
-  const latestCycleSalary = latestCycle ? latestCycle.salary : null;
+  // Manually-set dossier setting, not derived from any cycle — a one-off bonus/prize
+  // in a cycle's salary shouldn't silently skew loan prefills or the % of salary calc.
+  const dossierRow = db.prepare('SELECT reference_salary FROM dossiers WHERE id = ?').get(dossierId);
+  const referenceSalary = dossierRow?.reference_salary ?? null;
 
   let linkedItem = null;
   let covered = null;
@@ -80,7 +80,7 @@ function computeLoanValues(loan, dossierId) {
     monthly_payment: monthlyPayment,
     months_left: monthsLeft,
     salary_pct: salaryPct,
-    latest_cycle_salary: latestCycleSalary,
+    reference_salary: referenceSalary,
     linked_item: linkedItem,
     covered,
     coverage_difference: coverageDifference,

@@ -672,6 +672,15 @@ const migrations = [
       }
     },
   },
+  {
+    id: '030_add_reference_salary_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'reference_salary')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN reference_salary REAL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

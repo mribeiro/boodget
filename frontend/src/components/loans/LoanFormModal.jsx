@@ -49,7 +49,7 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const [openingFee, setOpeningFee] = useState(loan?.opening_fee != null ? String(loan.opening_fee) : '');
 
   const [fixedExpenses, setFixedExpenses] = useState([]);
-  const [latestCycleSalary, setLatestCycleSalary] = useState(loan?.latest_cycle_salary ?? null);
+  const [referenceSalary, setReferenceSalary] = useState(loan?.reference_salary ?? null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -59,12 +59,11 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
       .catch(() => {});
 
     if (!isEdit) {
-      api.getCycles(dossierId)
-        .then((cycles) => {
-          if (cycles.length > 0) {
-            const latest = cycles[cycles.length - 1];
-            setLatestCycleSalary(latest.salary);
-            setSalary((prev) => (prev === '' ? String(latest.salary) : prev));
+      api.getDossierSettings(dossierId)
+        .then((s) => {
+          if (s.reference_salary != null) {
+            setReferenceSalary(s.reference_salary);
+            setSalary((prev) => (prev === '' ? String(s.reference_salary) : prev));
           }
         })
         .catch(() => {});
@@ -224,13 +223,13 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Salary (€)</label>
                 <input type="text" inputMode="decimal" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="0.00" />
-                {latestCycleSalary != null && String(latestCycleSalary) !== salary && (
+                {referenceSalary != null && String(referenceSalary) !== salary && (
                   <button
                     type="button"
-                    onClick={() => setSalary(String(latestCycleSalary))}
+                    onClick={() => setSalary(String(referenceSalary))}
                     style={{ background: 'none', border: 'none', padding: 0, marginTop: '0.25rem', fontSize: '0.78rem', color: 'var(--color-brand)', cursor: 'pointer', textAlign: 'left' }}
                   >
-                    Use latest ({formatEur(latestCycleSalary)})
+                    Use reference salary ({formatEur(referenceSalary)})
                   </button>
                 )}
               </div>

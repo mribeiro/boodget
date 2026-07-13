@@ -123,8 +123,15 @@ The UI shows a green "Covered" pill when `covered` is true, or a red "Underbudge
 ## 6. Salary and % of Salary
 
 - `salary` is stored per loan (nullable) and is independent of the dossier's cycles once set.
-- When creating a loan, the form prefills `salary` from the dossier's most recent expense cycle (`ORDER BY year DESC, month DESC LIMIT 1`), via the same computed field the backend also exposes as `latest_cycle_salary` on every loan response (so the edit form can offer a "use latest (X €)" affordance without a dedicated endpoint).
+- When creating a loan, the form prefills `salary` from the dossier's **`reference_salary`** setting (Section 6.1) — a manually-configured value, not derived from any cycle — via the same computed field the backend also exposes as `reference_salary` on every loan response (so the edit form can offer a "use reference salary (X €)" affordance without a dedicated endpoint).
 - `salary_pct` = `monthly_payment / salary * 100` when `salary > 0`, else `null` (shown as "—").
+
+### 6.1 Reference Salary (dossier setting)
+
+- `dossiers.reference_salary` (REAL, nullable) is a **manually-set** dossier-level setting, edited in Dossier Settings → "Loan Settings". It deliberately does **not** derive from `expense_cycles.salary` (the most recent cycle) — a one-off bonus or "special prize" in a single cycle would otherwise silently skew every new loan's prefill and the Loans tab's aggregate % of salary. The user sets it once and updates it only when their actual base salary changes.
+- Used in two places: (1) prefilling a new loan's `salary` field (Section 6), and (2) the denominator for the Loans tab's total % of salary (Section 9, `KpiStrip`).
+- `null` until the user sets it — prefill and the aggregate % both show "—"/blank until then; no automatic fallback to cycle data.
+- Round-trips through export/import (still version 10, since this field was added before the version shipped) and via `GET/PATCH /dossiers/:id/settings`.
 - Both draft and active loans show this percentage — it answers "how much of my pay would this loan payment consume," which is meaningful even for a pure what-if.
 
 -----
@@ -175,7 +182,7 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 | `monthly_payment` | Computed via Section 4 |
 | `months_left` | Section 4.1 — `null` unless active. Derived from `end_date`, never stored |
 | `salary_pct` | Section 6 |
-| `latest_cycle_salary` | Section 6 |
+| `reference_salary` | Section 6.1 — the dossier's manually-set reference salary, not derived from any cycle |
 | `linked_item` | Section 5 — `null` unless active + linked + item still exists |
 | `covered` | Section 5 — `null` unless `linked_item` is present |
 | `coverage_difference` | Section 5 — `null` unless `linked_item` is present |
@@ -188,7 +195,7 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 ## 9. UI Notes
 
 - Loans is a dedicated tab within the dossier (`Capital · Monthly Expenses · Annual Expenses · Workbench · Goals · Loans · Emergency Fund · Settings`), following the same navigation and access patterns as Goals.
-- The list view (`LoansTab`) shows each loan as a clickable card: name, status badge (`active` → brand, `draft` → neutral), monthly payment, `salary_pct` ("—" if null), interest rate, and — for active + linked loans — a coverage pill. Above the list (when at least one loan exists), a `KpiStrip` summary shows four aggregates scoped to **active loans only**: total monthly amount (sum of `monthly_payment`), total amount due (sum of `remaining_balance`), number of loans ongoing (count of active loans), and total % of salary — `total monthly amount ÷ latest_cycle_salary × 100`, using the one consistent salary reference every loan's own `salary` field is prefilled from (not a sum of each loan's individually-stored `salary_pct`, since those can reference different salary values if edited independently), highlighted red above 50%.
+- The list view (`LoansTab`) shows each loan as a clickable card: name, status badge (`active` → brand, `draft` → neutral), monthly payment, `salary_pct` ("—" if null), interest rate, and — for active + linked loans — a coverage pill. Above the list (when at least one loan exists), a `KpiStrip` summary shows four aggregates scoped to **active loans only**: total monthly amount (sum of `monthly_payment`), total amount due (sum of `remaining_balance`), number of loans ongoing (count of active loans), and total % of salary — `total monthly amount ÷ reference_salary × 100` (the dossier's manually-set reference salary, Section 6.1 — not a sum of each loan's individually-stored `salary_pct`, since those can reference different salary values if edited independently), highlighted red above 50%.
 - The detail view (`LoanDetail`) shows: a summary card (status, payment, rate, term/months-left, principal/balance, salary + %), a coverage panel (active only), and the two scenario cards (active only).
 - The form modal (`LoanFormModal`) mirrors `GoalFormModal`'s hand-rolled markup: name, status radio toggle, interest rate + salary (`parseDecimalInput`, accepts `,` or `.` as decimal separator), draft fields (principal + term) or active fields (balance + end date + linked-expense `<select>`) shown conditionally, and a live payment preview. The interest rate field is labeled "TAN (nominal rate, %)" on draft loans (with a hint not to use the TAEG) and "Interest rate (annual, %)" on active loans. Active mode's end date uses the same month-`<select>` + year-`<input>` pattern as `GoalFormModal`'s target date (storing `YYYY-MM`), with a live "N months left — calculated automatically" hint below it computed via `computeMonthsLeft()` — there is no direct months-left input anywhere. Draft mode additionally shows optional Purchase price/Down payment and TAEG/Opening fee rows, and the preview card adds live "Total interest paid" (red, mirroring the scenario calculators' green "interest saved") and "Total amount payable (MTIC, estimate)" figures below the monthly payment whenever a term is set.
 - `LoanDetail`'s summary card shows an "End date" row (formatted as "Month YYYY") above the computed "Months left" row for active loans, and the same Total interest paid and MTIC estimate under the monthly payment for draft loans, plus Purchase price/Down payment, TAEG (labeled "reference only"), and Opening fee rows whenever those fields are set.
@@ -221,6 +228,12 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 
 No `position` or `updated_at` column (mirrors `goals`). List endpoint orders `ORDER BY created_at ASC`.
 
+### 10.2 `dossiers.reference_salary`
+
+| Field | Type | Description |
+|---|---|---|
+| `reference_salary` | REAL (nullable) | Manually-set reference monthly salary (Section 6.1) — not derived from `expense_cycles`. Edited via `GET`/`PATCH /api/dossiers/:id/settings`, exposed to loans via each loan's computed `reference_salary` field |
+
 -----
 
 ## 11. API Contract
@@ -250,6 +263,7 @@ Validation (400 on failure):
 ## 12. Export / Import
 
 - Export version **10** adds a `loans` array: `{ name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, created_at, down_payment, taeg, opening_fee, linked_expense_name }`. `linked_expense_name` is resolved via a `LEFT JOIN` to the expense template item's name (or `null` if unlinked), matching the Goals resolve-to-name export pattern. `down_payment`, `taeg`, and `opening_fee` are only meaningful for draft loans; imported as `null` for active loans regardless of the exported value. `end_date` is only meaningful for active loans; imported as `null` for draft loans regardless of the exported value. `months_left` is never exported — it's always re-derived at read time from `end_date`.
+- The dossier's `reference_salary` (Section 6.1) also round-trips as part of the `dossier` object in the same version-10 export, alongside the existing settings fields (`cycle_start_day`, `emergency_fund_*`, `paperless_*`).
 - Import accepts versions **1–10**. Loans are inserted with new UUIDs inside the same import transaction. The link is re-established only when `status === 'active'`, by matching `linked_expense_name` against the already-built `expenseTemplateNameToId` map (expense-section only) — the same map import already builds for expense template re-linking. A missing or unmatched name leaves the loan unlinked. Older exports (versions 1–9) have no `loans` key and simply import with zero loans.
 
 -----
