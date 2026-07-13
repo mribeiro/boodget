@@ -20,6 +20,14 @@ export function computeMonthsLeft(endDate) {
   return Math.max(0, months);
 }
 
+// Inverse of computeMonthsLeft: the YYYY-MM end date that a given number of months-left
+// (counted from the current calendar month, inclusive) corresponds to.
+export function endDateFromMonthsLeft(monthsLeft) {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + monthsLeft - 1, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 // Downpayment scenario: paying X now against an active loan with the given balance,
 // rate, and months left. Returns both outcomes — keeping the term (lower payment) and
 // keeping the payment (shorter term) — plus the interest saved by the second option.

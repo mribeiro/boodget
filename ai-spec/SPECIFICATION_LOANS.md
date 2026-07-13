@@ -142,9 +142,10 @@ Given a hypothetical downpayment `X` paid now against the current `remaining_bal
 - Otherwise, both outcomes are shown side by side:
   - **Lower payment, same term**: recompute the annuity payment on `balance − X` over the unchanged `months_left`.
   - **Same payment, shorter term**: solve for the new term `n′` that keeps the payment at `M` against the reduced balance:
-    - `r > 0`: `n′ = ln(M / (M − (balance−X)·r)) / ln(1+r)`, ceiled for display.
+    - `r > 0`: `n′ = ln(M / (M − (balance−X)·r)) / ln(1+r)`, ceiled for display (this ceiled value is `newTermSamePayment`).
     - `r = 0`: `n′ = (balance−X) / M`.
   - **Interest saved** (computed against the *exact*, non-ceiled `n′`, not the displayed rounded value): `(M·months_left − balance) − (M·n′ − (balance−X))`.
+  - The UI presents the shorter term as a **new payoff date**, not a bare month count: `endDateFromMonthsLeft(newTermSamePayment)` (the exact inverse of Section 4.1's `computeMonthsLeft`) converts it to a `YYYY-MM` shown as "Month YYYY", alongside a **"Time saved"** figure (`months_left − newTermSamePayment`, formatted as "N years M months sooner") — both computed in `LoanDetail.jsx`, not `loanMath.js`, since they're presentation-only derivations of values `loanMath.js` already returns.
 
 ### 7.2 Target Payment Scenario
 

@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faPencil, faTrash, faCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
-import { scenarioDownpayment, scenarioTargetPayment } from '../../utils/loanMath';
+import { scenarioDownpayment, scenarioTargetPayment, endDateFromMonthsLeft } from '../../utils/loanMath';
 import LoanFormModal from './LoanFormModal';
 import ConfirmModal from '../ConfirmModal';
 
@@ -25,6 +25,16 @@ function formatEndDate(ym) {
   if (!ym) return '—';
   const [year, month] = ym.split('-').map(Number);
   return `${MONTH_NAMES[month - 1]} ${year}`;
+}
+
+function formatDuration(months) {
+  if (!months || months <= 0) return '—';
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  const parts = [];
+  if (years > 0) parts.push(`${years} year${years === 1 ? '' : 's'}`);
+  if (rem > 0) parts.push(`${rem} month${rem === 1 ? '' : 's'}`);
+  return parts.join(' ') + ' sooner';
 }
 
 function StatRow({ label, value, valueStyle }) {
@@ -95,6 +105,13 @@ export default function LoanDetail() {
     isActive && !isNaN(downpaymentValue) && downpaymentValue > 0
       ? scenarioDownpayment(loan.remaining_balance, loan.interest_rate, loan.months_left, downpaymentValue)
       : null;
+
+  const newEndDate = downpaymentScenario && !downpaymentScenario.paidOff
+    ? endDateFromMonthsLeft(downpaymentScenario.newTermSamePayment)
+    : null;
+  const monthsSaved = downpaymentScenario && !downpaymentScenario.paidOff
+    ? loan.months_left - downpaymentScenario.newTermSamePayment
+    : null;
 
   const targetPaymentScenario =
     isActive && !isNaN(targetPaymentValue) && targetPaymentValue > 0
@@ -234,7 +251,12 @@ export default function LoanDetail() {
                 ) : (
                   <div style={{ marginTop: '0.5rem' }}>
                     <StatRow label="New payment (same term)" value={formatEur(downpaymentScenario.newPaymentSameTerm)} />
-                    <StatRow label="New term (same payment)" value={`${downpaymentScenario.newTermSamePayment} months`} />
+                    <StatRow label="New payoff date (same payment)" value={formatEndDate(newEndDate)} />
+                    <StatRow
+                      label="Time saved"
+                      value={formatDuration(monthsSaved)}
+                      valueStyle={{ color: 'var(--color-success-text)' }}
+                    />
                     <StatRow
                       label="Interest saved (shorter term)"
                       value={formatEur(downpaymentScenario.interestSaved)}
