@@ -120,7 +120,11 @@ export default function LoansTab({ dossierId }) {
               onClick={() => navigate(`/dossiers/${dossierId}/loans/${loan.id}`)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 600, fontSize: 15, flex: 1 }}>{loan.name}</span>
+                <span style={{ fontWeight: 600, fontSize: 15 }}>{loan.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {loan.interest_rate}% {loan.status === 'active' ? 'APR' : 'TAN'}
+                </span>
+                <span style={{ flex: 1 }} />
                 <span className={`badge badge-${loan.status === 'active' ? 'brand' : 'neutral'}`}>
                   {loan.status === 'active' ? 'Active' : 'Draft'}
                 </span>
@@ -128,8 +132,9 @@ export default function LoansTab({ dossierId }) {
               </div>
 
               {/* Fixed-height stats row: nowrap + horizontal scroll instead of wrapping, so
-                  an extra stat (or a wide value like a 5-digit down payment) never grows the
-                  card — it scrolls sideways on narrow viewports instead. */}
+                  a wide value (e.g. a 5-digit down payment) never grows the card — it scrolls
+                  sideways on narrow viewports instead. Interest rate lives next to the name
+                  above, so this row rarely needs to scroll in practice. */}
               <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'nowrap', overflowX: 'auto', whiteSpace: 'nowrap' }}>
                 <span className="tabular" style={{ flexShrink: 0 }}>
                   <strong style={{ color: 'var(--text-primary)' }}>{formatEur(loan.monthly_payment)}</strong>/mo
@@ -143,7 +148,6 @@ export default function LoansTab({ dossierId }) {
                 <span className="tabular" style={{ flexShrink: 0 }}>
                   % of salary: {loan.salary_pct != null ? `${loan.salary_pct.toFixed(1)}%` : '—'}
                 </span>
-                <span className="tabular" style={{ flexShrink: 0 }}>{loan.interest_rate}% APR</span>
               </div>
             </div>
           ))}
