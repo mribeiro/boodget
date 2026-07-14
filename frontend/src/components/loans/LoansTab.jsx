@@ -44,12 +44,14 @@ function CoveragePill({ loan }) {
 export default function LoansTab({ dossierId }) {
   const navigate = useNavigate();
   const [loans, setLoans] = useState([]);
+  const [maxSalaryPct, setMaxSalaryPct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     loadLoans();
+    api.getDossierSettings(dossierId).then((s) => setMaxSalaryPct(s.loans_max_salary_pct)).catch(() => {});
   }, [dossierId]);
 
   async function loadLoans() {
@@ -79,6 +81,23 @@ export default function LoansTab({ dossierId }) {
   const referenceSalary = loans.find((l) => l.reference_salary != null)?.reference_salary ?? null;
   const totalSalaryPct = referenceSalary > 0 ? (totalMonthlyAmount / referenceSalary) * 100 : null;
 
+  // Traffic-light against the configured max % of salary for loans: red once at or over the
+  // max, yellow within the last 2 percentage points below it, green otherwise. No highlight
+  // if the max hasn't been configured (Dossier Settings → Loan Settings) — nothing to compare against.
+  const maxSalaryAbsolute = maxSalaryPct != null && referenceSalary > 0 ? (maxSalaryPct / 100) * referenceSalary : null;
+  const pctHighlight =
+    maxSalaryPct == null || totalSalaryPct == null
+      ? 'neutral'
+      : totalSalaryPct >= maxSalaryPct
+        ? 'danger'
+        : totalSalaryPct >= maxSalaryPct - 2
+          ? 'warning'
+          : 'success';
+  const pctNote =
+    maxSalaryPct != null && totalSalaryPct != null
+      ? `${formatEur(totalMonthlyAmount)} of ${formatEur(maxSalaryAbsolute)} max`
+      : undefined;
+
   return (
     <div>
       {error && <div className="alert alert-error" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
@@ -98,7 +117,8 @@ export default function LoansTab({ dossierId }) {
           {
             label: '% of salary',
             value: totalSalaryPct != null ? `${totalSalaryPct.toFixed(1)}%` : '—',
-            highlight: totalSalaryPct != null && totalSalaryPct > 50 ? 'danger' : 'neutral',
+            highlight: pctHighlight,
+            note: pctNote,
           },
         ]} />
       )}

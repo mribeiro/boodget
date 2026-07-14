@@ -158,7 +158,7 @@ export default function LoanDetail() {
       : null;
 
   const newEndDate = downpaymentScenario && !downpaymentScenario.paidOff
-    ? endDateFromMonthsLeft(downpaymentScenario.newTermSamePayment)
+    ? endDateFromMonthsLeft(downpaymentScenario.newTermSamePayment, isActive ? loan.day_of_payment : null)
     : null;
   const monthsSaved = downpaymentScenario && !downpaymentScenario.paidOff
     ? simMonthsLeft - downpaymentScenario.newTermSamePayment
@@ -179,7 +179,7 @@ export default function LoanDetail() {
   // only makes sense for active loans, since it walks forward from a real remaining_balance.
   const amortizationYears =
     isActive && loan.remaining_balance > 0 && loan.months_left > 0
-      ? groupScheduleByYear(computeAmortizationSchedule(loan.remaining_balance, loan.interest_rate, loan.months_left, loan.monthly_payment))
+      ? groupScheduleByYear(computeAmortizationSchedule(loan.remaining_balance, loan.interest_rate, loan.months_left, loan.monthly_payment, loan.day_of_payment))
       : null;
 
   return (
@@ -260,6 +260,7 @@ export default function LoanDetail() {
             )}
             <StatRow label={isActive ? 'Remaining balance' : 'Principal'} value={formatEur(isActive ? loan.remaining_balance : loan.principal)} />
             {isActive && <StatRow label="End date" value={formatEndDate(loan.end_date)} />}
+            {isActive && <StatRow label="Day of payment" value={loan.day_of_payment != null ? String(loan.day_of_payment) : '—'} />}
             <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={formatMonthsWithYears(isActive ? loan.months_left : loan.term_months)} />
             {isActive && loan.term_months != null && (
               <StatRow label="Original term (months)" value={formatMonthsWithYears(loan.term_months)} />

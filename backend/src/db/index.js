@@ -681,6 +681,24 @@ const migrations = [
       }
     },
   },
+  {
+    id: '031_add_day_of_payment_to_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'day_of_payment')) {
+        db.exec('ALTER TABLE loans ADD COLUMN day_of_payment INTEGER');
+      }
+    },
+  },
+  {
+    id: '032_add_loans_max_salary_pct_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'loans_max_salary_pct')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN loans_max_salary_pct REAL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

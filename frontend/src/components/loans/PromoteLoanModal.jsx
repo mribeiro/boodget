@@ -27,17 +27,23 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
   const [remainingBalance, setRemainingBalance] = useState(loan.principal != null ? String(loan.principal) : '');
   const [endYear, setEndYear] = useState(initialEndYM.year);
   const [endMonth, setEndMonth] = useState(initialEndYM.month);
+  const [dayOfPayment, setDayOfPayment] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}`;
-  const previewMonthsLeft = computeMonthsLeft(endDate);
+  const parsedDayOfPayment = dayOfPayment === '' ? null : Number(dayOfPayment);
+  const previewMonthsLeft = computeMonthsLeft(endDate, parsedDayOfPayment);
 
   async function handleConfirm() {
     setError('');
     const balance = parseDecimalInput(remainingBalance);
     if (isNaN(balance) || balance <= 0) { setError('Remaining balance must be a positive number'); return; }
-    if (computeMonthsLeft(endDate) < 1) { setError('End date must be the current month or later'); return; }
+    if (!Number.isInteger(parsedDayOfPayment) || parsedDayOfPayment < 1 || parsedDayOfPayment > 31) {
+      setError('Day of payment must be an integer between 1 and 31');
+      return;
+    }
+    if (computeMonthsLeft(endDate, parsedDayOfPayment) < 1) { setError('End date must be the current month or later'); return; }
 
     setSaving(true);
     try {
@@ -45,6 +51,7 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
         status: 'active',
         remaining_balance: balance,
         end_date: endDate,
+        day_of_payment: parsedDayOfPayment,
       });
       onSave(result);
     } catch (err) {
@@ -64,13 +71,25 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {error && <div className="alert alert-error">{error}</div>}
           <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            This marks "{loan.name}" as a real, ongoing loan. Principal, term, rate, TAEG, and opening fee carry over as-is. An active loan just also needs the two things below, which a draft doesn't track.
+            This marks "{loan.name}" as a real, ongoing loan. Principal, term, rate, TAEG, and opening fee carry over as-is. An active loan just also needs the things below, which a draft doesn't track.
           </p>
           <div className="form-group">
             <label>Remaining balance (€)</label>
             <input type="text" inputMode="decimal" value={remainingBalance} onChange={(e) => setRemainingBalance(e.target.value)} placeholder="0.00" />
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
               Prefilled from the draft's principal — adjust if anything has already been paid down.
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Day of payment (1–31)</label>
+            <input
+              type="number" inputMode="numeric" step="1" min={1} max={31}
+              value={dayOfPayment}
+              onChange={(e) => setDayOfPayment(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="e.g. 5"
+            />
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              Once this day passes each month, that month counts as paid.
             </div>
           </div>
           <div className="form-group">

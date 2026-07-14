@@ -10,21 +10,43 @@ export function computeMonthlyPayment(principal, ratePct, months) {
   return (principal * r) / (1 - Math.pow(1 + r, -months));
 }
 
+function daysInMonth(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+// The calendar month counting for "months left" starts from — this month, unless
+// dayOfPayment is known and has already passed, in which case this month's payment is
+// treated as already made and counting starts from next month instead (dayOfPayment
+// clamped to the current month's length, so e.g. 31 means "last day" in a 30-day month).
+function effectiveCurrentPeriod(dayOfPayment) {
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth() + 1;
+  if (dayOfPayment != null) {
+    const effectiveDay = Math.min(dayOfPayment, daysInMonth(year, month));
+    if (now.getDate() >= effectiveDay) {
+      month += 1;
+      if (month > 12) { month = 1; year += 1; }
+    }
+  }
+  return { year, month };
+}
+
 // Months remaining until (and including) an "end_date" (YYYY-MM), counted from the
 // current calendar month — e.g. an end_date equal to this month means 1 payment left.
-export function computeMonthsLeft(endDate) {
+export function computeMonthsLeft(endDate, dayOfPayment) {
   if (!endDate) return null;
   const [endYear, endMonth] = endDate.split('-').map(Number);
-  const now = new Date();
-  const months = (endYear * 12 + endMonth) - (now.getFullYear() * 12 + (now.getMonth() + 1)) + 1;
+  const { year: curYear, month: curMonth } = effectiveCurrentPeriod(dayOfPayment);
+  const months = (endYear * 12 + endMonth) - (curYear * 12 + curMonth) + 1;
   return Math.max(0, months);
 }
 
 // Inverse of computeMonthsLeft: the YYYY-MM end date that a given number of months-left
 // (counted from the current calendar month, inclusive) corresponds to.
-export function endDateFromMonthsLeft(monthsLeft) {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() + monthsLeft - 1, 1);
+export function endDateFromMonthsLeft(monthsLeft, dayOfPayment) {
+  const { year, month } = effectiveCurrentPeriod(dayOfPayment);
+  const d = new Date(year, month - 1 + monthsLeft - 1, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
@@ -106,13 +128,16 @@ export function scenarioRateChange(balance, currentRatePct, monthsLeft, newRateP
   };
 }
 
-// Full month-by-month amortization schedule from the current calendar month until payoff,
-// splitting each fixed payment into its interest and principal portions. The last payment
-// (or any payment that would overshoot) has its principal clamped to exactly clear the
-// balance, absorbing the floating-point drift a fixed annuity payment accumulates over time.
-export function computeAmortizationSchedule(balance, ratePct, monthsLeft, payment) {
+// Full month-by-month amortization schedule from the first still-owed calendar month until
+// payoff, splitting each fixed payment into its interest and principal portions. Starts
+// from next month rather than this one when dayOfPayment shows this month is already paid
+// (see effectiveCurrentPeriod), keeping the schedule's dates aligned with monthsLeft's own
+// count. The last payment (or any payment that would overshoot) has its principal clamped
+// to exactly clear the balance, absorbing the floating-point drift a fixed annuity payment
+// accumulates over time.
+export function computeAmortizationSchedule(balance, ratePct, monthsLeft, payment, dayOfPayment) {
   const r = (ratePct || 0) / 100 / 12;
-  const now = new Date();
+  const { year: startYear, month: startMonth } = effectiveCurrentPeriod(dayOfPayment);
   let bal = balance;
   const schedule = [];
   for (let i = 0; i < monthsLeft; i++) {
@@ -120,7 +145,7 @@ export function computeAmortizationSchedule(balance, ratePct, monthsLeft, paymen
     let principal = payment - interest;
     if (i === monthsLeft - 1 || principal >= bal) principal = bal;
     bal = Math.max(0, bal - principal);
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const d = new Date(startYear, startMonth - 1 + i, 1);
     schedule.push({ year: d.getFullYear(), month: d.getMonth() + 1, interest, principal, balance: bal });
   }
   return schedule;
