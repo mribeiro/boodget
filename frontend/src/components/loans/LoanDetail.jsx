@@ -4,10 +4,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faCheck, faTriangleExclamation,
   faWallet, faCoins, faBullseye, faPercent, faReceipt, faArrowUp,
+  faTable, faChevronDown, faChevronRight,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
-import { scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft } from '../../utils/loanMath';
+import {
+  scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft,
+  computeAmortizationSchedule, groupScheduleByYear,
+} from '../../utils/loanMath';
 import LoanFormModal from './LoanFormModal';
 import PromoteLoanModal from './PromoteLoanModal';
 import ConfirmModal from '../ConfirmModal';
@@ -89,6 +93,16 @@ export default function LoanDetail() {
   const [downpaymentCollapsed, setDownpaymentCollapsed] = useState(false);
   const [targetCollapsed, setTargetCollapsed] = useState(false);
   const [rateCollapsed, setRateCollapsed] = useState(false);
+  const [scheduleCollapsed, setScheduleCollapsed] = useState(true);
+  const [expandedYears, setExpandedYears] = useState(new Set());
+
+  function toggleYear(year) {
+    setExpandedYears((prev) => {
+      const next = new Set(prev);
+      next.has(year) ? next.delete(year) : next.add(year);
+      return next;
+    });
+  }
 
   useEffect(() => {
     load();
@@ -159,6 +173,13 @@ export default function LoanDetail() {
   const rateChangeScenario =
     !isNaN(newInterestRateValue) && newInterestRateValue >= 0
       ? scenarioRateChange(simBalance, loan.interest_rate, simMonthsLeft, newInterestRateValue)
+      : null;
+
+  // Amortization schedule — how each future payment splits into interest vs. principal —
+  // only makes sense for active loans, since it walks forward from a real remaining_balance.
+  const amortizationYears =
+    isActive && loan.remaining_balance > 0 && loan.months_left > 0
+      ? groupScheduleByYear(computeAmortizationSchedule(loan.remaining_balance, loan.interest_rate, loan.months_left, loan.monthly_payment))
       : null;
 
   return (
@@ -419,6 +440,68 @@ export default function LoanDetail() {
           </div>
         );
       })()}
+
+      {amortizationYears && amortizationYears.length > 0 && (
+        <CollapsibleSection
+          title="Amortization schedule"
+          icon={faTable}
+          accent="var(--text-muted)"
+          collapsed={scheduleCollapsed}
+          onToggle={() => setScheduleCollapsed((v) => !v)}
+        >
+          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+            How each future payment splits between interest and principal, grouped by year — click a year to see its individual months.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.35rem 0', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', borderBottom: '1px solid var(--border-default)' }}>
+            <span style={{ width: 14 }} />
+            <span style={{ flex: 1 }}>Year</span>
+            <span style={{ flex: 1, textAlign: 'right' }}>Interest</span>
+            <span style={{ flex: 1, textAlign: 'right' }}>Principal</span>
+            <span style={{ flex: 1, textAlign: 'right' }}>Balance</span>
+          </div>
+          {amortizationYears.map((y) => {
+            const expanded = expandedYears.has(y.year);
+            return (
+              <div key={y.year} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0', cursor: 'pointer', fontSize: 13.5 }}
+                  onClick={() => toggleYear(y.year)}
+                >
+                  <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} style={{ fontSize: 11, color: 'var(--text-muted)', width: 14 }} />
+                  <span style={{ flex: 1, fontWeight: 600 }}>{y.year}</span>
+                  <span style={{ flex: 1, textAlign: 'right', color: 'var(--color-danger-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(y.interest)}</span>
+                  <span style={{ flex: 1, textAlign: 'right', color: 'var(--color-success-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(y.principal)}</span>
+                  <span style={{ flex: 1, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatEur(y.endBalance)}</span>
+                </div>
+                {expanded && (
+                  <div style={{ marginLeft: 22, paddingBottom: 8 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ color: 'var(--text-muted)' }}>
+                          <th style={{ textAlign: 'left', fontWeight: 500, padding: '2px 6px' }}>Month</th>
+                          <th style={{ textAlign: 'right', fontWeight: 500, padding: '2px 6px' }}>Interest</th>
+                          <th style={{ textAlign: 'right', fontWeight: 500, padding: '2px 6px' }}>Principal</th>
+                          <th style={{ textAlign: 'right', fontWeight: 500, padding: '2px 6px' }}>Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {y.months.map((m) => (
+                          <tr key={`${m.year}-${m.month}`}>
+                            <td style={{ padding: '2px 6px' }}>{MONTH_NAMES[m.month - 1]}</td>
+                            <td style={{ padding: '2px 6px', textAlign: 'right', color: 'var(--color-danger-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.interest)}</td>
+                            <td style={{ padding: '2px 6px', textAlign: 'right', color: 'var(--color-success-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.principal)}</td>
+                            <td style={{ padding: '2px 6px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.balance)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </CollapsibleSection>
+      )}
 
       {showEdit && (
         <LoanFormModal

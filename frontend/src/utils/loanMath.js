@@ -105,3 +105,44 @@ export function scenarioRateChange(balance, currentRatePct, monthsLeft, newRateP
     interestDifference: newTotalInterest - currentTotalInterest,
   };
 }
+
+// Full month-by-month amortization schedule from the current calendar month until payoff,
+// splitting each fixed payment into its interest and principal portions. The last payment
+// (or any payment that would overshoot) has its principal clamped to exactly clear the
+// balance, absorbing the floating-point drift a fixed annuity payment accumulates over time.
+export function computeAmortizationSchedule(balance, ratePct, monthsLeft, payment) {
+  const r = (ratePct || 0) / 100 / 12;
+  const now = new Date();
+  let bal = balance;
+  const schedule = [];
+  for (let i = 0; i < monthsLeft; i++) {
+    const interest = r > 0 ? bal * r : 0;
+    let principal = payment - interest;
+    if (i === monthsLeft - 1 || principal >= bal) principal = bal;
+    bal = Math.max(0, bal - principal);
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    schedule.push({ year: d.getFullYear(), month: d.getMonth() + 1, interest, principal, balance: bal });
+  }
+  return schedule;
+}
+
+// Groups an amortization schedule into per-calendar-year rollups (total interest, total
+// principal, and the balance remaining at year end), each carrying its own month rows for
+// on-demand expansion in the UI rather than rendering every payment up front.
+export function groupScheduleByYear(schedule) {
+  const years = [];
+  const byYear = new Map();
+  for (const row of schedule) {
+    let bucket = byYear.get(row.year);
+    if (!bucket) {
+      bucket = { year: row.year, interest: 0, principal: 0, endBalance: 0, months: [] };
+      byYear.set(row.year, bucket);
+      years.push(bucket);
+    }
+    bucket.interest += row.interest;
+    bucket.principal += row.principal;
+    bucket.endBalance = row.balance;
+    bucket.months.push(row);
+  }
+  return years;
+}
