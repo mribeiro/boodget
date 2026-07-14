@@ -13,6 +13,7 @@ import CycleEditor from './components/expenses/CycleEditor';
 import UserManager from './components/UserManager';
 import PasswordChange from './components/PasswordChange';
 import GoalDetail from './components/goals/GoalDetail';
+import LoanDetail from './components/loans/LoanDetail';
 import NotificationSettings from './pages/NotificationSettings';
 import UpdateBanner from './components/ui/UpdateBanner';
 
@@ -122,6 +123,7 @@ function AppRoutes() {
           <Route path="/dossiers/:id/months/:monthId" element={<MonthEditor />} />
           <Route path="/dossiers/:id/cycles/:cycleId" element={<CycleEditor />} />
           <Route path="/dossiers/:id/goals/:goalId" element={<GoalDetail />} />
+          <Route path="/dossiers/:id/loans/:loanId" element={<LoanDetail />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
           <Route path="/notifications" element={<NotificationSettings />} />

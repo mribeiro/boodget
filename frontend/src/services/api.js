@@ -191,6 +191,15 @@ export const api = {
   setAnnualExpenseDistributions: (dossierId, distribution_template_ids) =>
     request('PUT', `/dossiers/${dossierId}/annual-expenses/distributions`, { distribution_template_ids }),
 
+  // Loans
+  getLoans: (dossierId) => request('GET', `/dossiers/${dossierId}/loans`),
+  createLoan: (dossierId, data) => request('POST', `/dossiers/${dossierId}/loans`, data),
+  getLoan: (dossierId, loanId) => request('GET', `/dossiers/${dossierId}/loans/${loanId}`),
+  updateLoan: (dossierId, loanId, data) =>
+    request('PUT', `/dossiers/${dossierId}/loans/${loanId}`, data),
+  deleteLoan: (dossierId, loanId) =>
+    request('DELETE', `/dossiers/${dossierId}/loans/${loanId}`),
+
   // Push notifications — VAPID & subscriptions
   getVapidPublicKey: () => request('GET', '/push/vapid-public-key'),
   subscribePush: (subscription) => request('POST', '/push/subscribe', subscription),

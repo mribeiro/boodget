@@ -63,6 +63,13 @@ const twoYearsOutYM    = ym(calYear + 2, calMonth);
 const nextMonthYM      = ym(nextCalYear, nextCalMonth);
 const prevMonthYM      = ym(prevCalYear, prevCalMonth);
 
+// Add n months to a (year, month), carrying over year boundaries — used for loan
+// end_date so months_left computes to a fixed, seed-stable value regardless of today.
+function addMonthsYM(year, month, n) {
+  const total = year * 12 + (month - 1) + n;
+  return ym(Math.floor(total / 12), (total % 12) + 1);
+}
+
 // ── DB helpers ──────────────────────────────────────────────────────────────
 
 function mkDossier(userId, name, opts = {}) {
@@ -73,8 +80,8 @@ function mkDossier(userId, name, opts = {}) {
         capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day,
         emergency_fund_months_multiplier, emergency_fund_cycles_to_average,
         paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id,
-        creator_id)
-     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        reference_salary, creator_id)
+     VALUES (?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, name,
     opts.cycle_start_day ?? CYCLE_START,
@@ -87,6 +94,7 @@ function mkDossier(userId, name, opts = {}) {
     opts.paperless_token ?? null,
     opts.paperless_date_field_id ?? null,
     opts.paperless_amount_field_id ?? null,
+    opts.reference_salary ?? null,
     userId
   );
   db.prepare('INSERT INTO dossier_access (dossier_id, user_id) VALUES (?, ?)').run(id, userId);
@@ -251,6 +259,23 @@ function mkAnnualDistributions(dossierId, distributionTemplateIds) {
   for (const tId of distributionTemplateIds) stmt.run(dossierId, tId);
 }
 
+function mkLoan(dossierId, def) {
+  const id = uuidv4();
+  db.prepare(
+    `INSERT INTO loans
+       (id, dossier_id, name, status, interest_rate, salary, principal, term_months,
+        remaining_balance, end_date, expense_template_item_id, down_payment, taeg, opening_fee)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id, dossierId, def.name, def.status, def.interest_rate,
+    def.salary ?? null, def.principal ?? null, def.term_months ?? null,
+    def.remaining_balance ?? null, def.end_date ?? null,
+    def.expense_template_item_id ?? null,
+    def.down_payment ?? null, def.taeg ?? null, def.opening_fee ?? null
+  );
+  return id;
+}
+
 // ── Seed entry point ─────────────────────────────────────────────────────────
 
 module.exports = function seed() {
@@ -287,6 +312,8 @@ module.exports = function seed() {
       paperless_token: 'preview-token-not-real',
       paperless_date_field_id: 2,
       paperless_amount_field_id: 1,
+      // Loans reference salary — manually set, matches the cycles' salary in this demo
+      reference_salary: 1950,
     });
 
     const d0Accs = mkAccounts(d0, [
@@ -313,6 +340,7 @@ module.exports = function seed() {
       { section: 'expense',      name: 'Transport',      type: 'Budget', value: 80,   day_of_payment: null, classification: 'must', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
       { section: 'distribution', name: 'Emergency Fund', type: null,     value: 200,  day_of_payment: null, classification: null,   must_amount: 0,    want_amount: 0,    save_amount: 200,  paperless_tag_id: null },
       { section: 'distribution', name: 'Investment Top-up', type: null,  value: 300,  day_of_payment: null, classification: null,   must_amount: 0,    want_amount: 0,    save_amount: 300,  paperless_tag_id: null },
+      { section: 'expense',      name: 'Car Loan Payment', type: 'Fixed',  value: 220, day_of_payment: 8,    classification: 'must', must_amount: null, want_amount: null, save_amount: null, paperless_tag_id: null },
     ];
     const insertTemplate = db.prepare(
       `INSERT INTO expense_template_items
@@ -426,6 +454,19 @@ module.exports = function seed() {
 
     // Emergency fund: Savings account → HEALTHY (9200 > ~4400)
     mkEmergencyFund(d0, [d0Accs[1]]); // Savings
+
+    // Loans: an active car loan (linked + covered by the "Car Loan Payment" expense
+    // above: payment ≈205.23 < budgeted 220) and a draft house-purchase study
+    // exercising the down payment / TAEG / opening fee fields.
+    mkLoan(d0, {
+      name: 'Car Loan', status: 'active', interest_rate: 4.5, salary: 1950,
+      remaining_balance: 9000, end_date: addMonthsYM(calYear, calMonth, 47), // 48 months left
+      expense_template_item_id: templateIds[10], // Car Loan Payment
+    });
+    mkLoan(d0, {
+      name: 'House Purchase Study', status: 'draft', interest_rate: 3.2, salary: 1950,
+      principal: 200000, term_months: 300, down_payment: 50000, taeg: 3.8, opening_fee: 350,
+    });
 
 
     // ══════════════════════════════════════════════════════════════════════

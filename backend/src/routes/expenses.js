@@ -149,7 +149,7 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model, reference_salary FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
@@ -164,6 +164,7 @@ router.get('/settings', (req, res) => {
     paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
     expense_notification_days_before: dossier.expense_notification_days_before ?? 1,
     ai_model: dossier.ai_model ?? 'claude-opus-4-8',
+    reference_salary: dossier.reference_salary ?? null,
   });
 });
 
@@ -189,6 +190,7 @@ router.patch('/settings', (req, res) => {
     paperless_amount_field_id,
     expense_notification_days_before,
     ai_model,
+    reference_salary,
   } = req.body;
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
@@ -226,6 +228,11 @@ router.patch('/settings', (req, res) => {
   if (ai_model !== undefined && !ALLOWED_AI_MODELS.includes(ai_model)) {
     return res.status(400).json({ error: `ai_model must be one of: ${ALLOWED_AI_MODELS.join(', ')}` });
   }
+  if (reference_salary !== undefined && reference_salary !== null) {
+    if (typeof reference_salary !== 'number' || isNaN(reference_salary) || reference_salary < 0) {
+      return res.status(400).json({ error: 'reference_salary must be null or a non-negative number' });
+    }
+  }
 
   const updates = [];
   const params = [];
@@ -241,6 +248,7 @@ router.patch('/settings', (req, res) => {
   if (paperless_amount_field_id !== undefined) { updates.push('paperless_amount_field_id = ?'); params.push(paperless_amount_field_id); }
   if (expense_notification_days_before !== undefined) { updates.push('expense_notification_days_before = ?'); params.push(expense_notification_days_before); }
   if (ai_model !== undefined) { updates.push('ai_model = ?'); params.push(ai_model); }
+  if (reference_salary !== undefined) { updates.push('reference_salary = ?'); params.push(reference_salary); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -249,7 +257,7 @@ router.patch('/settings', (req, res) => {
   console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model, reference_salary FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
@@ -264,6 +272,7 @@ router.patch('/settings', (req, res) => {
     paperless_amount_field_id: updated.paperless_amount_field_id ?? null,
     expense_notification_days_before: updated.expense_notification_days_before ?? 1,
     ai_model: updated.ai_model ?? 'claude-opus-4-8',
+    reference_salary: updated.reference_salary ?? null,
   });
 });
 
@@ -401,6 +410,20 @@ router.post('/expense-template/bulk-replace', (req, res) => {
   if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
 
   const replace = db.transaction(() => {
+    // Loans linked to an expense-section template item lose their id-based FK when the
+    // whole section is wiped below — capture (loan_id, item_name) so they can be
+    // re-linked by name after reinsert (same philosophy as migration 022 / import re-linking).
+    let linkedLoans = [];
+    if (section === 'expense') {
+      linkedLoans = db
+        .prepare(
+          `SELECT l.id as loan_id, eti.name as item_name
+           FROM loans l JOIN expense_template_items eti ON eti.id = l.expense_template_item_id
+           WHERE l.dossier_id = ? AND eti.dossier_id = ? AND eti.section = 'expense'`
+        )
+        .all(req.params.id, req.params.id);
+    }
+
     db.prepare('DELETE FROM expense_template_items WHERE dossier_id = ? AND section = ?').run(req.params.id, section);
     const insert = db.prepare(
       'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -427,6 +450,19 @@ router.post('/expense-template/bulk-replace', (req, res) => {
         accountId
       );
     });
+
+    // Re-link loans by matching name on the freshly-inserted Fixed expense items.
+    // Renamed/dropped items stay unlinked (matches cycle-item semantics).
+    if (section === 'expense' && linkedLoans.length > 0) {
+      const findByName = db.prepare(
+        "SELECT id FROM expense_template_items WHERE dossier_id = ? AND section = 'expense' AND type = 'Fixed' AND name = ? LIMIT 1"
+      );
+      const updateLoan = db.prepare('UPDATE loans SET expense_template_item_id = ? WHERE id = ?');
+      for (const { loan_id, item_name } of linkedLoans) {
+        const match = findByName.get(req.params.id, item_name);
+        updateLoan.run(match ? match.id : null, loan_id);
+      }
+    }
   });
 
   replace();

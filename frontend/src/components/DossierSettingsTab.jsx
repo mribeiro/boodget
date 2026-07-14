@@ -17,6 +17,12 @@ import ShareManager from './ShareManager';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Modal from './ui/Modal';
+import { parseDecimalInput, formatNumber } from '../utils/numbers';
+
+function formatEur(value) {
+  if (value == null || isNaN(value)) return 'Not set';
+  return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
 
 function SettingsCard({ title, description, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -152,6 +158,78 @@ function EmergencyFundSettings({ dossierId }) {
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
             {modal.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{modal.suffix}</span>}
+          </div>
+          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function LoanSettings({ dossierId }) {
+  const [referenceSalary, setReferenceSalary] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getDossierSettings(dossierId).then((s) => setReferenceSalary(s.reference_salary)).catch(() => {});
+  }, [dossierId]);
+
+  function openEdit() {
+    setDraft(referenceSalary != null ? String(referenceSalary) : '');
+    setEditing(true);
+    setError('');
+  }
+
+  async function handleSave() {
+    const v = draft.trim() === '' ? null : parseDecimalInput(draft);
+    if (v != null && (isNaN(v) || v < 0)) { setError('Must be empty or a non-negative number'); return; }
+    setSaving(true);
+    try {
+      const updated = await api.updateDossierSettings(dossierId, { reference_salary: v });
+      setReferenceSalary(updated.reference_salary);
+      setEditing(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Reference monthly salary</span>
+        <strong>{formatEur(referenceSalary)}</strong>
+        <button className="btn-secondary" onClick={openEdit} style={{ padding: '0.5rem 0.75rem' }}>
+          <FontAwesomeIcon icon={faPencil} />
+        </button>
+      </div>
+
+      {editing && (
+        <Modal
+          title="Reference monthly salary"
+          onClose={() => setEditing(false)}
+          footer={
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <div className="form-group">
+            <input
+              type="text" inputMode="decimal"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="0.00"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+            />
           </div>
           {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
         </Modal>
@@ -496,6 +574,13 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         description="Configure how the emergency fund target is calculated. The target = multiplier × average monthly expense (computed from recent cycles)."
       >
         <EmergencyFundSettings dossierId={dossierId} />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Loan Settings"
+        description="A manually-set reference salary used to prefill new loans and to compute the Loans tab's total % of salary — set this deliberately rather than relying on a cycle's salary, which can include one-off bonuses."
+      >
+        <LoanSettings dossierId={dossierId} />
       </SettingsCard>
 
       <SettingsCard

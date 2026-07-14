@@ -10,6 +10,7 @@ const goalsRouter = require('./goals');
 const emergencyFundRouter = require('./emergency-fund');
 const annualExpensesRouter = require('./annual-expenses');
 const aiAdvisorRouter = require('./ai-advisor');
+const loansRouter = require('./loans');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -60,7 +61,7 @@ router.post('/import', (req, res) => {
 
   const doImport = db.transaction(() => {
     db.prepare(
-      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model, reference_salary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25,
       data.dossier.emergency_fund_months_multiplier ?? 6,
@@ -69,7 +70,8 @@ router.post('/import', (req, res) => {
       data.dossier.paperless_date_field_id ?? null,
       data.dossier.paperless_amount_field_id ?? null,
       // Versions <= 9 have no ai_model; default to the app's default model
-      data.dossier.ai_model ?? 'claude-opus-4-8'
+      data.dossier.ai_model ?? 'claude-opus-4-8',
+      data.dossier.reference_salary ?? null
     );
 
     const accountIdMap = {};
@@ -268,6 +270,33 @@ router.post('/import', (req, res) => {
       const distId = templateNameToId[name];
       if (distId) insertAEDist.run(dossierId, distId);
     }
+
+    // Loans (v10+) — re-linked to the new Fixed expense template item by name, active only
+    const insertLoan = db.prepare(
+      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const l of (data.loans || [])) {
+      const linkedItemId = l.status === 'active' && l.linked_expense_name ? (expenseTemplateNameToId[l.linked_expense_name] ?? null) : null;
+      const isDraft = l.status !== 'active';
+      insertLoan.run(
+        uuidv4(),
+        dossierId,
+        l.name,
+        isDraft ? 'draft' : 'active',
+        l.interest_rate ?? 0,
+        l.salary ?? null,
+        l.principal ?? null,
+        l.term_months ?? null,
+        l.remaining_balance ?? null,
+        isDraft ? null : (l.end_date ?? null),
+        linkedItemId,
+        l.created_at || null,
+        l.down_payment ?? null,
+        l.taeg ?? null,
+        l.opening_fee ?? null
+      );
+    }
   });
 
   doImport();
@@ -300,7 +329,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model, reference_salary FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, money_category, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -464,6 +493,16 @@ router.get('/:id/export', (req, res) => {
     .prepare('SELECT eti.name FROM annual_expense_distributions aed JOIN expense_template_items eti ON eti.id = aed.distribution_template_id WHERE aed.dossier_id = ?')
     .all(req.params.id).map((r) => r.name);
 
+  const loansExport = db
+    .prepare(
+      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.created_at, l.down_payment, l.taeg, l.opening_fee,
+              eti.name as linked_expense_name
+       FROM loans l
+       LEFT JOIN expense_template_items eti ON eti.id = l.expense_template_item_id
+       WHERE l.dossier_id = ? ORDER BY l.created_at`
+    )
+    .all(req.params.id);
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
@@ -478,6 +517,7 @@ router.get('/:id/export', (req, res) => {
       paperless_date_field_id: dossier.paperless_date_field_id ?? null,
       paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
       ai_model: dossier.ai_model ?? 'claude-opus-4-8',
+      reference_salary: dossier.reference_salary ?? null,
     },
     accounts,
     months: months.map((m) => ({
@@ -506,6 +546,7 @@ router.get('/:id/export', (req, res) => {
     annual_expense_years: annualExpenseYears,
     annual_expense_accounts: aeAccountNames,
     annual_expense_distributions: aeDistributionNames,
+    loans: loansExport,
   });
   console.log(`[dossiers] Exported dossier "${dossier.name}" (${req.params.id}) by user ${req.user.username}`);
 });
@@ -581,5 +622,7 @@ router.use('/:id', emergencyFundRouter);
 router.use('/:id', annualExpensesRouter);
 // AI Advisor sub-router
 router.use('/:id', aiAdvisorRouter);
+// Loans sub-router
+router.use('/:id', loansRouter);
 
 module.exports = router;
