@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faCheck, faTriangleExclamation, faCoins } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { formatNumber } from '../../utils/numbers';
 import LoanFormModal from './LoanFormModal';
@@ -127,14 +127,23 @@ export default function LoansTab({ dossierId }) {
                 <CoveragePill loan={loan} />
               </div>
 
-              <div style={{ display: 'flex', gap: 'var(--space-5)', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                <span className="tabular">
+              {/* Fixed-height stats row: nowrap + horizontal scroll instead of wrapping, so
+                  an extra stat (or a wide value like a 5-digit down payment) never grows the
+                  card — it scrolls sideways on narrow viewports instead. */}
+              <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'nowrap', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                <span className="tabular" style={{ flexShrink: 0 }}>
                   <strong style={{ color: 'var(--text-primary)' }}>{formatEur(loan.monthly_payment)}</strong>/mo
                 </span>
-                <span className="tabular">
+                {loan.down_payment != null && (
+                  <span className="tabular" title="Down payment" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <FontAwesomeIcon icon={faCoins} style={{ fontSize: 10, color: 'var(--text-muted)' }} />
+                    <strong style={{ color: 'var(--text-primary)' }}>{formatEur(loan.down_payment)}</strong>
+                  </span>
+                )}
+                <span className="tabular" style={{ flexShrink: 0 }}>
                   % of salary: {loan.salary_pct != null ? `${loan.salary_pct.toFixed(1)}%` : '—'}
                 </span>
-                <span className="tabular">{loan.interest_rate}% APR</span>
+                <span className="tabular" style={{ flexShrink: 0 }}>{loan.interest_rate}% APR</span>
               </div>
             </div>
           ))}
