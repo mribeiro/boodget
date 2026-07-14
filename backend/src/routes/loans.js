@@ -105,8 +105,9 @@ function computeLoanValues(loan, dossierId) {
   };
 }
 
-// down_payment, taeg, and opening_fee are all nullable, draft-only, non-negative numerics
-// with the same "cleared on promotion to active" behavior — shared parsing/validation.
+// down_payment, taeg, and opening_fee are all nullable, non-negative numerics that can only
+// be explicitly *set* while draft — but once set, persist unchanged across status changes
+// (shared parsing/validation).
 function parseDraftOnlyNullableNumber(body, existing, field, status) {
   let value = existing?.[field] ?? null;
   if (body[field] !== undefined) {

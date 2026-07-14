@@ -24,7 +24,7 @@ The Loans section lets users configure loans per dossier. Each loan is either a 
 | **Name** | Free text label for the loan |
 | **Status** | `draft` or `active` — see Section 3 |
 | **Interest rate** | Annual nominal percentage (e.g. `3.5` = 3.5%), 0–100. Always the **TAN** (nominal rate) — the rate that actually drives the amortization formula, labeled "TAN" on draft loans and "Interest rate" on active loans. Never the TAEG/APR, which is a separate, higher, fees-inclusive figure — see the `taeg` field below |
-| **Salary** | Per-loan editable value. Prefilled from the dossier's **most recent expense cycle's salary** when creating a loan; can be changed at any time and does not follow the cycle afterward |
+| **Salary** | Per-loan editable value. Prefilled from the dossier's manually-set **reference salary** setting when creating a loan (Section 6.1) — never derived from a cycle; can be changed at any time and does not follow the setting afterward |
 
 ### 2.2 Draft-only fields
 
