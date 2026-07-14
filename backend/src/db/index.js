@@ -617,6 +617,70 @@ const migrations = [
       }
     },
   },
+  {
+    id: '026_create_loans',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS loans (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','active')),
+          interest_rate REAL NOT NULL DEFAULT 0,
+          salary REAL,
+          principal REAL,
+          term_months INTEGER,
+          remaining_balance REAL,
+          months_left INTEGER,
+          expense_template_item_id TEXT REFERENCES expense_template_items(id) ON DELETE SET NULL,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
+  {
+    id: '027_add_down_payment_to_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'down_payment')) {
+        db.exec('ALTER TABLE loans ADD COLUMN down_payment REAL');
+      }
+    },
+  },
+  {
+    id: '028_add_taeg_and_opening_fee_to_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'taeg')) {
+        db.exec('ALTER TABLE loans ADD COLUMN taeg REAL');
+      }
+      if (!cols.find((c) => c.name === 'opening_fee')) {
+        db.exec('ALTER TABLE loans ADD COLUMN opening_fee REAL');
+      }
+    },
+  },
+  {
+    id: '029_replace_months_left_with_end_date_on_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'end_date')) {
+        db.exec('ALTER TABLE loans ADD COLUMN end_date TEXT');
+      }
+      const colsAfterAdd = db.prepare('PRAGMA table_info(loans)').all();
+      if (colsAfterAdd.find((c) => c.name === 'months_left')) {
+        db.exec('ALTER TABLE loans DROP COLUMN months_left');
+      }
+    },
+  },
+  {
+    id: '030_add_reference_salary_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'reference_salary')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN reference_salary REAL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

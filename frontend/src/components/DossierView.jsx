@@ -7,6 +7,7 @@ import {
   faCalendarCheck,
   faScaleBalanced,
   faBullseye,
+  faHandHoldingDollar,
   faShieldHalved,
   faGear,
   faArrowLeft,
@@ -21,6 +22,7 @@ import ExpensesTab from './expenses/ExpensesTab';
 import DossierSettingsTab from './DossierSettingsTab';
 import WorkbenchTab from './workbench/WorkbenchTab';
 import GoalsTab from './goals/GoalsTab';
+import LoansTab from './loans/LoansTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
 import GlancesPanel from './glances/GlancesPanel';
@@ -126,6 +128,7 @@ export default function DossierView() {
           { key: 'annual-expenses',  icon: faCalendarCheck, label: 'Annual Expenses' },
           { key: 'workbench',        icon: faScaleBalanced, label: 'Workbench' },
           { key: 'goals',            icon: faBullseye,      label: 'Goals' },
+          { key: 'loans',            icon: faHandHoldingDollar, label: 'Loans' },
           { key: 'emergency-fund',   icon: faShieldHalved,  label: 'Emergency Fund' },
           { key: 'settings',         icon: faGear,          label: 'Settings' },
         ].map(({ key, icon, label }) => (
@@ -269,6 +272,10 @@ export default function DossierView() {
 
       {activeTab === 'goals' && (
         <GoalsTab dossierId={id} />
+      )}
+
+      {activeTab === 'loans' && (
+        <LoansTab dossierId={id} />
       )}
 
       {activeTab === 'emergency-fund' && (

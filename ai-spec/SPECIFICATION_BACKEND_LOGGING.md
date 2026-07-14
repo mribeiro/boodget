@@ -50,6 +50,7 @@ Rules:
 | `[cycles]` | `routes/expenses.js` | Cycle created, cycle closed, cycle reopened, cycle deleted |
 | `[settings]` | `routes/expenses.js` | Settings updated (include the list of changed field names) |
 | `[goals]` | `routes/goals.js` | Goal created, goal deleted |
+| `[loans]` | `routes/loans.js` | Loan created, updated, deleted |
 | `[emergency-fund]` | `routes/emergency-fund.js` | Account selection updated |
 
 ---
