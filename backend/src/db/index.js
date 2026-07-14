@@ -690,6 +690,15 @@ const migrations = [
       }
     },
   },
+  {
+    id: '032_add_loans_max_salary_pct_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'loans_max_salary_pct')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN loans_max_salary_pct REAL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

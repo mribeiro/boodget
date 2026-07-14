@@ -60,7 +60,7 @@ router.post('/import', (req, res) => {
 
   const doImport = db.transaction(() => {
     db.prepare(
-      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, reference_salary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, reference_salary, loans_max_salary_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25,
       data.dossier.emergency_fund_months_multiplier ?? 6,
@@ -68,7 +68,8 @@ router.post('/import', (req, res) => {
       data.dossier.paperless_url ?? null,
       data.dossier.paperless_date_field_id ?? null,
       data.dossier.paperless_amount_field_id ?? null,
-      data.dossier.reference_salary ?? null
+      data.dossier.reference_salary ?? null,
+      data.dossier.loans_max_salary_pct ?? null
     );
 
     const accountIdMap = {};
@@ -327,7 +328,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, reference_salary FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, money_category, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -515,6 +516,7 @@ router.get('/:id/export', (req, res) => {
       paperless_date_field_id: dossier.paperless_date_field_id ?? null,
       paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
       reference_salary: dossier.reference_salary ?? null,
+      loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
     },
     accounts,
     months: months.map((m) => ({

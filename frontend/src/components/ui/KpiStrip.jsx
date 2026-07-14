@@ -78,7 +78,7 @@ export default function KpiStrip({ items, style, defaultOpen = false }) {
         }}>
           <div style={{ overflow: 'hidden' }}>
             {visible.map((item, i) => (
-              <div key={i} className="kpi-strip-row">
+              <div key={i} className="kpi-strip-row" style={{ flexWrap: item.note ? 'wrap' : undefined }}>
                 <span className="kpi-strip-row-label">
                   {item.icon && <FontAwesomeIcon icon={item.icon} style={{ marginRight: 5 }} />}
                   {item.label}
@@ -86,6 +86,11 @@ export default function KpiStrip({ items, style, defaultOpen = false }) {
                 <span className="kpi-strip-row-value" style={{ color: color(item.highlight) }}>
                   {item.value}
                 </span>
+                {item.note && (
+                  <span style={{ flexBasis: '100%', fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    {item.note}
+                  </span>
+                )}
               </div>
             ))}
           </div>
