@@ -42,6 +42,7 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const [remainingBalance, setRemainingBalance] = useState(loan?.remaining_balance != null ? String(loan.remaining_balance) : '');
   const [endYear, setEndYear] = useState(initialEndYM.year);
   const [endMonth, setEndMonth] = useState(initialEndYM.month);
+  const [dayOfPayment, setDayOfPayment] = useState(loan?.day_of_payment != null ? String(loan.day_of_payment) : '');
   const [expenseTemplateItemId, setExpenseTemplateItemId] = useState(loan?.expense_template_item_id ?? '');
   const [purchasePrice, setPurchasePrice] = useState(loan?.purchase_price != null ? String(loan.purchase_price) : '');
   const [downPayment, setDownPayment] = useState(loan?.down_payment != null ? String(loan.down_payment) : '');
@@ -83,7 +84,8 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const effectiveDraftPrincipal = usingPriceBreakdown ? computedPrincipal : parseDecimalInput(principal);
 
   const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}`;
-  const previewMonthsLeft = status === 'active' ? computeMonthsLeft(endDate) : null;
+  const parsedDayOfPayment = dayOfPayment === '' ? null : Number(dayOfPayment);
+  const previewMonthsLeft = status === 'active' ? computeMonthsLeft(endDate, parsedDayOfPayment) : null;
 
   const previewPayment = status === 'draft'
     ? computeMonthlyPayment(effectiveDraftPrincipal, parseDecimalInput(interestRate), Number(termMonths))
@@ -151,9 +153,14 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
     } else {
       const b = parseDecimalInput(remainingBalance);
       if (isNaN(b) || b <= 0) { setError('Remaining balance must be a positive number'); return; }
-      if (computeMonthsLeft(endDate) < 1) { setError('End date must be the current month or later'); return; }
+      if (!Number.isInteger(parsedDayOfPayment) || parsedDayOfPayment < 1 || parsedDayOfPayment > 31) {
+        setError('Day of payment must be an integer between 1 and 31');
+        return;
+      }
+      if (computeMonthsLeft(endDate, parsedDayOfPayment) < 1) { setError('End date must be the current month or later'); return; }
       payload.remaining_balance = b;
       payload.end_date = endDate;
+      payload.day_of_payment = parsedDayOfPayment;
       payload.expense_template_item_id = expenseTemplateItemId || null;
     }
 
@@ -290,28 +297,40 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
                     <input type="text" inputMode="decimal" value={remainingBalance} onChange={(e) => setRemainingBalance(e.target.value)} placeholder="0.00" />
                   </div>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label>Loan end date</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 0 }}>
-                        {MONTH_NAMES.map((m, i) => (
-                          <option key={i + 1} value={i + 1}>{m}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="number" inputMode="decimal"
-                        value={endYear}
-                        onChange={(e) => setEndYear(Number(e.target.value))}
-                        min="2020"
-                        max="2100"
-                        style={{ flex: '0 0 70px', minWidth: 0 }}
-                      />
+                    <label>Day of payment (1–31)</label>
+                    <input
+                      type="number" inputMode="numeric" step="1" min={1} max={31}
+                      value={dayOfPayment}
+                      onChange={(e) => setDayOfPayment(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="e.g. 5"
+                    />
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Once this day passes each month, that month counts as paid.
                     </div>
-                    {previewMonthsLeft != null && (
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                        {previewMonthsLeft} month{previewMonthsLeft === 1 ? '' : 's'} left — calculated automatically, no need to update this every month.
-                      </div>
-                    )}
                   </div>
+                </div>
+                <div className="form-group">
+                  <label>Loan end date</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 0 }}>
+                      {MONTH_NAMES.map((m, i) => (
+                        <option key={i + 1} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number" inputMode="decimal"
+                      value={endYear}
+                      onChange={(e) => setEndYear(Number(e.target.value))}
+                      min="2020"
+                      max="2100"
+                      style={{ flex: '0 0 70px', minWidth: 0 }}
+                    />
+                  </div>
+                  {previewMonthsLeft != null && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      {previewMonthsLeft} month{previewMonthsLeft === 1 ? '' : 's'} left — calculated automatically, no need to update this every month.
+                    </div>
+                  )}
                 </div>
                 {isEdit && (purchasePrice !== '' || downPayment !== '' || principal !== '' || termMonths !== '' || taeg !== '' || openingFee !== '') && (
                   <div className="card card--flat" style={{ padding: 'var(--space-3)', fontSize: '0.8rem' }}>

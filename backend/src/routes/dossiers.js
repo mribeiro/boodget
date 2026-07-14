@@ -270,8 +270,8 @@ router.post('/import', (req, res) => {
 
     // Loans (v10+) — re-linked to the new Fixed expense template item by name, active only
     const insertLoan = db.prepare(
-      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, day_of_payment, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const l of (data.loans || [])) {
       const linkedItemId = l.status === 'active' && l.linked_expense_name ? (expenseTemplateNameToId[l.linked_expense_name] ?? null) : null;
@@ -287,6 +287,7 @@ router.post('/import', (req, res) => {
         l.term_months ?? null,
         l.remaining_balance ?? null,
         isDraft ? null : (l.end_date ?? null),
+        isDraft ? null : (l.day_of_payment ?? null),
         linkedItemId,
         l.created_at || null,
         l.down_payment ?? null,
@@ -492,7 +493,7 @@ router.get('/:id/export', (req, res) => {
 
   const loansExport = db
     .prepare(
-      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.created_at, l.down_payment, l.taeg, l.opening_fee,
+      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.day_of_payment, l.created_at, l.down_payment, l.taeg, l.opening_fee,
               eti.name as linked_expense_name
        FROM loans l
        LEFT JOIN expense_template_items eti ON eti.id = l.expense_template_item_id

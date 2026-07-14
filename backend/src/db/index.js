@@ -681,6 +681,15 @@ const migrations = [
       }
     },
   },
+  {
+    id: '031_add_day_of_payment_to_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'day_of_payment')) {
+        db.exec('ALTER TABLE loans ADD COLUMN day_of_payment INTEGER');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
