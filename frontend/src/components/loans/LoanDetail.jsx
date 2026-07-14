@@ -32,14 +32,26 @@ function formatEndDate(ym) {
   return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
-function formatDuration(months) {
-  if (!months || months <= 0) return '—';
+function yearsBreakdown(months) {
   const years = Math.floor(months / 12);
   const rem = months % 12;
   const parts = [];
   if (years > 0) parts.push(`${years} year${years === 1 ? '' : 's'}`);
   if (rem > 0) parts.push(`${rem} month${rem === 1 ? '' : 's'}`);
-  return parts.join(' ') + ' sooner';
+  return parts;
+}
+
+function formatDuration(months) {
+  if (!months || months <= 0) return '—';
+  return yearsBreakdown(months).join(' ') + ' sooner';
+}
+
+// Appends a "(N years [and M months])" breakdown alongside a raw month count, once it's
+// long enough for years to be a more readable unit — e.g. 300 -> "300 (25 years)".
+function formatMonthsWithYears(months) {
+  if (months == null) return '—';
+  if (months < 12) return String(months);
+  return `${months} (${yearsBreakdown(months).join(' and ')})`;
 }
 
 function formatSignedEur(value) {
@@ -227,9 +239,9 @@ export default function LoanDetail() {
             )}
             <StatRow label={isActive ? 'Remaining balance' : 'Principal'} value={formatEur(isActive ? loan.remaining_balance : loan.principal)} />
             {isActive && <StatRow label="End date" value={formatEndDate(loan.end_date)} />}
-            <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={isActive ? loan.months_left : loan.term_months} />
+            <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={formatMonthsWithYears(isActive ? loan.months_left : loan.term_months)} />
             {isActive && loan.term_months != null && (
-              <StatRow label="Original term (months)" value={loan.term_months} />
+              <StatRow label="Original term (months)" value={formatMonthsWithYears(loan.term_months)} />
             )}
             {loan.taeg != null && (
               <StatRow label="TAEG (reference only)" value={`${loan.taeg}%`} />
