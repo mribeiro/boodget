@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faCheck, faTriangleExclamation,
-  faWallet, faCoins, faBullseye, faPercent, faReceipt,
+  faWallet, faCoins, faBullseye, faPercent, faReceipt, faArrowUp,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft } from '../../utils/loanMath';
 import LoanFormModal from './LoanFormModal';
+import PromoteLoanModal from './PromoteLoanModal';
 import ConfirmModal from '../ConfirmModal';
 import CollapsibleSection from '../ui/CollapsibleSection';
 
@@ -64,6 +65,7 @@ export default function LoanDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showEdit, setShowEdit] = useState(false);
+  const [showPromote, setShowPromote] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
 
   const [downpayment, setDownpayment] = useState('');
@@ -160,6 +162,11 @@ export default function LoanDetail() {
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEdit(true)}>
             <FontAwesomeIcon icon={faPencil} /><span className="cycle-toolbar-label">Edit</span>
           </button>
+          {!isActive && (
+            <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowPromote(true)}>
+              <FontAwesomeIcon icon={faArrowUp} /><span className="cycle-toolbar-label">Promote</span>
+            </button>
+          )}
           <button className="cycle-toolbar-btn btn-danger" onClick={handleDelete}>
             <FontAwesomeIcon icon={faTrash} /><span className="cycle-toolbar-label">Delete</span>
           </button>
@@ -411,6 +418,18 @@ export default function LoanDetail() {
             load();
           }}
           onClose={() => setShowEdit(false)}
+        />
+      )}
+      {showPromote && (
+        <PromoteLoanModal
+          dossierId={dossierId}
+          loan={loan}
+          onSave={(updated) => {
+            setLoan(updated);
+            setShowPromote(false);
+            load();
+          }}
+          onClose={() => setShowPromote(false)}
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
