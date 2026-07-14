@@ -6,6 +6,7 @@ const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const { computeEmergencyFundStatus } = require('./emergency-fund');
 const { computeGoalValues } = require('./goals');
+const { computeLoanValues } = require('./loans');
 
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
@@ -51,7 +52,7 @@ function cycleLabel(year, month) {
 // Build a trimmed, model-readable snapshot of the dossier's finances.
 function buildDossierContext(dossierId) {
   const dossier = db
-    .prepare('SELECT name, currency, cycle_start_day FROM dossiers WHERE id = ?')
+    .prepare('SELECT name, currency, cycle_start_day, reference_salary FROM dossiers WHERE id = ?')
     .get(dossierId);
 
   const accounts = db
@@ -188,6 +189,30 @@ function buildDossierContext(dossierId) {
   const efStatus = computeEmergencyFundStatus(dossierId);
   delete efStatus.contributing_accounts;
 
+  // Loans — draft (what-if studies) and active (real, ongoing). Amortization schedules are
+  // not included (they're client-side-only and can span hundreds of rows for long terms).
+  const loanRows = db.prepare('SELECT * FROM loans WHERE dossier_id = ? ORDER BY created_at ASC').all(dossierId);
+  const loans = loanRows.map((loan) => {
+    const computed = computeLoanValues(loan, dossierId);
+    return {
+      name: loan.name,
+      status: loan.status,
+      interest_rate: loan.interest_rate,
+      monthly_payment: computed.monthly_payment,
+      salary_pct: computed.salary_pct,
+      ...(loan.status === 'draft'
+        ? { principal: loan.principal, term_months: loan.term_months }
+        : { remaining_balance: loan.remaining_balance, months_left: computed.months_left }),
+      purchase_price: computed.purchase_price,
+      total_interest: computed.total_interest,
+      total_amount_payable: computed.total_amount_payable,
+      remaining_interest: computed.remaining_interest,
+      linked_expense_item: computed.linked_item?.name ?? null,
+      covered: computed.covered,
+      coverage_difference: computed.coverage_difference,
+    };
+  });
+
   // Annual expense years summary
   const annualYears = db
     .prepare('SELECT id, year, carryover FROM annual_expense_years WHERE dossier_id = ? ORDER BY year DESC LIMIT 3')
@@ -210,13 +235,19 @@ function buildDossierContext(dossierId) {
   return JSON.stringify(
     {
       today: new Date().toISOString().slice(0, 10),
-      dossier: { name: dossier.name, currency: dossier.currency || 'EUR', cycle_start_day: dossier.cycle_start_day ?? 25 },
+      dossier: {
+        name: dossier.name,
+        currency: dossier.currency || 'EUR',
+        cycle_start_day: dossier.cycle_start_day ?? 25,
+        reference_salary: dossier.reference_salary ?? null,
+      },
       accounts: accounts.map((a) => ({ group: a.group_name, name: a.name, type: a.type, money_category: a.money_category })),
       capital_series: capitalSeries,
       latest_snapshot: latestSnapshot,
       expense_template,
       recent_cycles,
       goals,
+      loans,
       emergency_fund: efStatus,
       annual_expense_years,
     },
@@ -338,11 +369,12 @@ const ANALYSIS_SCHEMA = {
 const ANALYSIS_SYSTEM_INTRO = `You are a personal-finance advisor analysing a user's financial dossier from the "boodget" capital-tracking app.
 All monetary amounts are in the dossier's currency unless stated otherwise. Percentages and trends should be computed from the capital series.
 Produce a rigorous but encouraging analysis:
-- health_score: an integer from 0 (critical) to 100 (excellent) reflecting overall financial health (savings buffer, expense discipline, capital trend, goal feasibility).
+- health_score: an integer from 0 (critical) to 100 (excellent) reflecting overall financial health (savings buffer, expense discipline, capital trend, goal feasibility, loan repayment capacity).
 - health_summary: 2-4 sentences summarising the overall situation.
 - highlights: 3-6 notable strengths or positive facts, each with a short title and a specific detail referencing actual numbers.
 - improvements: 2-6 concrete, actionable suggestions, each with a short title and a specific detail.
 - risks: 0-4 risks or warning signs worth watching (empty array if none).
+The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
 Be specific — reference actual account names, amounts, and months from the data. Use plain text inside every field: no markdown, no bullet characters.
 
 The dossier data follows:
@@ -350,6 +382,7 @@ The dossier data follows:
 
 const CHAT_SYSTEM_INTRO = `You are a personal-finance advisor inside the "boodget" capital-tracking app, chatting with the owner of the financial dossier below.
 Answer questions about this dossier concretely, referencing actual numbers, account names, and months from the data. All amounts are in the dossier's currency.
+The dossier may include loans (draft studies or active, ongoing loans) — draw on their monthly payments, interest rates, budget coverage, and total interest figures when relevant; treat draft loans as hypothetical studies, not commitments.
 Be concise. Answer in plain text only — no markdown, no headers, no bullet characters. If a question cannot be answered from the data, say so briefly.
 
 The dossier data follows:

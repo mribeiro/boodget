@@ -17,7 +17,7 @@ It lives in a dedicated **AI Advisor** tab in `DossierView` (`frontend/src/compo
 
 ## Model selection
 
-- Persisted per dossier in `dossiers.ai_model` (migration `026_add_ai_advisor`), default `claude-opus-4-8`.
+- Persisted per dossier in `dossiers.ai_model` (migration `031_add_ai_advisor`), default `claude-opus-4-8`.
 - Exposed through the existing `GET/PATCH /api/dossiers/:id/settings`; PATCH validates against the whitelist.
 - Whitelist and pricing (USD per million tokens; used for the cost estimate):
 
@@ -42,13 +42,14 @@ The frontend renders it via `CostLabel.jsx` as `~$ 0,0234 · 12.345 in / 890 out
 
 `buildDossierContext(dossierId)` produces a JSON snapshot (no internal ids), size-capped:
 
-- Dossier name, currency, `cycle_start_day`, today's date.
+- Dossier name, currency, `cycle_start_day`, `reference_salary` (the manually-set salary used to prefill new loans and denominate the Loans tab's % of salary — Section 6.1 of `SPECIFICATION_LOANS.md`), today's date.
 - Non-archived accounts (group, name, type, money_category).
 - Capital time series: last **24 filled months** (`capital_total` = idle+active, `idle_total`, `stocks_total`).
 - Latest filled month's per-account values.
 - Monthly expense template (expenses with classification/day, distributions with must/want/save).
 - Last **6 cycles** with salary, previous balance, items (paid/spent/done state), closed state, final real balance. Cycles are labelled with their display month (the month they end in).
 - Goals with computed values (reuses `computeGoalValues`, now exported from `routes/goals.js`).
+- **Loans** — every loan (draft and active), reusing `computeLoanValues` (now exported from `routes/loans.js`): name, status, interest rate, `monthly_payment`, `salary_pct`; draft-only `principal`/`term_months` or active-only `remaining_balance`/`months_left`; `purchase_price`/`total_interest`/`total_amount_payable` whenever origination data is on record; active-only `remaining_interest` and, for linked loans, the linked expense item's name plus `covered`/`coverage_difference`. The month-by-month amortization schedule is **not** included — it's client-side-only and can run hundreds of rows for long terms, which would bloat the payload for no analytical benefit.
 - Emergency-fund status (reuses `computeEmergencyFundStatus`, extracted from the `/emergency-fund/status` handler and exported from `routes/emergency-fund.js`; `contributing_accounts` stripped).
 - Last 3 annual expense years (carryover, total budgeted, total paid).
 
@@ -73,14 +74,14 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 ## Analysis behaviour
 
 - Uses **structured outputs** (`output_config.format` with a JSON schema) so the response always parses; `max_tokens` 8192.
-- The system prompt instructs: score 0–100, 2–4 sentence summary, 3–6 highlights, 2–6 improvements, 0–4 risks; plain text in every field; reference concrete numbers/accounts/months.
+- The system prompt instructs: score 0–100, 2–4 sentence summary, 3–6 highlights, 2–6 improvements, 0–4 risks; plain text in every field; reference concrete numbers/accounts/months. It also instructs the model to factor active loans' `monthly_payment` into repayment capacity, flag underbudgeted (uncovered) linked loans as a risk, and treat draft loans as hypothetical studies rather than real liabilities.
 - Result is **upserted** into `ai_analyses` (UNIQUE on `dossier_id` — only the latest analysis is kept per dossier). The tab shows the stored analysis with "Analysed on [date] · [model] · cost" on open; a Re-analyze button replaces it.
 - `stop_reason` handling: `refusal` → 502 with a suggestion to pick another model; `max_tokens` → 502 "cut short". Text is extracted by concatenating only `type === 'text'` content blocks (thinking blocks are ignored).
 
 ## Chat behaviour
 
 - Ephemeral by design: history lives in component state, resets on tab leave, and the full history is re-sent each turn (`max_tokens` 2048 per reply).
-- The chat system prompt instructs concise plain-text answers (no markdown — the UI renders with `white-space: pre-wrap`, no markdown renderer).
+- The chat system prompt instructs concise plain-text answers (no markdown — the UI renders with `white-space: pre-wrap`, no markdown renderer) and to draw on loan data (payments, rates, coverage, total interest) when relevant, treating draft loans as hypothetical.
 - UI: bubbles (`.ai-chat-bubble--user/--assistant`), "Thinking…" pending bubble, per-reply cost label, Clear button.
 
 ## Export / import
