@@ -394,6 +394,39 @@ Be concise. Answer in plain text only — no markdown, no headers, no bullet cha
 The dossier data follows:
 `;
 
+// Standalone prompt meant to be copied/downloaded and pasted directly into claude.ai chat (or any
+// Claude client billed by subscription rather than API usage). Unlike ANALYSIS_SYSTEM_INTRO, this
+// is addressed to Claude in the second person as a one-shot user message (not an API `system`
+// block), asks for markdown (claude.ai renders it, unlike this app's own plain-text chat panel),
+// and explicitly invites the user to keep chatting afterwards using the pasted data as context.
+const EXPORT_PROMPT_INTRO = `You are a personal-finance advisor. I'm pasting a JSON snapshot of my financial dossier from an app called "boodget" — please analyse it.
+All monetary amounts are in the currency noted in the data. Reply in markdown, formatted exactly like this:
+
+**Financial health score:** X/100 — [one-line label: critical / poor / fair / good / excellent]
+
+**Summary:** 2-4 sentences on my overall financial situation.
+
+**Highlights:**
+- **Title** — specific detail referencing actual numbers, accounts, or months.
+(3-6 notable strengths)
+
+**Improvements:**
+- **Title** — specific, actionable detail.
+(2-6 concrete suggestions)
+
+**Risks:**
+- **Title** — specific detail.
+(0-4 risks or warning signs — omit this whole section if there are none)
+
+The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
+Be specific — reference actual account names, amounts, and months from the data.
+
+After giving me this analysis, keep answering any follow-up questions I ask about this dossier, using the same data below as context.
+
+Here is the dossier data:
+
+`;
+
 function analysisResponse(row) {
   let parsed = null;
   try {
@@ -421,6 +454,17 @@ router.get('/ai-advisor/analysis', (req, res) => {
     configured: !!config.apiKey,
     analysis: row ? analysisResponse(row) : null,
   });
+});
+
+// GET /ai-advisor/export-prompt — a self-contained prompt for pasting into claude.ai chat
+// (or any subscription-billed Claude client), so the user can run the same analysis without
+// incurring API costs. Does not call the Claude API and does not require an apiKey.
+router.get('/ai-advisor/export-prompt', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const config = resolveAiConfig(req.params.id);
+  if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
+  const context = buildDossierContext(req.params.id);
+  res.json({ prompt: EXPORT_PROMPT_INTRO + context });
 });
 
 // POST /ai-advisor/analysis — run a new analysis and persist it

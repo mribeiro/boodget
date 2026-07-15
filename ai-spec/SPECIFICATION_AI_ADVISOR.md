@@ -6,6 +6,7 @@ The AI Advisor is a per-dossier feature that sends a trimmed snapshot of the dos
 
 1. **Analysis** — a structured financial-health assessment triggered by an "Analyze dossier" button.
 2. **Chat** — a free-form conversation about the dossier, with the same data snapshot as context.
+3. **Export prompt** — a copy/download of a self-contained prompt (same instructions + data) for pasting into claude.ai chat or any other subscription-billed Claude client, for users who'd rather not pay per API call.
 
 It lives in a dedicated **AI Advisor** tab in `DossierView` (`frontend/src/components/ai-advisor/`), backed by `backend/src/routes/ai-advisor.js` (mounted from `dossiers.js` like the other `/:id` sub-routers).
 
@@ -83,6 +84,11 @@ POST /api/dossiers/:id/ai-advisor/chat   { messages: [{role, content}] }
      Validation: 1–40 messages, roles user/assistant, non-empty strings ≤ 8000 chars,
      must start and end with a user message. Nothing persisted.
      Errors: 403 AI disabled · 503 not configured
+
+GET  /api/dossiers/:id/ai-advisor/export-prompt
+     → { prompt: string } — self-contained, paste-into-claude.ai prompt (context + instructions)
+     Does not call the Claude API; no API key required.
+     Errors: 403 AI disabled for this dossier
 ```
 
 The `analysis` object merges the stored JSON content with metadata: `health_score` (integer 0–100), `health_summary`, `highlights[]`, `improvements[]`, `risks[]` (each item `{title, detail}`), plus `model`, `created_at`, `cost_usd`, `input_tokens`, `output_tokens`.
@@ -99,6 +105,14 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 - Ephemeral by design: history lives in component state, resets on tab leave, and the full history is re-sent each turn (`max_tokens` 2048 per reply).
 - The chat system prompt instructs concise plain-text answers (no markdown — the UI renders with `white-space: pre-wrap`, no markdown renderer) and to draw on loan data (payments, rates, coverage, total interest) when relevant, treating draft loans as hypothetical.
 - UI: bubbles (`.ai-chat-bubble--user/--assistant`), "Thinking…" pending bubble, per-reply cost label, Clear button.
+
+## Export prompt (paste into claude.ai chat)
+
+For users who'd rather use a Claude subscription than pay per API call, the "Use your Claude subscription instead" card (always shown, regardless of `configured`) lets them copy or download the same analysis as a self-contained, one-shot prompt:
+
+- `GET /api/dossiers/:id/ai-advisor/export-prompt` → `{ prompt: string }`. Gated only on `canAccess` + `config.enabled` (`403` when AI is disabled for the dossier) — it does **not** call the Claude API and does **not** require an API key, so `configured` is irrelevant here.
+- The prompt is `EXPORT_PROMPT_INTRO + buildDossierContext(dossierId)` — the same context payload as the in-app analysis/chat, prefixed with a standalone instruction block (`EXPORT_PROMPT_INTRO` in `ai-advisor.js`) that differs from `ANALYSIS_SYSTEM_INTRO` in two ways: it's phrased as a one-shot **user** message addressed to Claude in the second person (not an API `system` block), and it asks for **markdown** output (claude.ai's UI renders it, unlike this app's own plain-text `ChatPanel`). It asks for the same fields — health score 0–100 with a one-line label, summary, highlights, improvements, risks — plus the same loans/`reference_salary`/`loans_max_salary_pct` instructions as the in-app analysis, and closes by inviting the user to keep asking follow-up questions using the pasted data as context.
+- Frontend (`AIAdvisorTab.jsx`): "Copy to clipboard" (`navigator.clipboard.writeText`, with a transient "Copied!" checkmark state) and "Download as text file" (client-side `Blob`, filename `<dossier name>_ai_prompt.txt`). Both fetch a fresh prompt on click rather than caching one, so the data is always current.
 
 ## Export / import
 
