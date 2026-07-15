@@ -61,7 +61,7 @@ router.post('/import', (req, res) => {
 
   const doImport = db.transaction(() => {
     db.prepare(
-      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model, reference_salary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model, reference_salary, loans_max_salary_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25,
       data.dossier.emergency_fund_months_multiplier ?? 6,
@@ -71,7 +71,8 @@ router.post('/import', (req, res) => {
       data.dossier.paperless_amount_field_id ?? null,
       // Versions <= 9 have no ai_model; default to the app's default model
       data.dossier.ai_model ?? 'claude-opus-4-8',
-      data.dossier.reference_salary ?? null
+      data.dossier.reference_salary ?? null,
+      data.dossier.loans_max_salary_pct ?? null
     );
 
     const accountIdMap = {};
@@ -273,8 +274,8 @@ router.post('/import', (req, res) => {
 
     // Loans (v10+) — re-linked to the new Fixed expense template item by name, active only
     const insertLoan = db.prepare(
-      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, day_of_payment, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const l of (data.loans || [])) {
       const linkedItemId = l.status === 'active' && l.linked_expense_name ? (expenseTemplateNameToId[l.linked_expense_name] ?? null) : null;
@@ -290,6 +291,7 @@ router.post('/import', (req, res) => {
         l.term_months ?? null,
         l.remaining_balance ?? null,
         isDraft ? null : (l.end_date ?? null),
+        isDraft ? null : (l.day_of_payment ?? null),
         linkedItemId,
         l.created_at || null,
         l.down_payment ?? null,
@@ -329,7 +331,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model, reference_salary FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_model, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, money_category, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -495,7 +497,7 @@ router.get('/:id/export', (req, res) => {
 
   const loansExport = db
     .prepare(
-      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.created_at, l.down_payment, l.taeg, l.opening_fee,
+      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.day_of_payment, l.created_at, l.down_payment, l.taeg, l.opening_fee,
               eti.name as linked_expense_name
        FROM loans l
        LEFT JOIN expense_template_items eti ON eti.id = l.expense_template_item_id
@@ -518,6 +520,7 @@ router.get('/:id/export', (req, res) => {
       paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
       ai_model: dossier.ai_model ?? 'claude-opus-4-8',
       reference_salary: dossier.reference_salary ?? null,
+      loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
     },
     accounts,
     months: months.map((m) => ({

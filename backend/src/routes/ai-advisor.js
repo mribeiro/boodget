@@ -52,7 +52,7 @@ function cycleLabel(year, month) {
 // Build a trimmed, model-readable snapshot of the dossier's finances.
 function buildDossierContext(dossierId) {
   const dossier = db
-    .prepare('SELECT name, currency, cycle_start_day, reference_salary FROM dossiers WHERE id = ?')
+    .prepare('SELECT name, currency, cycle_start_day, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
     .get(dossierId);
 
   const accounts = db
@@ -240,6 +240,7 @@ function buildDossierContext(dossierId) {
         currency: dossier.currency || 'EUR',
         cycle_start_day: dossier.cycle_start_day ?? 25,
         reference_salary: dossier.reference_salary ?? null,
+        loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
       },
       accounts: accounts.map((a) => ({ group: a.group_name, name: a.name, type: a.type, money_category: a.money_category })),
       capital_series: capitalSeries,
@@ -374,7 +375,7 @@ Produce a rigorous but encouraging analysis:
 - highlights: 3-6 notable strengths or positive facts, each with a short title and a specific detail referencing actual numbers.
 - improvements: 2-6 concrete, actionable suggestions, each with a short title and a specific detail.
 - risks: 0-4 risks or warning signs worth watching (empty array if none).
-The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
+The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
 Be specific — reference actual account names, amounts, and months from the data. Use plain text inside every field: no markdown, no bullet characters.
 
 The dossier data follows:

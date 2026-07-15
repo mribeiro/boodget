@@ -149,7 +149,7 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model, reference_salary FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
@@ -165,6 +165,7 @@ router.get('/settings', (req, res) => {
     expense_notification_days_before: dossier.expense_notification_days_before ?? 1,
     ai_model: dossier.ai_model ?? 'claude-opus-4-8',
     reference_salary: dossier.reference_salary ?? null,
+    loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
   });
 });
 
@@ -191,6 +192,7 @@ router.patch('/settings', (req, res) => {
     expense_notification_days_before,
     ai_model,
     reference_salary,
+    loans_max_salary_pct,
   } = req.body;
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
@@ -233,6 +235,11 @@ router.patch('/settings', (req, res) => {
       return res.status(400).json({ error: 'reference_salary must be null or a non-negative number' });
     }
   }
+  if (loans_max_salary_pct !== undefined && loans_max_salary_pct !== null) {
+    if (typeof loans_max_salary_pct !== 'number' || isNaN(loans_max_salary_pct) || loans_max_salary_pct < 0 || loans_max_salary_pct > 100) {
+      return res.status(400).json({ error: 'loans_max_salary_pct must be null or a number between 0 and 100' });
+    }
+  }
 
   const updates = [];
   const params = [];
@@ -249,6 +256,7 @@ router.patch('/settings', (req, res) => {
   if (expense_notification_days_before !== undefined) { updates.push('expense_notification_days_before = ?'); params.push(expense_notification_days_before); }
   if (ai_model !== undefined) { updates.push('ai_model = ?'); params.push(ai_model); }
   if (reference_salary !== undefined) { updates.push('reference_salary = ?'); params.push(reference_salary); }
+  if (loans_max_salary_pct !== undefined) { updates.push('loans_max_salary_pct = ?'); params.push(loans_max_salary_pct); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -257,7 +265,7 @@ router.patch('/settings', (req, res) => {
   console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model, reference_salary FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_model, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
@@ -273,6 +281,7 @@ router.patch('/settings', (req, res) => {
     expense_notification_days_before: updated.expense_notification_days_before ?? 1,
     ai_model: updated.ai_model ?? 'claude-opus-4-8',
     reference_salary: updated.reference_salary ?? null,
+    loans_max_salary_pct: updated.loans_max_salary_pct ?? null,
   });
 });
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faCheck, faTriangleExclamation, faCoins } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { formatNumber } from '../../utils/numbers';
 import LoanFormModal from './LoanFormModal';
@@ -44,12 +44,14 @@ function CoveragePill({ loan }) {
 export default function LoansTab({ dossierId }) {
   const navigate = useNavigate();
   const [loans, setLoans] = useState([]);
+  const [maxSalaryPct, setMaxSalaryPct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     loadLoans();
+    api.getDossierSettings(dossierId).then((s) => setMaxSalaryPct(s.loans_max_salary_pct)).catch(() => {});
   }, [dossierId]);
 
   async function loadLoans() {
@@ -79,6 +81,26 @@ export default function LoansTab({ dossierId }) {
   const referenceSalary = loans.find((l) => l.reference_salary != null)?.reference_salary ?? null;
   const totalSalaryPct = referenceSalary > 0 ? (totalMonthlyAmount / referenceSalary) * 100 : null;
 
+  // Traffic-light against the configured max % of salary for loans: red once at or over the
+  // max, yellow within the last 2 percentage points below it, green otherwise. No highlight
+  // if the max hasn't been configured (Dossier Settings → Loan Settings) — nothing to compare against.
+  const maxSalaryAbsolute = maxSalaryPct != null && referenceSalary > 0 ? (maxSalaryPct / 100) * referenceSalary : null;
+  const pctHighlight =
+    maxSalaryPct == null || totalSalaryPct == null
+      ? 'neutral'
+      : totalSalaryPct >= maxSalaryPct
+        ? 'danger'
+        : totalSalaryPct >= maxSalaryPct - 2
+          ? 'warning'
+          : 'success';
+  const freeRoom = maxSalaryAbsolute != null ? maxSalaryAbsolute - totalMonthlyAmount : null;
+  const pctNote =
+    maxSalaryPct != null && totalSalaryPct != null
+      ? `${formatEur(totalMonthlyAmount)} of ${formatEur(maxSalaryAbsolute)} max · ${
+          freeRoom >= 0 ? `${formatEur(freeRoom)} free` : `${formatEur(Math.abs(freeRoom))} over`
+        }`
+      : undefined;
+
   return (
     <div>
       {error && <div className="alert alert-error" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
@@ -98,7 +120,8 @@ export default function LoansTab({ dossierId }) {
           {
             label: '% of salary',
             value: totalSalaryPct != null ? `${totalSalaryPct.toFixed(1)}%` : '—',
-            highlight: totalSalaryPct != null && totalSalaryPct > 50 ? 'danger' : 'neutral',
+            highlight: pctHighlight,
+            note: pctNote,
           },
         ]} />
       )}
@@ -120,21 +143,34 @@ export default function LoansTab({ dossierId }) {
               onClick={() => navigate(`/dossiers/${dossierId}/loans/${loan.id}`)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 600, fontSize: 15, flex: 1 }}>{loan.name}</span>
+                <span style={{ fontWeight: 600, fontSize: 15 }}>{loan.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {loan.interest_rate}% {loan.status === 'active' ? 'APR' : 'TAN'}
+                </span>
+                <span style={{ flex: 1 }} />
                 <span className={`badge badge-${loan.status === 'active' ? 'brand' : 'neutral'}`}>
                   {loan.status === 'active' ? 'Active' : 'Draft'}
                 </span>
                 <CoveragePill loan={loan} />
               </div>
 
-              <div style={{ display: 'flex', gap: 'var(--space-5)', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                <span className="tabular">
+              {/* Fixed-height stats row: nowrap + horizontal scroll instead of wrapping, so
+                  a wide value (e.g. a 5-digit down payment) never grows the card — it scrolls
+                  sideways on narrow viewports instead. Interest rate lives next to the name
+                  above, so this row rarely needs to scroll in practice. */}
+              <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'nowrap', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                <span className="tabular" style={{ flexShrink: 0 }}>
                   <strong style={{ color: 'var(--text-primary)' }}>{formatEur(loan.monthly_payment)}</strong>/mo
                 </span>
-                <span className="tabular">
+                {loan.down_payment != null && (
+                  <span className="tabular" title="Down payment" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <FontAwesomeIcon icon={faCoins} style={{ fontSize: 10, color: 'var(--text-muted)' }} />
+                    <strong style={{ color: 'var(--text-primary)' }}>{formatEur(loan.down_payment)}</strong>
+                  </span>
+                )}
+                <span className="tabular" style={{ flexShrink: 0 }}>
                   % of salary: {loan.salary_pct != null ? `${loan.salary_pct.toFixed(1)}%` : '—'}
                 </span>
-                <span className="tabular">{loan.interest_rate}% APR</span>
               </div>
             </div>
           ))}

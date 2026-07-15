@@ -166,31 +166,49 @@ function EmergencyFundSettings({ dossierId }) {
   );
 }
 
+function formatPct(value) {
+  if (value == null || isNaN(value)) return 'Not set';
+  return formatNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+}
+
 function LoanSettings({ dossierId }) {
   const [referenceSalary, setReferenceSalary] = useState(null);
-  const [editing, setEditing] = useState(false);
+  const [maxSalaryPct, setMaxSalaryPct] = useState(null);
+  const [editingField, setEditingField] = useState(null); // 'reference_salary' | 'loans_max_salary_pct' | null
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setReferenceSalary(s.reference_salary)).catch(() => {});
+    api.getDossierSettings(dossierId).then((s) => {
+      setReferenceSalary(s.reference_salary);
+      setMaxSalaryPct(s.loans_max_salary_pct);
+    }).catch(() => {});
   }, [dossierId]);
 
-  function openEdit() {
-    setDraft(referenceSalary != null ? String(referenceSalary) : '');
-    setEditing(true);
+  function openEdit(field) {
+    const current = field === 'reference_salary' ? referenceSalary : maxSalaryPct;
+    setDraft(current != null ? String(current) : '');
+    setEditingField(field);
     setError('');
   }
 
   async function handleSave() {
     const v = draft.trim() === '' ? null : parseDecimalInput(draft);
-    if (v != null && (isNaN(v) || v < 0)) { setError('Must be empty or a non-negative number'); return; }
+    if (editingField === 'loans_max_salary_pct' && v != null && (isNaN(v) || v < 0 || v > 100)) {
+      setError('Must be empty or a number between 0 and 100');
+      return;
+    }
+    if (editingField === 'reference_salary' && v != null && (isNaN(v) || v < 0)) {
+      setError('Must be empty or a non-negative number');
+      return;
+    }
     setSaving(true);
     try {
-      const updated = await api.updateDossierSettings(dossierId, { reference_salary: v });
+      const updated = await api.updateDossierSettings(dossierId, { [editingField]: v });
       setReferenceSalary(updated.reference_salary);
-      setEditing(false);
+      setMaxSalaryPct(updated.loans_max_salary_pct);
+      setEditingField(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -203,18 +221,26 @@ function LoanSettings({ dossierId }) {
       <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Reference monthly salary</span>
         <strong>{formatEur(referenceSalary)}</strong>
-        <button className="btn-secondary" onClick={openEdit} style={{ padding: '0.5rem 0.75rem' }}>
+        <button className="btn-secondary" onClick={() => openEdit('reference_salary')} style={{ padding: '0.5rem 0.75rem' }}>
           <FontAwesomeIcon icon={faPencil} />
         </button>
       </div>
 
-      {editing && (
+      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Max % of salary assigned to loans</span>
+        <strong>{formatPct(maxSalaryPct)}</strong>
+        <button className="btn-secondary" onClick={() => openEdit('loans_max_salary_pct')} style={{ padding: '0.5rem 0.75rem' }}>
+          <FontAwesomeIcon icon={faPencil} />
+        </button>
+      </div>
+
+      {editingField && (
         <Modal
-          title="Reference monthly salary"
-          onClose={() => setEditing(false)}
+          title={editingField === 'reference_salary' ? 'Reference monthly salary' : 'Max % of salary assigned to loans'}
+          onClose={() => setEditingField(null)}
           footer={
             <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
-              <button className="btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
@@ -226,7 +252,7 @@ function LoanSettings({ dossierId }) {
               type="text" inputMode="decimal"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="0.00"
+              placeholder={editingField === 'reference_salary' ? '0.00' : 'e.g. 30'}
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
@@ -578,7 +604,7 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
 
       <SettingsCard
         title="Loan Settings"
-        description="A manually-set reference salary used to prefill new loans and to compute the Loans tab's total % of salary — set this deliberately rather than relying on a cycle's salary, which can include one-off bonuses."
+        description="A manually-set reference salary used to prefill new loans and to compute the Loans tab's total % of salary — set this deliberately rather than relying on a cycle's salary, which can include one-off bonuses. The max % sets the threshold the Loans tab warns against as your loan payments approach it."
       >
         <LoanSettings dossierId={dossierId} />
       </SettingsCard>

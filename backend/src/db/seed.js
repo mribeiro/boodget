@@ -264,12 +264,12 @@ function mkLoan(dossierId, def) {
   db.prepare(
     `INSERT INTO loans
        (id, dossier_id, name, status, interest_rate, salary, principal, term_months,
-        remaining_balance, end_date, expense_template_item_id, down_payment, taeg, opening_fee)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        remaining_balance, end_date, day_of_payment, expense_template_item_id, down_payment, taeg, opening_fee)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, dossierId, def.name, def.status, def.interest_rate,
     def.salary ?? null, def.principal ?? null, def.term_months ?? null,
-    def.remaining_balance ?? null, def.end_date ?? null,
+    def.remaining_balance ?? null, def.end_date ?? null, def.day_of_payment ?? null,
     def.expense_template_item_id ?? null,
     def.down_payment ?? null, def.taeg ?? null, def.opening_fee ?? null
   );
@@ -461,6 +461,7 @@ module.exports = function seed() {
     mkLoan(d0, {
       name: 'Car Loan', status: 'active', interest_rate: 4.5, salary: 1950,
       remaining_balance: 9000, end_date: addMonthsYM(calYear, calMonth, 47), // 48 months left
+      day_of_payment: 8, // matches "Car Loan Payment" template's own day_of_payment
       expense_template_item_id: templateIds[10], // Car Loan Payment
     });
     mkLoan(d0, {

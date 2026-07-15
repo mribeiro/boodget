@@ -42,7 +42,7 @@ The frontend renders it via `CostLabel.jsx` as `~$ 0,0234 · 12.345 in / 890 out
 
 `buildDossierContext(dossierId)` produces a JSON snapshot (no internal ids), size-capped:
 
-- Dossier name, currency, `cycle_start_day`, `reference_salary` (the manually-set salary used to prefill new loans and denominate the Loans tab's % of salary — Section 6.1 of `SPECIFICATION_LOANS.md`), today's date.
+- Dossier name, currency, `cycle_start_day`, `reference_salary` and `loans_max_salary_pct` (the manually-set salary used to prefill new loans / denominate the Loans tab's % of salary, and the user's self-imposed ceiling on that % — Sections 6.1/6.2 of `SPECIFICATION_LOANS.md`), today's date.
 - Non-archived accounts (group, name, type, money_category).
 - Capital time series: last **24 filled months** (`capital_total` = idle+active, `idle_total`, `stocks_total`).
 - Latest filled month's per-account values.
@@ -74,7 +74,7 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 ## Analysis behaviour
 
 - Uses **structured outputs** (`output_config.format` with a JSON schema) so the response always parses; `max_tokens` 8192.
-- The system prompt instructs: score 0–100, 2–4 sentence summary, 3–6 highlights, 2–6 improvements, 0–4 risks; plain text in every field; reference concrete numbers/accounts/months. It also instructs the model to factor active loans' `monthly_payment` into repayment capacity, flag underbudgeted (uncovered) linked loans as a risk, and treat draft loans as hypothetical studies rather than real liabilities.
+- The system prompt instructs: score 0–100, 2–4 sentence summary, 3–6 highlights, 2–6 improvements, 0–4 risks; plain text in every field; reference concrete numbers/accounts/months. It also instructs the model to factor active loans' `monthly_payment` into repayment capacity, flag underbudgeted (uncovered) linked loans as a risk, compare combined active-loan payments against the dossier's `loans_max_salary_pct` ceiling (when both it and `reference_salary` are set) and flag if exceeded, and treat draft loans as hypothetical studies rather than real liabilities.
 - Result is **upserted** into `ai_analyses` (UNIQUE on `dossier_id` — only the latest analysis is kept per dossier). The tab shows the stored analysis with "Analysed on [date] · [model] · cost" on open; a Re-analyze button replaces it.
 - `stop_reason` handling: `refusal` → 502 with a suggestion to pick another model; `max_tokens` → 502 "cut short". Text is extracted by concatenating only `type === 'text'` content blocks (thinking blocks are ignored).
 
