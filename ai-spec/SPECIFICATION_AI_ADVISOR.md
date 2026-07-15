@@ -11,14 +11,16 @@ It lives in a dedicated **AI Advisor** tab in `DossierView` (`frontend/src/compo
 
 ## Configuration
 
-- The server operator supplies their own Anthropic API key via the `ANTHROPIC_API_KEY` environment variable (set in `.env`, referenced by `docker-compose.yml`). There is **no per-user key** and the key is never exposed to the frontend.
-- If the key is missing: `GET /ai-advisor/analysis` still succeeds and returns `configured: false` (the UI shows a setup card and disables actions); `POST` endpoints return `503` with a setup message.
+- The server operator can supply a shared Anthropic API key via the `ANTHROPIC_API_KEY` environment variable (set in `.env`, referenced by `docker-compose.yml`). Additionally, each dossier can set its own key in **Settings → AI Settings** (`dossiers.ai_api_key`, write-only — never returned by any GET endpoint, and stripped from `GET /api/dossiers/:id`'s `SELECT *` response before it reaches the frontend). A dossier's own key, when set, takes priority over the env var; otherwise the env var is used as a fallback. Neither key is ever exposed to the frontend once saved (the settings GET exposes only `ai_api_key_set: bool`, mirroring the `paperless_token` convention).
+- **Per-dossier enable/disable**: `dossiers.ai_enabled` (default `true`) is also configured in Settings → AI Settings. When disabled: the **AI Advisor tab is not rendered at all** in `DossierView` (no reference to AI appears anywhere in the dossier UI), and all three backend endpoints (`GET/POST /ai-advisor/analysis`, `POST /ai-advisor/chat`) return `403 { error: 'AI Advisor is disabled for this dossier' }` regardless of frontend state, as defense in depth.
+- If no key is resolved (neither dossier nor env var): `GET /ai-advisor/analysis` still succeeds and returns `configured: false` (the UI shows a setup card pointing at both configuration options, and disables actions); `POST` endpoints return `503` with a setup message.
 - The Claude API is called with raw `fetch` (no SDK dependency): `POST https://api.anthropic.com/v1/messages`, headers `x-api-key`, `anthropic-version: 2023-06-01`, 180 s `AbortController` timeout. No `thinking` parameter is sent (models use their own defaults).
 
 ## Model selection
 
-- Persisted per dossier in `dossiers.ai_model` (migration `031_add_ai_advisor`), default `claude-opus-4-8`.
+- Persisted per dossier in `dossiers.ai_model` (migration `033_add_ai_advisor`), default `claude-opus-4-8`.
 - Exposed through the existing `GET/PATCH /api/dossiers/:id/settings`; PATCH validates against the whitelist.
+- Editable from two places that write the same setting: the `<select>` in the AI Advisor tab header, and the "Default model" picker in **Settings → AI Settings** (`DossierSettingsTab.jsx`).
 - Whitelist and pricing (USD per million tokens; used for the cost estimate):
 
 | Model | Input | Output | Notes |
@@ -28,7 +30,7 @@ It lives in a dedicated **AI Advisor** tab in `DossierView` (`frontend/src/compo
 | `claude-opus-4-8` | $5 | $25 | **default** — best for financial analysis |
 | `claude-fable-5` | $10 | $50 | most capable; requires 30-day data retention on the Anthropic org and may refuse requests (safety classifiers) |
 
-- The picker is a `<select>` in the AI Advisor tab header; changing it PATCHes the setting immediately.
+- Both pickers are plain `<select>`s; changing either PATCHes the setting immediately.
 
 ## Cost label
 
@@ -53,20 +55,34 @@ The frontend renders it via `CostLabel.jsx` as `~$ 0,0234 · 12.345 in / 890 out
 - Emergency-fund status (reuses `computeEmergencyFundStatus`, extracted from the `/emergency-fund/status` handler and exported from `routes/emergency-fund.js`; `contributing_accounts` stripped).
 - Last 3 annual expense years (carryover, total budgeted, total paid).
 
+## AI Settings (dossier Settings tab)
+
+`DossierSettingsTab.jsx` has an **AI Settings** `SettingsCard` (`AISettings` component) with three controls, all writing through the existing `GET/PATCH /api/dossiers/:id/settings`:
+
+1. **Enable/disable** — a `Checkbox` bound to `ai_enabled`. Toggling PATCHes immediately.
+2. **Default model** — the same `ai_model` `<select>` as the AI Advisor tab's picker (kept in sync since both read/write the same setting).
+3. **Claude API key** — a write-only, `paperless_token`-style inline text field (masked by default with a show/hide eye toggle) bound to `ai_api_key`. The GET response only ever reveals `ai_api_key_set: bool`; the raw key is never sent to the frontend once saved. Leaving it blank falls back to the operator's `ANTHROPIC_API_KEY` env var.
+
+Backend enforcement (`backend/src/routes/ai-advisor.js`'s `resolveAiConfig(dossierId)`): reads `ai_enabled`/`ai_api_key`/`ai_model` from `dossiers`, resolves `apiKey = dossier.ai_api_key || process.env.ANTHROPIC_API_KEY || null`, and all three AI Advisor endpoints check `config.enabled` up front, returning `403` when disabled — independent of whether the frontend tab is reachable.
+
+Schema: migration `034_add_ai_settings_to_dossiers` adds `dossiers.ai_enabled INTEGER DEFAULT 1` and `dossiers.ai_api_key TEXT` (nullable, secret).
+
 ## Endpoints
 
 ```
 GET  /api/dossiers/:id/ai-advisor/analysis
      → { configured: bool, analysis: {...} | null }
+     Errors: 403 AI disabled for this dossier
 
 POST /api/dossiers/:id/ai-advisor/analysis
      → runs a new analysis, upserts ai_analyses, returns same shape as GET
-     Errors: 503 not configured · 502 upstream/refusal/truncation/unparseable
+     Errors: 403 AI disabled · 503 not configured · 502 upstream/refusal/truncation/unparseable
 
 POST /api/dossiers/:id/ai-advisor/chat   { messages: [{role, content}] }
      → { reply, model, cost_usd, input_tokens, output_tokens }
      Validation: 1–40 messages, roles user/assistant, non-empty strings ≤ 8000 chars,
      must start and end with a user message. Nothing persisted.
+     Errors: 403 AI disabled · 503 not configured
 ```
 
 The `analysis` object merges the stored JSON content with metadata: `health_score` (integer 0–100), `health_summary`, `highlights[]`, `improvements[]`, `risks[]` (each item `{title, detail}`), plus `model`, `created_at`, `cost_usd`, `input_tokens`, `output_tokens`.
@@ -86,7 +102,8 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 
 ## Export / import
 
-- Export format **version 10**: `dossier.ai_model` round-trips. Imports of versions ≤ 9 default it to `claude-opus-4-8`.
+- Export format **version 10**: `dossier.ai_model` and `dossier.ai_enabled` round-trip. Imports of versions ≤ 9 default `ai_model` to `claude-opus-4-8` and `ai_enabled` to `true`.
+- `ai_api_key` is a secret, like `paperless_token` — it is **never exported or imported**. An imported dossier always falls back to the operator's `ANTHROPIC_API_KEY` env var (if set) until a new key is entered in its own Settings.
 - `ai_analyses` rows are deliberately **not** exported (point-in-time, cheap to regenerate).
 
 ## Logging
@@ -97,4 +114,4 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 
 - Streaming (SSE) chat responses — buffered by design; can be added later.
 - Persisting chat history.
-- Per-user API keys or spend limits.
+- Per-user API keys or spend limits (per-*dossier* keys are supported; see AI Settings above).

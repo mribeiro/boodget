@@ -17,7 +17,15 @@ import ShareManager from './ShareManager';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Modal from './ui/Modal';
+import Checkbox from './ui/Checkbox';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
+
+const AI_MODEL_OPTIONS = [
+  { value: 'claude-haiku-4-5', label: 'Haiku 4.5 — fastest & cheapest' },
+  { value: 'claude-sonnet-5', label: 'Sonnet 5 — balanced' },
+  { value: 'claude-opus-4-8', label: 'Opus 4.8 — best for financial analysis' },
+  { value: 'claude-fable-5', label: 'Fable 5 — most capable' },
+];
 
 function formatEur(value) {
   if (value == null || isNaN(value)) return 'Not set';
@@ -455,6 +463,128 @@ function PaperlessSettings({ dossierId }) {
   );
 }
 
+function AISettings({ dossierId }) {
+  const [settings, setSettings] = useState({ ai_enabled: true, ai_model: 'claude-opus-4-8', ai_api_key_set: false });
+  const [editingKey, setEditingKey] = useState(false);
+  const [keyDraft, setKeyDraft] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
+  }, [dossierId]);
+
+  async function updateField(fields) {
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await api.updateDossierSettings(dossierId, fields);
+      setSettings(updated);
+      return updated;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleEnabled() {
+    updateField({ ai_enabled: !settings.ai_enabled }).catch(() => {});
+  }
+
+  function handleModelChange(e) {
+    updateField({ ai_model: e.target.value }).catch(() => {});
+  }
+
+  function startKeyEdit() {
+    setKeyDraft('');
+    setShowKey(false);
+    setEditingKey(true);
+    setError('');
+  }
+
+  function cancelKeyEdit() {
+    setEditingKey(false);
+    setKeyDraft('');
+    setError('');
+  }
+
+  async function saveKey() {
+    try {
+      await updateField({ ai_api_key: keyDraft.trim() || null });
+      setEditingKey(false);
+      setKeyDraft('');
+    } catch (err) {
+      // error already surfaced via updateField
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <Checkbox checked={settings.ai_enabled} onChange={toggleEnabled} disabled={saving} />
+        <span style={{ fontSize: '0.875rem' }}>Enable AI features for this dossier</span>
+      </div>
+
+      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Default model</span>
+        <select value={settings.ai_model} onChange={handleModelChange} disabled={saving} style={{ minWidth: '14rem' }}>
+          {AI_MODEL_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Claude API key</span>
+          {editingKey ? (
+            <>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={keyDraft}
+                  onChange={(e) => setKeyDraft(e.target.value)}
+                  placeholder="sk-ant-…"
+                  autoFocus
+                  style={{ width: '16rem', paddingRight: '2rem' }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveKey(); if (e.key === 'Escape') cancelKeyEdit(); }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  style={{ position: 'absolute', right: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
+                >
+                  <FontAwesomeIcon icon={showKey ? faEyeSlash : faEye} />
+                </button>
+              </div>
+              <button className="btn-primary" onClick={saveKey} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button className="btn-secondary" onClick={cancelKeyEdit}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                {settings.ai_api_key_set
+                  ? '••••••••'
+                  : <em style={{ color: 'var(--text-muted)' }}>Not set — falls back to the server's ANTHROPIC_API_KEY</em>}
+              </span>
+              <button className="btn-secondary" onClick={startKeyEdit} style={{ padding: '0.5rem 0.75rem' }}>
+                <FontAwesomeIcon icon={faPencil} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+    </div>
+  );
+}
+
 function NotificationDossierSettings({ dossierId }) {
   const [value, setValue] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
@@ -621,6 +751,13 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         description="Link fixed expenses to Paperless-ngx document tags to auto-fill values and payment days from scanned documents."
       >
         <PaperlessSettings dossierId={dossierId} />
+      </SettingsCard>
+
+      <SettingsCard
+        title="AI Settings"
+        description="Control the AI Advisor for this dossier. When disabled, the AI Advisor tab and all AI references are hidden. The API key is optional — if left unset, the server's ANTHROPIC_API_KEY environment variable is used instead."
+      >
+        <AISettings dossierId={dossierId} />
       </SettingsCard>
 
       <SettingsCard title="Accounts" description="Add, reorder, and archive accounts tracked in this dossier.">

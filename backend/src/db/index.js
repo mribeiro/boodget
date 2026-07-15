@@ -722,6 +722,18 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '034_add_ai_settings_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'ai_enabled')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN ai_enabled INTEGER DEFAULT 1');
+      }
+      if (!cols.find((c) => c.name === 'ai_api_key')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN ai_api_key TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

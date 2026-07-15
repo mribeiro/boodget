@@ -80,7 +80,8 @@ export default function AIAdvisorTab({ dossierId }) {
             AI Advisor is not configured
           </h3>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-            Set <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file (referenced by{' '}
+            Set an API key for this dossier in Settings → AI Settings, or set{' '}
+            <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file (referenced by{' '}
             <code>docker-compose.yml</code>) and restart the app. You can create an API key at{' '}
             console.anthropic.com. Costs are billed to your own Anthropic account; each response
             shows an estimate of what it cost.

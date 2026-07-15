@@ -76,6 +76,12 @@ export default function DossierView() {
       .catch(() => setError('Failed to load dossier'));
   }, [id]);
 
+  const aiEnabled = dossier ? dossier.ai_enabled !== 0 : true;
+
+  useEffect(() => {
+    if (!aiEnabled && activeTab === 'ai-advisor') setActiveTab('capital');
+  }, [aiEnabled, activeTab]);
+
   async function handleAddMonth({ year, month }) {
     try {
       const m = await api.createMonth(id, { year, month });
@@ -132,7 +138,7 @@ export default function DossierView() {
           { key: 'goals',            icon: faBullseye,      label: 'Goals' },
           { key: 'loans',            icon: faHandHoldingDollar, label: 'Loans' },
           { key: 'emergency-fund',   icon: faShieldHalved,  label: 'Emergency Fund' },
-          { key: 'ai-advisor',       icon: faWandMagicSparkles, label: 'AI Advisor' },
+          ...(aiEnabled ? [{ key: 'ai-advisor', icon: faWandMagicSparkles, label: 'AI Advisor' }] : []),
           { key: 'settings',         icon: faGear,          label: 'Settings' },
         ].map(({ key, icon, label }) => (
           <button
@@ -285,7 +291,7 @@ export default function DossierView() {
         <EmergencyFundTab dossierId={id} />
       )}
 
-      {activeTab === 'ai-advisor' && (
+      {activeTab === 'ai-advisor' && aiEnabled && (
         <AIAdvisorTab dossierId={id} />
       )}
 

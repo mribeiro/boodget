@@ -258,10 +258,11 @@ function buildDossierContext(dossierId) {
 }
 
 // Call the Claude Messages API. Returns { text, usage, model } or throws { status, message }.
-async function callClaude({ model, system, messages, maxTokens, outputFormat }) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+async function callClaude({ model, system, messages, maxTokens, outputFormat, apiKey }) {
   if (!apiKey) {
-    const err = new Error('AI Advisor is not configured. Set ANTHROPIC_API_KEY in your .env / docker-compose environment.');
+    const err = new Error(
+      'AI Advisor is not configured. Set an API key in this dossier\'s Settings → AI Settings, or set ANTHROPIC_API_KEY in your .env / docker-compose environment.'
+    );
     err.status = 503;
     throw err;
   }
@@ -324,10 +325,14 @@ async function callClaude({ model, system, messages, maxTokens, outputFormat }) 
   return { text, usage: data.usage || {}, model: data.model || model };
 }
 
-function getDossierModel(dossierId) {
-  const dossier = db.prepare('SELECT ai_model FROM dossiers WHERE id = ?').get(dossierId);
-  const model = dossier?.ai_model || DEFAULT_AI_MODEL;
-  return ALLOWED_AI_MODELS.includes(model) ? model : DEFAULT_AI_MODEL;
+// Resolves per-dossier AI configuration: whether the feature is enabled, which API key to use
+// (dossier-specific key takes priority over the operator's ANTHROPIC_API_KEY env var), and model.
+function resolveAiConfig(dossierId) {
+  const dossier = db.prepare('SELECT ai_enabled, ai_api_key, ai_model FROM dossiers WHERE id = ?').get(dossierId);
+  const enabled = dossier?.ai_enabled == null ? true : !!dossier.ai_enabled;
+  const apiKey = dossier?.ai_api_key || process.env.ANTHROPIC_API_KEY || null;
+  const model = ALLOWED_AI_MODELS.includes(dossier?.ai_model) ? dossier.ai_model : DEFAULT_AI_MODEL;
+  return { enabled, apiKey, model };
 }
 
 const ANALYSIS_SCHEMA = {
@@ -409,9 +414,11 @@ function analysisResponse(row) {
 // GET /ai-advisor/analysis — last persisted analysis
 router.get('/ai-advisor/analysis', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const config = resolveAiConfig(req.params.id);
+  if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
   const row = db.prepare('SELECT * FROM ai_analyses WHERE dossier_id = ?').get(req.params.id);
   res.json({
-    configured: !!process.env.ANTHROPIC_API_KEY,
+    configured: !!config.apiKey,
     analysis: row ? analysisResponse(row) : null,
   });
 });
@@ -419,7 +426,9 @@ router.get('/ai-advisor/analysis', (req, res) => {
 // POST /ai-advisor/analysis — run a new analysis and persist it
 router.post('/ai-advisor/analysis', async (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const model = getDossierModel(req.params.id);
+  const config = resolveAiConfig(req.params.id);
+  if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
+  const model = config.model;
 
   try {
     const context = buildDossierContext(req.params.id);
@@ -429,6 +438,7 @@ router.post('/ai-advisor/analysis', async (req, res) => {
       messages: [{ role: 'user', content: 'Analyse this financial dossier and return the structured assessment.' }],
       maxTokens: 8192,
       outputFormat: { type: 'json_schema', schema: ANALYSIS_SCHEMA },
+      apiKey: config.apiKey,
     });
 
     let parsed;
@@ -478,6 +488,8 @@ router.post('/ai-advisor/analysis', async (req, res) => {
 // POST /ai-advisor/chat — one buffered chat turn with the dossier as context
 router.post('/ai-advisor/chat', async (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const config = resolveAiConfig(req.params.id);
+  if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
   const { messages } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -498,7 +510,7 @@ router.post('/ai-advisor/chat', async (req, res) => {
     return res.status(400).json({ error: 'Conversation must start and end with a user message' });
   }
 
-  const model = getDossierModel(req.params.id);
+  const model = config.model;
 
   try {
     const context = buildDossierContext(req.params.id);
@@ -507,6 +519,7 @@ router.post('/ai-advisor/chat', async (req, res) => {
       system: CHAT_SYSTEM_INTRO + context,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       maxTokens: 2048,
+      apiKey: config.apiKey,
     });
 
     const costUsd = computeCostUsd(model, result.usage);
