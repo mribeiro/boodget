@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWandMagicSparkles, faKey } from '@fortawesome/free-solid-svg-icons';
+import { faWandMagicSparkles, faKey, faCopy, faFileExport, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import AnalysisPanel from './AnalysisPanel';
 import ChatPanel from './ChatPanel';
@@ -12,7 +12,7 @@ const MODEL_OPTIONS = [
   { value: 'claude-fable-5', label: 'Fable 5 — most capable ($10/$50 per MTok)' },
 ];
 
-export default function AIAdvisorTab({ dossierId }) {
+export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [configured, setConfigured] = useState(false);
@@ -20,6 +20,9 @@ export default function AIAdvisorTab({ dossierId }) {
   const [aiModel, setAiModel] = useState('claude-opus-4-8');
   const [analyzing, setAnalyzing] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
+  const [exportingPrompt, setExportingPrompt] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [justCopied, setJustCopied] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -67,11 +70,66 @@ export default function AIAdvisorTab({ dossierId }) {
     }
   }
 
+  async function handleCopyPrompt() {
+    setExportError('');
+    setExportingPrompt(true);
+    try {
+      const { prompt } = await api.getAiExportPrompt(dossierId);
+      await navigator.clipboard.writeText(prompt);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 2500);
+    } catch (err) {
+      setExportError(err.message || 'Could not copy the prompt to the clipboard');
+    } finally {
+      setExportingPrompt(false);
+    }
+  }
+
+  async function handleDownloadPrompt() {
+    setExportError('');
+    setExportingPrompt(true);
+    try {
+      const { prompt } = await api.getAiExportPrompt(dossierId);
+      const blob = new Blob([prompt], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(dossierName || 'dossier').replace(/[^a-z0-9]/gi, '_')}_ai_prompt.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err.message || 'Could not download the prompt');
+    } finally {
+      setExportingPrompt(false);
+    }
+  }
+
   if (loading) return <div className="loading">Loading…</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {error && <div className="alert alert-error">{error}</div>}
+
+      <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
+        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Use your Claude subscription instead</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+          Copy or download a ready-to-paste prompt with this dossier's full context and the same
+          instructions used by "Analyze dossier" below (health score, summary, highlights,
+          improvements, risks). Paste it into claude.ai chat — no API key needed, billed to your
+          Claude subscription instead of API usage — then keep chatting under the same context.
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn-secondary" onClick={handleCopyPrompt} disabled={exportingPrompt}>
+            <FontAwesomeIcon icon={justCopied ? faCheck : faCopy} style={{ marginRight: '0.4rem' }} />
+            {exportingPrompt ? 'Preparing…' : justCopied ? 'Copied!' : 'Copy to clipboard'}
+          </button>
+          <button className="btn-secondary" onClick={handleDownloadPrompt} disabled={exportingPrompt}>
+            <FontAwesomeIcon icon={faFileExport} style={{ marginRight: '0.4rem' }} />
+            Download as text file
+          </button>
+        </div>
+        {exportError && <div className="alert alert-error" style={{ marginTop: 10 }}>{exportError}</div>}
+      </div>
 
       {!configured && (
         <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
@@ -84,7 +142,8 @@ export default function AIAdvisorTab({ dossierId }) {
             <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file (referenced by{' '}
             <code>docker-compose.yml</code>) and restart the app. You can create an API key at{' '}
             console.anthropic.com. Costs are billed to your own Anthropic account; each response
-            shows an estimate of what it cost.
+            shows an estimate of what it cost. Alternatively, use the section above to run the same
+            analysis in claude.ai chat instead, using your Claude subscription — no key required.
           </p>
         </div>
       )}

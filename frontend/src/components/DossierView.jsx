@@ -292,7 +292,7 @@ export default function DossierView() {
       )}
 
       {activeTab === 'ai-advisor' && aiEnabled && (
-        <AIAdvisorTab dossierId={id} />
+        <AIAdvisorTab dossierId={id} dossierName={dossier.name} />
       )}
 
       {activeTab === 'settings' && (

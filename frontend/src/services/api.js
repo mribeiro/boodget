@@ -218,4 +218,5 @@ export const api = {
   getAiAnalysis: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/analysis`),
   runAiAnalysis: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/analysis`),
   sendAiChatMessage: (dossierId, data) => request('POST', `/dossiers/${dossierId}/ai-advisor/chat`, data),
+  getAiExportPrompt: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/export-prompt`),
 };
