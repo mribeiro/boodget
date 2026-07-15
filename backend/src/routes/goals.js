@@ -649,3 +649,5 @@ router.post('/goals/:goalId/historical-contributions/bulk-replace', (req, res) =
 });
 
 module.exports = router;
+// Shared with the AI Advisor context builder
+module.exports.computeGoalValues = computeGoalValues;

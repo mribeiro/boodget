@@ -699,6 +699,41 @@ const migrations = [
       }
     },
   },
+  {
+    id: '033_add_ai_advisor',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'ai_model')) {
+        db.exec("ALTER TABLE dossiers ADD COLUMN ai_model TEXT DEFAULT 'claude-opus-4-8'");
+      }
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS ai_analyses (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL UNIQUE REFERENCES dossiers(id) ON DELETE CASCADE,
+          model TEXT NOT NULL,
+          content TEXT NOT NULL,
+          input_tokens INTEGER,
+          output_tokens INTEGER,
+          cache_creation_input_tokens INTEGER,
+          cache_read_input_tokens INTEGER,
+          cost_usd REAL,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+      `);
+    },
+  },
+  {
+    id: '034_add_ai_settings_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'ai_enabled')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN ai_enabled INTEGER DEFAULT 1');
+      }
+      if (!cols.find((c) => c.name === 'ai_api_key')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN ai_api_key TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

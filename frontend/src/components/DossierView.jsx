@@ -9,6 +9,7 @@ import {
   faBullseye,
   faHandHoldingDollar,
   faShieldHalved,
+  faWandMagicSparkles,
   faGear,
   faArrowLeft,
   faCalendarPlus,
@@ -25,6 +26,7 @@ import GoalsTab from './goals/GoalsTab';
 import LoansTab from './loans/LoansTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
+import AIAdvisorTab from './ai-advisor/AIAdvisorTab';
 import GlancesPanel from './glances/GlancesPanel';
 import { formatNumber } from '../utils/numbers';
 
@@ -73,6 +75,12 @@ export default function DossierView() {
       })
       .catch(() => setError('Failed to load dossier'));
   }, [id]);
+
+  const aiEnabled = dossier ? dossier.ai_enabled !== 0 : true;
+
+  useEffect(() => {
+    if (!aiEnabled && activeTab === 'ai-advisor') setActiveTab('capital');
+  }, [aiEnabled, activeTab]);
 
   async function handleAddMonth({ year, month }) {
     try {
@@ -130,6 +138,7 @@ export default function DossierView() {
           { key: 'goals',            icon: faBullseye,      label: 'Goals' },
           { key: 'loans',            icon: faHandHoldingDollar, label: 'Loans' },
           { key: 'emergency-fund',   icon: faShieldHalved,  label: 'Emergency Fund' },
+          ...(aiEnabled ? [{ key: 'ai-advisor', icon: faWandMagicSparkles, label: 'AI Advisor' }] : []),
           { key: 'settings',         icon: faGear,          label: 'Settings' },
         ].map(({ key, icon, label }) => (
           <button
@@ -280,6 +289,10 @@ export default function DossierView() {
 
       {activeTab === 'emergency-fund' && (
         <EmergencyFundTab dossierId={id} />
+      )}
+
+      {activeTab === 'ai-advisor' && aiEnabled && (
+        <AIAdvisorTab dossierId={id} />
       )}
 
       {activeTab === 'settings' && (
