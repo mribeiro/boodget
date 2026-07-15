@@ -93,9 +93,12 @@ export default function LoansTab({ dossierId }) {
         : totalSalaryPct >= maxSalaryPct - 2
           ? 'warning'
           : 'success';
+  const freeRoom = maxSalaryAbsolute != null ? maxSalaryAbsolute - totalMonthlyAmount : null;
   const pctNote =
     maxSalaryPct != null && totalSalaryPct != null
-      ? `${formatEur(totalMonthlyAmount)} of ${formatEur(maxSalaryAbsolute)} max`
+      ? `${formatEur(totalMonthlyAmount)} of ${formatEur(maxSalaryAbsolute)} max · ${
+          freeRoom >= 0 ? `${formatEur(freeRoom)} free` : `${formatEur(Math.abs(freeRoom))} over`
+        }`
       : undefined;
 
   return (
