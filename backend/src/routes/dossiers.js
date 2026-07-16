@@ -61,7 +61,7 @@ router.post('/import', (req, res) => {
 
   const doImport = db.transaction(() => {
     db.prepare(
-      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, reference_salary, loans_max_salary_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25,
       data.dossier.emergency_fund_months_multiplier ?? 6,
@@ -73,6 +73,7 @@ router.post('/import', (req, res) => {
       // ai_api_key is a secret and is never exported/imported.
       (data.dossier.ai_enabled ?? true) ? 1 : 0,
       data.dossier.ai_model ?? 'claude-opus-4-8',
+      data.dossier.ai_user_context ?? null,
       data.dossier.reference_salary ?? null,
       data.dossier.loans_max_salary_pct ?? null
     );
@@ -334,7 +335,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, money_category, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -523,6 +524,7 @@ router.get('/:id/export', (req, res) => {
       paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
       ai_enabled: dossier.ai_enabled == null ? true : !!dossier.ai_enabled,
       ai_model: dossier.ai_model ?? 'claude-opus-4-8',
+      ai_user_context: dossier.ai_user_context ?? null,
       reference_salary: dossier.reference_salary ?? null,
       loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
     },

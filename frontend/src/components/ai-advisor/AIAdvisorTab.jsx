@@ -23,6 +23,10 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [exportingPrompt, setExportingPrompt] = useState(false);
   const [exportError, setExportError] = useState('');
   const [justCopied, setJustCopied] = useState(false);
+  const [userNotes, setUserNotes] = useState('');
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -33,6 +37,8 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       setConfigured(analysisResp.configured);
       setAnalysis(analysisResp.analysis);
       setAiModel(settings.ai_model || 'claude-opus-4-8');
+      setUserNotes(settings.ai_user_context || '');
+      setNotesDraft(settings.ai_user_context || '');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -54,6 +60,22 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       setError(err.message);
     } finally {
       setSavingModel(false);
+    }
+  }
+
+  async function handleSaveNotes() {
+    setError('');
+    setSavingNotes(true);
+    try {
+      const updated = await api.updateDossierSettings(dossierId, { ai_user_context: notesDraft });
+      setUserNotes(updated.ai_user_context || '');
+      setNotesDraft(updated.ai_user_context || '');
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingNotes(false);
     }
   }
 
@@ -147,6 +169,34 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
           </p>
         </div>
       )}
+
+      <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
+        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Additional context</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+          Add anything the numbers alone don't capture — e.g. "the July spike was a one-off vet
+          bill" or "I'm deliberately not rebalancing stocks yet". This is included in every
+          analysis, chat reply, and exported prompt, so the AI can factor it in instead of flagging
+          something you've already explained.
+        </p>
+        <textarea
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          rows={4}
+          maxLength={4000}
+          placeholder="Add context for the AI to consider…"
+          style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{notesDraft.length} / 4000</span>
+          <button
+            className="btn-secondary"
+            onClick={handleSaveNotes}
+            disabled={savingNotes || notesDraft === userNotes}
+          >
+            {savingNotes ? 'Saving…' : notesSaved ? 'Saved!' : 'Save notes'}
+          </button>
+        </div>
+      </div>
 
       <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>

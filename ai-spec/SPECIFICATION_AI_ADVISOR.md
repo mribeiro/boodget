@@ -46,6 +46,7 @@ The frontend renders it via `CostLabel.jsx` as `~$ 0,0234 · 12.345 in / 890 out
 `buildDossierContext(dossierId)` produces a JSON snapshot (no internal ids), size-capped:
 
 - Dossier name, currency, `cycle_start_day`, `reference_salary` and `loans_max_salary_pct` (the manually-set salary used to prefill new loans / denominate the Loans tab's % of salary, and the user's self-imposed ceiling on that % — Sections 6.1/6.2 of `SPECIFICATION_LOANS.md`), today's date.
+- `user_notes` — free-text context the user wrote themselves (see "User context" below) — included only when non-empty, to keep the payload minimal for dossiers that don't use it.
 - Non-archived accounts (group, name, type, money_category).
 - Capital time series: last **24 filled months** (`capital_total` = idle+active, `idle_total`, `stocks_total`).
 - Latest filled month's per-account values.
@@ -55,6 +56,18 @@ The frontend renders it via `CostLabel.jsx` as `~$ 0,0234 · 12.345 in / 890 out
 - **Loans** — every loan (draft and active), reusing `computeLoanValues` (now exported from `routes/loans.js`): name, status, interest rate, `monthly_payment`, `salary_pct`; draft-only `principal`/`term_months` or active-only `remaining_balance`/`months_left`; `purchase_price`/`total_interest`/`total_amount_payable` whenever origination data is on record; active-only `remaining_interest` and, for linked loans, the linked expense item's name plus `covered`/`coverage_difference`. The month-by-month amortization schedule is **not** included — it's client-side-only and can run hundreds of rows for long terms, which would bloat the payload for no analytical benefit.
 - Emergency-fund status (reuses `computeEmergencyFundStatus`, extracted from the `/emergency-fund/status` handler and exported from `routes/emergency-fund.js`; `contributing_accounts` stripped).
 - Last 3 annual expense years (carryover, total budgeted, total paid).
+- **Annual expense template** — the recurring definition (insurance, car tax, etc.) that annual expense years are instantiated from: `{name, value, classification, num_installments}` per item (exact installment day/month dropped — not analytically relevant), plus a `total_monthly_avg` (`sum(value)/12`) so the model can sanity-check a given year's budgeted total against the recurring baseline.
+- **Workbench** — up to the 3 most recently updated saved snapshots (ephemeral what-if scenarios, not real transactions): `{name, updated_at, total_income, total_must, total_want, total_save, leftover}`, computed server-side by `summarizeWorkbenchData()` (a port of the frontend's `computeGlobalSummary()` in `WorkbenchTab.jsx`) from the snapshot's stored line items — raw income/expense/distribution rows are never included, only the aggregated totals.
+
+## User context
+
+The AI Advisor tab has an **"Additional context"** box (`AIAdvisorTab.jsx`) — a plain `<textarea>`, capped at 4000 characters, where the user can add anything the raw numbers don't capture (e.g. "the July spike was a one-off vet bill", "I'm deliberately not rebalancing stocks yet", or clarifying why a highlighted risk isn't actually a concern). It's explicit opt-in, persisted, and asymmetric from chat: the user writes it once and it's reused everywhere, rather than having to repeat it every conversation.
+
+- Persisted per dossier in `dossiers.ai_user_context` (migration `035_add_ai_user_context_to_dossiers`, nullable `TEXT`), via the existing `GET/PATCH /api/dossiers/:id/settings` (`ai_user_context` — not write-only, since it's the user's own note rather than a secret; GET returns `''` when unset so the frontend textarea stays a controlled component). PATCH caps it at 4000 characters (400 if exceeded) and stores an empty string as `null`.
+- Included in `buildDossierContext(dossierId)` as `dossier.user_notes` whenever non-empty (see above) — flows into **all three** consumers automatically: the in-app analysis, the in-app chat, and the exported paste-into-claude.ai prompt.
+- All three prompt intros (`ANALYSIS_SYSTEM_INTRO`, `CHAT_SYSTEM_INTRO`, `EXPORT_PROMPT_INTRO`) instruct the model to give `user_notes` real weight: use it to explain away a risk/anomaly it addresses rather than flagging something the user has already accounted for, and factor in any goals/constraints/plans it mentions.
+- Frontend: a Save button (disabled until the draft differs from the last-saved value) with a transient "Saved!" confirmation, matching the export-prompt card's "Copied!" pattern. Not auto-saved on every keystroke, to avoid PATCH spam on a large text field.
+- Round-trips in export/import (version 10, not a secret — unlike `ai_api_key`).
 
 ## AI Settings (dossier Settings tab)
 
@@ -96,14 +109,14 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 ## Analysis behaviour
 
 - Uses **structured outputs** (`output_config.format` with a JSON schema) so the response always parses; `max_tokens` 8192.
-- The system prompt instructs: score 0–100, 2–4 sentence summary, 3–6 highlights, 2–6 improvements, 0–4 risks; plain text in every field; reference concrete numbers/accounts/months. It also instructs the model to factor active loans' `monthly_payment` into repayment capacity, flag underbudgeted (uncovered) linked loans as a risk, compare combined active-loan payments against the dossier's `loans_max_salary_pct` ceiling (when both it and `reference_salary` are set) and flag if exceeded, and treat draft loans as hypothetical studies rather than real liabilities.
+- The system prompt instructs: score 0–100, 2–4 sentence summary, 3–6 highlights, 2–6 improvements, 0–4 risks; plain text in every field; reference concrete numbers/accounts/months. It also instructs the model to factor active loans' `monthly_payment` into repayment capacity, flag underbudgeted (uncovered) linked loans as a risk, compare combined active-loan payments against the dossier's `loans_max_salary_pct` ceiling (when both it and `reference_salary` are set) and flag if exceeded, and treat draft loans as hypothetical studies rather than real liabilities. It further instructs the model to use `annual_expense_template.total_monthly_avg` to sanity-check a given year's budgeted total and factor recurring-but-not-yet-budgeted costs into capacity, and to treat `workbench` snapshots as the user's own targets/plans (not actuals) — useful for flagging a structurally unaffordable plan (strongly negative `leftover`) or a large drift between a stated plan and `recent_cycles`.
 - Result is **upserted** into `ai_analyses` (UNIQUE on `dossier_id` — only the latest analysis is kept per dossier). The tab shows the stored analysis with "Analysed on [date] · [model] · cost" on open; a Re-analyze button replaces it.
 - `stop_reason` handling: `refusal` → 502 with a suggestion to pick another model; `max_tokens` → 502 "cut short". Text is extracted by concatenating only `type === 'text'` content blocks (thinking blocks are ignored).
 
 ## Chat behaviour
 
 - Ephemeral by design: history lives in component state, resets on tab leave, and the full history is re-sent each turn (`max_tokens` 2048 per reply).
-- The chat system prompt instructs concise plain-text answers (no markdown — the UI renders with `white-space: pre-wrap`, no markdown renderer) and to draw on loan data (payments, rates, coverage, total interest) when relevant, treating draft loans as hypothetical.
+- The chat system prompt instructs concise plain-text answers (no markdown — the UI renders with `white-space: pre-wrap`, no markdown renderer) and to draw on loan data (payments, rates, coverage, total interest) when relevant, treating draft loans as hypothetical, and to draw on `annual_expense_template`/`workbench` when relevant, treating workbench figures as targets/plans rather than actuals.
 - UI: bubbles (`.ai-chat-bubble--user/--assistant`), "Thinking…" pending bubble, per-reply cost label, Clear button.
 
 ## Export prompt (paste into claude.ai chat)
@@ -116,7 +129,7 @@ For users who'd rather use a Claude subscription than pay per API call, the "Use
 
 ## Export / import
 
-- Export format **version 10**: `dossier.ai_model` and `dossier.ai_enabled` round-trip. Imports of versions ≤ 9 default `ai_model` to `claude-opus-4-8` and `ai_enabled` to `true`.
+- Export format **version 10**: `dossier.ai_model`, `dossier.ai_enabled`, and `dossier.ai_user_context` round-trip. Imports of versions ≤ 9 default `ai_model` to `claude-opus-4-8`, `ai_enabled` to `true`, and `ai_user_context` to `null` (those versions predate the field).
 - `ai_api_key` is a secret, like `paperless_token` — it is **never exported or imported**. An imported dossier always falls back to the operator's `ANTHROPIC_API_KEY` env var (if set) until a new key is entered in its own Settings.
 - `ai_analyses` rows are deliberately **not** exported (point-in-time, cheap to regenerate).
 

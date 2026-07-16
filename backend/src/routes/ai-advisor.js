@@ -49,10 +49,34 @@ function cycleLabel(year, month) {
   return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// Summarize a workbench snapshot's stored `data` blob into Must/Want/Save totals — mirrors
+// computeGlobalSummary() in frontend/src/components/workbench/WorkbenchTab.jsx.
+function summarizeWorkbenchData(data) {
+  const sum = (arr, fn) => (arr || []).reduce((s, x) => s + (fn(x) || 0), 0);
+  const totalIncome = sum(data.income, (e) => e.value);
+  const monthlyMust = sum((data.monthlyExpenses || []).filter((e) => e.classification === 'must'), (e) => e.value);
+  const monthlyWant = sum((data.monthlyExpenses || []).filter((e) => e.classification === 'want'), (e) => e.value);
+  const annualMustAvg = sum((data.annualExpenses || []).filter((e) => e.classification === 'must'), (e) => e.value / 12);
+  const annualWantAvg = sum((data.annualExpenses || []).filter((e) => e.classification === 'want'), (e) => e.value / 12);
+  const distMust = sum(data.distributions, (e) => e.must_amount || 0);
+  const distWant = sum(data.distributions, (e) => e.want_amount || 0);
+  const distSave = sum(data.distributions, (e) => e.save_amount || 0);
+  const totalMust = monthlyMust + annualMustAvg + distMust;
+  const totalWant = monthlyWant + annualWantAvg + distWant;
+  const totalSave = distSave;
+  return {
+    total_income: totalIncome,
+    total_must: totalMust,
+    total_want: totalWant,
+    total_save: totalSave,
+    leftover: totalIncome - totalMust - totalWant - totalSave,
+  };
+}
+
 // Build a trimmed, model-readable snapshot of the dossier's finances.
 function buildDossierContext(dossierId) {
   const dossier = db
-    .prepare('SELECT name, currency, cycle_start_day, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT name, currency, cycle_start_day, reference_salary, loans_max_salary_pct, ai_user_context FROM dossiers WHERE id = ?')
     .get(dossierId);
 
   const accounts = db
@@ -232,6 +256,32 @@ function buildDossierContext(dossierId) {
     return { year: y.year, carryover: y.carryover, total_budgeted: totals.budgeted, total_paid: totals.paid };
   });
 
+  // Annual expense template — the recurring definition annual years are instantiated from
+  // (insurance, car tax, etc.). Calendar precision (exact installment day/month) is dropped;
+  // only the recurring cost and must/want split matter for analysis.
+  const annualTemplateItems = db
+    .prepare('SELECT name, value, classification, num_installments FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+    .all(dossierId);
+  const annual_expense_template = {
+    items: annualTemplateItems.map((i) => ({ name: i.name, value: i.value, classification: i.classification, num_installments: i.num_installments ?? 1 })),
+    total_monthly_avg: annualTemplateItems.reduce((s, i) => s + (i.value || 0), 0) / 12,
+  };
+
+  // Workbench — ephemeral scenario snapshots (what-if planning, not real transactions).
+  // Summarized to Must/Want/Save totals only; raw line items are dropped for brevity.
+  const workbenchRows = db
+    .prepare('SELECT name, data, updated_at FROM workbench_snapshots WHERE dossier_id = ? ORDER BY updated_at DESC LIMIT 3')
+    .all(dossierId);
+  const workbench = workbenchRows.map((w) => {
+    let data;
+    try {
+      data = JSON.parse(w.data);
+    } catch (e) {
+      data = {};
+    }
+    return { name: w.name, updated_at: w.updated_at, ...summarizeWorkbenchData(data) };
+  });
+
   return JSON.stringify(
     {
       today: new Date().toISOString().slice(0, 10),
@@ -241,6 +291,7 @@ function buildDossierContext(dossierId) {
         cycle_start_day: dossier.cycle_start_day ?? 25,
         reference_salary: dossier.reference_salary ?? null,
         loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
+        ...(dossier.ai_user_context ? { user_notes: dossier.ai_user_context } : {}),
       },
       accounts: accounts.map((a) => ({ group: a.group_name, name: a.name, type: a.type, money_category: a.money_category })),
       capital_series: capitalSeries,
@@ -251,6 +302,8 @@ function buildDossierContext(dossierId) {
       loans,
       emergency_fund: efStatus,
       annual_expense_years,
+      annual_expense_template,
+      workbench,
     },
     null,
     1
@@ -381,6 +434,9 @@ Produce a rigorous but encouraging analysis:
 - improvements: 2-6 concrete, actionable suggestions, each with a short title and a specific detail.
 - risks: 0-4 risks or warning signs worth watching (empty array if none).
 The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
+annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check whether a year's budgeted total looks right, and to factor upcoming recurring costs into repayment/savings capacity even if the current year hasn't budgeted for them yet.
+workbench holds ephemeral scenario snapshots (what-if plans the user built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as the user's own targets or plans, useful for comparing against what's actually happening in recent_cycles (e.g. flag a plan that's structurally unaffordable, i.e. a strongly negative leftover, or note if actual spending has drifted far from a stated plan).
+If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight: use it to explain away a risk or anomaly it addresses (don't flag something the user has already accounted for), and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data. Use plain text inside every field: no markdown, no bullet characters.
 
 The dossier data follows:
@@ -389,6 +445,8 @@ The dossier data follows:
 const CHAT_SYSTEM_INTRO = `You are a personal-finance advisor inside the "boodget" capital-tracking app, chatting with the owner of the financial dossier below.
 Answer questions about this dossier concretely, referencing actual numbers, account names, and months from the data. All amounts are in the dossier's currency.
 The dossier may include loans (draft studies or active, ongoing loans) — draw on their monthly payments, interest rates, budget coverage, and total interest figures when relevant; treat draft loans as hypothetical studies, not commitments.
+annual_expense_template is the recurring annual-cost baseline annual_expense_years is instantiated from; workbench holds ephemeral what-if planning snapshots (not real transactions) with Must/Want/Save totals already computed — draw on both when relevant, treating workbench figures as the user's own targets/plans rather than actuals.
+If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight and factor it into your answers.
 Be concise. Answer in plain text only — no markdown, no headers, no bullet characters. If a question cannot be answered from the data, say so briefly.
 
 The dossier data follows:
@@ -419,6 +477,8 @@ All monetary amounts are in the currency noted in the data. Reply in markdown, f
 (0-4 risks or warning signs — omit this whole section if there are none)
 
 The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
+annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check a year's budgeted total, and factor upcoming recurring costs into repayment/savings capacity even if not yet budgeted for. workbench holds ephemeral scenario snapshots (what-if plans I built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as my own targets or plans, useful for comparing against what's actually happening in recent_cycles.
+If dossier.user_notes is present, it's context I wrote myself — give it real weight: use it to explain away a risk or anomaly it addresses, and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data.
 
 After giving me this analysis, keep answering any follow-up questions I ask about this dossier, using the same data below as context.

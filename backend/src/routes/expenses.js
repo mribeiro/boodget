@@ -149,7 +149,7 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
@@ -166,6 +166,7 @@ router.get('/settings', (req, res) => {
     ai_enabled: dossier.ai_enabled == null ? true : !!dossier.ai_enabled,
     ai_model: dossier.ai_model ?? 'claude-opus-4-8',
     ai_api_key_set: !!dossier.ai_api_key,
+    ai_user_context: dossier.ai_user_context ?? '',
     reference_salary: dossier.reference_salary ?? null,
     loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
   });
@@ -195,6 +196,7 @@ router.patch('/settings', (req, res) => {
     ai_enabled,
     ai_model,
     ai_api_key,
+    ai_user_context,
     reference_salary,
     loans_max_salary_pct,
   } = req.body;
@@ -240,6 +242,14 @@ router.patch('/settings', (req, res) => {
   if (ai_api_key !== undefined && ai_api_key !== null && typeof ai_api_key !== 'string') {
     return res.status(400).json({ error: 'ai_api_key must be a string or null' });
   }
+  if (ai_user_context !== undefined && ai_user_context !== null) {
+    if (typeof ai_user_context !== 'string') {
+      return res.status(400).json({ error: 'ai_user_context must be a string or null' });
+    }
+    if (ai_user_context.length > 4000) {
+      return res.status(400).json({ error: 'ai_user_context must be at most 4000 characters' });
+    }
+  }
   if (reference_salary !== undefined && reference_salary !== null) {
     if (typeof reference_salary !== 'number' || isNaN(reference_salary) || reference_salary < 0) {
       return res.status(400).json({ error: 'reference_salary must be null or a non-negative number' });
@@ -267,6 +277,7 @@ router.patch('/settings', (req, res) => {
   if (ai_enabled !== undefined) { updates.push('ai_enabled = ?'); params.push(ai_enabled ? 1 : 0); }
   if (ai_model !== undefined) { updates.push('ai_model = ?'); params.push(ai_model); }
   if (ai_api_key !== undefined) { updates.push('ai_api_key = ?'); params.push(ai_api_key || null); }
+  if (ai_user_context !== undefined) { updates.push('ai_user_context = ?'); params.push(ai_user_context || null); }
   if (reference_salary !== undefined) { updates.push('reference_salary = ?'); params.push(reference_salary); }
   if (loans_max_salary_pct !== undefined) { updates.push('loans_max_salary_pct = ?'); params.push(loans_max_salary_pct); }
 
@@ -277,7 +288,7 @@ router.patch('/settings', (req, res) => {
   console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
@@ -294,6 +305,7 @@ router.patch('/settings', (req, res) => {
     ai_enabled: updated.ai_enabled == null ? true : !!updated.ai_enabled,
     ai_model: updated.ai_model ?? 'claude-opus-4-8',
     ai_api_key_set: !!updated.ai_api_key,
+    ai_user_context: updated.ai_user_context ?? '',
     reference_salary: updated.reference_salary ?? null,
     loans_max_salary_pct: updated.loans_max_salary_pct ?? null,
   });
