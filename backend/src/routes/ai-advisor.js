@@ -52,7 +52,7 @@ function cycleLabel(year, month) {
 // Build a trimmed, model-readable snapshot of the dossier's finances.
 function buildDossierContext(dossierId) {
   const dossier = db
-    .prepare('SELECT name, currency, cycle_start_day, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT name, currency, cycle_start_day, reference_salary, loans_max_salary_pct, ai_user_context FROM dossiers WHERE id = ?')
     .get(dossierId);
 
   const accounts = db
@@ -241,6 +241,7 @@ function buildDossierContext(dossierId) {
         cycle_start_day: dossier.cycle_start_day ?? 25,
         reference_salary: dossier.reference_salary ?? null,
         loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
+        ...(dossier.ai_user_context ? { user_notes: dossier.ai_user_context } : {}),
       },
       accounts: accounts.map((a) => ({ group: a.group_name, name: a.name, type: a.type, money_category: a.money_category })),
       capital_series: capitalSeries,
@@ -381,6 +382,7 @@ Produce a rigorous but encouraging analysis:
 - improvements: 2-6 concrete, actionable suggestions, each with a short title and a specific detail.
 - risks: 0-4 risks or warning signs worth watching (empty array if none).
 The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
+If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight: use it to explain away a risk or anomaly it addresses (don't flag something the user has already accounted for), and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data. Use plain text inside every field: no markdown, no bullet characters.
 
 The dossier data follows:
@@ -389,6 +391,7 @@ The dossier data follows:
 const CHAT_SYSTEM_INTRO = `You are a personal-finance advisor inside the "boodget" capital-tracking app, chatting with the owner of the financial dossier below.
 Answer questions about this dossier concretely, referencing actual numbers, account names, and months from the data. All amounts are in the dossier's currency.
 The dossier may include loans (draft studies or active, ongoing loans) — draw on their monthly payments, interest rates, budget coverage, and total interest figures when relevant; treat draft loans as hypothetical studies, not commitments.
+If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight and factor it into your answers.
 Be concise. Answer in plain text only — no markdown, no headers, no bullet characters. If a question cannot be answered from the data, say so briefly.
 
 The dossier data follows:
@@ -419,6 +422,7 @@ All monetary amounts are in the currency noted in the data. Reply in markdown, f
 (0-4 risks or warning signs — omit this whole section if there are none)
 
 The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
+If dossier.user_notes is present, it's context I wrote myself — give it real weight: use it to explain away a risk or anomaly it addresses, and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data.
 
 After giving me this analysis, keep answering any follow-up questions I ask about this dossier, using the same data below as context.

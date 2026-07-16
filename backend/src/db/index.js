@@ -734,6 +734,15 @@ const migrations = [
       }
     },
   },
+  {
+    id: '035_add_ai_user_context_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'ai_user_context')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN ai_user_context TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
