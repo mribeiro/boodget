@@ -10,6 +10,7 @@ Rules:
 - Any change to a feature's behaviour, UI, API contract, data model, or business rules must be reflected in the corresponding `ai-spec/SPECIFICATION_*.md` file.
 - Any change that affects the key concepts, architecture, schema summary, API route list, component list, or business rules sections of this file must be reflected here.
 - When adding a new feature, create or extend the matching spec file and update the architecture / schema / API sections of CLAUDE.md.
+- **Any new (or changed) dossier-scoped feature that carries financial impact** (a new data-bearing field, a new per-dossier financial concept, a change to how an existing one is computed) **must also be reflected in the AI Advisor's `buildDossierContext` payload** (`backend/src/routes/ai-advisor.js`) — trimmed/summarized the same way existing features are (e.g. reusing a `computeXValues`-style helper rather than dumping raw rows), plus a one-line mention in `ai-spec/SPECIFICATION_AI_ADVISOR.md`'s "Dossier context payload" section and the relevant prompt intro (`ANALYSIS_SYSTEM_INTRO`/`CHAT_SYSTEM_INTRO`/`EXPORT_PROMPT_INTRO`) if it should factor into the health score/highlights/risks. Purely cosmetic or UI-only changes are exempt.
 - Documentation commits must be part of the same logical change — do not leave docs for a follow-up.
 
 ## Project Overview
