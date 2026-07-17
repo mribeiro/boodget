@@ -292,7 +292,7 @@ DELETE /api/dossiers/:id/access/:userId
 GET    /api/dossiers/:id/accounts?includeArchived=true
 POST   /api/dossiers/:id/accounts   { group_name, name, type, money_category? }
 PUT    /api/dossiers/:id/accounts/reorder   { accountIds: [] }
-PATCH  /api/dossiers/:id/accounts/:accountId  { money_category?, can_receive_transfers? }
+PATCH  /api/dossiers/:id/accounts/:accountId  { name?, group_name?, money_category?, can_receive_transfers? }
 DELETE /api/dossiers/:id/accounts/:accountId  (archives, not deletes)
 
 GET    /api/dossiers/:id/months
@@ -511,7 +511,7 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 | `[auth]` | Login success/failure, logout, password change, OIDC auto-creation |
 | `[users]` | Created/deleted |
 | `[dossiers]` | Created, imported (with version), exported, deleted, access granted/revoked |
-| `[accounts]` | Created, archived |
+| `[accounts]` | Created, archived, renamed |
 | `[months]` | Created, submitted, reset |
 | `[cycles]` | Created, closed/reopened, deleted |
 | `[settings]` | Updated (lists changed field names) |

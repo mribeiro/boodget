@@ -135,7 +135,13 @@ The other sections must be visible in the UI but marked as **"Coming Soon"**.
 - Any user with access to the dossier can add new accounts at any time.
 - Adding a new account **does not affect previous monthly records** — historical snapshots remain unchanged.
 
-### 8.2 Deleting Accounts
+### 8.2 Renaming/Editing Accounts
+- Any user with access to the dossier can rename an account's **Name** and/or **Group** at any time, via an inline edit affordance on the account row.
+- Renaming is purely cosmetic: every reference to an account (monthly snapshots, goals, emergency fund, distributions, etc.) keys off its internal ID, never its name, so a rename never affects historical records or computed totals — including past months, which display the current name.
+- **Type**, **Money category**, and **Can receive transfers** are edited separately (Money category and Can receive transfers are already inline-editable; Type is not currently editable after creation).
+- As with account creation, names and groups are **not required to be unique** within a dossier.
+
+### 8.3 Deleting Accounts
 - Accounts can be deleted.
 - Deletion **archives** the account: it no longer appears for future months, but remains visible in historical records where it was previously used.
 

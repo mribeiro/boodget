@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGripVertical, faXmark, faPlus, faBoxArchive, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faGripVertical, faXmark, faPlus, faBoxArchive, faChevronRight, faPencil, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Checkbox from './ui/Checkbox';
@@ -20,6 +20,8 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
   const dragSrc = useRef(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ name: '', group_name: '' });
   const [groupCollapsed, setGroupCollapsed] = useState({});
   const [archivedCollapsed, setArchivedCollapsed] = useState(true);
   const [toast, setToast] = useState({ msg: '', show: false });
@@ -113,6 +115,29 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
       setAccounts((prev) =>
         prev.map((a) => (a.id === account.id ? { ...a, can_receive_transfers: account.can_receive_transfers } : a))
       );
+    }
+  }
+
+  async function handleRename(account) {
+    const name = editDraft.name.trim();
+    const group_name = editDraft.group_name.trim();
+    if (!name || !group_name) {
+      setError('Name and group must not be empty');
+      return;
+    }
+    if (name === account.name && group_name === account.group_name) {
+      setEditingId(null);
+      return;
+    }
+    const prev = { name: account.name, group_name: account.group_name };
+    setAccounts((p) => p.map((a) => (a.id === account.id ? { ...a, name, group_name } : a)));
+    setEditingId(null);
+    try {
+      await api.updateAccount(dossierId, account.id, { name, group_name });
+      showToast('Account updated');
+    } catch (err) {
+      setError(err.message);
+      setAccounts((p) => p.map((a) => (a.id === account.id ? { ...a, ...prev } : a)));
     }
   }
 
@@ -273,7 +298,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                 {groupAccounts.map((a) => (
                   <tr
                     key={a.id}
-                    draggable
+                    draggable={editingId !== a.id}
                     onDragStart={() => handleDragStart(a.activeIndex)}
                     onDragOver={(e) => handleDragOver(e, a.activeIndex)}
                     onDragLeave={() => setDragOver(null)}
@@ -285,10 +310,58 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                     }}
                   >
                     <td className="mobile-drag-col text-muted" style={{ userSelect: 'none' }}><FontAwesomeIcon icon={faGripVertical} /></td>
-                    <td className="mobile-card-title" onClick={() => toggleRow(a.id)}>
-                      <span>{a.name}</span>
-                      <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
-                    </td>
+                    {editingId === a.id ? (
+                      <td className="mobile-card-title" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editDraft.name}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRename(a);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            placeholder="Name"
+                            style={{ fontSize: '0.8rem', minWidth: 90 }}
+                          />
+                          <input
+                            type="text"
+                            list="group-options"
+                            value={editDraft.group_name}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, group_name: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRename(a);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            placeholder="Group"
+                            style={{ fontSize: '0.8rem', minWidth: 90 }}
+                          />
+                          <button className="btn-ghost" style={{ color: 'var(--color-primary)', fontSize: '0.8rem' }} onClick={() => handleRename(a)}>
+                            <FontAwesomeIcon icon={faCheck} />
+                          </button>
+                          <button className="btn-ghost" style={{ fontSize: '0.8rem' }} onClick={() => setEditingId(null)}>
+                            <FontAwesomeIcon icon={faXmark} />
+                          </button>
+                        </div>
+                      </td>
+                    ) : (
+                      <td className="mobile-card-title" onClick={() => toggleRow(a.id)}>
+                        <span>{a.name}</span>
+                        <button
+                          className="btn-ghost"
+                          style={{ fontSize: '0.75rem', padding: '2px 4px', color: 'var(--color-text-muted)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingId(a.id);
+                            setEditDraft({ name: a.name, group_name: a.group_name });
+                          }}
+                        >
+                          <FontAwesomeIcon icon={faPencil} />
+                        </button>
+                        <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
+                      </td>
+                    )}
                     <td data-label="Type" className="mobile-detail" style={{ fontSize: '0.8rem' }}>{a.type}</td>
                     <td data-label="Category" className="mobile-detail" style={{ textAlign: 'center' }}>
                       <select
