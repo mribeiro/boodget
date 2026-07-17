@@ -14,6 +14,7 @@ import {
   faArrowLeft,
   faCalendarPlus,
   faXmark,
+  faArrowsRotate,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext, AppContext } from '../App';
@@ -24,6 +25,7 @@ import DossierSettingsTab from './DossierSettingsTab';
 import WorkbenchTab from './workbench/WorkbenchTab';
 import GoalsTab from './goals/GoalsTab';
 import LoansTab from './loans/LoansTab';
+import SubscriptionsTab from './subscriptions/SubscriptionsTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
 import AIAdvisorTab from './ai-advisor/AIAdvisorTab';
@@ -137,6 +139,7 @@ export default function DossierView() {
           { key: 'workbench',        icon: faScaleBalanced, label: 'Workbench' },
           { key: 'goals',            icon: faBullseye,      label: 'Goals' },
           { key: 'loans',            icon: faHandHoldingDollar, label: 'Loans' },
+          { key: 'subscriptions',    icon: faArrowsRotate,  label: 'Subscriptions' },
           { key: 'emergency-fund',   icon: faShieldHalved,  label: 'Emergency Fund' },
           ...(aiEnabled ? [{ key: 'ai-advisor', icon: faWandMagicSparkles, label: 'AI Advisor' }] : []),
           { key: 'settings',         icon: faGear,          label: 'Settings' },
@@ -285,6 +288,10 @@ export default function DossierView() {
 
       {activeTab === 'loans' && (
         <LoansTab dossierId={id} />
+      )}
+
+      {activeTab === 'subscriptions' && (
+        <SubscriptionsTab dossierId={id} />
       )}
 
       {activeTab === 'emergency-fund' && (
