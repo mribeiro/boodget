@@ -200,6 +200,15 @@ export const api = {
   deleteLoan: (dossierId, loanId) =>
     request('DELETE', `/dossiers/${dossierId}/loans/${loanId}`),
 
+  // Subscriptions
+  getSubscriptions: (dossierId, includeCancelled = false) =>
+    request('GET', `/dossiers/${dossierId}/subscriptions${includeCancelled ? '?includeCancelled=true' : ''}`),
+  createSubscription: (dossierId, data) => request('POST', `/dossiers/${dossierId}/subscriptions`, data),
+  updateSubscription: (dossierId, subscriptionId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/subscriptions/${subscriptionId}`, data),
+  deleteSubscription: (dossierId, subscriptionId) =>
+    request('DELETE', `/dossiers/${dossierId}/subscriptions/${subscriptionId}`),
+
   // Push notifications — VAPID & subscriptions
   getVapidPublicKey: () => request('GET', '/push/vapid-public-key'),
   subscribePush: (subscription) => request('POST', '/push/subscribe', subscription),

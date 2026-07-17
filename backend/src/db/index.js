@@ -743,6 +743,23 @@ const migrations = [
       }
     },
   },
+  {
+    id: '036_create_subscriptions',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS subscriptions (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          monthly_cost REAL NOT NULL,
+          billing_day INTEGER,
+          status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','cancelled')),
+          distribution_template_item_id TEXT REFERENCES expense_template_items(id) ON DELETE SET NULL,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {

@@ -237,6 +237,25 @@ function buildDossierContext(dossierId) {
     };
   });
 
+  // Subscriptions — discretionary personal costs funded from a distribution, deliberately not
+  // part of expense_template (cancelled ones are excluded, they no longer cost anything).
+  const subscriptionRows = db
+    .prepare(
+      `SELECT s.name, s.monthly_cost, s.billing_day, eti.name as linked_distribution_name, eti.value as linked_distribution_value
+       FROM subscriptions s LEFT JOIN expense_template_items eti ON eti.id = s.distribution_template_item_id
+       WHERE s.dossier_id = ? AND s.status = 'active' ORDER BY s.created_at`
+    )
+    .all(dossierId);
+  const subscriptions = {
+    items: subscriptionRows.map((s) => ({
+      name: s.name,
+      monthly_cost: s.monthly_cost,
+      billing_day: s.billing_day,
+      linked_distribution: s.linked_distribution_name ?? null,
+    })),
+    total_monthly_cost: subscriptionRows.reduce((sum, s) => sum + s.monthly_cost, 0),
+  };
+
   // Annual expense years summary
   const annualYears = db
     .prepare('SELECT id, year, carryover FROM annual_expense_years WHERE dossier_id = ? ORDER BY year DESC LIMIT 3')
@@ -300,6 +319,7 @@ function buildDossierContext(dossierId) {
       recent_cycles,
       goals,
       loans,
+      subscriptions,
       emergency_fund: efStatus,
       annual_expense_years,
       annual_expense_template,
@@ -436,6 +456,7 @@ Produce a rigorous but encouraging analysis:
 The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
 annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check whether a year's budgeted total looks right, and to factor upcoming recurring costs into repayment/savings capacity even if the current year hasn't budgeted for them yet.
 workbench holds ephemeral scenario snapshots (what-if plans the user built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as the user's own targets or plans, useful for comparing against what's actually happening in recent_cycles (e.g. flag a plan that's structurally unaffordable, i.e. a strongly negative leftover, or note if actual spending has drifted far from a stated plan).
+subscriptions are active recurring discretionary costs (e.g. streaming, software) the user deliberately funds from a distribution rather than the monthly expense template — when a subscription's linked_distribution is set, compare that distribution's total linked subscriptions against the distribution's own budgeted value (from expense_template.distributions) and flag it as a risk if the subscriptions exceed it.
 If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight: use it to explain away a risk or anomaly it addresses (don't flag something the user has already accounted for), and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data. Use plain text inside every field: no markdown, no bullet characters.
 
@@ -446,6 +467,7 @@ const CHAT_SYSTEM_INTRO = `You are a personal-finance advisor inside the "boodge
 Answer questions about this dossier concretely, referencing actual numbers, account names, and months from the data. All amounts are in the dossier's currency.
 The dossier may include loans (draft studies or active, ongoing loans) — draw on their monthly payments, interest rates, budget coverage, and total interest figures when relevant; treat draft loans as hypothetical studies, not commitments.
 annual_expense_template is the recurring annual-cost baseline annual_expense_years is instantiated from; workbench holds ephemeral what-if planning snapshots (not real transactions) with Must/Want/Save totals already computed — draw on both when relevant, treating workbench figures as the user's own targets/plans rather than actuals.
+subscriptions are active recurring discretionary costs funded from a distribution rather than the monthly expense template — when relevant, compare a distribution's linked subscriptions total against that distribution's budgeted value.
 If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight and factor it into your answers.
 Be concise. Answer in plain text only — no markdown, no headers, no bullet characters. If a question cannot be answered from the data, say so briefly.
 
@@ -478,6 +500,7 @@ All monetary amounts are in the currency noted in the data. Reply in markdown, f
 
 The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities.
 annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check a year's budgeted total, and factor upcoming recurring costs into repayment/savings capacity even if not yet budgeted for. workbench holds ephemeral scenario snapshots (what-if plans I built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as my own targets or plans, useful for comparing against what's actually happening in recent_cycles.
+subscriptions are active recurring discretionary costs I fund from a distribution rather than the monthly expense template — when a subscription's linked_distribution is set, compare that distribution's total linked subscriptions against the distribution's own budgeted value and flag it if the subscriptions exceed it.
 If dossier.user_notes is present, it's context I wrote myself — give it real weight: use it to explain away a risk or anomaly it addresses, and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data.
 

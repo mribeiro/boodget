@@ -11,6 +11,7 @@ const emergencyFundRouter = require('./emergency-fund');
 const annualExpensesRouter = require('./annual-expenses');
 const aiAdvisorRouter = require('./ai-advisor');
 const loansRouter = require('./loans');
+const subscriptionsRouter = require('./subscriptions');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -46,7 +47,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -302,6 +303,25 @@ router.post('/import', (req, res) => {
         l.opening_fee ?? null
       );
     }
+
+    // Subscriptions (v11+) — re-linked to the new distribution template item by name
+    const insertSubscription = db.prepare(
+      `INSERT INTO subscriptions (id, dossier_id, name, monthly_cost, billing_day, status, distribution_template_item_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const s of (data.subscriptions || [])) {
+      const distId = s.distribution_name ? (templateNameToId[s.distribution_name] ?? null) : null;
+      insertSubscription.run(
+        uuidv4(),
+        dossierId,
+        s.name,
+        s.monthly_cost,
+        s.billing_day ?? null,
+        s.status || 'active',
+        distId,
+        s.created_at || null
+      );
+    }
   });
 
   doImport();
@@ -509,10 +529,20 @@ router.get('/:id/export', (req, res) => {
     )
     .all(req.params.id);
 
+  const subscriptionsExport = db
+    .prepare(
+      `SELECT s.name, s.monthly_cost, s.billing_day, s.status, s.created_at,
+              eti.name as distribution_name
+       FROM subscriptions s
+       LEFT JOIN expense_template_items eti ON eti.id = s.distribution_template_item_id
+       WHERE s.dossier_id = ? ORDER BY s.created_at`
+    )
+    .all(req.params.id);
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 10,
+    version: 11,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
@@ -556,6 +586,7 @@ router.get('/:id/export', (req, res) => {
     annual_expense_accounts: aeAccountNames,
     annual_expense_distributions: aeDistributionNames,
     loans: loansExport,
+    subscriptions: subscriptionsExport,
   });
   console.log(`[dossiers] Exported dossier "${dossier.name}" (${req.params.id}) by user ${req.user.username}`);
 });
@@ -633,5 +664,6 @@ router.use('/:id', annualExpensesRouter);
 router.use('/:id', aiAdvisorRouter);
 // Loans sub-router
 router.use('/:id', loansRouter);
+router.use('/:id', subscriptionsRouter);
 
 module.exports = router;
