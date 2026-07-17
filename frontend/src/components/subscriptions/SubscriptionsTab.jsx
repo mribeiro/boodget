@@ -212,18 +212,17 @@ export default function SubscriptionsTab({ dossierId }) {
                 key={sub.id}
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
+                  flexDirection: 'column',
+                  gap: '0.3rem',
                   padding: '0.6rem 0.75rem',
                   background: 'var(--bg-card)',
                   borderRadius: 'var(--radius)',
                   border: '1px solid var(--border-default)',
-                  flexWrap: 'wrap',
                   opacity: cancelled ? 0.5 : 1,
                   transition: 'opacity 0.25s ease',
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
                     <span style={{
                       fontWeight: 500,
@@ -245,47 +244,49 @@ export default function SubscriptionsTab({ dossierId }) {
                       </span>
                     )}
                   </div>
-                  {sub.linked_distribution && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: 2 }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{sub.linked_distribution.name}</span>
-                      <CoveragePill coverage={coverage} />
-                    </div>
-                  )}
+                  {sub.linked_distribution && <CoveragePill coverage={coverage} />}
                 </div>
-                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: cancelled ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
-                  {formatEur(sub.monthly_cost)}
-                </span>
-                <button
-                  onClick={() => { setEditingItem(sub); setShowModal(true); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                  title="Edit"
-                >
-                  <FontAwesomeIcon icon={faPencil} />
-                </button>
-                {cancelled ? (
-                  <button
-                    onClick={() => handleToggleStatus(sub)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                    title="Reactivate"
-                  >
-                    <FontAwesomeIcon icon={faArrowRotateLeft} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleCancel(sub)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                    title="Cancel"
-                  >
-                    <FontAwesomeIcon icon={faBan} />
-                  </button>
-                )}
-                <button
-                  onClick={() => handleDelete(sub)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                  title="Delete"
-                >
-                  <FontAwesomeIcon icon={faTrash} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {sub.linked_distribution ? sub.linked_distribution.name : ' '}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 500, color: cancelled ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease', marginRight: '0.25rem' }}>
+                      {formatEur(sub.monthly_cost)}
+                    </span>
+                    <button
+                      onClick={() => { setEditingItem(sub); setShowModal(true); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                      title="Edit"
+                    >
+                      <FontAwesomeIcon icon={faPencil} />
+                    </button>
+                    {cancelled ? (
+                      <button
+                        onClick={() => handleToggleStatus(sub)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                        title="Reactivate"
+                      >
+                        <FontAwesomeIcon icon={faArrowRotateLeft} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleCancel(sub)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                        title="Cancel"
+                      >
+                        <FontAwesomeIcon icon={faBan} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(sub)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                      title="Delete"
+                    >
+                      <FontAwesomeIcon icon={faTrash} />
+                    </button>
+                  </div>
+                </div>
               </div>
             );
           })}
