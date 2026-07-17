@@ -260,35 +260,35 @@ export default function SubscriptionsTab({ dossierId }) {
                     </td>
                     <td data-label="" className="mobile-detail" style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <button
-                        className="btn-secondary"
                         onClick={() => { setEditingItem(sub); setShowModal(true); }}
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                        title="Edit"
                       >
-                        <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
+                        <FontAwesomeIcon icon={faPencil} />
                       </button>
                       {cancelled ? (
                         <button
-                          className="btn-secondary"
                           onClick={() => handleToggleStatus(sub)}
-                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                          title="Reactivate"
                         >
-                          <FontAwesomeIcon icon={faArrowRotateLeft} style={{ marginRight: '0.35rem' }} />Reactivate
+                          <FontAwesomeIcon icon={faArrowRotateLeft} />
                         </button>
                       ) : (
                         <button
-                          className="btn-secondary"
                           onClick={() => handleCancel(sub)}
-                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                          title="Cancel"
                         >
-                          <FontAwesomeIcon icon={faBan} style={{ marginRight: '0.35rem' }} />Cancel
+                          <FontAwesomeIcon icon={faBan} />
                         </button>
                       )}
                       <button
-                        className="btn-danger"
                         onClick={() => handleDelete(sub)}
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                        title="Delete"
                       >
-                        <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
+                        <FontAwesomeIcon icon={faTrash} />
                       </button>
                     </td>
                   </tr>
