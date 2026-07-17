@@ -85,14 +85,26 @@ router.patch('/:accountId', (req, res) => {
     .prepare('SELECT * FROM accounts WHERE id = ? AND dossier_id = ?')
     .get(req.params.accountId, req.params.id);
   if (!account) return res.status(404).json({ error: 'Account not found' });
-  const { money_category, can_receive_transfers } = req.body;
+  const { name, group_name, money_category, can_receive_transfers } = req.body;
+  if (name !== undefined && !name.trim()) {
+    return res.status(400).json({ error: 'name must not be empty' });
+  }
+  if (group_name !== undefined && !group_name.trim()) {
+    return res.status(400).json({ error: 'group_name must not be empty' });
+  }
   if (money_category !== undefined && !VALID_MONEY_CATEGORIES.includes(money_category)) {
     return res.status(400).json({ error: `money_category must be one of: ${VALID_MONEY_CATEGORIES.join(', ')}` });
   }
+  const newName = name !== undefined ? name.trim() : account.name;
+  const newGroupName = group_name !== undefined ? group_name.trim() : account.group_name;
   const newMoneyCategory = money_category !== undefined ? money_category : account.money_category;
   const newCanReceiveTransfers = can_receive_transfers !== undefined ? (can_receive_transfers ? 1 : 0) : account.can_receive_transfers;
-  db.prepare('UPDATE accounts SET money_category = ?, can_receive_transfers = ? WHERE id = ?').run(newMoneyCategory, newCanReceiveTransfers, req.params.accountId);
-  res.json({ ...account, money_category: newMoneyCategory, can_receive_transfers: newCanReceiveTransfers });
+  db.prepare('UPDATE accounts SET name = ?, group_name = ?, money_category = ?, can_receive_transfers = ? WHERE id = ?')
+    .run(newName, newGroupName, newMoneyCategory, newCanReceiveTransfers, req.params.accountId);
+  if (newName !== account.name || newGroupName !== account.group_name) {
+    console.log(`[accounts] Renamed account "${account.group_name}/${account.name}" -> "${newGroupName}/${newName}" (${req.params.accountId}) in dossier ${req.params.id} by user ${req.user.username}`);
+  }
+  res.json({ ...account, name: newName, group_name: newGroupName, money_category: newMoneyCategory, can_receive_transfers: newCanReceiveTransfers });
 });
 
 // DELETE /api/dossiers/:id/accounts/:accountId  (archives the account)
