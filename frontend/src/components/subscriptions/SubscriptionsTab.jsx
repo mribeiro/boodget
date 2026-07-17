@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faPencil, faTrash, faCheck, faTriangleExclamation, faEye, faEyeSlash, faBan, faArrowRotateLeft, faXmark, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPencil, faTrash, faCheck, faTriangleExclamation, faEye, faEyeSlash, faBan, faArrowRotateLeft, faXmark, faClock } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
@@ -78,7 +78,6 @@ export default function SubscriptionsTab({ dossierId }) {
   const [editingItem, setEditingItem] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [toast, setToast] = useState({ msg: '', show: false });
-  const [expandedRows, setExpandedRows] = useState(new Set());
 
   useEffect(() => {
     load();
@@ -87,14 +86,6 @@ export default function SubscriptionsTab({ dossierId }) {
   function showToast(msg) {
     setToast({ msg, show: true });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
-
-  function toggleRow(id) {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
   }
 
   async function load() {
@@ -212,90 +203,92 @@ export default function SubscriptionsTab({ dossierId }) {
           </button>
         </div>
       ) : (
-        <div className="mobile-cards table-container">
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
-                <th style={{ padding: '0.5rem' }}>Name</th>
-                <th style={{ padding: '0.5rem', textAlign: 'right' }}>Monthly cost</th>
-                <th style={{ padding: '0.5rem' }}>Billing day</th>
-                <th style={{ padding: '0.5rem' }}>Linked distribution</th>
-                <th style={{ padding: '0.5rem' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((sub) => {
-                const cancelled = sub.status === 'cancelled';
-                const coverage = sub.linked_distribution ? coverageByDistribution.get(sub.linked_distribution.id) : null;
-                return (
-                  <tr
-                    key={sub.id}
-                    className={expandedRows.has(sub.id) ? 'mobile-expanded' : ''}
-                    style={{
-                      borderTop: '1px solid var(--border-default)',
-                      opacity: cancelled ? 0.55 : 1,
-                    }}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          {sorted.map((sub) => {
+            const cancelled = sub.status === 'cancelled';
+            const coverage = sub.linked_distribution ? coverageByDistribution.get(sub.linked_distribution.id) : null;
+            return (
+              <div
+                key={sub.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.6rem 0.75rem',
+                  background: 'var(--bg-card)',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border-default)',
+                  flexWrap: 'wrap',
+                  opacity: cancelled ? 0.5 : 1,
+                  transition: 'opacity 0.25s ease',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    <span style={{
+                      fontWeight: 500,
+                      textDecoration: cancelled ? 'line-through' : 'none',
+                      color: cancelled ? 'var(--text-muted)' : 'var(--text-primary)',
+                      transition: 'color 0.25s ease',
+                    }}>
+                      {sub.name}
+                    </span>
+                    {cancelled && (
+                      <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border-default)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        Cancelled
+                      </span>
+                    )}
+                    {sub.billing_day != null && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <FontAwesomeIcon icon={faClock} style={{ fontSize: '0.65rem', marginRight: 2 }} />
+                        day {sub.billing_day}
+                      </span>
+                    )}
+                  </div>
+                  {sub.linked_distribution && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: 2 }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{sub.linked_distribution.name}</span>
+                      <CoveragePill coverage={coverage} />
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: cancelled ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
+                  {formatEur(sub.monthly_cost)}
+                </span>
+                <button
+                  onClick={() => { setEditingItem(sub); setShowModal(true); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  title="Edit"
+                >
+                  <FontAwesomeIcon icon={faPencil} />
+                </button>
+                {cancelled ? (
+                  <button
+                    onClick={() => handleToggleStatus(sub)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                    title="Reactivate"
                   >
-                    <td className="mobile-card-title" style={{ padding: '0.5rem' }} onClick={() => toggleRow(sub.id)}>
-                      <span style={{ textDecoration: cancelled ? 'line-through' : 'none' }}>{sub.name}</span>
-                      {cancelled && (
-                        <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '999px', background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border-default)', fontWeight: 500 }}>
-                          Cancelled
-                        </span>
-                      )}
-                      <span className="mobile-card-inline-value">{formatEur(sub.monthly_cost)}</span>
-                      <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
-                    </td>
-                    <td data-label="Monthly cost" className="mobile-summary-in-title" style={{ padding: '0.5rem', textAlign: 'right' }}>{formatEur(sub.monthly_cost)}</td>
-                    <td data-label="Billing day" className="mobile-detail" style={{ padding: '0.5rem', color: 'var(--text-muted)' }}>
-                      {sub.billing_day ?? '—'}
-                    </td>
-                    <td data-label="Linked distribution" className="mobile-detail" style={{ padding: '0.5rem' }}>
-                      {sub.linked_distribution ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          <span>{sub.linked_distribution.name}</span>
-                          <CoveragePill coverage={coverage} />
-                        </div>
-                      ) : '—'}
-                    </td>
-                    <td data-label="" className="mobile-detail" style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button
-                        onClick={() => { setEditingItem(sub); setShowModal(true); }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                        title="Edit"
-                      >
-                        <FontAwesomeIcon icon={faPencil} />
-                      </button>
-                      {cancelled ? (
-                        <button
-                          onClick={() => handleToggleStatus(sub)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                          title="Reactivate"
-                        >
-                          <FontAwesomeIcon icon={faArrowRotateLeft} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleCancel(sub)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                          title="Cancel"
-                        >
-                          <FontAwesomeIcon icon={faBan} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(sub)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                        title="Delete"
-                      >
-                        <FontAwesomeIcon icon={faTrash} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    <FontAwesomeIcon icon={faArrowRotateLeft} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleCancel(sub)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                    title="Cancel"
+                  >
+                    <FontAwesomeIcon icon={faBan} />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDelete(sub)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  title="Delete"
+                >
+                  <FontAwesomeIcon icon={faTrash} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 

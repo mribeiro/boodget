@@ -68,10 +68,10 @@ DELETE /api/dossiers/:id/subscriptions/:subscriptionId
 
 ## 6. UI behavior (`SubscriptionsTab.jsx`)
 
-- Flat list (table on desktop, expandable cards on mobile — same `mobile-cards`/`mobile-card-title`/`mobile-detail` pattern as `ExpenseTemplate.jsx`), no detail page.
-- A `KpiStrip` above the table: total monthly cost (active subscriptions only) and active subscription count.
+- Flat list, no detail page. Rows are plain flex-row cards (`CycleEditor.jsx`'s expense-row pattern — a wrapping flex container per row, not a `<table>`), identical markup on mobile and desktop: all fields and actions are always visible inline, nothing hidden behind a tap-to-expand interaction (unlike `ExpenseTemplate.jsx`'s `mobile-cards` table pattern).
+- A `KpiStrip` above the list: total monthly cost (active subscriptions only) and active subscription count.
 - "Show cancelled" / "Hide cancelled" toggle, off (hidden) by default.
-- Row actions: Edit (opens the add/edit modal), Cancel (`ConfirmModal` — active rows only, since it drops the subscription out of totals/coverage) / Reactivate (cancelled rows, no confirm), Delete (`ConfirmModal`, danger, hard delete).
+- Row actions — icon-only, no border (`CycleEditor.jsx`'s exact button style: no background, no border, muted color, `title` tooltip): Edit (opens the add/edit modal), Cancel (`ConfirmModal` — active rows only, since it drops the subscription out of totals/coverage) / Reactivate (cancelled rows, no confirm), Delete (`ConfirmModal`, danger, hard delete).
 - `SubscriptionFormModal`: name, monthly cost, billing day (optional), linked distribution `<select>` populated from the dossier's expense template distributions (fetched via the existing `GET /expense-template`, filtered client-side to `section === 'distribution'` — no new endpoint).
 
 -----
