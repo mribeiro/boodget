@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workbench — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Workbench section of boodget: scenario planning for income, expenses, and distributions." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Workbench</div>
+    <h1 class="manual-title">Planning scenarios in the Workbench</h1>
+    <p class="manual-lede">The Workbench is a what-if calculator: model your income against your expenses and distributions, split everything into Must/Want/Save, and see the leftover update instantly as you tweak numbers — all without touching your real templates or cycles until you choose to. This page walks through using it, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Start from a snapshot or your templates</div>
+      <div class="manual-step-body">
+        <p>Opening the Workbench without loading anything gives you a <strong>working state</strong> pre-filled from your current Monthly Expenses, Annual Expenses, and Distributions templates — a realistic starting point you can freely experiment with. This state is <strong>ephemeral</strong>: navigate away without saving and it's gone. If exactly one saved snapshot exists, it's loaded automatically instead.</p>
+        <p>Save the working state as a named <strong>snapshot</strong> at any time. Saving again always overwrites the currently loaded snapshot in place — to branch off into a new variant, <strong>duplicate</strong> an existing snapshot first, then edit and save the copy. <strong>New from scratch</strong> discards the loaded snapshot and rebuilds the working state from your templates.</p>
+        <figure class="shot">
+          <img src="screenshots/wb-01-snapshot-panel-desktop.png" alt="Workbench panel header showing the loaded snapshot name, Save and New from scratch buttons, and a Saved snapshots list with Load, Duplicate, and Delete buttons per row" loading="lazy" />
+          <figcaption>The snapshot panel — save, duplicate, and switch between scenarios <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Add your income</div>
+      <div class="manual-step-body">
+        <p>The <strong>Income</strong> section has no link to any template — add one entry per income source (salary, freelance work, rental income) with a name and a monthly value. Every section on this page starts collapsed, showing just its totals; click the header to expand and edit.</p>
+        <figure class="shot">
+          <img src="screenshots/wb-02-income-desktop.png" alt="Income section expanded showing two entries, Salary and Freelance, each with a name and monthly value, plus a Total income line" loading="lazy" />
+          <figcaption>Income entries <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Classify expenses as Must or Want</div>
+      <div class="manual-step-body">
+        <p>The <strong>Monthly Expenses</strong> and <strong>Annual Expenses</strong> sections mirror their respective templates — every entry needs a <strong>Must</strong>/<strong>Want</strong> classification, shown with an amber "! unset" flag until you set one, since unclassified entries can't contribute correctly to the summary. Annual entries additionally show a computed monthly average (annual value ÷ 12) alongside their yearly figure.</p>
+        <p>Changes here are entirely local to the Workbench. <strong>Sync from template</strong> pulls in the latest template values (keeping any ad-hoc entries you've added); <strong>Sync to template</strong> pushes your Workbench entries back out, replacing the template entirely — for new ad-hoc entries it asks for the day (and month, for annual expenses) of payment first, since the template needs that but the Workbench doesn't track it.</p>
+        <figure class="shot">
+          <img src="screenshots/wb-03-monthly-expenses-desktop.png" alt="Monthly Expenses section expanded with Sync from template, Sync to template, and + Add buttons, and rows for Rent, Electricity, Internet, Gym, Streaming each with a Must/Want pill" loading="lazy" />
+          <figcaption>Monthly expenses, classified Must/Want <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/wb-04-annual-expenses-desktop.png" alt="Annual Expenses section expanded with rows for Car Insurance, Property Tax, Home Insurance, and Holiday Budget, each showing its annual value and Must/Want pill" loading="lazy" />
+          <figcaption>Annual expenses, with a monthly average computed automatically <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Break distributions into Must, Want &amp; Save</div>
+      <div class="manual-step-body">
+        <p>Each <strong>Distribution</strong> can be split across up to three components — Must, Want, and Save — in any combination. The three must add up to exactly the distribution's total value; the UI flags it immediately if they don't. This decomposition is what lets a single distribution like "Emergency Fund" count entirely as Save, while a more general one gets split across all three.</p>
+        <figure class="shot">
+          <img src="screenshots/wb-05-distributions-desktop.png" alt="Distributions section expanded with rows for Emergency Fund and Investment Top-up, each with empty Must, Want, and Save amount fields ready to be filled in" loading="lazy" />
+          <figcaption>Distributions, ready to be decomposed into Must/Want/Save <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Read the summary</div>
+      <div class="manual-step-body">
+        <p>A strip above the sections totals everything up in real time: <strong>Income</strong>, <strong>Must</strong>, <strong>Want</strong>, and <strong>Save</strong> (pooling contributions from all three sections — monthly expenses, the monthly average of annual expenses, and distributions), and the <strong>Leftover</strong> — income minus all three. Every edit anywhere on the page recalculates this instantly, with no save or submit step.</p>
+        <figure class="shot">
+          <img src="screenshots/wb-06-summary-strip-desktop.png" alt="Summary strip with Income, Must, Want, Save, and Leftover tiles" loading="lazy" />
+          <figcaption>The global summary strip <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/wb-07-workbench-mobile.png" alt="The Workbench summary strip and collapsed sections stacked on a phone screen" loading="lazy" />
+          <figcaption>Workbench on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>

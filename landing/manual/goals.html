@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Goals — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Goals section of boodget: setting targets, tracking contributions, and reading progress." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Goals</div>
+    <h1 class="manual-title">Setting and tracking Goals</h1>
+    <p class="manual-lede">A goal is a target amount by a target date, with boodget doing the arithmetic — how much you need to save each month, whether you're on pace, and when you'll actually get there. This page walks through creating one and reading its progress, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Create a goal</div>
+      <div class="manual-step-body">
+        <p>Give the goal a <strong>name</strong>, a <strong>target value</strong>, and a <strong>target date</strong>. Then pick one of three <strong>monthly contribution modes</strong>:</p>
+        <ul>
+          <li><strong>Via distributions</strong> — select one or more distributions from your Monthly Expenses template; their combined value becomes the expected monthly contribution, and boodget automatically tracks the real contribution from whichever of those distributions get marked done each cycle.</li>
+          <li><strong>Manual</strong> — you type a fixed expected monthly amount, and record the real contribution yourself per cycle from the goal's detail page.</li>
+          <li><strong>Ad-hoc</strong> — no monthly figure at all; progress is read purely from the linked accounts' balance, with no chart or feasibility check.</li>
+        </ul>
+        <p>Optionally select <strong>contributing accounts</strong> — their combined value (from your latest Capital snapshot) is the goal's current progress — and an <strong>extra value already in hand</strong> (money already sitting in those accounts from a one-off windfall), which only affects the projection, never the progress itself.</p>
+        <figure class="shot">
+          <img src="screenshots/goals-01-new-goal-form-desktop.png" alt="New Goal dialog with Name, Target value, Target date fields, and Monthly contribution mode radio buttons set to Via distributions with a checklist of distributions below" loading="lazy" />
+          <figcaption>Creating a goal <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Track goals from the list</div>
+      <div class="manual-step-body">
+        <p>The Goals tab lists every goal for the dossier as a card: name, a state badge (<strong>Active</strong>, <strong>Completed</strong>, or <strong>Failed</strong> — computed automatically, never set by hand), the target date, a progress bar, and the current figure against the target. A goal that can't mathematically be reached with its current contribution gets an extra <strong>Infeasible</strong> badge and a warning line, so an unreachable plan never hides quietly in the list.</p>
+        <figure class="shot">
+          <img src="screenshots/goals-02-goal-list-desktop.png" alt="Goals list with a Retirement Fund card showing an Active badge and a low progress bar, plus an Emergency Buffer card showing a Completed badge and a full progress bar" loading="lazy" />
+          <figcaption>Goals list — Active and Completed states <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Read a goal's progress</div>
+      <div class="manual-step-body">
+        <p>Opening a goal shows a progress bar against three headline figures — <strong>Target</strong>, <strong>Progress</strong>, and <strong>Remaining</strong> — with the same state badge and percentage as the list. If the goal is infeasible — its current contribution simply won't get there by the target date — a prominent banner above the hero says so plainly, rather than leaving you to infer it from a slow-moving bar.</p>
+        <figure class="shot">
+          <img src="screenshots/goals-03-hero-desktop.png" alt="An infeasibility warning banner above a goal detail hero card with an Active badge, a progress bar, and Target/Progress/Remaining figures" loading="lazy" />
+          <figcaption>Goal detail — the progress hero, with an infeasibility warning <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/goals-07-goal-detail-mobile.png" alt="The goal detail page stacked on a phone screen" loading="lazy" />
+          <figcaption>Goal detail on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Check the secondary figures</div>
+      <div class="manual-step-body">
+        <p>Below the hero, a strip of figures fills in the rest of the picture: the target date itself, an <strong>estimated done</strong> date whenever you're on pace to finish early, months left, the monthly amount still needed, and — for Via-distributions and Manual goals — the monthly amount actually budgeted toward it, so you can see at a glance whether your plan covers what's required.</p>
+        <figure class="shot">
+          <img src="screenshots/goals-04-kpi-strip-desktop.png" alt="Secondary KPI strip with Target date, Months left, Monthly needed, and Monthly budgeted tiles" loading="lazy" />
+          <figcaption>Secondary figures for the goal <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Compare expected vs. real progress</div>
+      <div class="manual-step-body">
+        <p>For Via-distributions and Manual goals, a chart plots <strong>Expected</strong> cumulative contributions (what your plan projected) against <strong>Real</strong> cumulative contributions (what actually happened each cycle), plus a dashed <strong>Projected</strong> line extending from today to the target date at your current pace. When that pace would get you there early, a dashed "Estimated" marker on the chart shows exactly which month. This chart isn't shown for Ad-hoc goals — without a monthly contribution figure, there's nothing to project.</p>
+        <figure class="shot">
+          <img src="screenshots/goals-05-chart-desktop.png" alt="Cumulative contributions line chart with Expected, Real, and dashed Projected lines" loading="lazy" />
+          <figcaption>Expected vs. real cumulative contributions <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">6</span> Log contributions from before the goal existed</div>
+      <div class="manual-step-body">
+        <p>Started tracking a goal after you'd already been saving toward it? The <strong>Historical contributions</strong> section lets you back-fill monthly amounts for the months before any cycle existed (or before the goal was created) — either one month at a time or as a date range. These are for the chart only: since the money is already reflected in your account balance, they're never added a second time to your actual progress.</p>
+        <figure class="shot">
+          <img src="screenshots/goals-06-historical-contributions-desktop.png" alt="Historical contributions section, expanded, listing a couple of past months with amounts, plus Add entry and Add range forms" loading="lazy" />
+          <figcaption>Backfilling contributions made before the goal was created <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>
