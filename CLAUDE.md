@@ -113,9 +113,18 @@ money_manager/
 │   ├── SPECIFICATION_PREVIEW_ENVIRONMENTS.md
 │   └── SPECIFICATION_PWA.md
 ├── preview-index/            # Lightweight service listing preview environments
+├── docs/
+│   └── PLATFORM_GUIDE.md     # Human-facing platform guide (features, usage philosophy)
+├── landing/                  # Public marketing + manual site, deployed to GitHub Pages
+│   ├── index.html            # Home page (self-contained, inline CSS)
+│   ├── assets/manual.css     # Shared stylesheet for the manual pages
+│   └── manual/                # Screenshot-driven user manual, one page per app section
+│       ├── index.html         # Manual hub (section index)
+│       └── capital.html       # Capital section walkthrough (first section built out)
 ├── .github/workflows/
 │   ├── deploy.yml            # CI/CD: build + deploy to self-hosted runner
-│   └── preview-deploy.yml    # Ephemeral preview environments for feature branches
+│   ├── preview-deploy.yml    # Ephemeral preview environments for feature branches
+│   └── pages.yml             # Deploys landing/ to GitHub Pages on push to main
 ├── docker-compose.yml        # Production deployment (SQLite persisted to ./data/)
 └── .devcontainer/
 ```
@@ -177,6 +186,7 @@ Change `SESSION_SECRET` in `docker-compose.yml` before real use.
 
 - **Production/Dev** (`deploy.yml`): builds Docker image with `GIT_COMMIT` arg, deploys via `docker compose up -d --force-recreate`. `-dev` suffix for `dev` branch.
 - **Preview** (`preview-deploy.yml`): branch slug → Traefik-routed container at `<slug>.preview.<PREVIEW_DOMAIN>`. Posts/updates PR comment with preview URL.
+- **Pages** (`pages.yml`): on push to `main` touching `landing/**` (or manual dispatch), uploads `landing/` as a Pages artifact and deploys it via `actions/deploy-pages`. Requires the repo's *Settings → Pages → Build and deployment → Source* to be set to "GitHub Actions" (one-time, done outside this repo).
 
 See `ai-spec/SPECIFICATION_PREVIEW_ENVIRONMENTS.md` for full preview environment details.
 

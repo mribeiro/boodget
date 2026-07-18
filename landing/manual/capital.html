@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Capital — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Capital section of boodget: accounts, monthly snapshots, the evolution chart, and the compare table." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Capital</div>
+    <h1 class="manual-title">Tracking your Capital</h1>
+    <p class="manual-lede">The Capital section is where boodget answers "is my net worth going up or down?" — a monthly snapshot of every account you track, charted over time. This page walks through setting it up and reading it, step by step.</p>
+
+    <div class="manual-banner">
+      🚧 <span><strong>Work in progress:</strong> this page's screenshots are placeholders. The step-by-step structure and element explanations below are final; real screenshots (desktop &amp; mobile) will be dropped in during a follow-up pass.</span>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Sign in and create a dossier</div>
+      <div class="manual-step-body">
+        <p>On first launch, boodget detects that no users exist and shows a setup wizard to create the first account. After that, every session starts at the login screen (username + password, or your organization's SSO if OIDC is configured).</p>
+        <p>Everything in boodget lives inside a <strong>dossier</strong> — a named container for a set of accounts, monthly snapshots, and expense cycles. Most people only need one; some split "Personal" and "Work Savings," or share one with a partner. From the dossier list, click <strong>New Dossier</strong>, give it a name, and open it.</p>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: Dossier list — creating a new dossier</div>
+          <div class="shot-viewport">Desktop 1440×900</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Add your accounts</div>
+      <div class="manual-step-body">
+        <p>Before recording any values, tell boodget which accounts you want to track — a current account, a savings account, an investment fund. Each account has:</p>
+        <ul>
+          <li><strong>Group</strong> — clusters accounts together, typically by bank or provider (e.g. "Chase," "Vanguard"). Purely for display; groups aren't a separate entity you manage elsewhere.</li>
+          <li><strong>Name</strong> — the account's label within its group (e.g. "Checking," "Index Fund").</li>
+          <li><strong>Type</strong> — <code>Risk Investment</code>, <code>Guaranteed Investment</code>, or <code>Current Account</code>.</li>
+          <li><strong>Money category</strong> — <code>Idle</code> (cash-like, readily available), <code>Active</code> (invested, the default), or <code>Stocks</code> (unvested/illiquid holdings — kept out of your headline Capital figure until they vest).</li>
+          <li><strong>Can receive transfers</strong> — whether this account is eligible to be picked later as a budget distribution's funding destination. On by default.</li>
+        </ul>
+        <p>Adding an account never touches past months — historical snapshots are unaffected. Deleting an account archives it: it disappears from future months but stays visible in the history it was part of.</p>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: "Add account" form — Group, Name, Type, Money category fields</div>
+          <div class="shot-viewport">Desktop 1440×900</div>
+        </div>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: accounts table grouped by bank/provider</div>
+          <div class="shot-viewport">Mobile 390×844</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Create a new month</div>
+      <div class="manual-step-body">
+        <p>A dossier starts with no months. Click <strong>New Month</strong> and pick the calendar month you're recording. The same month can't be added twice, and months are always displayed in chronological order regardless of when you added them.</p>
+        <p>When a month is created, boodget snapshots which accounts existed at that moment — so even an account you later archive still shows up correctly in the months it was part of.</p>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: "New Month" picker</div>
+          <div class="shot-viewport">Desktop 1440×900</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Fill in the snapshot</div>
+      <div class="manual-step-body">
+        <p>Open the month and enter the current value of every account (two decimal places, currency symbol shown automatically). You can add an optional comment per account entry — handy for noting something like "includes year-end bonus" — plus one optional comment for the month as a whole.</p>
+        <p>A month is either <strong>filled</strong> or <strong>not filled</strong> — there's no draft/locked state in between, and anyone with access to the dossier can edit or <strong>reset</strong> it at any time. Resetting clears every value and comment, returning the month to exactly how it looked right after creation.</p>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: Month editor — entering account values and comments</div>
+          <div class="shot-viewport">Desktop 1440×900</div>
+        </div>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: Month editor on a phone screen</div>
+          <div class="shot-viewport">Mobile 390×844</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Read the Capital chart</div>
+      <div class="manual-step-body">
+        <p>Once you have two or more filled months, the Capital tab shows a line chart of your net worth over time. It plots your headline <strong>Capital</strong> figure (Idle + Active accounts — never Stocks), plus separate lines for <strong>Idle</strong> and <strong>Stocks</strong> so you can see cash-on-hand and unvested holdings independently of the main trend.</p>
+        <p>Stocks are deliberately excluded from the main Capital total: unvested equity isn't spendable yet, so mixing it in would overstate how much "real money" you actually have.</p>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: Capital evolution chart — Total, Idle, and Stocks lines</div>
+          <div class="shot-viewport">Desktop 1440×900</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">6</span> Read the compare table</div>
+      <div class="manual-step-body">
+        <p>Below the chart, the compare table lines up every filled month side by side, with a <strong>Total</strong> row (Idle + Active, matching the chart's headline line) plus separate <strong>Idle</strong> and <strong>Stocks</strong> subtotal rows — so a quick scan across columns shows exactly which account category moved and by how much.</p>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: Capital compare table — Total / Idle / Stocks rows across months</div>
+          <div class="shot-viewport">Desktop 1440×900</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">7</span> Rename or archive an account later</div>
+      <div class="manual-step-body">
+        <p>Renaming an account's Name or Group is purely cosmetic — every reference to it (past snapshots, the chart, the compare table) keys off an internal ID, never the name, so renaming never rewrites history. Archiving (the "delete" action) works the same way: the account disappears from future months but every past month it appeared in still shows its recorded value.</p>
+        <div class="shot-placeholder">
+          <div class="shot-icon">🖼️</div>
+          <div class="shot-caption">Screenshot: inline rename / archive affordance on an account row</div>
+          <div class="shot-viewport">Desktop 1440×900</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>

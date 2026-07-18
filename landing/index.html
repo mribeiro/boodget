@@ -365,6 +365,15 @@
       .glances { grid-template-columns: repeat(2, 1fr); }
       .glances-mockup { grid-template-columns: 1fr 1fr; }
     }
+
+    /* ── PHILOSOPHY TABLE ────────────────────────────────── */
+    .phil-table-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-md); }
+    .phil-table { width: 100%; border-collapse: collapse; font-size: .88rem; background: #fff; }
+    .phil-table th, .phil-table td { padding: .9rem 1.1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .phil-table th { background: #f8fafc; color: var(--text-h); font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+    .phil-table td:first-child { color: var(--text-h); font-weight: 600; white-space: nowrap; }
+    .phil-table td { color: var(--text-m); }
+    .phil-table tr:last-child td { border-bottom: none; }
   </style>
 </head>
 <body>
@@ -397,6 +406,7 @@
       <a href="#cycles">Expenses</a>
       <a href="#goals">Goals</a>
       <a href="#self-hosted">Self-Hosted</a>
+      <a href="manual/index.html">Manual</a>
     </div>
     <a href="https://github.com/ViBE-MiNDS/capital-tracker" class="nav-cta" target="_blank">
       View on GitHub →
@@ -593,6 +603,21 @@
           <div class="feature-icon green">👥</div>
           <div class="feature-title">Multi-User Sharing</div>
           <div class="feature-desc">Share any dossier with other users. Multiple dossiers per account, fine-grained access control, and optional OIDC/SSO support for teams.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue">🏦</div>
+          <div class="feature-title">Loans</div>
+          <div class="feature-desc">Study a purchase before you commit or track a loan you already have. Amortization schedules, downpayment/target-payment/rate-change simulators, and budget-coverage checks, all in one place.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon purple">🔁</div>
+          <div class="feature-title">Subscriptions</div>
+          <div class="feature-desc">Track recurring personal costs — streaming, software — separately from your expense template, and see whether the distribution funding them still covers the total.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon teal">🤖</div>
+          <div class="feature-title">AI Advisor</div>
+          <div class="feature-desc">Opt-in, per-dossier analysis and chat over a trimmed snapshot of your finances. Health score, highlights, and risks — with a visible cost estimate on every response, and a no-API-key export option.</div>
         </div>
       </div>
     </div>
@@ -818,6 +843,53 @@
     </div>
   </section>
 
+  <!-- PHILOSOPHY -->
+  <section style="background: #fff;">
+    <div class="container" style="text-align:center;max-width:720px;margin:0 auto 3rem;">
+      <div class="section-tag">Usage Philosophy</div>
+      <h2 class="section-title">Real control doesn't require logging every transaction</h2>
+      <p class="section-desc" style="margin:0 auto;">boodget never asks you to categorize a purchase. Control comes from the frequency and structure of your feedback loop — a monthly capital snapshot, a per-cycle budget check — not from how many individual transactions you've logged.</p>
+    </div>
+    <div class="container" style="max-width:820px;">
+      <div class="phil-table-wrap">
+        <table class="phil-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Transaction-level tracking</th>
+              <th>boodget's snapshot + cycle model</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>What you record</td>
+              <td>Every purchase, categorized</td>
+              <td>Account balances monthly + budget totals per cycle</td>
+            </tr>
+            <tr>
+              <td>Maintenance cost</td>
+              <td>High — every transaction, forever</td>
+              <td>Low — a snapshot a month, a few updates per cycle</td>
+            </tr>
+            <tr>
+              <td>Degrades under neglect</td>
+              <td>Badly — missing entries silently corrupt totals</td>
+              <td>Gracefully — a skipped update is just less-fresh data</td>
+            </tr>
+            <tr>
+              <td>Answers "will I make it to month end?"</td>
+              <td>Yes, derived from category totals</td>
+              <td>Yes, directly, from the cycle's leftover figure</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="text-align:center;margin-top:2rem;">
+        <a href="https://github.com/ViBE-MiNDS/capital-tracker/blob/main/docs/PLATFORM_GUIDE.md#high-level-control-without-full-transaction-tracking" class="btn-secondary" target="_blank">Read the full write-up →</a>
+      </p>
+    </div>
+  </section>
+
   <!-- SELF-HOSTED -->
   <section class="self-hosted-section" id="self-hosted">
     <div class="container">
@@ -910,8 +982,8 @@
         <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
         Star on GitHub
       </a>
-      <a href="https://github.com/ViBE-MiNDS/capital-tracker/blob/main/README.md" class="btn-secondary" target="_blank">
-        Read the Docs
+      <a href="manual/index.html" class="btn-secondary">
+        Read the Manual
       </a>
     </div>
   </section>
