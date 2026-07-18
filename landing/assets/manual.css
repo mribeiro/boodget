@@ -102,6 +102,22 @@ a { color: var(--brand); }
 .shot-placeholder .shot-caption { font-size: .85rem; color: var(--text-m); font-weight: 600; }
 .shot-placeholder .shot-viewport { font-size: .75rem; color: #94a3b8; margin-top: .25rem; font-family: monospace; }
 
+/* ── SCREENSHOT (real) ────────────────────────────────── */
+.shot { margin-top: 1.25rem; }
+.shot img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+.shot figcaption {
+  font-size: .85rem; color: var(--text-m); font-weight: 600;
+  text-align: center; margin-top: .6rem;
+}
+.shot figcaption .shot-viewport {
+  display: block; font-size: .75rem; color: #94a3b8; font-weight: 400;
+  margin-top: .2rem; font-family: monospace;
+}
+
 /* ── FOOTER ──────────────────────────────────────────── */
 .manual-footer {
   background: #0f172a; color: #475569; padding: 2.5rem 2rem;
