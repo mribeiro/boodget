@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subscriptions — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Subscriptions section of boodget: recurring personal costs and the distribution that funds them." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Subscriptions</div>
+    <h1 class="manual-title">Tracking your Subscriptions</h1>
+    <p class="manual-lede">Streaming, software, memberships — the recurring costs you fund out of a distribution rather than budget for directly. Subscriptions give you visibility into the total, and an optional check against the distribution meant to cover it. This page walks through using it, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Add a subscription</div>
+      <div class="manual-step-body">
+        <p>Give it a <strong>name</strong> and a <strong>monthly cost</strong> — subscriptions are monthly-only, no other billing cycles. A <strong>billing day</strong> is optional and purely informational (it only affects sort order — no cycle items, reminders, or Glances integration). Optionally link it to a <strong>distribution</strong> from your Monthly Expenses template; several subscriptions can share the same distribution, e.g. two subscriptions charged to one card funded by a single "Personal" distribution.</p>
+        <figure class="shot">
+          <img src="screenshots/subscriptions-01-add-form-desktop.png" alt="Add Subscription dialog with Name, Monthly cost, Billing day, and Linked distribution fields" loading="lazy" />
+          <figcaption>Adding a subscription <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Track the list &amp; the total</div>
+      <div class="manual-step-body">
+        <p>Subscriptions is a flat list — no detail page, every field and action visible right on the row, identical on mobile and desktop. A summary strip above it totals the monthly cost and count of <strong>active</strong> subscriptions only. Rows sort the same way Fixed expenses do: by billing day relative to your cycle start day, with no-billing-day rows last.</p>
+        <figure class="shot">
+          <img src="screenshots/subscriptions-02-list-desktop.png" alt="Subscriptions list with a summary strip showing Monthly total and Active subscriptions, and rows for each subscription with billing day and cost" loading="lazy" />
+          <figcaption>Subscriptions list with the summary strip <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/subscriptions-05-mobile.png" alt="The Subscriptions list stacked on a phone screen, with the same inline fields and actions as desktop" loading="lazy" />
+          <figcaption>Subscriptions on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Check coverage against the funding distribution</div>
+      <div class="manual-step-body">
+        <p>Every row linked to a distribution shows a pill next to it: green <strong>Covered</strong> when that distribution's budgeted value is enough for every active subscription linked to it combined, or red <strong>Over by €X</strong> when it isn't. This catches subscription creep against a fixed personal-spending budget before it becomes a surprise.</p>
+        <figure class="shot">
+          <img src="screenshots/subscriptions-03-coverage-desktop.png" alt="Two subscription rows both linked to the same distribution, one showing a green Covered pill and the combined total exceeding the budget on the other showing a red Over by pill" loading="lazy" />
+          <figcaption>Coverage pills on subscriptions sharing a distribution <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Cancel, reactivate, or delete</div>
+      <div class="manual-step-body">
+        <p><strong>Cancel</strong> is the soft path — a cancelled subscription drops out of totals and coverage but stays in your history, hidden from the list by default behind a "Show cancelled" toggle, and can be reactivated at any time. <strong>Delete</strong> is a genuine, permanent removal, meant for outright mistakes rather than something you've simply stopped paying for.</p>
+        <figure class="shot">
+          <img src="screenshots/subscriptions-04-cancelled-desktop.png" alt="Subscriptions list with the Show cancelled toggle active, revealing a struck-through cancelled row alongside the active ones" loading="lazy" />
+          <figcaption>Showing cancelled subscriptions <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>
