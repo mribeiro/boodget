@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loans — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Loans section of boodget: draft studies, active loans, amortization, and scenario simulators." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Loans</div>
+    <h1 class="manual-title">Studying and tracking Loans</h1>
+    <p class="manual-lede">A loan in boodget is either a <strong>draft</strong> — a what-if study for something you're still shopping for — or an <strong>active</strong> loan you're really paying off. Both get the same payment math, the same scenario calculators, and the same read on how much of your salary they eat into. This page walks through both, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Add a loan — draft or active</div>
+      <div class="manual-step-body">
+        <p>A <strong>draft</strong> loan is defined by a <strong>principal</strong> and a <strong>term</strong> — or, if you'd rather think in terms of what you're buying, a <strong>purchase price</strong> and a <strong>down payment</strong>, with the principal derived automatically as the difference. You can also note the <strong>TAEG</strong> (the lender's fees-inclusive advertised rate, kept purely for comparison — it never drives the math) and an <strong>opening fee</strong>. An <strong>active</strong> loan instead tracks a real <strong>remaining balance</strong>, an <strong>end date</strong>, and a <strong>day of payment</strong> — months left is always computed from those, never entered by hand.</p>
+        <p>Every loan — draft or active — has an <strong>interest rate</strong> (always the TAN, the nominal rate that actually drives the payment formula, not the TAEG) and a <strong>salary</strong>, prefilled from the dossier's reference salary if one is set. Active loans can optionally link to a Fixed expense in your Monthly Expenses template, so boodget can tell you whether that expense is budgeted enough to cover the payment.</p>
+        <figure class="shot">
+          <img src="screenshots/loans-01-new-loan-form-desktop.png" alt="New Loan dialog in draft mode with Name, Status, TAN and Salary fields, Purchase price and Down payment, Amount financed and Term, and a live monthly payment preview" loading="lazy" />
+          <figcaption>Adding a draft loan <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Track loans from the list</div>
+      <div class="manual-step-body">
+        <p>The Loans tab lists every loan as a card — name, rate, a Draft/Active badge, monthly payment, and percentage of salary — with a green <strong>Covered</strong> or red <strong>Underbudgeted</strong> pill on active loans linked to an expense. Above the list, a summary strip totals up the <strong>active</strong> loans only: monthly amount, total amount still due, how many are ongoing, and the combined percentage of salary, colour-coded against a configurable ceiling.</p>
+        <figure class="shot">
+          <img src="screenshots/loans-02-loan-list-desktop.png" alt="Loans list with a summary strip (Monthly total, Total amount due, Loans ongoing, % of salary), a Car Loan card marked Active with a Covered pill, and a House Purchase Study card marked Draft with a down payment chip" loading="lazy" />
+          <figcaption>Loans list with the summary strip <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Read a loan's detail page</div>
+      <div class="manual-step-body">
+        <p>A loan's detail page opens with a compact hero: its status and rate, the monthly payment, and — whenever the underlying data is available, on either a draft or an active loan — the total interest over the full original term and the total amount payable (a simplified MTIC estimate that adds in any opening fee). Active loans additionally show the remaining interest still left to pay from today to payoff.</p>
+        <figure class="shot">
+          <img src="screenshots/loans-03-hero-desktop.png" alt="Loan detail hero showing an Active badge, interest rate, monthly payment, and total interest figures" loading="lazy" />
+          <figcaption>Loan detail hero <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/loans-08-loan-detail-mobile.png" alt="The loan detail page stacked on a phone screen" loading="lazy" />
+          <figcaption>Loan detail on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Run the scenario calculators</div>
+      <div class="manual-step-body">
+        <p>Every loan — draft or active — gets three ephemeral, nothing-saved calculators: a <strong>downpayment scenario</strong> (pay a lump sum now — get either a lower payment on the same term or the same payment on a shorter one, with the interest saved either way), a <strong>target payment scenario</strong> (name the payment you want — see the lump sum needed to get there), and an <strong>interest rate scenario</strong> (model a rate change — see the new payment and whether it costs you more or less interest overall). For a draft, its principal and term stand in for an active loan's balance and months left, so you can fine-tune a purchase study before ever signing anything.</p>
+        <figure class="shot">
+          <img src="screenshots/loans-04-scenarios-desktop.png" alt="Three collapsible scenario calculators: Downpayment scenario, Target payment scenario, and Interest rate scenario, each with an input field and result rows" loading="lazy" />
+          <figcaption>The three scenario calculators <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Check loan details &amp; expense coverage</div>
+      <div class="manual-step-body">
+        <p>The right column lists every stored figure for the loan — balance or principal, term or months left, end date and day of payment for active loans, and (whenever present, regardless of status) purchase price, down payment, TAEG, and opening fee as a historical record of how the loan was originated. For an active loan linked to a Fixed expense, an <strong>Expense coverage</strong> panel compares the payment against the budgeted value directly.</p>
+        <figure class="shot">
+          <img src="screenshots/loans-05-details-coverage-desktop.png" alt="Loan details panel listing balance, end date, day of payment, and salary figures, with an Expense coverage panel below showing a green Covered pill" loading="lazy" />
+          <figcaption>Loan details and expense coverage <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">6</span> See the amortization schedule</div>
+      <div class="manual-step-body">
+        <p>Active loans get a full payoff plan, computed entirely from the loan's current balance and rate — no separate data entry. It rolls up by calendar year (interest, principal, and ending balance for that year); clicking a year expands it into its individual months.</p>
+        <figure class="shot">
+          <img src="screenshots/loans-06-amortization-desktop.png" alt="Amortization schedule with per-year rows showing Interest, Principal, and Balance, one year expanded into its individual months" loading="lazy" />
+          <figcaption>Amortization schedule, expanded to show one year's months <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">7</span> Promote a draft to active</div>
+      <div class="manual-step-body">
+        <p>Once a draft becomes real, click <strong>Promote</strong> — a focused dialog asks only for the handful of fields a draft doesn't have: remaining balance (prefilled from the draft's principal), day of payment, and end date. Everything else — principal, term, rate, TAEG, opening fee — carries over automatically as a permanent record of how the loan started out, even though those fields can no longer be edited directly once active.</p>
+        <figure class="shot">
+          <img src="screenshots/loans-07-promote-modal-desktop.png" alt="Promote to Active dialog with Remaining balance, Day of payment, and Loan end date fields" loading="lazy" />
+          <figcaption>Promoting a draft to an active loan <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>
