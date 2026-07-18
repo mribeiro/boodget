@@ -2,6 +2,12 @@
 
 **Because handling your money shouldn't be scary.**
 
+🌐 **[Project site & manual](https://vibe-minds.github.io/capital-tracker/)** —
+overview, features, and a growing screenshot-driven user manual
+(source: [`landing/`](landing/), deployed via GitHub Pages). URL format
+assumes GitHub Pages is enabled for this repo (*Settings → Pages → Source:
+GitHub Actions*); verify once the `pages.yml` workflow first deploys.
+
 boodget (this repository: `capital-tracker`) is a self-hosted personal finance
 application for tracking monthly capital, running budget cycles, chasing
 goals, and keeping an eye on loans, subscriptions, and annual bills — all
