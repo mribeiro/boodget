@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emergency Fund — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Emergency Fund section of boodget: a savings-buffer target derived from your recent average spend." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Emergency Fund</div>
+    <h1 class="manual-title">Sizing your Emergency Fund</h1>
+    <p class="manual-lede">A savings buffer sized in months of expenses, not a round number you picked once and forgot about — boodget derives the target from your actual recent spending and checks it against real account balances automatically. This page walks through setting it up and reading it, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Configure the target</div>
+      <div class="manual-step-body">
+        <p>In <strong>Settings → Emergency Fund Settings</strong>, set two numbers: how many <strong>months of expenses</strong> the fund should cover (default 6), and how many <strong>recent cycles</strong> to average when computing a typical month's spend (default 6, using fewer if the dossier doesn't have that many yet). Distributions are never counted — only fixed and budget expenses feed the average.</p>
+        <figure class="shot">
+          <img src="screenshots/ef-01-settings-desktop.png" alt="Emergency Fund Settings card with 'Emergency fund should cover 6 months of expenses' and 'Calculate average expenses from the last 6 cycles' rows, each with an edit button" loading="lazy" />
+          <figcaption>Emergency Fund Settings <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Choose contributing accounts</div>
+      <div class="manual-step-body">
+        <p>From the Emergency Fund tab, pick which accounts count as your buffer — their combined value from your latest Capital snapshot is the fund's current value. The same account can contribute here and to a Goal at the same time; there's no exclusivity. An account you later archive is automatically dropped from the total.</p>
+        <figure class="shot">
+          <img src="screenshots/ef-02-accounts-picker-desktop.png" alt="Select Contributing Accounts dialog with a checkbox list of dossier accounts grouped by bank" loading="lazy" />
+          <figcaption>Selecting contributing accounts <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Add extra monthly values</div>
+      <div class="manual-step-body">
+        <p>Not everything recurring runs through a cycle. <strong>Extra monthly values</strong> — rent, school fees, anything paid outside your Monthly Expenses template — get added to the cycle-derived average before the multiplier is applied, so the target reflects your real monthly burn, not just what happens to be templated.</p>
+        <figure class="shot">
+          <img src="screenshots/ef-03-extra-values-desktop.png" alt="Extra Monthly Values table with a Rent (external) row set to 400 euros, and an Add button" loading="lazy" />
+          <figcaption>Extra monthly values not captured by cycles <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Read the summary</div>
+      <div class="manual-step-body">
+        <p>The summary card shows a <strong>Healthy</strong> or <strong>Underfunded</strong> badge, a progress bar, and every figure behind the target: current value, target value, deficit or surplus, months covered, the average monthly expense, the extra monthly total, the effective monthly base (average + extras), and exactly how many cycles were considered. If no cycles exist yet in the dossier, the card explains that instead of showing a target it can't compute.</p>
+        <figure class="shot">
+          <img src="screenshots/ef-04-summary-desktop.png" alt="Emergency Fund summary card with an Underfunded badge, a progress bar, and rows for current value, target value, deficit, months covered, average monthly expense, extra monthly total, effective monthly base, and cycles considered" loading="lazy" />
+          <figcaption>Emergency Fund summary — Underfunded state <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/ef-06-mobile.png" alt="The Emergency Fund tab stacked on a phone screen" loading="lazy" />
+          <figcaption>Emergency Fund on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Spot it from the Glances panel</div>
+      <div class="manual-step-body">
+        <p>An underfunded fund doesn't wait for you to open its tab. Whenever the dossier has at least one cycle and the fund is underfunded, a red banner — the deficit and the target — is embedded at the bottom of the <strong>Goals</strong> card in the Glances panel at the top of the dossier, and the whole card switches to its red warning state. Clicking the banner jumps straight to the Emergency Fund tab, independently of clicking the rest of the card (which goes to Goals instead). Once the fund is healthy, or no cycles exist yet, the banner simply isn't shown.</p>
+        <figure class="shot">
+          <img src="screenshots/ef-05-glances-banner-desktop.png" alt="The Goals glance card in its red warning state, showing no goals defined plus an Emergency Fund banner reading the deficit and target amounts" loading="lazy" />
+          <figcaption>The Emergency Fund warning embedded in the Goals glance card <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>

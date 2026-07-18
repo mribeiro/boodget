@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Advisor — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the AI Advisor section of boodget: opt-in analysis and chat over a trimmed snapshot of your dossier." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · AI Advisor</div>
+    <h1 class="manual-title">Getting a second opinion from the AI Advisor</h1>
+    <p class="manual-lede">An opt-in tab that sends a trimmed, no-account-numbers snapshot of a dossier to Claude and asks for a plain-language financial health check — or lets you chat about it directly. It's entirely optional, entirely per-dossier, and never runs without being asked to. This page walks through setting it up and using it, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Enable it and set an API key</div>
+      <div class="manual-step-body">
+        <p>In <strong>Settings → AI Settings</strong>, the whole feature is gated behind one checkbox — when off, the AI Advisor tab doesn't render at all anywhere in the dossier, and the backend independently refuses every AI request regardless of what the frontend shows. Pick a default <strong>model</strong> (cost and capability trade-offs are spelled out right in the dropdown), and optionally set a <strong>Claude API key</strong> for this dossier specifically — it's write-only, masked, and never sent back to the browser once saved. Leave it blank and the app falls back to an operator-wide key set in the environment, if one exists.</p>
+        <figure class="shot">
+          <img src="screenshots/ai-01-settings-desktop.png" alt="AI Settings card with an Enable AI features checkbox, a Default model dropdown, and a masked Claude API key field being edited" loading="lazy" />
+          <figcaption>AI Settings — enable, pick a model, set a key <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Or skip the API key entirely</div>
+      <div class="manual-step-body">
+        <p>No key, no problem. The <strong>"Use your Claude subscription instead"</strong> card is always available, key or not: it copies or downloads the exact same dossier context and analysis instructions as a self-contained prompt, ready to paste into claude.ai chat and billed to your existing Claude subscription instead of API usage. Every AI response elsewhere in the tab also shows a cost estimate, so if you do use a key, you always know what it's spending.</p>
+        <figure class="shot">
+          <img src="screenshots/ai-02-export-prompt-desktop.png" alt="A card titled 'Use your Claude subscription instead' with Copy to clipboard and Download as text file buttons" loading="lazy" />
+          <figcaption>Exporting the same analysis as a paste-into-claude.ai prompt <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Add context the numbers can't capture</div>
+      <div class="manual-step-body">
+        <p>Raw numbers don't know that July's spike was a one-off vet bill, or that you're deliberately not rebalancing stocks yet. The <strong>Additional context</strong> box is where you say so once — it's saved per dossier and folded into every analysis, chat reply, and exported prompt from then on, with the model explicitly instructed to give it real weight rather than flag something you've already explained.</p>
+        <figure class="shot">
+          <img src="screenshots/ai-03-context-desktop.png" alt="Additional context textarea with a short note explaining a one-off expense, a character counter, and a Save notes button" loading="lazy" />
+          <figcaption>Adding context the raw numbers don't capture <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Run an analysis</div>
+      <div class="manual-step-body">
+        <p>Click <strong>Analyze dossier</strong> and the model returns a structured assessment: a <strong>health score</strong> out of 100, a short summary, a handful of <strong>highlights</strong>, concrete <strong>improvements</strong>, and any <strong>risks</strong> — each grounded in real figures from the dossier (an account name, a specific month, an actual euro amount), not generic advice. It factors in loans, subscriptions linked to distributions, the emergency fund, goals, and even your own Workbench plans. The result is saved — reopening the tab later shows the same analysis until you re-run it.</p>
+        <figure class="shot">
+          <img src="screenshots/ai-04-analysis-desktop.png" alt="A financial health score badge, a written summary, and three sections — Highlights, What can be improved, and Risks to watch — each listing a few concrete items" loading="lazy" />
+          <figcaption>A completed analysis — score, highlights, improvements, risks <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Chat about the dossier</div>
+      <div class="manual-step-body">
+        <p>Below the analysis, a chatbox answers free-form questions using the same dossier snapshot as context — "can I afford to promote that draft loan?", "which distribution is closest to its limit?". The conversation is <strong>ephemeral</strong> by design: it lives only in the browser tab, isn't saved anywhere, and starts fresh every time you leave and come back.</p>
+        <figure class="shot">
+          <img src="screenshots/ai-05-chat-desktop.png" alt="An empty chat panel titled 'Chat about this dossier' with placeholder guidance text and a message input at the bottom" loading="lazy" />
+          <figcaption>The chat panel <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/ai-06-mobile.png" alt="The AI Advisor tab stacked on a phone screen" loading="lazy" />
+          <figcaption>AI Advisor on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>
