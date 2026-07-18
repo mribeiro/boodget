@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monthly Expenses — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Monthly Expenses section of boodget: cycles, the expense template, fixed and budget expenses, and distributions." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Monthly Expenses</div>
+    <h1 class="manual-title">Tracking your Monthly Expenses</h1>
+    <p class="manual-lede">The Monthly Expenses section organizes your budget around <strong>cycles</strong> — the period between salary payments, rather than the calendar month. Set up a reusable template once, then open a cycle each pay period to track what's paid, what's budgeted, and where your money is going. This page walks through setting it up and using it, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Set your cycle start day</div>
+      <div class="manual-step-body">
+        <p>A cycle isn't a calendar month — it runs from the day your salary lands to the day before it lands again. In <strong>Settings → Cycle Settings</strong>, set the day of the month your salary is received (default: the 25th). A cycle is stored by its <em>start</em> month but always <strong>named after the month it ends in</strong> — e.g. with a start day of 25, a cycle running Jun 25 – Jul 24 is displayed as "July".</p>
+        <p>This one setting drives how every cycle, expense day, and installment date is interpreted throughout this section.</p>
+        <figure class="shot">
+          <img src="screenshots/me-01-cycle-settings-desktop.png" alt="Cycle Settings card in Dossier Settings, showing &quot;Cycle starts on day&quot; set to 25 with an edit button" loading="lazy" />
+          <figcaption>Cycle Settings — the day your cycle starts <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Build your expense template</div>
+      <div class="manual-step-body">
+        <p>The template (also in <strong>Settings</strong>) is a reusable list copied into every new cycle you open — set it up once and each pay period starts pre-filled. It has two independent lists:</p>
+        <ul>
+          <li><strong>Expenses</strong> — either <code>Fixed</code> (an exact amount due on a specific day, e.g. rent on the 1st) or <code>Budget</code> (a spending cap you track against during the cycle, e.g. groceries, with no fixed day). Each can carry a <strong>Must</strong>/<strong>Want</strong> classification, used by the Workbench.</li>
+          <li><strong>Distributions</strong> — money set aside for a purpose (e.g. "Emergency Fund", "Investment Top-up") rather than spent. Each can optionally link to a <strong>funding account</strong> — the account that money should come from — so you know at a glance where to transfer it later.</li>
+        </ul>
+        <p>Editing the template never touches cycles you've already opened — changes only apply going forward.</p>
+        <figure class="shot">
+          <img src="screenshots/me-02-expense-template-desktop.png" alt="Monthly Expense Template card with an Expenses section listing Fixed expenses like Rent and Electricity with payment days and Must/Want pills, and a Distributions section below with the &quot;Investment Top-up&quot; row's Account dropdown set to Savings" loading="lazy" />
+          <figcaption>Expense template — Expenses and Distributions <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Open a cycle</div>
+      <div class="manual-step-body">
+        <p>From the <strong>Monthly Expenses</strong> tab, click <strong>Open new cycle</strong> and pick the period. You'll enter the <strong>salary received</strong> and the <strong>previous balance</strong> (whatever was left over from last cycle — always entered manually, never carried over automatically). Every template item is copied in as a starting point; you can still add ad-hoc items later.</p>
+        <p>A dossier can have several cycles open at once — there's no requirement to close one before opening the next.</p>
+        <figure class="shot">
+          <img src="screenshots/me-04-open-cycle-modal-desktop.png" alt="Open New Cycle dialog with Cycle and Year dropdowns, the resulting date range, and Salary received / Previous balance fields" loading="lazy" />
+          <figcaption>Opening a new cycle <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Read the cycle summary</div>
+      <div class="manual-step-body">
+        <p>Every cycle's editor opens with a summary strip: salary, previous balance, total available, total expenses (and how much of that is paid vs. unpaid), a running current balance, and the expected balance once everything is settled. Once the cycle is closed, a final real balance and the difference against what was expected are added.</p>
+        <figure class="shot">
+          <img src="screenshots/me-05-cycle-summary-desktop.png" alt="Cycle summary strip showing Salary, Prev. bal., Available, Expenses, Paid, Unpaid, Current balance, and Expected balance tiles" loading="lazy" />
+          <figcaption>Cycle summary strip <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Track fixed &amp; budget expenses</div>
+      <div class="manual-step-body">
+        <p>Fixed expenses get a simple checkbox — tick it off once paid. Budget expenses show a progress bar against their maximum as you update the accumulated spent amount; the bar shifts from green to amber to red as you approach the cap. Both lists live in the left column of the cycle editor, sorted by payment day (expenses due later in the current calendar month come first, then next month's, then budgets last).</p>
+        <figure class="shot">
+          <img src="screenshots/me-06-cycle-expenses-column-desktop.png" alt="Fixed Expenses section with checkboxes for Rent, Electricity, Internet, Gym, and Streaming, and a Budgets section with progress bars for Groceries, Restaurants, and Transport" loading="lazy" />
+          <figcaption>Fixed &amp; Budget expenses <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/me-07-cycle-editor-mobile.png" alt="The same cycle editor stacked into a single column on a phone screen" loading="lazy" />
+          <figcaption>Cycle editor on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">6</span> Track distributions &amp; where the money goes</div>
+      <div class="manual-step-body">
+        <p>Distributions live in the right column with their own done/not-done checkbox. If a distribution (or its template) is linked to a funding account, that account's name shows as a small badge on the row. Below the list, a <strong>Transfer per Account</strong> section totals up how much needs to move into each account this cycle — so you can do the actual bank transfers in one pass instead of hunting through each line item.</p>
+        <figure class="shot">
+          <img src="screenshots/me-08-cycle-distributions-column-desktop.png" alt="Distributions section listing Emergency Fund and Investment Top-up with a Savings account badge, and a Transfer per Account section below totaling the amount to send to Savings" loading="lazy" />
+          <figcaption>Distributions &amp; the Transfer per Account summary <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">7</span> Close a cycle</div>
+      <div class="manual-step-body">
+        <p>When the cycle is over, click <strong>Close</strong> and enter the <strong>final real balance</strong> — the actual amount left in your account. boodget compares it against the expected balance and shows the difference immediately, so you catch any discrepancy right away. A closed cycle stays fully editable — closing it is a milestone, not a lock, and it can be reopened at any time.</p>
+        <figure class="shot">
+          <img src="screenshots/me-09-close-cycle-modal-desktop.png" alt="Close Cycle dialog with a Final real balance field and a green &quot;Difference vs expected&quot; readout" loading="lazy" />
+          <figcaption>Closing a cycle <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>

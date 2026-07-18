@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Annual Expenses — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Annual Expenses section of boodget: the annual template, installments, yearly tracking, and funding." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Annual Expenses</div>
+    <h1 class="manual-title">Tracking your Annual Expenses</h1>
+    <p class="manual-lede">Insurance, taxes, subscriptions billed once a year — the bills that don't fit a monthly budget but still need to be planned for. The Annual Expenses section spreads them across the year, tracks what's been set aside, and hands off actual payments to the cycle they fall in. This page walks through setting it up and using it, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Build your annual expense template</div>
+      <div class="manual-step-body">
+        <p>In <strong>Settings → Annual Expense Template</strong>, define each recurring annual expense: a name, its total annual value, a Must/Want classification, and one or more <strong>installments</strong> — each with its own month and day. Most expenses have a single installment; something like a property tax billed in three parts gets three. The expected value per installment (annual value ÷ number of installments) is computed for you.</p>
+        <p>The template is the recurring definition — it's copied into a new <strong>year</strong> (see next step) rather than used directly.</p>
+        <figure class="shot">
+          <img src="screenshots/ae-01-annual-template-desktop.png" alt="Annual Expense Template card with the Property Tax row expanded, showing three installments each with a month, day, and expected value" loading="lazy" />
+          <figcaption>Annual expense template with a multi-installment item expanded <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> Open a year</div>
+      <div class="manual-step-body">
+        <p>The <strong>Annual Expenses</strong> tab is scoped to a calendar year at a time. Opening a year copies every item and installment from the current template into that year as a snapshot — later template edits won't retroactively change a year you've already opened. The current calendar year is opened automatically the first time a cycle spanning it is created, or you can open any year manually from the year selector.</p>
+        <figure class="shot">
+          <img src="screenshots/ae-02-annual-year-selector-desktop.png" alt="Year selector row with a button for the current year and an &quot;Other year…&quot; button to open a different one" loading="lazy" />
+          <figcaption>Switching between years <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Read the year summary</div>
+      <div class="manual-step-body">
+        <p>The summary card reads like a savings goal: a progress bar shows <strong>Raised to date</strong> (money in your tracked accounts, plus what's already been paid — so paying a bill doesn't make the bar go backwards) against the year's total <strong>Target</strong>, with the shortfall shown as <strong>Remaining</strong>. A slim second bar tracks how far through the year you are, from January 1st to the last installment date. A caption at the bottom shows the <strong>carryover</strong> brought in from last year, editable inline.</p>
+        <p>The toolbar above the summary is also where you <strong>sync</strong> the year against the template in either direction — pull in template changes (replacing template-derived items, keeping ad-hoc ones), or push the year's current items back out to become the new template.</p>
+        <figure class="shot">
+          <img src="screenshots/ae-03-annual-hero-desktop.png" alt="Year summary hero card with a &quot;Fully funded&quot; badge at 100%, a progress bar, a slim time-elapsed bar, and Target / Raised to date / Remaining figures" loading="lazy" />
+          <figcaption>Year summary — progress toward fully funded <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Check the secondary figures</div>
+      <div class="manual-step-body">
+        <p>Below the hero, a strip of secondary figures breaks the picture down further: how much sits in your tracked accounts right now, how much has been paid so far (and whether this cycle's due amount is already covered), how much is left to pay, how much still needs to be raised for the year after accounting for the carryover, how much has come in via linked distributions, and a monthly average needed for the cycles remaining.</p>
+        <figure class="shot">
+          <img src="screenshots/ae-04-annual-kpi-strip-desktop.png" alt="A strip of KPI tiles: In tracked accounts, Amount paid so far, Remaining to pay, Raise needed for the year, Contributed via distributions, and Monthly average needed" loading="lazy" />
+          <figcaption>Secondary figures for the year <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Track year items &amp; installments</div>
+      <div class="manual-step-body">
+        <p>Below the summary, every expense for the year is listed. A single-installment expense is a flat row; a multi-installment one expands into its individual installments, each showing its date, expected value, and paid status. You can add ad-hoc items directly to a year without touching the template, and edit or delete any item at any time.</p>
+        <figure class="shot">
+          <img src="screenshots/ae-05-annual-items-desktop.png" alt="Expenses list for the year, with Property Tax expanded showing three installment rows with dates and paid checkboxes" loading="lazy" />
+          <figcaption>Year items, expanded to show installments <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/ae-06-annual-items-mobile.png" alt="The same year summary and items list stacked on a phone screen" loading="lazy" />
+          <figcaption>Annual Expenses tab on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">6</span> Record payments in the cycle they fall in</div>
+      <div class="manual-step-body">
+        <p>You don't pay annual expenses from the Annual Expenses tab itself — when a cycle's date range covers an installment's due date, that installment automatically appears alongside the cycle's own fixed expenses, tagged "Annual" (with an "N/M" label for multi-installment items) so it's easy to tell apart. Tick it as paid and adjust the real amount right there, same as any other expense; the Annual Expenses tab picks up the change immediately. If a year is opened after a cycle already exists, the cycle's <strong>Pull annual</strong> button retroactively links any installments that fall in its range.</p>
+        <figure class="shot">
+          <img src="screenshots/ae-07-annual-in-cycle-desktop.png" alt="Fixed Expenses list in a cycle editor with a Property Tax row labeled Annual 2/3 mixed in alongside regular fixed expenses" loading="lazy" />
+          <figcaption>An annual installment showing up inside a cycle <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">7</span> Set contributing accounts &amp; distributions</div>
+      <div class="manual-step-body">
+        <p>Two dossier-wide settings feed the "Raised to date" figure: which <strong>accounts</strong> count as your annual-expenses fund (their combined current value, from your latest Capital snapshot), and which <strong>distributions</strong> count as monthly contributions toward it (summed whenever they're marked done in a cycle within the selected year). Both are picked once per dossier — not per year — from the toolbar buttons on the summary card.</p>
+        <figure class="shot">
+          <img src="screenshots/ae-08-annual-accounts-picker-desktop.png" alt="Contributing Accounts dialog with a checkbox list of dossier accounts grouped by bank" loading="lazy" />
+          <figcaption>Choosing which accounts fund your annual expenses <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>
