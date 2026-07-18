@@ -25,45 +25,38 @@
     <h1 class="manual-title">Tracking your Capital</h1>
     <p class="manual-lede">The Capital section is where boodget answers "is my net worth going up or down?" — a monthly snapshot of every account you track, charted over time. This page walks through setting it up and reading it, step by step.</p>
 
-    <div class="manual-banner">
-      🚧 <span><strong>Work in progress:</strong> this page's screenshots are placeholders. The step-by-step structure and element explanations below are final; real screenshots (desktop &amp; mobile) will be dropped in during a follow-up pass.</span>
-    </div>
-
     <div class="manual-step">
       <div class="manual-step-title"><span class="manual-step-num">1</span> Sign in and create a dossier</div>
       <div class="manual-step-body">
         <p>On first launch, boodget detects that no users exist and shows a setup wizard to create the first account. After that, every session starts at the login screen (username + password, or your organization's SSO if OIDC is configured).</p>
         <p>Everything in boodget lives inside a <strong>dossier</strong> — a named container for a set of accounts, monthly snapshots, and expense cycles. Most people only need one; some split "Personal" and "Work Savings," or share one with a partner. From the dossier list, click <strong>New Dossier</strong>, give it a name, and open it.</p>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: Dossier list — creating a new dossier</div>
-          <div class="shot-viewport">Desktop 1440×900</div>
-        </div>
+        <figure class="shot">
+          <img src="screenshots/capital-01-new-dossier-desktop.png" alt="Dossier list with a &quot;New dossier&quot; form open, naming a dossier &quot;Household Budget&quot;, alongside a grid of existing dossier cards" loading="lazy" />
+          <figcaption>Dossier list — creating a new dossier <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
       </div>
     </div>
 
     <div class="manual-step">
       <div class="manual-step-title"><span class="manual-step-num">2</span> Add your accounts</div>
       <div class="manual-step-body">
-        <p>Before recording any values, tell boodget which accounts you want to track — a current account, a savings account, an investment fund. Each account has:</p>
+        <p>Before recording any values, tell boodget which accounts you want to track — a current account, a savings account, an investment fund. Accounts are managed from the dossier's <strong>Settings</strong> tab, under the "Accounts" section. Each account has:</p>
         <ul>
           <li><strong>Group</strong> — clusters accounts together, typically by bank or provider (e.g. "Chase," "Vanguard"). Purely for display; groups aren't a separate entity you manage elsewhere.</li>
           <li><strong>Name</strong> — the account's label within its group (e.g. "Checking," "Index Fund").</li>
-          <li><strong>Type</strong> — <code>Risk Investment</code>, <code>Guaranteed Investment</code>, or <code>Current Account</code>.</li>
+          <li><strong>Type</strong> — <code>Risk Investment</code>, <code>Guaranteed Investment</code>, or <code>Current Account</code>. Not editable after the account is created.</li>
           <li><strong>Money category</strong> — <code>Idle</code> (cash-like, readily available), <code>Active</code> (invested, the default), or <code>Stocks</code> (unvested/illiquid holdings — kept out of your headline Capital figure until they vest).</li>
-          <li><strong>Can receive transfers</strong> — whether this account is eligible to be picked later as a budget distribution's funding destination. On by default.</li>
+          <li><strong>Can receive transfers</strong> — whether this account is eligible to be picked later as a budget distribution's funding destination. On by default, except for new Stocks accounts, where it defaults off.</li>
         </ul>
         <p>Adding an account never touches past months — historical snapshots are unaffected. Deleting an account archives it: it disappears from future months but stays visible in the history it was part of.</p>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: "Add account" form — Group, Name, Type, Money category fields</div>
-          <div class="shot-viewport">Desktop 1440×900</div>
-        </div>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: accounts table grouped by bank/provider</div>
-          <div class="shot-viewport">Mobile 390×844</div>
-        </div>
+        <figure class="shot">
+          <img src="screenshots/capital-02-add-account-form-desktop.png" alt="The Accounts section of Settings, showing the &quot;Add account&quot; form with Group, Account name, Type, Category, and Can receive transfers fields, above the existing grouped accounts table" loading="lazy" />
+          <figcaption>"Add account" form — Group, Name, Type, Money category fields <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/capital-03-accounts-table-mobile.png" alt="Accounts list on a mobile screen, grouped into &quot;Main Bank&quot; and &quot;Broker&quot; sections, each account row showing a pencil edit icon" loading="lazy" />
+          <figcaption>Accounts table grouped by bank/provider <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
       </div>
     </div>
 
@@ -72,11 +65,10 @@
       <div class="manual-step-body">
         <p>A dossier starts with no months. Click <strong>New Month</strong> and pick the calendar month you're recording. The same month can't be added twice, and months are always displayed in chronological order regardless of when you added them.</p>
         <p>When a month is created, boodget snapshots which accounts existed at that moment — so even an account you later archive still shows up correctly in the months it was part of.</p>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: "New Month" picker</div>
-          <div class="shot-viewport">Desktop 1440×900</div>
-        </div>
+        <figure class="shot">
+          <img src="screenshots/capital-04-new-month-picker-desktop.png" alt="The &quot;Add Month&quot; dialog with Month and Year dropdowns set to July and 2027, over the Capital tab" loading="lazy" />
+          <figcaption>"New Month" picker <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
       </div>
     </div>
 
@@ -85,16 +77,14 @@
       <div class="manual-step-body">
         <p>Open the month and enter the current value of every account (two decimal places, currency symbol shown automatically). You can add an optional comment per account entry — handy for noting something like "includes year-end bonus" — plus one optional comment for the month as a whole.</p>
         <p>A month is either <strong>filled</strong> or <strong>not filled</strong> — there's no draft/locked state in between, and anyone with access to the dossier can edit or <strong>reset</strong> it at any time. Resetting clears every value and comment, returning the month to exactly how it looked right after creation.</p>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: Month editor — entering account values and comments</div>
-          <div class="shot-viewport">Desktop 1440×900</div>
-        </div>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: Month editor on a phone screen</div>
-          <div class="shot-viewport">Mobile 390×844</div>
-        </div>
+        <figure class="shot">
+          <img src="screenshots/capital-05-month-editor-desktop.png" alt="Month editor for July 2026, listing each account grouped by bank with an editable value field, its previous value, and a comment field, plus Total/Idle/Stocks summary tiles at the top" loading="lazy" />
+          <figcaption>Month editor — entering account values and comments <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/capital-06-month-editor-mobile.png" alt="The same month editor stacked into cards on a phone screen" loading="lazy" />
+          <figcaption>Month editor on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
       </div>
     </div>
 
@@ -103,11 +93,10 @@
       <div class="manual-step-body">
         <p>Once you have two or more filled months, the Capital tab shows a line chart of your net worth over time. It plots your headline <strong>Capital</strong> figure (Idle + Active accounts — never Stocks), plus separate lines for <strong>Idle</strong> and <strong>Stocks</strong> so you can see cash-on-hand and unvested holdings independently of the main trend.</p>
         <p>Stocks are deliberately excluded from the main Capital total: unvested equity isn't spendable yet, so mixing it in would overstate how much "real money" you actually have.</p>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: Capital evolution chart — Total, Idle, and Stocks lines</div>
-          <div class="shot-viewport">Desktop 1440×900</div>
-        </div>
+        <figure class="shot">
+          <img src="screenshots/capital-07-chart-desktop.png" alt="Line chart titled &quot;Total Capital Evolution&quot; with three lines — a blue Total line rising from about 22K to 24K euros, a flat orange line around 8K, and a flat green line around 3.5K — across May, June, and July 2026" loading="lazy" />
+          <figcaption>Capital evolution chart — Total, Idle, and Stocks lines <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
       </div>
     </div>
 
@@ -115,11 +104,10 @@
       <div class="manual-step-title"><span class="manual-step-num">6</span> Read the compare table</div>
       <div class="manual-step-body">
         <p>Below the chart, the compare table lines up every filled month side by side, with a <strong>Total</strong> row (Idle + Active, matching the chart's headline line) plus separate <strong>Idle</strong> and <strong>Stocks</strong> subtotal rows — so a quick scan across columns shows exactly which account category moved and by how much.</p>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: Capital compare table — Total / Idle / Stocks rows across months</div>
-          <div class="shot-viewport">Desktop 1440×900</div>
-        </div>
+        <figure class="shot">
+          <img src="screenshots/capital-08-compare-table-desktop.png" alt="Compare table with May, June, and July 2026 as columns and each account as a row grouped by bank, ending in bold Total, Idle total, and Stocks total rows with month-over-month deltas" loading="lazy" />
+          <figcaption>Capital compare table — Total / Idle / Stocks rows across months <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
       </div>
     </div>
 
@@ -127,11 +115,10 @@
       <div class="manual-step-title"><span class="manual-step-num">7</span> Rename or archive an account later</div>
       <div class="manual-step-body">
         <p>Renaming an account's Name or Group is purely cosmetic — every reference to it (past snapshots, the chart, the compare table) keys off an internal ID, never the name, so renaming never rewrites history. Archiving (the "delete" action) works the same way: the account disappears from future months but every past month it appeared in still shows its recorded value.</p>
-        <div class="shot-placeholder">
-          <div class="shot-icon">🖼️</div>
-          <div class="shot-caption">Screenshot: inline rename / archive affordance on an account row</div>
-          <div class="shot-viewport">Desktop 1440×900</div>
-        </div>
+        <figure class="shot">
+          <img src="screenshots/capital-09-rename-archive-desktop.png" alt="An account row in edit mode, with the Name and Group fields open for editing next to check and cancel buttons, and an Archive button visible further along the row" loading="lazy" />
+          <figcaption>Inline rename / archive affordance on an account row <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
       </div>
     </div>
   </main>
