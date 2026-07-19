@@ -47,7 +47,7 @@ jobs:
           # Optional: add assignee trigger for issues
           assignee_trigger: "claude"
           # Optional: add label trigger for issues
-          # label_trigger: "claude"
+          label_trigger: "claude"
           # Optional: grant additional permissions (requires corresponding GitHub token permissions)
           # additional_permissions: |
           #   actions: read
