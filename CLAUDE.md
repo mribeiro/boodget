@@ -165,7 +165,7 @@ Every issue filed in `mribeiro/boodget` (by an AI assistant or otherwise) must c
    - `major` — impacts the user and requires them to fix or work around it somehow.
    - `minor` — a bug only in data representation/display; underlying data is unaffected, and there's typically no user-actionable fix.
    - `trivial` — a UI-only issue or something with light user impact (includes most code-hygiene/tech-debt items).
-3. **`claude`** — always applied, marking the issue as filed by an AI assistant.
+3. **`opened by claude`** — always applied, marking the issue as filed by an AI assistant.
 
 Label names are case-insensitive in GitHub, so reuse the exact lowercase strings above rather than creating capitalized variants that would silently collide with (or duplicate) the canonical ones.
 
