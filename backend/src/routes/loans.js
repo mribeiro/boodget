@@ -124,9 +124,13 @@ function computeLoanValues(loan, dossierId) {
 
 // down_payment, taeg, and opening_fee are all nullable, non-negative numerics that can only
 // be explicitly *set* while draft — but once set, persist unchanged across status changes
-// (shared parsing/validation).
+// (shared parsing/validation). An explicit null while active is rejected too whenever a value
+// already exists, since PUT is a partial update and an unrelated field edit must never
+// silently erase this historical-record data (only omitting the field entirely carries it
+// forward unchanged).
 function parseDraftOnlyNullableNumber(body, existing, field, status) {
-  let value = existing?.[field] ?? null;
+  const existingValue = existing?.[field] ?? null;
+  let value = existingValue;
   if (body[field] !== undefined) {
     const parsed = body[field] === null || body[field] === '' ? null : Number(body[field]);
     if (parsed != null) {
@@ -136,6 +140,8 @@ function parseDraftOnlyNullableNumber(body, existing, field, status) {
       if (status !== 'draft') {
         return { error: `${field} can only be set on draft loans` };
       }
+    } else if (status !== 'draft' && existingValue != null) {
+      return { error: `${field} cannot be cleared on an active loan` };
     }
     value = parsed;
   }
@@ -162,8 +168,18 @@ function validateLoanFields(body, existing) {
     }
   }
 
-  const principal = body.principal !== undefined ? (body.principal === null || body.principal === '' ? null : Number(body.principal)) : existing?.principal ?? null;
-  const termMonths = body.term_months !== undefined ? (body.term_months === null || body.term_months === '' ? null : Number(body.term_months)) : existing?.term_months ?? null;
+  const existingPrincipal = existing?.principal ?? null;
+  const principal = body.principal !== undefined ? (body.principal === null || body.principal === '' ? null : Number(body.principal)) : existingPrincipal;
+  if (body.principal !== undefined && principal == null && status !== 'draft' && existingPrincipal != null) {
+    return { error: 'principal cannot be cleared on an active loan' };
+  }
+
+  const existingTermMonths = existing?.term_months ?? null;
+  const termMonths = body.term_months !== undefined ? (body.term_months === null || body.term_months === '' ? null : Number(body.term_months)) : existingTermMonths;
+  if (body.term_months !== undefined && termMonths == null && status !== 'draft' && existingTermMonths != null) {
+    return { error: 'term_months cannot be cleared on an active loan' };
+  }
+
   const remainingBalance = body.remaining_balance !== undefined ? (body.remaining_balance === null || body.remaining_balance === '' ? null : Number(body.remaining_balance)) : existing?.remaining_balance ?? null;
 
   let endDate = existing?.end_date ?? null;
