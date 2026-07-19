@@ -1,0 +1,37 @@
+{
+  "projectId": "87abd57f-fc0b-405d-a63c-13c322b82630",
+  "shape": "package",
+  "pkg": "capital-tracker-frontend",
+  "globalName": "CapitalTrackerUI",
+  "entry": "./frontend/.design-sync-entry.mjs",
+  "cssEntry": "src/index.css",
+  "runtimeFontPrefixes": ["Inter"],
+  "readmeHeader": ".design-sync/conventions.md",
+  "componentSrcMap": {
+    "Badge": "src/components/ui/Badge.jsx",
+    "Button": "src/components/ui/Button.jsx",
+    "Card": "src/components/ui/Card.jsx",
+    "Checkbox": "src/components/ui/Checkbox.jsx",
+    "CollapsibleSection": "src/components/ui/CollapsibleSection.jsx",
+    "KpiBlock": "src/components/ui/KpiBlock.jsx",
+    "KpiStrip": "src/components/ui/KpiStrip.jsx",
+    "Modal": "src/components/ui/Modal.jsx",
+    "Toast": "src/components/ui/Toast.jsx",
+    "UpdateBanner": null
+  },
+  "dtsPropsFor": {
+    "Badge": "  variant?: 'success' | 'warning' | 'danger' | 'brand' | 'neutral' | 'dark';\n  children?: React.ReactNode;\n  style?: React.CSSProperties;",
+    "Button": "  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';\n  size?: 'sm' | 'md' | 'lg' | 'icon';\n  children?: React.ReactNode;\n  className?: string;\n  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;\n  disabled?: boolean;\n  type?: 'button' | 'submit' | 'reset';\n  title?: string;",
+    "Card": "  variant?: '' | 'flat' | 'clickable';\n  accentColor?: string;\n  children?: React.ReactNode;\n  className?: string;\n  style?: React.CSSProperties;\n  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;",
+    "Checkbox": "  checked: boolean;\n  onChange: (event: React.SyntheticEvent) => void;\n  /** Avoid for anything beyond a couple characters: the checkbox's own box is a\n   * fixed 20x20px with justify-content:center, so a wider label centers-and-\n   * overflows over the checkmark. The real app never uses this prop — render\n   * the caption as a sibling element instead (see Checkbox.prompt.md). */\n  label?: string;\n  title?: string;\n  style?: React.CSSProperties;\n  labelStyle?: React.CSSProperties;\n  disabled?: boolean;",
+    "CollapsibleSection": "  title: React.ReactNode;\n  icon?: object; // a @fortawesome/react-fontawesome IconDefinition\n  accent?: string;\n  count?: number;\n  collapsed: boolean;\n  onToggle: () => void;\n  children?: React.ReactNode;\n  noPad?: boolean;",
+    "KpiBlock": "  label: string;\n  value: React.ReactNode;\n  icon?: object; // a @fortawesome/react-fontawesome IconDefinition\n  highlight?: 'neutral' | 'success' | 'danger' | 'warning';\n  large?: boolean;\n  note?: React.ReactNode;",
+    "KpiStrip": "  items: Array<{\n    label: string;\n    value: React.ReactNode;\n    icon?: object;\n    highlight?: 'neutral' | 'success' | 'danger' | 'warning';\n    large?: boolean;\n    note?: React.ReactNode;\n  }>;\n  style?: React.CSSProperties;\n  defaultOpen?: boolean;",
+    "Modal": "  title?: React.ReactNode;\n  onClose?: () => void;\n  footer?: React.ReactNode;\n  children?: React.ReactNode;\n  style?: React.CSSProperties;",
+    "Toast": "  message: React.ReactNode;\n  visible: boolean;"
+  },
+  "overrides": {
+    "Modal": { "cardMode": "single", "viewport": "700x600" },
+    "Toast": { "cardMode": "single", "viewport": "700x400", "primaryStory": "Visible" }
+  }
+}
