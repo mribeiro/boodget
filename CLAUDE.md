@@ -153,6 +153,22 @@ money_manager/
 
 When creating a new branch for a piece of work, give it a short, meaningful, descriptive name reflecting the feature or fix being developed (e.g. `add-stocks-money-category`, `fix-emergency-fund-rounding`) rather than a generic or auto-generated name.
 
+### GitHub Issue Conventions
+
+Every issue filed in `mribeiro/boodget` (by an AI assistant or otherwise) must carry three labels, all lowercase:
+
+1. **Type** (exactly one): `bug`, `likely real bug`, `idea`, `improvement`, `tech debt`, or `documentation`.
+   - `likely real bug` is reserved for defects found via code review/audit before being confirmed by a human, as opposed to `bug`, a confirmed defect.
+2. **Criticality** (exactly one, for defect-type issues — `bug`/`likely real bug`; apply to other types too when a severity call meaningfully applies):
+   - `blocker` — must block a release/going live (e.g. a security issue); cannot be lived with.
+   - `critical` — a hard bug that prevents the user from doing something, with no repair/recovery path (e.g. irreversible data loss).
+   - `major` — impacts the user and requires them to fix or work around it somehow.
+   - `minor` — a bug only in data representation/display; underlying data is unaffected, and there's typically no user-actionable fix.
+   - `trivial` — a UI-only issue or something with light user impact (includes most code-hygiene/tech-debt items).
+3. **`claude`** — always applied, marking the issue as filed by an AI assistant.
+
+Label names are case-insensitive in GitHub, so reuse the exact lowercase strings above rather than creating capitalized variants that would silently collide with (or duplicate) the canonical ones.
+
 ### Running Locally (Dev Container)
 
 ```bash
