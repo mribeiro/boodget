@@ -4,6 +4,7 @@ import { faWandMagicSparkles, faKey, faCopy, faFileExport, faCheck } from '@fort
 import { api } from '../../services/api';
 import AnalysisPanel from './AnalysisPanel';
 import ChatPanel from './ChatPanel';
+import { isAiDisabledError } from '../../utils/aiModels';
 
 const MODEL_OPTIONS = [
   { value: 'claude-haiku-4-5', label: 'Haiku 4.5 — fastest & cheapest ($1/$5 per MTok)' },
@@ -15,6 +16,7 @@ const MODEL_OPTIONS = [
 export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [aiDisabled, setAiDisabled] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [aiModel, setAiModel] = useState('claude-opus-4-8');
@@ -29,18 +31,28 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [notesSaved, setNotesSaved] = useState(false);
 
   const loadAll = useCallback(async () => {
+    setError('');
     try {
-      const [analysisResp, settings] = await Promise.all([
-        api.getAiAnalysis(dossierId),
-        api.getDossierSettings(dossierId),
-      ]);
-      setConfigured(analysisResp.configured);
-      setAnalysis(analysisResp.analysis);
+      const settings = await api.getDossierSettings(dossierId);
       setAiModel(settings.ai_model || 'claude-opus-4-8');
       setUserNotes(settings.ai_user_context || '');
       setNotesDraft(settings.ai_user_context || '');
+      if (settings.ai_enabled === false) {
+        setAiDisabled(true);
+        setConfigured(false);
+        setAnalysis(null);
+        return;
+      }
+      setAiDisabled(false);
+      const analysisResp = await api.getAiAnalysis(dossierId);
+      setConfigured(analysisResp.configured);
+      setAnalysis(analysisResp.analysis);
     } catch (e) {
-      setError(e.message);
+      if (isAiDisabledError(e)) {
+        setAiDisabled(true);
+      } else {
+        setError(e.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -86,7 +98,11 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       const resp = await api.runAiAnalysis(dossierId);
       setAnalysis(resp.analysis);
     } catch (err) {
-      setError(err.message);
+      if (isAiDisabledError(err)) {
+        setAiDisabled(true);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -101,7 +117,11 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       setJustCopied(true);
       setTimeout(() => setJustCopied(false), 2500);
     } catch (err) {
-      setExportError(err.message || 'Could not copy the prompt to the clipboard');
+      if (isAiDisabledError(err)) {
+        setAiDisabled(true);
+      } else {
+        setExportError(err.message || 'Could not copy the prompt to the clipboard');
+      }
     } finally {
       setExportingPrompt(false);
     }
@@ -120,13 +140,35 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setExportError(err.message || 'Could not download the prompt');
+      if (isAiDisabledError(err)) {
+        setAiDisabled(true);
+      } else {
+        setExportError(err.message || 'Could not download the prompt');
+      }
     } finally {
       setExportingPrompt(false);
     }
   }
 
   if (loading) return <div className="loading">Loading…</div>;
+
+  if (aiDisabled) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
+          <h3 style={{ fontSize: 14, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FontAwesomeIcon icon={faKey} style={{ color: 'var(--color-warning)' }} />
+            AI Advisor is disabled for this dossier
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+            This feature was turned off in Settings → AI Settings, most likely from another tab or
+            session. Re-enable it there to keep using the AI Advisor — this tab will disappear on
+            its own the next time the page loads while it's off.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -239,7 +281,7 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
         )
       )}
 
-      <ChatPanel dossierId={dossierId} disabled={!configured} />
+      <ChatPanel dossierId={dossierId} disabled={!configured} onDisabled={() => setAiDisabled(true)} />
     </div>
   );
 }
