@@ -241,7 +241,7 @@ A join table linking goals to their selected distributions from the template:
 |Field                     |Type   |Description                               |
 |--------------------------|-------|------------------------------------------|
 |`goal_id`                 |integer|Foreign key to goal                       |
-|`distribution_template_id`|integer|Foreign key to distribution template entry|
+|`distribution_template_item_id`|integer|Foreign key to distribution template entry|
 
 ### 10.4 Goal cycle contributions (“Manual” mode only)
 

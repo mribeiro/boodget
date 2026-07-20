@@ -174,7 +174,7 @@ router.post('/import', (req, res) => {
       'INSERT INTO goals (id, dossier_id, name, target_value, target_date, extra_value, extra_value_impact_mode, contribution_mode, manual_monthly_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertGoalAccount = db.prepare('INSERT OR IGNORE INTO goal_accounts (goal_id, account_id) VALUES (?, ?)');
-    const insertGoalDist = db.prepare('INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_id) VALUES (?, ?)');
+    const insertGoalDist = db.prepare('INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_item_id) VALUES (?, ?)');
     const insertGoalCycleContrib = db.prepare(
       'INSERT INTO goal_cycle_contributions (goal_id, cycle_id, real_contribution) VALUES (?, ?, ?) ON CONFLICT(goal_id, cycle_id) DO UPDATE SET real_contribution = excluded.real_contribution'
     );
@@ -436,7 +436,7 @@ router.get('/:id/export', (req, res) => {
       .prepare('SELECT a.name FROM goal_accounts ga JOIN accounts a ON a.id = ga.account_id WHERE ga.goal_id = ?')
       .all(g.id).map((r) => r.name);
     const distributionNames = db
-      .prepare('SELECT eti.name FROM goal_distributions gd JOIN expense_template_items eti ON eti.id = gd.distribution_template_id WHERE gd.goal_id = ?')
+      .prepare('SELECT eti.name FROM goal_distributions gd JOIN expense_template_items eti ON eti.id = gd.distribution_template_item_id WHERE gd.goal_id = ?')
       .all(g.id).map((r) => r.name);
     const cycleContributions = db
       .prepare('SELECT ec.year, ec.month, gcc.real_contribution FROM goal_cycle_contributions gcc JOIN expense_cycles ec ON ec.id = gcc.cycle_id WHERE gcc.goal_id = ?')

@@ -76,10 +76,10 @@ function computeGoalValues(goal, dossierId) {
   let expectedMonthlyContribution = 0;
   if (goal.contribution_mode === 'via_distributions') {
     const distRows = db
-      .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
+      .prepare('SELECT distribution_template_item_id FROM goal_distributions WHERE goal_id = ?')
       .all(goal.id);
     if (distRows.length > 0) {
-      const ids = distRows.map((r) => r.distribution_template_id);
+      const ids = distRows.map((r) => r.distribution_template_item_id);
       const ph = ids.map(() => '?').join(',');
       const row = db
         .prepare(`SELECT COALESCE(SUM(COALESCE(must_amount, 0) + COALESCE(want_amount, 0) + COALESCE(save_amount, 0)), 0) as total FROM expense_template_items WHERE id IN (${ph})`)
@@ -171,10 +171,10 @@ function buildChartData(goal, dossierId, currentAccumulatedValue) {
   let expectedMonthlyContribution = 0;
   if (goal.contribution_mode === 'via_distributions') {
     const distRows = db
-      .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
+      .prepare('SELECT distribution_template_item_id FROM goal_distributions WHERE goal_id = ?')
       .all(goal.id);
     if (distRows.length > 0) {
-      const ids = distRows.map((r) => r.distribution_template_id);
+      const ids = distRows.map((r) => r.distribution_template_item_id);
       const ph = ids.map(() => '?').join(',');
       const row = db
         .prepare(`SELECT COALESCE(SUM(COALESCE(must_amount, 0) + COALESCE(want_amount, 0) + COALESCE(save_amount, 0)), 0) as total FROM expense_template_items WHERE id IN (${ph})`)
@@ -189,9 +189,9 @@ function buildChartData(goal, dossierId, currentAccumulatedValue) {
   let distTemplateIds = [];
   if (goal.contribution_mode === 'via_distributions') {
     distTemplateIds = db
-      .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
+      .prepare('SELECT distribution_template_item_id FROM goal_distributions WHERE goal_id = ?')
       .all(goal.id)
-      .map((r) => r.distribution_template_id);
+      .map((r) => r.distribution_template_item_id);
   }
 
   const chartData = [];
@@ -335,9 +335,9 @@ router.get('/goals', (req, res) => {
       .all(goal.id)
       .map((r) => r.account_id);
     const distributions = db
-      .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
+      .prepare('SELECT distribution_template_item_id FROM goal_distributions WHERE goal_id = ?')
       .all(goal.id)
-      .map((r) => r.distribution_template_id);
+      .map((r) => r.distribution_template_item_id);
     return { ...goal, ...computed, account_ids: accounts, distribution_template_ids: distributions };
   });
 
@@ -406,7 +406,7 @@ router.post('/goals', (req, res) => {
 
     if (contribution_mode === 'via_distributions' && Array.isArray(distribution_template_ids)) {
       const insertDist = db.prepare(
-        'INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_id) VALUES (?, ?)'
+        'INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_item_id) VALUES (?, ?)'
       );
       for (const distId of distribution_template_ids) {
         insertDist.run(id, distId);
@@ -423,9 +423,9 @@ router.post('/goals', (req, res) => {
     .all(id)
     .map((r) => r.account_id);
   const distributions = db
-    .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
+    .prepare('SELECT distribution_template_item_id FROM goal_distributions WHERE goal_id = ?')
     .all(id)
-    .map((r) => r.distribution_template_id);
+    .map((r) => r.distribution_template_item_id);
 
   console.log(`[goals] Created goal "${String(name).trim()}" (${id}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(201).json({ ...goal, ...computed, account_ids: accounts, distribution_template_ids: distributions });
@@ -445,9 +445,9 @@ router.get('/goals/:goalId', (req, res) => {
     .all(goal.id)
     .map((r) => r.account_id);
   const distributions = db
-    .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
+    .prepare('SELECT distribution_template_item_id FROM goal_distributions WHERE goal_id = ?')
     .all(goal.id)
-    .map((r) => r.distribution_template_id);
+    .map((r) => r.distribution_template_item_id);
   const historicalContributions = db
     .prepare('SELECT year, month, amount FROM goal_historical_contributions WHERE goal_id = ? ORDER BY year, month')
     .all(goal.id);
@@ -554,7 +554,7 @@ router.put('/goals/:goalId', (req, res) => {
       db.prepare('DELETE FROM goal_distributions WHERE goal_id = ?').run(goal.id);
       if (newContributionMode === 'via_distributions') {
         const insertDist = db.prepare(
-          'INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_id) VALUES (?, ?)'
+          'INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_item_id) VALUES (?, ?)'
         );
         for (const distId of distribution_template_ids) {
           insertDist.run(goal.id, distId);
@@ -572,9 +572,9 @@ router.put('/goals/:goalId', (req, res) => {
     .all(goal.id)
     .map((r) => r.account_id);
   const distributions = db
-    .prepare('SELECT distribution_template_id FROM goal_distributions WHERE goal_id = ?')
+    .prepare('SELECT distribution_template_item_id FROM goal_distributions WHERE goal_id = ?')
     .all(goal.id)
-    .map((r) => r.distribution_template_id);
+    .map((r) => r.distribution_template_item_id);
   const chartData = buildChartData(updated, req.params.id, computed.current_accumulated_value);
 
   res.json({

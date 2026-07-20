@@ -760,6 +760,15 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '037_rename_goal_distributions_template_id',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(goal_distributions)').all();
+      if (cols.find((c) => c.name === 'distribution_template_id')) {
+        db.exec('ALTER TABLE goal_distributions RENAME COLUMN distribution_template_id TO distribution_template_item_id');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
