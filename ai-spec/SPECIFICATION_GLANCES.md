@@ -53,6 +53,8 @@ The card face shows three rows:
 
 Each row's value has a trend arrow/percentage next to it when a previous filled snapshot exists (e.g. "▲ +2.4%", colour-coded green/red/neutral, computed the same way as the Total variation in the details dialog, §3.4, but per-row: Total uses the overall variation, Savings uses the Idle-only variation, Potential uses the Idle+Stocks variation). The badge (`.glance-variation-badge`) is **desktop/tablet only** (`≥768px`) — on the narrower mobile card grid it's hidden entirely, since it would push the value out of the row.
 
+A previous value of exactly `0` is treated as real data, not "no previous snapshot" — a swing from `0` to a non-zero value shows a qualitative "▲ new"/"▼ new" badge (green/red per the swing's direction) instead of a percentage, since percentage-from-zero is undefined. A swing from `0` to `0` shows no badge (nothing changed). This applies to all three rows and to the details dialog (§3.4).
+
 Both row labels and values use `white-space: nowrap` so a large figure never forces the row onto two lines.
 
 Clicking the card opens a details dialog (see §3.4) with the full breakdown — variation, idle subtotal, and (if applicable) the stocks sub-block. No data is hidden, only deferred behind a click, to keep the card the same height as its siblings.
@@ -78,7 +80,7 @@ Shows:
 Opened by clicking the card in its normal state (§3.1), using the shared `ui/Modal.jsx` component. Purely informational — never changes the card's colour state and never affects the main capital total.
 
 Shows:
-- **Total capital** — same value as the card face, plus **variation**: percentage change relative to the previous filled snapshot (e.g. `↑ +2.4% vs. Feb`). Colour: green if positive, red if negative, neutral if zero or no previous snapshot exists.
+- **Total capital** — same value as the card face, plus **variation**: percentage change relative to the previous filled snapshot (e.g. `↑ +2.4% vs. Feb`), or a qualitative "new" badge if the previous snapshot's value was exactly `0` (see §3.1). Colour: green if positive, red if negative, neutral if zero or no previous snapshot exists.
 - **Idle money subtotal** — if any accounts are in the `Idle` category, the sum of their values plus variation.
 - **Stocks sub-block** — shown whenever the most recent filled snapshot has `stocks_total > 0`:
   - **Total stocks value** — sum of `Stocks`-category account values, formatted as currency (€).

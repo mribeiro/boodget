@@ -13,6 +13,33 @@ function formatEur(value) {
   return formatNumber(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 }
 
+// Computes a variation between two totals, distinguishing "no previous
+// snapshot" (null) from "previous snapshot was exactly 0" — a 0 → non-zero
+// swing is a meaningful event (e.g. first real capital after starting from
+// scratch) but has no meaningful percentage, so it's flagged qualitatively
+// as "new" instead of being treated the same as "no data".
+function computeVariation(current, previous) {
+  if (current == null || previous == null) return null;
+  if (previous === 0) {
+    return current === 0 ? null : { isNew: true, direction: current > 0 ? 1 : -1 };
+  }
+  return { isNew: false, value: ((current - previous) / Math.abs(previous)) * 100 };
+}
+
+function variationSign(variation) {
+  return variation.isNew ? variation.direction : variation.value;
+}
+
+function variationLabel(variation) {
+  return variation.isNew ? 'new' : `${variation.value > 0 ? '+' : ''}${variation.value.toFixed(1)}%`;
+}
+
+function colorForVariation(variation) {
+  if (variation == null) return 'var(--text-muted)';
+  const sign = variationSign(variation);
+  return sign > 0 ? 'var(--color-value-positive)' : sign < 0 ? 'var(--color-value-negative)' : 'var(--text-muted)';
+}
+
 // Trend arrow/percentage shown next to a row's value. Hidden on mobile (CSS,
 // `.glance-variation-badge`) — the narrower two-column card grid doesn't have
 // room for it alongside the value; desktop/tablet shows it on all three rows.
@@ -20,8 +47,8 @@ function VariationBadge({ variation, color }) {
   if (variation == null) return null;
   return (
     <span className="glance-variation-badge text-xs" style={{ color, whiteSpace: 'nowrap' }}>
-      <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: 2 }} />
-      {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
+      <FontAwesomeIcon icon={variationSign(variation) > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: 2 }} />
+      {variationLabel(variation)}
     </span>
   );
 }
@@ -98,55 +125,23 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
   const latest = filledMonths[0];
   const previous = filledMonths[1] ?? null;
 
-  const variation =
-    previous && previous.capital_total != null && latest.capital_total != null && previous.capital_total !== 0
-      ? ((latest.capital_total - previous.capital_total) / Math.abs(previous.capital_total)) * 100
-      : null;
+  const variation = computeVariation(latest.capital_total, previous?.capital_total);
+  const variationColor = colorForVariation(variation);
 
-  const variationColor =
-    variation == null ? 'var(--text-muted)' :
-    variation > 0 ? 'var(--color-value-positive)' :
-    variation < 0 ? 'var(--color-value-negative)' :
-    'var(--text-muted)';
-
-  const idleVariation =
-    previous && previous.idle_total != null && latest.idle_total != null && previous.idle_total !== 0
-      ? ((latest.idle_total - previous.idle_total) / Math.abs(previous.idle_total)) * 100
-      : null;
-
-  const idleVariationColor =
-    idleVariation == null ? 'var(--text-muted)' :
-    idleVariation > 0 ? 'var(--color-value-positive)' :
-    idleVariation < 0 ? 'var(--color-value-negative)' :
-    'var(--text-muted)';
+  const idleVariation = computeVariation(latest.idle_total, previous?.idle_total);
+  const idleVariationColor = colorForVariation(idleVariation);
 
   const showStocksBlock = latest.stocks_total != null && latest.stocks_total > 0;
 
-  const stocksVariation =
-    previous && previous.stocks_total != null && previous.stocks_total !== 0
-      ? ((latest.stocks_total - previous.stocks_total) / Math.abs(previous.stocks_total)) * 100
-      : null;
-
-  const stocksVariationColor =
-    stocksVariation == null ? 'var(--text-muted)' :
-    stocksVariation > 0 ? 'var(--color-value-positive)' :
-    stocksVariation < 0 ? 'var(--color-value-negative)' :
-    'var(--text-muted)';
+  const stocksVariation = computeVariation(latest.stocks_total, previous?.stocks_total);
+  const stocksVariationColor = colorForVariation(stocksVariation);
 
   const overall = (latest.capital_total ?? 0) + (latest.stocks_total ?? 0);
   const savingsPotential = (latest.idle_total ?? 0) + (latest.stocks_total ?? 0);
 
   const previousSavingsPotential = previous != null ? (previous.idle_total ?? 0) + (previous.stocks_total ?? 0) : null;
-  const potentialVariation =
-    previousSavingsPotential != null && previousSavingsPotential !== 0
-      ? ((savingsPotential - previousSavingsPotential) / Math.abs(previousSavingsPotential)) * 100
-      : null;
-
-  const potentialVariationColor =
-    potentialVariation == null ? 'var(--text-muted)' :
-    potentialVariation > 0 ? 'var(--color-value-positive)' :
-    potentialVariation < 0 ? 'var(--color-value-negative)' :
-    'var(--text-muted)';
+  const potentialVariation = computeVariation(savingsPotential, previousSavingsPotential);
+  const potentialVariationColor = colorForVariation(potentialVariation);
 
   return (
     <>
@@ -182,8 +177,8 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
           </div>
           {variation != null && (
             <div className="text-sm" style={{ color: variationColor, marginBottom: 2 }}>
-              <FontAwesomeIcon icon={variation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.3rem' }} />
-              {variation > 0 ? '+' : ''}{variation.toFixed(1)}% vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
+              <FontAwesomeIcon icon={variationSign(variation) > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.3rem' }} />
+              {variationLabel(variation)} vs. {MONTH_NAMES[previous.month - 1].slice(0, 3)}
             </div>
           )}
           {latest.idle_total != null && latest.idle_total > 0 && (
@@ -191,8 +186,8 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
               <span className="tabular">{formatEur(latest.idle_total)} idle</span>
               {idleVariation != null && (
                 <span style={{ color: idleVariationColor }}>
-                  <FontAwesomeIcon icon={idleVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
-                  {idleVariation > 0 ? '+' : ''}{idleVariation.toFixed(1)}%
+                  <FontAwesomeIcon icon={variationSign(idleVariation) > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
+                  {variationLabel(idleVariation)}
                 </span>
               )}
             </div>
@@ -203,8 +198,8 @@ export default function CapitalGlance({ months, settings, today, onClick }) {
                 <span className="tabular">{formatEur(latest.stocks_total)} stocks</span>
                 {stocksVariation != null && (
                   <span style={{ color: stocksVariationColor }}>
-                    <FontAwesomeIcon icon={stocksVariation > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
-                    {stocksVariation > 0 ? '+' : ''}{stocksVariation.toFixed(1)}%
+                    <FontAwesomeIcon icon={variationSign(stocksVariation) > 0 ? faArrowTrendUp : faArrowTrendDown} style={{ marginRight: '0.2rem' }} />
+                    {variationLabel(stocksVariation)}
                   </span>
                 )}
               </div>
