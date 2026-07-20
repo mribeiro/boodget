@@ -76,6 +76,8 @@ function createAnnualPaymentsForCycle(dossierId, cycleId, cycleYear, cycleMonth,
     for (const inst of installments) {
       const instDate = new Date(calYear, inst.month - 1, inst.day);
       if (instDate >= cycleStartDate && instDate <= cycleEndDate) {
+        // real_value starts as the budgeted per-installment estimate, not an actual paid
+        // amount — it's never null, and the user overwrites it once the real value is known.
         const expectedValue = inst.budgeted_value / (inst.num_installments || 1);
         insertPayment.run(uuidv4(), inst.installment_id, cycleId, expectedValue);
       }

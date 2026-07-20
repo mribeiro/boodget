@@ -85,7 +85,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     candidates.push({
       type: 'annual',
       name: p.name,
-      value: p.real_value ?? (p.budgeted_value / (p.num_installments || 1)),
+      value: p.real_value,
       date: getAnnualPaymentDate(p),
       day: p.day,
       installmentNumber: p.installment_number,
