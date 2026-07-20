@@ -39,6 +39,7 @@ Whenever any parameter changes, all dependent values must be recalculated immedi
 
 - When the user opens the Workbench without loading a snapshot, the working state is **pre-populated from the current templates** (Monthly Expenses, Annual Expenses, Distributions). Income entries start empty.
 - The working state is **ephemeral** — it is not persisted between sessions. If the user navigates away without saving, changes are lost.
+- On open, the Workbench decides its initial state from the dossier's saved snapshot count: if exactly **one** snapshot exists, it is **silently auto-loaded**; if **zero** or **two or more** snapshots exist, the working state is built fresh from the current templates instead (with no "last used" memory in the 2+ case). A "New from scratch" button is always available to reset to the template-based working state regardless of which path was taken on open.
 - If the user has unsaved changes in the working state and attempts to load a snapshot, the system must **warn** that unsaved changes will be lost and ask for confirmation before proceeding.
 
 ## 2.2 Saving Snapshots
