@@ -67,19 +67,19 @@ export default function GoalsGlance({ goals, onClick, efStatus, onEfClick }) {
   return (
     <GlanceCard title="Goals" icon={faBullseye} color={color} onClick={onClick}>
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap', overflow: 'hidden' }}>
           {active > 0 && (
-            <span className="text-lg" style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+            <span className="text-lg" style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               <FontAwesomeIcon icon={faBullseye} style={{ marginRight: '0.4rem', opacity: 0.6 }} />{active} active
             </span>
           )}
           {completed > 0 && (
-            <span className="text-sm" style={{ color: 'var(--color-success-text)', whiteSpace: 'nowrap' }}>
+            <span className="text-sm" style={{ color: 'var(--color-success-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               <FontAwesomeIcon icon={faCircleCheck} style={{ marginRight: '0.4rem' }} />{completed} completed
             </span>
           )}
           {failed > 0 && (
-            <span className="text-sm" style={{ color: 'var(--color-danger-text)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            <span className="text-sm" style={{ color: 'var(--color-danger-text)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>
               <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.4rem' }} />{failed} failed
             </span>
           )}
