@@ -147,7 +147,7 @@ function parseDraftOnlyNullableNumber(body, existing, field, status) {
   return { value };
 }
 
-function validateLoanFields(body, existing) {
+function validateLoanFields(body, existing, dossierId) {
   const name = body.name !== undefined ? String(body.name).trim() : existing?.name;
   if (!name) return { error: 'name is required' };
 
@@ -224,13 +224,29 @@ function validateLoanFields(body, existing) {
   if (openingFeeResult.error) return { error: openingFeeResult.error };
   let openingFee = openingFeeResult.value;
 
+  // expense_template_item_id: only settable on active loans. Whether a link is provided is
+  // checked here rather than derived from `existing`/`status`, since POST (existing == null)
+  // rejects an explicit link outright while PUT (existing != null) silently drops it.
+  let expenseTemplateItemId = existing?.expense_template_item_id ?? null;
+  const linkProvided = body.expense_template_item_id !== undefined && body.expense_template_item_id !== null;
+
+  // Everything cleared when a loan is demoted to (or created as) draft — end_date,
+  // day_of_payment, and expense_template_item_id — lives in this single branch, so a future
+  // active-only field only has to be added to one place to be covered by demotion.
   if (status === 'draft') {
     if (!(principal > 0)) return { error: 'principal must be a positive number for draft loans' };
     if (!Number.isInteger(termMonths) || termMonths < 1) {
       return { error: 'term_months must be an integer ≥ 1 for draft loans' };
     }
+    // A draft loan can never carry an expense-template link. Creating one directly with a
+    // link is a user error; demoting an active loan (or re-saving an already-draft one)
+    // clears it silently instead, since demotion is a deliberate, valid action.
+    if (linkProvided && existing == null) {
+      return { error: 'A draft loan cannot be linked to an expense template item' };
+    }
     endDate = null;
     dayOfPayment = null;
+    expenseTemplateItemId = null;
   } else {
     if (!(remainingBalance > 0)) return { error: 'remaining_balance must be a positive number for active loans' };
     if (!endDate || !/^\d{4}-\d{2}$/.test(endDate)) {
@@ -241,6 +257,17 @@ function validateLoanFields(body, existing) {
     }
     if (computeMonthsLeft(endDate, dayOfPayment) < 1) {
       return { error: 'end_date must be the current month or later' };
+    }
+    if (body.expense_template_item_id !== undefined) {
+      if (body.expense_template_item_id === null) {
+        expenseTemplateItemId = null;
+      } else {
+        const item = db
+          .prepare("SELECT id FROM expense_template_items WHERE id = ? AND dossier_id = ? AND section = 'expense' AND type = 'Fixed'")
+          .get(body.expense_template_item_id, dossierId);
+        if (!item) return { error: 'expense_template_item_id must reference a Fixed expense in this dossier' };
+        expenseTemplateItemId = item.id;
+      }
     }
     // down_payment/taeg/opening_fee are NOT cleared here on promotion — they describe how
     // the loan was originated and survive as a historical record once it goes active. They
@@ -261,6 +288,7 @@ function validateLoanFields(body, existing) {
     down_payment: downPayment,
     taeg,
     opening_fee: openingFee,
+    expense_template_item_id: expenseTemplateItemId,
   };
 }
 
@@ -277,20 +305,8 @@ router.get('/loans', (req, res) => {
 router.post('/loans', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
 
-  const validated = validateLoanFields(req.body, null);
+  const validated = validateLoanFields(req.body, null, req.params.id);
   if (validated.error) return res.status(400).json({ error: validated.error });
-
-  let expenseTemplateItemId = null;
-  if (req.body.expense_template_item_id !== undefined && req.body.expense_template_item_id !== null) {
-    if (validated.status === 'draft') {
-      return res.status(400).json({ error: 'A draft loan cannot be linked to an expense template item' });
-    }
-    const item = db
-      .prepare("SELECT id FROM expense_template_items WHERE id = ? AND dossier_id = ? AND section = 'expense' AND type = 'Fixed'")
-      .get(req.body.expense_template_item_id, req.params.id);
-    if (!item) return res.status(400).json({ error: 'expense_template_item_id must reference a Fixed expense in this dossier' });
-    expenseTemplateItemId = item.id;
-  }
 
   const id = uuidv4();
   db.prepare(
@@ -308,7 +324,7 @@ router.post('/loans', (req, res) => {
     validated.remaining_balance,
     validated.end_date,
     validated.day_of_payment,
-    expenseTemplateItemId,
+    validated.expense_template_item_id,
     validated.down_payment,
     validated.taeg,
     validated.opening_fee
@@ -337,24 +353,8 @@ router.put('/loans/:loanId', (req, res) => {
     .get(req.params.loanId, req.params.id);
   if (!loan) return res.status(404).json({ error: 'Loan not found' });
 
-  const validated = validateLoanFields(req.body, loan);
+  const validated = validateLoanFields(req.body, loan, req.params.id);
   if (validated.error) return res.status(400).json({ error: validated.error });
-
-  // Demoting active → draft always clears the expense link.
-  let expenseTemplateItemId = loan.expense_template_item_id;
-  if (validated.status === 'draft') {
-    expenseTemplateItemId = null;
-  } else if (req.body.expense_template_item_id !== undefined) {
-    if (req.body.expense_template_item_id === null) {
-      expenseTemplateItemId = null;
-    } else {
-      const item = db
-        .prepare("SELECT id FROM expense_template_items WHERE id = ? AND dossier_id = ? AND section = 'expense' AND type = 'Fixed'")
-        .get(req.body.expense_template_item_id, req.params.id);
-      if (!item) return res.status(400).json({ error: 'expense_template_item_id must reference a Fixed expense in this dossier' });
-      expenseTemplateItemId = item.id;
-    }
-  }
 
   db.prepare(
     `UPDATE loans SET name = ?, status = ?, interest_rate = ?, salary = ?, principal = ?, term_months = ?,
@@ -369,7 +369,7 @@ router.put('/loans/:loanId', (req, res) => {
     validated.remaining_balance,
     validated.end_date,
     validated.day_of_payment,
-    expenseTemplateItemId,
+    validated.expense_template_item_id,
     validated.down_payment,
     validated.taeg,
     validated.opening_fee,
