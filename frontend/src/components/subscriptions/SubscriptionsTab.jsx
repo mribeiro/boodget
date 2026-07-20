@@ -139,9 +139,9 @@ export default function SubscriptionsTab({ dossierId }) {
   function handleCancel(sub) {
     setConfirmState({
       title: 'Cancel subscription',
-      message: `Cancel "${sub.name}"? It will stop counting toward totals and coverage. You can reactivate it later.`,
+      message: `Cancel "${sub.name}"? It will stop counting toward totals and coverage, and drop out of the list unless "Show cancelled" is on. Nothing is lost — you can reactivate it any time.`,
       confirmLabel: 'Cancel subscription',
-      danger: true,
+      danger: false,
       onConfirm: () => handleToggleStatus(sub),
     });
   }
@@ -149,8 +149,8 @@ export default function SubscriptionsTab({ dossierId }) {
   function handleDelete(sub) {
     setConfirmState({
       title: 'Delete subscription',
-      message: `Permanently delete "${sub.name}"? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      message: `Permanently delete "${sub.name}" and its history? This cannot be undone. If you just want to pause it, use Cancel instead.`,
+      confirmLabel: 'Delete permanently',
       danger: true,
       onConfirm: async () => {
         try {
