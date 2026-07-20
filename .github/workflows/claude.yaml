@@ -61,16 +61,25 @@ jobs:
       # instead, outside the agent's tool sandbox, using the plain GITHUB_TOKEN. Title comes
       # straight from the triggering issue (a stable, first-class part of the Actions event
       # context) rather than being scraped out of the agent's comment text.
+      #
+      # Title/branch/issue-number are passed via `env:`, not interpolated directly into the
+      # `run:` string with ${{ }} — an issue title containing a literal double quote (or shell
+      # metacharacters like $(), `` ` ``) would otherwise get re-parsed by bash instead of taken
+      # as a literal value, which both breaks quoting and is a known script-injection vector for
+      # untrusted issue text in Actions workflows.
       - name: Open PR for the branch Claude created
         if: steps.claude.outputs.branch_name != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_NAME: ${{ steps.claude.outputs.branch_name }}
+          PR_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           gh pr create \
             --base main \
-            --head "${{ steps.claude.outputs.branch_name }}" \
-            --title "${{ github.event.issue.title }}" \
-            --body "Closes #${{ github.event.issue.number }}
+            --head "$BRANCH_NAME" \
+            --title "$PR_TITLE" \
+            --body "Closes #$ISSUE_NUMBER
 
           Automated by Claude Code — see the issue for context and the branch's commit(s) for implementation details." \
             || echo "PR may already exist for this branch, skipping"
