@@ -3,11 +3,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPaperPlane, faComments } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import CostLabel from './CostLabel';
-import { MODEL_LABELS } from '../../utils/aiModels';
+import { MODEL_LABELS, isAiDisabledError } from '../../utils/aiModels';
 
 // Chat about the dossier. History is client-side only (ephemeral by design):
-// the full conversation is re-sent to the backend on every turn.
-export default function ChatPanel({ dossierId, disabled }) {
+// the full conversation is re-sent to the backend on every turn. `onDisabled` lets the parent
+// switch to its friendly disabled view if ai_enabled was toggled off mid-session.
+export default function ChatPanel({ dossierId, disabled, onDisabled }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
@@ -43,7 +44,11 @@ export default function ChatPanel({ dossierId, disabled }) {
         },
       ]);
     } catch (err) {
-      setError(err.message);
+      if (isAiDisabledError(err)) {
+        onDisabled?.();
+      } else {
+        setError(err.message);
+      }
     } finally {
       setPending(false);
     }
