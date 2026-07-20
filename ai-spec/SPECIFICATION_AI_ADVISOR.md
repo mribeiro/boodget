@@ -118,7 +118,7 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 
 - Ephemeral by design: history lives in component state, resets on tab leave, and the full history is re-sent each turn (`max_tokens` 2048 per reply).
 - The chat system prompt instructs concise plain-text answers (no markdown — the UI renders with `white-space: pre-wrap`, no markdown renderer) and to draw on loan data (payments, rates, coverage, total interest) when relevant, treating draft loans as hypothetical, and to draw on `annual_expense_template`/`workbench` when relevant, treating workbench figures as targets/plans rather than actuals.
-- UI: bubbles (`.ai-chat-bubble--user/--assistant`), "Thinking…" pending bubble, per-reply cost label, Clear button.
+- UI: bubbles (`.ai-chat-bubble--user/--assistant`), "Thinking…" pending bubble, per-reply cost label, Clear button. Each assistant message also stores the `model` returned with that reply (`ChatPanel`'s local history, mirroring `AnalysisPanel`'s persisted `model` field); a small model-name badge (shared `MODEL_LABELS` map in `utils/aiModels.js`) is shown next to a reply only when it differs from the model of the previous assistant reply, so switching the per-dossier `ai_model` setting mid-conversation is visible in the transcript.
 
 ## Export prompt (paste into claude.ai chat)
 
