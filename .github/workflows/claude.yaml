@@ -28,9 +28,6 @@ jobs:
           # Or use OAuth token instead:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          prompt: |
-            When you've finished implementing the requested change, commit it to a new branch and open a pull request against main. Do not just comment with a diff.
-
           # Optional: provide a prompt for automation workflows
           # prompt: "Review this PR for security issues"
 
