@@ -144,6 +144,7 @@ The other sections must be visible in the UI but marked as **"Coming Soon"**.
 ### 8.3 Deleting Accounts
 - Accounts can be deleted.
 - Deletion **archives** the account: it no longer appears for future months, but remains visible in historical records where it was previously used.
+- Archiving is **blocked** if the account is currently linked as the funding account (`account_id`) of any distribution — either in the Monthly Expense Template or in any expense cycle's items. The error names each linked distribution (grouped by "Monthly template" vs. the cycle it belongs to). The user must reassign or clear the funding account on each linked distribution before the account can be archived. This check is preventive only — it does not retroactively clean up links created before this rule existed.
 
 ---
 

@@ -182,6 +182,7 @@ Each distribution (template or cycle item) may optionally be linked to **one fun
 - Copied to `cycle_items.account_id` only **at cycle-creation time**, from the template item's `account_id`. If the account's "Can receive transfers?" flag (see `SPECIFICATION.md` §8) has since been turned off, the link is **not** copied — the cycle item is created unassigned instead.
 - Editable independently per cycle item afterward (including on ad-hoc distributions, which have no template link to begin with).
 - Only accounts with "Can receive transfers?" enabled can be **newly** picked in the account selector. An account already linked to a distribution remains shown and assigned even if the flag is later turned off — turning it off blocks new assignments only, it does not unlink existing ones.
+- Archiving an account (`SPECIFICATION.md` §8.3) is blocked while it's still linked as the funding account of any template or cycle-item distribution — the account must be unlinked from every distribution first.
 - Status (`done`/not done) is irrelevant to this feature — the account link is purely informational, to help the user know where to send money.
 - The **cycle view** shows a "Transfer per account" summary, rendered as a collapsible section below the Expenses/Distributions columns: the total value of distributions linked to each account, plus an "Unassigned" bucket for distributions with no account (shown only when non-zero). This lets the user see at a glance how much to transfer into each account before doing the actual bank transfers.
 

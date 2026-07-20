@@ -114,6 +114,42 @@ router.delete('/:accountId', (req, res) => {
     .prepare('SELECT * FROM accounts WHERE id = ? AND dossier_id = ?')
     .get(req.params.accountId, req.params.id);
   if (!account) return res.status(404).json({ error: 'Account not found' });
+
+  const templateLinks = db
+    .prepare("SELECT name FROM expense_template_items WHERE dossier_id = ? AND section = 'distribution' AND account_id = ?")
+    .all(req.params.id, req.params.accountId);
+  const cycleLinks = db
+    .prepare(
+      `SELECT ci.name, ec.year, ec.month
+       FROM cycle_items ci
+       JOIN expense_cycles ec ON ec.id = ci.cycle_id
+       WHERE ec.dossier_id = ? AND ci.section = 'distribution' AND ci.account_id = ?`
+    )
+    .all(req.params.id, req.params.accountId);
+
+  if (templateLinks.length > 0 || cycleLinks.length > 0) {
+    const dossier = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
+    const startDay = dossier?.cycle_start_day ?? 25;
+    const groups = [];
+    if (templateLinks.length > 0) {
+      groups.push(`Monthly template: ${templateLinks.map((l) => `"${l.name}"`).join(', ')}`);
+    }
+    if (cycleLinks.length > 0) {
+      const byCycle = new Map();
+      for (const link of cycleLinks) {
+        const cycleName = new Date(link.year, link.month, startDay - 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+        if (!byCycle.has(cycleName)) byCycle.set(cycleName, []);
+        byCycle.get(cycleName).push(link.name);
+      }
+      for (const [cycleName, names] of byCycle) {
+        groups.push(`Cycle of ${cycleName}: ${names.map((n) => `"${n}"`).join(', ')}`);
+      }
+    }
+    return res.status(409).json({
+      error: `Cannot archive "${account.name}" — it's still linked as the funding account for: ${groups.join('; ')}. Reassign or clear the funding account on those distributions first.`,
+    });
+  }
+
   db.prepare('UPDATE accounts SET archived = 1 WHERE id = ?').run(req.params.accountId);
   console.log(`[accounts] Archived account "${account.name}" (${req.params.accountId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();

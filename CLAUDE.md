@@ -19,7 +19,7 @@ Rules:
 
 Key concepts:
 - **Dossier**: A named container for a set of accounts, monthly snapshots, and expense cycles. Owned by one user, shareable with others.
-- **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier. `money_category` is one of `idle` / `active` / `stocks` (default `active`) — `stocks` is for unvested/illiquid holdings (e.g. unvested company equity) and is always excluded from the Capital total, tracked separately instead. `can_receive_transfers` (default `true`, defaults to `false` for new `stocks` accounts) controls whether the account can be picked as a distribution's funding account — disabling it only blocks new assignments, existing links are left untouched.
+- **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier. `money_category` is one of `idle` / `active` / `stocks` (default `active`) — `stocks` is for unvested/illiquid holdings (e.g. unvested company equity) and is always excluded from the Capital total, tracked separately instead. `can_receive_transfers` (default `true`, defaults to `false` for new `stocks` accounts) controls whether the account can be picked as a distribution's funding account — disabling it only blocks new assignments, existing links are left untouched. Archiving an account (`DELETE /accounts/:accountId`) is blocked with a `409` while it's still linked as the funding `account_id` of any expense-template or cycle-item distribution — the error lists the linked distributions (grouped by template vs. cycle, with the cycle named the same way cycle displays are) so the user can reassign or clear those links first; this is preventive only, not retroactive — links created before this check existed are not swept up.
 - **Month**: A monthly snapshot capturing the value of all accounts at a point in time.
 - **Expense Cycle**: A monthly budget/expense tracking period. Has a salary, previous balance, and a list of expense/distribution items. Cycles are independent — multiple can be open at the same time; the only uniqueness constraint is `(dossier_id, year, month)`. A cycle stored as `(year, month)` runs from `cycle_start_day` of that calendar month to `cycle_start_day − 1` of the following month, and is **named after the month it ends in** — e.g. a cycle stored as `month=3` with `cycle_start_day=25` runs Mar 25 – Apr 24 and is displayed as "April".
 - **Cycle Item**: An expense or distribution within a cycle. Expenses are either `Fixed` (with a `day_of_payment` and paid checkbox) or `Budget` (with a max and a `spent` amount). Distributions have a `done` checkbox. Distributions may optionally be linked to a funding `account_id`; not propagated from template to existing cycles. The linked account must have `can_receive_transfers = 1` at the time it's assigned; an account already linked is unaffected if later disabled.
@@ -320,6 +320,7 @@ POST   /api/dossiers/:id/accounts   { group_name, name, type, money_category? }
 PUT    /api/dossiers/:id/accounts/reorder   { accountIds: [] }
 PATCH  /api/dossiers/:id/accounts/:accountId  { name?, group_name?, money_category?, can_receive_transfers? }
 DELETE /api/dossiers/:id/accounts/:accountId  (archives, not deletes)
+                                              # 409 if still linked as a distribution's funding account
 
 GET    /api/dossiers/:id/months
 POST   /api/dossiers/:id/months     { year, month }
@@ -492,7 +493,7 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 ## Key Business Rules
 
 1. **Password policy**: Min 16 chars, uppercase + lowercase + digit + symbol. Validated in `routes/auth.js` and `routes/users.js`.
-2. **Account deletion is soft**: `DELETE /accounts/:id` sets `archived=true`. Preserves historical month data.
+2. **Account deletion is soft**: `DELETE /accounts/:id` sets `archived=true`. Preserves historical month data. Blocked with `409` if the account is still linked as a distribution's funding `account_id` anywhere (template or cycle items).
 3. **Month snapshots**: On month creation, all non-archived accounts are snapshotted (`month_account_snapshot`).
 4. **Dossier access**: Only `creator_id` can share/unshare or delete. Shared users have full edit rights.
 5. **OIDC users**: `is_oidc=1`; cannot use local login or change-password.
