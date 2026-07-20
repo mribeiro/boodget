@@ -28,6 +28,10 @@ jobs:
           # Or use OAuth token instead:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            When you finish implementing the requested change, actually open the pull request
+            yourself using `gh pr create` (you have push access and pull-requests: write) —
+            do not just leave a "Create PR" link in your comment.
           # Optional: provide a prompt for automation workflows
           # prompt: "Review this PR for security issues"
 
