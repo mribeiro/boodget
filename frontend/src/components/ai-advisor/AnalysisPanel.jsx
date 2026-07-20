@@ -1,13 +1,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faThumbsUp, faArrowTrendUp, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import CostLabel from './CostLabel';
-
-const MODEL_LABELS = {
-  'claude-haiku-4-5': 'Haiku 4.5',
-  'claude-sonnet-5': 'Sonnet 5',
-  'claude-opus-4-8': 'Opus 4.8',
-  'claude-fable-5': 'Fable 5',
-};
+import { MODEL_LABELS } from '../../utils/aiModels';
 
 function scoreColor(score) {
   if (score >= 70) return 'var(--color-success)';

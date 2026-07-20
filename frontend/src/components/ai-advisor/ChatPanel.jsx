@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPaperPlane, faComments } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import CostLabel from './CostLabel';
+import { MODEL_LABELS } from '../../utils/aiModels';
 
 // Chat about the dossier. History is client-side only (ephemeral by design):
 // the full conversation is re-sent to the backend on every turn.
@@ -35,6 +36,7 @@ export default function ChatPanel({ dossierId, disabled }) {
         {
           role: 'assistant',
           content: resp.reply,
+          model: resp.model,
           cost_usd: resp.cost_usd,
           input_tokens: resp.input_tokens,
           output_tokens: resp.output_tokens,
@@ -69,16 +71,25 @@ export default function ChatPanel({ dossierId, disabled }) {
             The conversation is not stored and resets when you leave.
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={`ai-chat-bubble ai-chat-bubble--${m.role}`}>
-            <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
-            {m.role === 'assistant' && m.cost_usd != null && (
-              <div style={{ marginTop: 4 }}>
-                <CostLabel costUsd={m.cost_usd} inputTokens={m.input_tokens} outputTokens={m.output_tokens} />
-              </div>
-            )}
-          </div>
-        ))}
+        {messages.map((m, i) => {
+          const prevAssistant = messages.slice(0, i).reverse().find((pm) => pm.role === 'assistant' && pm.model);
+          const showModelBadge = m.role === 'assistant' && m.model && (!prevAssistant || prevAssistant.model !== m.model);
+          return (
+            <div key={i} className={`ai-chat-bubble ai-chat-bubble--${m.role}`}>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
+              {m.role === 'assistant' && (m.cost_usd != null || showModelBadge) && (
+                <div style={{ marginTop: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {showModelBadge && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {MODEL_LABELS[m.model] || m.model}
+                    </span>
+                  )}
+                  <CostLabel costUsd={m.cost_usd} inputTokens={m.input_tokens} outputTokens={m.output_tokens} />
+                </div>
+              )}
+            </div>
+          );
+        })}
         {pending && (
           <div className="ai-chat-bubble ai-chat-bubble--assistant" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
             Thinking…
