@@ -22,17 +22,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - uses: anthropics/claude-code-action@v1
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
         with:
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Or use OAuth token instead:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          track_progress: true
-          prompt: |
-            When you finish implementing the requested change, actually open the pull request
-            yourself using `gh pr create` (you have push access and pull-requests: write) —
-            do not just leave a "Create PR" link in your comment.
           # Optional: provide a prompt for automation workflows
           # prompt: "Review this PR for security issues"
 
@@ -57,3 +54,23 @@ jobs:
           #   actions: read
           # Optional: allow bot users to trigger the action
           # allowed_bots: "dependabot[bot],renovate[bot]"
+
+      # The action itself only leaves a "Create PR" link in its comment rather than opening
+      # the PR (its agent sandbox doesn't have `gh` in its allowed tools, so instructing it via
+      # prompt/track_progress to run `gh pr create` itself just gets denied). Open the PR here
+      # instead, outside the agent's tool sandbox, using the plain GITHUB_TOKEN. Title comes
+      # straight from the triggering issue (a stable, first-class part of the Actions event
+      # context) rather than being scraped out of the agent's comment text.
+      - name: Open PR for the branch Claude created
+        if: steps.claude.outputs.branch_name != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.claude.outputs.branch_name }}" \
+            --title "${{ github.event.issue.title }}" \
+            --body "Closes #${{ github.event.issue.number }}
+
+          Automated by Claude Code — see the issue for context and the branch's commit(s) for implementation details." \
+            || echo "PR may already exist for this branch, skipping"
