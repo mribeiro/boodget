@@ -187,7 +187,7 @@ Shows:
 - Count of completed goals if any (e.g. "1 completed")
 - An **average completion progress bar**: the mean of each goal's `min(100, total_current_progress / target_value × 100)`, with a percentage label to the right. Bar colour follows the same low/medium/high thresholds as `GoalsTab`'s per-goal bars (red < 25%, amber < 75%, green ≥ 75%).
 
-Active, completed, and failed counts render as same-line items in a flex-wrapped row (not stacked lines), with the average completion bar directly below, to keep the card within the shared fixed height.
+Active, completed, and failed counts render as same-line items in a single non-wrapping row (each truncating individually with an ellipsis, rather than wrapping onto extra lines, if they don't all fit), with the average completion bar directly below, to keep the card within the shared fixed height. The failed badge (when shown) does not shrink — active/completed truncate first — since a failed-goal warning is the higher-priority signal.
 
 ### 6.2 Alert state (red)
 
