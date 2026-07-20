@@ -48,6 +48,7 @@ money_manager/
 │   │   ├── db/index.js       # SQLite schema, migrations, db singleton
 │   │   ├── db/seed.js        # Baseline seed data (SEED_ON_EMPTY)
 │   │   ├── middleware/auth.js
+│   │   ├── middleware/rate-limit.js
 │   │   └── routes/
 │   │       ├── auth.js, setup.js, users.js
 │   │       ├── dossiers.js       # Dossier CRUD, sharing, import/export; mounts sub-routers
@@ -137,6 +138,7 @@ money_manager/
 | Backend framework | Express 4 |
 | Database | SQLite via `better-sqlite3` (synchronous API) |
 | Sessions | `express-session` (72-hour expiry, httpOnly, SameSite=lax) |
+| Rate limiting | `express-rate-limit` (global API limiter + stricter login limiter) |
 | Password hashing | `bcrypt` |
 | SSO | `openid-client` (OIDC, optional) |
 | Push notifications | `web-push` (VAPID), `node-cron` (scheduler) |
@@ -289,6 +291,7 @@ All API routes are under `/api`. REST with JSON request/response bodies.
 - Protected routes use `requireAuth` middleware (checks `req.session.userId`).
 - Public routes: `/api/setup/*`, `/api/auth/login`, `/api/auth/oidc/*`.
 - Error format: `{ error: "message" }` with appropriate HTTP status.
+- All `/api/*` routes are rate-limited (429 with `{ error }` once exceeded); `POST /api/auth/login` additionally sits behind a stricter, per-account limiter (`backend/src/middleware/rate-limit.js`).
 
 ### Route Structure
 
