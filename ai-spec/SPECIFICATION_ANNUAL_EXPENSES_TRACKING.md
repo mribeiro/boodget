@@ -177,7 +177,7 @@ An installment matches a cycle when the full date `(year, installment.month, ins
 
 When a cycle is **created**, the system checks all annual expense years whose calendar year overlaps with the cycle's date range. For each matching installment, a **payment record** is created automatically with:
 
-- `real_value` = expected value (pre-filled for convenience)
+- `real_value` = expected value (pre-filled for convenience, never null — it's an estimate until the user overwrites it, not an "unset" marker)
 - `paid` = false
 
 ### 5.2 Payment Record
@@ -459,7 +459,7 @@ Cascades on year item delete.
 | `id` | TEXT | Primary key (UUID) |
 | `installment_id` | TEXT | FK to `annual_expense_year_installments` |
 | `cycle_id` | TEXT | FK to `expense_cycles` |
-| `real_value` | REAL | Actual amount paid |
+| `real_value` | REAL | Pre-filled at creation with the budgeted per-installment estimate (`budgeted_value / num_installments`), never null; the user overwrites it with the actual paid amount once known. `paid` is the separate flag confirming it's a real, confirmed figure rather than the initial estimate. |
 | `paid` | INTEGER | 0 or 1 |
 
 UNIQUE constraint on `(installment_id, cycle_id)`. Cascades on installment delete **and** on cycle delete.
