@@ -255,8 +255,8 @@ Every loan API response (list and detail) includes, spread alongside the stored 
 | `status` | TEXT | `draft` (default) or `active` |
 | `interest_rate` | REAL | Annual nominal percent, default 0 |
 | `salary` | REAL (nullable) | Per-loan salary |
-| `principal` | REAL (nullable) | Original amount borrowed, set while draft. Never cleared on promotion to active — persists as the origination record |
-| `term_months` | INTEGER (nullable) | Original total length, set while draft. Never cleared on promotion to active — persists as the origination record |
+| `principal` | REAL (nullable) | Original amount borrowed. Settable only while draft (400 otherwise); never cleared on promotion to active — persists as the origination record |
+| `term_months` | INTEGER (nullable) | Original total length. Settable only while draft (400 otherwise); never cleared on promotion to active — persists as the origination record |
 | `remaining_balance` | REAL (nullable) | Active: amount still owing |
 | `end_date` | TEXT (nullable) | Active: `YYYY-MM` the loan finishes; `months_left` is always derived from this (Section 4.1), never stored. Active-only; cleared on demotion to draft |
 | `day_of_payment` | INTEGER (nullable) | Active: day of the month (1–31) the payment is due; required for active loans. Feeds `months_left`'s "is this month already paid" check (Section 4.1) and the amortization schedule's starting month (Section 4.2). Active-only; cleared on demotion to draft |
@@ -294,7 +294,7 @@ Validation (400 on failure):
 - `salary` null or ≥ 0.
 - Effective-status requirements: `draft` → `principal > 0` and integer `term_months ≥ 1`; `active` → `remaining_balance > 0`, `day_of_payment` required as an integer 1–31, and `end_date` required, matching `/^\d{4}-\d{2}$/`, resolving to `months_left ≥ 1` given that `day_of_payment` (Section 4.1). The other status's fields are preserved (if present) but not required.
 - `expense_template_item_id`: rejected (400) if the loan's effective status is `draft`; otherwise must resolve to a same-dossier `expense_template_items` row with `section='expense' AND type='Fixed'`, else 400.
-- `down_payment`, `taeg`, `opening_fee`: each null or a non-negative number; rejected (400) if explicitly set to a non-null value while the loan's effective status is `active`. If the field is omitted from the request body entirely, the existing stored value (if any) is carried forward unchanged regardless of status — these are only gated on *explicit* setting, not on status itself.
+- `principal`, `term_months`, `down_payment`, `taeg`, `opening_fee`: each null or a non-negative number (`term_months` an integer); rejected (400) if explicitly set to a non-null value while the loan's effective status is `active`. If the field is omitted from the request body entirely, the existing stored value (if any) is carried forward unchanged regardless of status. Explicitly passing `null` for one of these fields is also rejected (400) whenever the loan's effective status is not `draft` *and* the field already has a non-null value on record — this protects the permanent historical record from being silently erased by an unrelated partial `PUT` (e.g. one that only touches `interest_rate`). Explicit `null` is still accepted for a field that has no existing value, and for any of these fields on a `draft` loan (subject to the `draft` positivity/required checks above for `principal`/`term_months`).
 - `end_date`: rejected (400) if set to a non-null value while the loan's effective status is `draft`.
 - `day_of_payment`: null or an integer 1–31 (400 otherwise); rejected (400) if set to a non-null value while the loan's effective status is `draft`.
 - `PUT` flipping `active → draft` forces `expense_template_item_id = NULL`, `end_date = NULL`, and `day_of_payment = NULL` regardless of what was sent.
