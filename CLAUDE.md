@@ -282,6 +282,21 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 
 **Database access pattern**: `better-sqlite3` is synchronous. Use `.prepare()` + `.run()` / `.get()` / `.all()`. No async/await, no ORM.
 
+## Naming Conventions
+
+### Budgeted vs. actual amounts
+
+Several features track a "budgeted/planned" figure alongside "what actually happened" for the same period — this is the same underlying shape every time, but it has historically been named differently per feature, which makes cross-feature mismatches (e.g. one side using a stored actual, the other a derived-expected figure) easy to miss (see issue #197 and the #177 incident it references — a year-detail `total_paid` computed inconsistently from `real_value` in one place and a derived figure in another).
+
+**Convention going forward**: name the actual/realized field `real_value` (or `real_<name>` if disambiguation from `value` is needed), matching the clearest existing example, `annual_expense_payments.real_value`. Don't introduce a new synonym (`actual_value`, `paid_value`, etc.) for a new budgeted-vs-actual pair. Existing fields that predate this convention are **not** renamed — no functional/schema change was made for issue #197:
+
+| Feature | Budgeted/planned field | Actual/realized field |
+|---|---|---|
+| Monthly Expenses — Budget items | `cycle_items.value` (the max) | `cycle_items.spent` |
+| Monthly Expenses — Fixed items | `cycle_items.value` | none stored — `paid` (boolean) implies the actual equals `value` |
+| Annual Expenses | `annual_expense_year_items.budgeted_value` | `annual_expense_payments.real_value` |
+| Expense Template (Monthly) | `expense_template_items.value` | n/a — templates are planning-only, no actual is ever recorded against them |
+
 ## API Conventions
 
 All API routes are under `/api`. REST with JSON request/response bodies.
