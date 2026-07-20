@@ -42,7 +42,7 @@ Rules:
 | Category | File | Events |
 |---|---|---|
 | `[db]` | `db/index.js` | DB open (path), each migration applied, expired session cleanup |
-| `[auth]` | `routes/auth.js` | Login success, login failure (username only — never log passwords), logout, password change, OIDC user auto-creation |
+| `[auth]` | `routes/auth.js` | Login success, login failure (username only — never log passwords), logout, password change, OIDC user auto-creation, login rate limit exceeded (username, IP) |
 | `[users]` | `routes/users.js` | User created, user deleted |
 | `[dossiers]` | `routes/dossiers.js` | Dossier created, imported, exported, deleted; access granted, access revoked |
 | `[accounts]` | `routes/accounts.js` | Account created, account archived |
@@ -52,6 +52,7 @@ Rules:
 | `[goals]` | `routes/goals.js` | Goal created, goal deleted |
 | `[loans]` | `routes/loans.js` | Loan created, updated, deleted |
 | `[emergency-fund]` | `routes/emergency-fund.js` | Account selection updated |
+| `[security]` | `middleware/rate-limit.js` | Global API rate limit exceeded (method, path, IP) |
 
 ---
 

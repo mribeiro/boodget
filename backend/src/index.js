@@ -15,6 +15,7 @@ if (process.env.NODE_ENV === 'ephemeral') {
 const { db, SQLiteSessionStore } = require('./db');
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(express.json());
 
@@ -33,6 +34,9 @@ app.use(
 );
 
 const requireAuth = require('./middleware/auth');
+const { apiLimiter } = require('./middleware/rate-limit');
+
+app.use('/api', apiLimiter);
 
 app.use('/api/setup', require('./routes/setup'));
 app.use('/api/auth', require('./routes/auth'));

@@ -4,6 +4,7 @@ const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const requireAuth = require('../middleware/auth');
+const { loginLimiter } = require('../middleware/rate-limit');
 
 let oidcClient = null;
 
@@ -24,7 +25,7 @@ router.get('/me', requireAuth, (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
