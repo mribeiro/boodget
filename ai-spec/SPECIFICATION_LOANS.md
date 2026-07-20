@@ -90,7 +90,7 @@ This is computed server-side on every read/write (never persisted as a stored co
 
 ### 4.1 Months Left (active loans, derived from `end_date` and `day_of_payment`)
 
-`months_left` is never entered or stored — it's derived fresh on every read from the loan's `end_date` (`YYYY-MM`), `day_of_payment` (1–31), and the current date, so the user is never asked to update it as the loan progresses.
+`months_left` is never entered or stored — it's derived fresh on every read from the loan's `end_date` (`YYYY-MM`), `day_of_payment` (1–31), and the current date, so the user is never asked to update it as the loan progresses. "Current date" is read in UTC (`computeMonthsLeft` in `backend/src/routes/loans.js`), not the server's OS-local timezone, so the `day_of_payment` cutoff doesn't shift with where the server happens to be deployed.
 
 The current calendar month only counts as still-owed if `day_of_payment` **hasn't passed yet** this month — once it has, that month's payment is treated as already made, and counting starts from the following month instead. Concretely: today the 15th, a loan with `day_of_payment = 5` has already had this month's payment made (`15 ≥ 5`), so this month is excluded; a loan with `day_of_payment = 20` hasn't (`15 < 20`), so it's still included. `day_of_payment` is clamped to the current month's actual length before comparing (`min(day_of_payment, days_in_current_month)`), so e.g. `31` correctly means "the last day" in a 30-day month or February.
 
