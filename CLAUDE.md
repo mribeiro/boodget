@@ -242,7 +242,7 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 | `workbench_snapshots` | Named snapshots of Workbench state. `name`, `data` (JSON). |
 | `goals` | `name`, `target_value`, `target_date` (YYYY-MM), `contribution_mode` (`via_distributions`/`manual`/`ad_hoc`), `manual_monthly_value`, `extra_value`, `extra_value_impact_mode`. |
 | `goal_accounts` | `(goal_id, account_id)`. Cascades on delete. |
-| `goal_distributions` | `(goal_id, distribution_template_id)`. Cascades on delete. |
+| `goal_distributions` | `(goal_id, distribution_template_item_id)`. Cascades on delete. |
 | `goal_cycle_contributions` | `(goal_id, cycle_id)`. `real_contribution` upserted. |
 | `goal_historical_contributions` | `(goal_id, year, month)`. Managed via bulk-replace. |
 | `loans` | `name`, `status` (`draft`/`active`), `interest_rate` (annual %, the TAN), `salary`, `principal`/`term_months`/`down_payment`/`taeg`/`opening_fee` (all nullable; settable only while `status='draft'`, but never cleared on promotion to active — persist as a historical record), `remaining_balance`/`end_date`/`day_of_payment` (active; `end_date` nullable `YYYY-MM`, `day_of_payment` nullable integer 1–31, both required for active and cleared on demotion to draft — `months_left` is derived from both, never stored), `expense_template_item_id` (nullable FK → `expense_template_items`, `ON DELETE SET NULL`, active only). No `position`/`updated_at`; list ordered `created_at ASC`. |
@@ -263,7 +263,7 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - `schema_migrations` table tracks applied migrations by `id`.
 - IDs follow `NNN_description` pattern (e.g. `003_add_foo_to_bar`).
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
-- **Last applied migration**: `036_create_subscriptions`. **Next id must be `037_...`**
+- **Last applied migration**: `037_rename_goal_distributions_template_id`. **Next id must be `038_...`**
 - Never modify or remove existing migration entries — only append.
 
 **To add a new migration**, append to the `migrations` array:
