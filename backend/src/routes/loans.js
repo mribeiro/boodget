@@ -124,9 +124,12 @@ function computeLoanValues(loan, dossierId) {
 
 // down_payment, taeg, and opening_fee are all nullable, non-negative numerics that can only
 // be explicitly *set* while draft — but once set, persist unchanged across status changes
-// (shared parsing/validation).
+// (shared parsing/validation). An explicit null on a non-draft loan is rejected the same way
+// once a value is already on record, so a partial PUT can't silently erase this historical data
+// — only omitting the field entirely carries the existing value forward unchanged.
 function parseDraftOnlyNullableNumber(body, existing, field, status) {
-  let value = existing?.[field] ?? null;
+  const existingValue = existing?.[field] ?? null;
+  let value = existingValue;
   if (body[field] !== undefined) {
     const parsed = body[field] === null || body[field] === '' ? null : Number(body[field]);
     if (parsed != null) {
@@ -136,6 +139,8 @@ function parseDraftOnlyNullableNumber(body, existing, field, status) {
       if (status !== 'draft') {
         return { error: `${field} can only be set on draft loans` };
       }
+    } else if (status !== 'draft' && existingValue != null) {
+      return { error: `${field} cannot be cleared on a loan that is not a draft` };
     }
     value = parsed;
   }
@@ -162,8 +167,30 @@ function validateLoanFields(body, existing) {
     }
   }
 
-  const principal = body.principal !== undefined ? (body.principal === null || body.principal === '' ? null : Number(body.principal)) : existing?.principal ?? null;
-  const termMonths = body.term_months !== undefined ? (body.term_months === null || body.term_months === '' ? null : Number(body.term_months)) : existing?.term_months ?? null;
+  const existingPrincipal = existing?.principal ?? null;
+  let principal = existingPrincipal;
+  if (body.principal !== undefined) {
+    principal = body.principal === null || body.principal === '' ? null : Number(body.principal);
+    if (principal != null && status !== 'draft') {
+      return { error: 'principal can only be set on draft loans' };
+    }
+    if (principal === null && status !== 'draft' && existingPrincipal != null) {
+      return { error: 'principal cannot be cleared on a loan that is not a draft' };
+    }
+  }
+
+  const existingTermMonths = existing?.term_months ?? null;
+  let termMonths = existingTermMonths;
+  if (body.term_months !== undefined) {
+    termMonths = body.term_months === null || body.term_months === '' ? null : Number(body.term_months);
+    if (termMonths != null && status !== 'draft') {
+      return { error: 'term_months can only be set on draft loans' };
+    }
+    if (termMonths === null && status !== 'draft' && existingTermMonths != null) {
+      return { error: 'term_months cannot be cleared on a loan that is not a draft' };
+    }
+  }
+
   const remainingBalance = body.remaining_balance !== undefined ? (body.remaining_balance === null || body.remaining_balance === '' ? null : Number(body.remaining_balance)) : existing?.remaining_balance ?? null;
 
   let endDate = existing?.end_date ?? null;
