@@ -120,7 +120,7 @@ router.delete('/:accountId', (req, res) => {
     .all(req.params.id, req.params.accountId);
   const cycleLinks = db
     .prepare(
-      `SELECT ci.name, ec.year, ec.month
+      `SELECT ci.name, ec.year, ec.month, ec.cycle_start_day
        FROM cycle_items ci
        JOIN expense_cycles ec ON ec.id = ci.cycle_id
        WHERE ec.dossier_id = ? AND ci.section = 'distribution' AND ci.account_id = ?`
@@ -128,8 +128,6 @@ router.delete('/:accountId', (req, res) => {
     .all(req.params.id, req.params.accountId);
 
   if (templateLinks.length > 0 || cycleLinks.length > 0) {
-    const dossier = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
-    const startDay = dossier?.cycle_start_day ?? 25;
     const groups = [];
     if (templateLinks.length > 0) {
       groups.push(`Monthly template: ${templateLinks.map((l) => `"${l.name}"`).join(', ')}`);
@@ -137,7 +135,9 @@ router.delete('/:accountId', (req, res) => {
     if (cycleLinks.length > 0) {
       const byCycle = new Map();
       for (const link of cycleLinks) {
-        const cycleName = new Date(link.year, link.month, startDay - 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+        // Each cycle's own stored cycle_start_day names it, not the dossier's current
+        // setting, so a later setting change doesn't relabel an already-created cycle.
+        const cycleName = new Date(link.year, link.month, (link.cycle_start_day ?? 25) - 1).toLocaleString('en', { month: 'long', year: 'numeric' });
         if (!byCycle.has(cycleName)) byCycle.set(cycleName, []);
         byCycle.get(cycleName).push(link.name);
       }

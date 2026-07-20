@@ -552,8 +552,8 @@ router.post('/cycles', (req, res) => {
 
   const createCycle = db.transaction(() => {
     db.prepare(
-      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(id, req.params.id, year, month, Number(salary), Number(previous_balance));
+      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, cycle_start_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, req.params.id, year, month, Number(salary), Number(previous_balance), startDay);
 
     const templateItems = db
       .prepare('SELECT * FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
@@ -587,12 +587,7 @@ router.post('/cycles', (req, res) => {
 router.get('/cycles/:cycleId', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const cycle = db
-    .prepare(
-      `SELECT ec.*, d.cycle_start_day
-       FROM expense_cycles ec
-       JOIN dossiers d ON d.id = ec.dossier_id
-       WHERE ec.id = ? AND ec.dossier_id = ?`
-    )
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
@@ -682,8 +677,7 @@ router.post('/cycles/:cycleId/pull-annual-expenses', (req, res) => {
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
-  const { cycle_start_day } = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
-  const startDay = cycle_start_day ?? 25;
+  const startDay = cycle.cycle_start_day ?? 25;
 
   createAnnualPaymentsForCycle(req.params.id, req.params.cycleId, cycle.year, cycle.month, startDay);
   console.log(`[cycles] Pulled annual expenses for cycle ${cycle.year}/${cycle.month} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
@@ -832,7 +826,7 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
 
   const dossier = db
-    .prepare('SELECT cycle_start_day, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
+    .prepare('SELECT paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id FROM dossiers WHERE id = ?')
     .get(req.params.id);
 
   if (!dossier.paperless_url || !dossier.paperless_token || !dossier.paperless_date_field_id || !dossier.paperless_amount_field_id) {
@@ -855,7 +849,7 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
     return res.json({ results: [], warnings: [] });
   }
 
-  const startDay = dossier.cycle_start_day ?? 25;
+  const startDay = cycle.cycle_start_day ?? 25;
   const { year, month } = cycle;
   const startDate = `${year}-${String(month).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
   const endDateObj = new Date(year, month, startDay - 1);

@@ -110,7 +110,9 @@ async function runNotificationScheduler() {
           .prepare('SELECT * FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ?')
           .get(dossierId, prevYear, prevMonth);
         if (prevCycle && !prevCycle.is_closed) {
-          const endDate = new Date(prevYear, prevMonth, cycleStartDay - 1);
+          // Named using the cycle's own stored cycle_start_day, not the dossier's current
+          // setting, so a later change to it doesn't relabel this already-created cycle.
+          const endDate = new Date(prevYear, prevMonth, (prevCycle.cycle_start_day ?? cycleStartDay) - 1);
           const cycleName = endDate.toLocaleString('en', { month: 'long', year: 'numeric' });
           notifications.push({
             type: 'cycle_not_closed',
@@ -156,11 +158,15 @@ async function runNotificationScheduler() {
           )
           .all(currentCycle.id);
 
+        // The current cycle's own stored cycle_start_day drives its payment-day math,
+        // not the dossier's current setting, so it isn't reshaped by a later change to it.
+        const activeCycleStartDay = currentCycle.cycle_start_day ?? cycleStartDay;
+
         for (const item of unpaidItems) {
           const payDay = item.day_of_payment;
           if (payDay == null) continue;
           let payDate;
-          if (payDay >= cycleStartDay) {
+          if (payDay >= activeCycleStartDay) {
             payDate = new Date(curYear, curMonth - 1, payDay);
           } else {
             let nextM = curMonth + 1; let nextY = curYear;

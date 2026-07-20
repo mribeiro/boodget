@@ -115,7 +115,7 @@ The endpoint validates:
 
 ### 4.3 Cycle Date Range
 
-The date range is computed from the cycle's `(year, month)` and the dossier's `cycle_start_day`:
+The date range is computed from the cycle's `(year, month)` and its own stored `cycle_start_day` (snapshotted at creation time — see `SPECIFICATION_MONTHLY_EXPENSES.md` §3.1 — not the dossier's current setting):
 
 - **Start date**: `{year}-{month}-{cycle_start_day}` (the stored start month).
 - **End date**: day before the next cycle's start — `new Date(year, month, cycle_start_day - 1)` (JS Date handles month overflow).

@@ -44,6 +44,8 @@ The cycle is stored internally as `(year, month)` representing its **start** mon
 
 The date range always shows the full span (e.g. "Mar 25, 2025 – Apr 24, 2025") as a subtitle wherever the cycle name appears.
 
+**Cycle start day is snapshotted, not live.** `cycle_start_day` is a dossier-wide *setting* (Section 2), but each cycle stores its own copy of the value in effect at the moment it was opened (`expense_cycles.cycle_start_day`). Every computation scoped to a specific, already-created cycle — its display name, date range, Fixed-expense sort order (§5), day-of-payment clamping, and annual-expense installment-to-cycle matching — uses that cycle's own stored value, never the dossier's current setting. Changing the setting in Dossier Settings therefore only affects cycles opened **after** the change; it never retroactively reshapes an existing cycle, open or closed. Only genuinely forward-looking computations (e.g. determining which `(year, month)` period is "now", for a cycle that may not exist yet) use the live dossier setting.
+
 ### 3.2 Rules
 
 - A dossier can have **multiple open cycles simultaneously** — there is no restriction on how many cycles are open at once.

@@ -769,6 +769,26 @@ const migrations = [
       }
     },
   },
+  {
+    id: '038_add_cycle_start_day_to_expense_cycles',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(expense_cycles)').all();
+      if (!cols.find((c) => c.name === 'cycle_start_day')) {
+        db.exec('ALTER TABLE expense_cycles ADD COLUMN cycle_start_day INTEGER');
+        // Best-effort backfill for pre-existing cycles: snapshot the dossier's
+        // current setting, since the value in effect at each cycle's own creation
+        // time was never recorded. From this point on, new cycles store their own.
+        db.exec(`
+          UPDATE expense_cycles
+          SET cycle_start_day = COALESCE(
+            (SELECT d.cycle_start_day FROM dossiers d WHERE d.id = expense_cycles.dossier_id),
+            25
+          )
+          WHERE cycle_start_day IS NULL
+        `);
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

@@ -100,6 +100,11 @@ export default function DossierSettings({ dossierId }) {
             />
             {modal.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{modal.suffix}</span>}
           </div>
+          {modal.key === 'cycle_start_day' && (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.75rem', marginBottom: 0 }}>
+              This only affects cycles opened from now on — existing cycles (open or closed) keep the date range, ordering, and payment-day logic they were created with.
+            </p>
+          )}
           {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
         </Modal>
       )}

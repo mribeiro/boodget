@@ -94,10 +94,12 @@ Shows:
 
 ### 4.1 Determining the current cycle
 
-The current cycle is the one whose date range covers today, computed using the dossier's `cycle_start_day`:
+The current cycle is the one whose date range covers today, computed using the dossier's *current* `cycle_start_day` setting (a genuinely forward-looking lookup, since the cycle for the current period may not exist yet):
 
 - A cycle for month M covers from `cycle_start_day` of M-1 to `cycle_start_day - 1` of M.
 - Example: `cycle_start_day = 25`, today = 14 March → current cycle = March cycle (25 Feb → 24 Mar).
+
+Once a matching cycle *has* been loaded (`CycleGlance`'s `currentCycleMeta`/`currentCycleDetail`, `NextExpenseGlance`'s `currentCycleDetail`), all further date math scoped to that specific cycle — its display name, cycle-progress-bar day range, and Fixed-expense/annual-payment day-of-payment comparisons — uses that cycle's own stored `cycle_start_day` (see `SPECIFICATION_MONTHLY_EXPENSES.md` §3.1), not the dossier's live setting, so a later change to the setting doesn't reshape an already-open cycle's Glance data.
 
 ### 4.2 Normal state (neutral)
 
