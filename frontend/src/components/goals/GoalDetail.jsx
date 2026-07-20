@@ -94,6 +94,7 @@ export default function GoalDetail() {
   const [confirmState, setConfirmState] = useState(null);
   const [toast, setToast] = useState({ msg: '', show: false });
   const toastTimer = useRef(null);
+  const [unlinkingArchived, setUnlinkingArchived] = useState(false);
 
   function showToast(msg) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -208,6 +209,22 @@ export default function GoalDetail() {
     }
   }
 
+  async function handleUnlinkArchivedAccounts() {
+    const archivedIds = new Set((goal.archived_linked_accounts || []).map((a) => a.id));
+    setUnlinkingArchived(true);
+    try {
+      const updated = await api.updateGoal(dossierId, goal.id, {
+        account_ids: (goal.account_ids || []).filter((id) => !archivedIds.has(id)),
+      });
+      setGoal(updated);
+      showToast('Archived account(s) unlinked');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUnlinkingArchived(false);
+    }
+  }
+
   async function handleSaveCycleContrib(cycleId) {
     if (cycleContribValue === '' || isNaN(parseDecimalInput(cycleContribValue))) return;
     setSavingContrib(true);
@@ -263,6 +280,25 @@ export default function GoalDetail() {
       {infeasible && (
         <div className="alert alert-error" style={{ marginBottom: '1.5rem', fontWeight: 600 }}>
           <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.4rem' }} />This goal cannot be reached with the current monthly contribution by the target date. Consider increasing the monthly contribution or extending the target date.
+        </div>
+      )}
+
+      {goal.archived_linked_accounts && goal.archived_linked_accounts.length > 0 && (
+        <div className="alert alert-warning" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <span style={{ flex: '1 1 auto' }}>
+            <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.4rem' }} />
+            {goal.archived_linked_accounts.length === 1 ? 'An archived account is' : 'Archived accounts are'} still linked to this goal and no longer count toward progress:{' '}
+            <strong>{goal.archived_linked_accounts.map((a) => `${a.group_name} — ${a.name}`).join(', ')}</strong>. Unlink {goal.archived_linked_accounts.length === 1 ? 'it' : 'them'} to clean up this goal.
+          </span>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={unlinkingArchived}
+            onClick={handleUnlinkArchivedAccounts}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {unlinkingArchived ? 'Unlinking…' : 'Unlink now'}
+          </button>
         </div>
       )}
 

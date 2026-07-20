@@ -56,13 +56,17 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose, focusC
   }, []);
 
   useEffect(() => {
+    const linkedAccountIds = new Set(goal?.account_ids ?? []);
     Promise.all([
-      api.getAccounts(dossierId),
+      api.getAccounts(dossierId, true),
       api.getExpenseTemplate(dossierId),
     ]).then(([accts, template]) => {
-      setAccounts(accts);
+      // Archived accounts are hidden from new selection, but an already-linked archived
+      // account must stay visible so it can be unchecked (see issue #192).
+      setAccounts(accts.filter((a) => !a.archived || linkedAccountIds.has(a.id)));
       setDistributions(template.filter((t) => t.section === 'distribution'));
     }).catch(() => setError('Failed to load data'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
 
   function toggleAccount(id) {
@@ -233,12 +237,24 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose, focusC
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                   {accounts.map((a) => (
-                    <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 'normal' }}>
+                    <label
+                      key={a.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer',
+                        fontWeight: 'normal',
+                        color: a.archived ? 'var(--color-text-muted)' : 'inherit',
+                        fontStyle: a.archived ? 'italic' : 'normal',
+                      }}
+                    >
                       <Checkbox
                         checked={selectedAccountIds.includes(a.id)}
                         onChange={() => toggleAccount(a.id)}
                       />
                       {a.group_name} — {a.name}
+                      {a.archived && ' (archived — unselect to unlink)'}
                     </label>
                   ))}
                 </div>

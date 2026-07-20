@@ -32,10 +32,24 @@ function computeGoalValues(goal, dossierId) {
     )
     .get(dossierId);
 
+  // Archived accounts are expected to hold no further funds going forward, so they're
+  // excluded from progress — they still show up in goal_accounts until manually unlinked.
+  const archivedLinkedAccounts = db
+    .prepare(
+      `SELECT a.id, a.name, a.group_name FROM goal_accounts ga
+       JOIN accounts a ON a.id = ga.account_id
+       WHERE ga.goal_id = ? AND a.archived = 1`
+    )
+    .all(goal.id);
+
   let currentAccumulatedValue = 0;
   if (recentMonth) {
     const accountRows = db
-      .prepare('SELECT account_id FROM goal_accounts WHERE goal_id = ?')
+      .prepare(
+        `SELECT ga.account_id FROM goal_accounts ga
+         JOIN accounts a ON a.id = ga.account_id
+         WHERE ga.goal_id = ? AND a.archived = 0`
+      )
       .all(goal.id);
     if (accountRows.length > 0) {
       const ids = accountRows.map((r) => r.account_id);
@@ -131,6 +145,7 @@ function computeGoalValues(goal, dossierId) {
     anticipated_completion_date: anticipatedCompletionDate,
     feasible,
     state,
+    archived_linked_accounts: archivedLinkedAccounts,
   };
 }
 
