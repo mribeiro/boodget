@@ -96,6 +96,7 @@ export default function GoalsTab({ dossierId }) {
           {goals.map((goal) => {
             const progressPct = Math.min(100, (goal.total_current_progress / goal.target_value) * 100);
             const infeasible = goal.feasible === false;
+            const hasArchivedAccounts = (goal.archived_linked_accounts || []).length > 0;
             const dimmed = goal.state !== 'active';
             const badgeVariant = goal.state === 'completed' ? 'success' : goal.state === 'failed' ? 'danger' : 'brand';
             return (
@@ -112,6 +113,9 @@ export default function GoalsTab({ dossierId }) {
                   </span>
                   {infeasible && goal.state === 'active' && (
                     <span className="badge badge-warning"><FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.3rem' }} />Infeasible</span>
+                  )}
+                  {hasArchivedAccounts && (
+                    <span className="badge badge-warning"><FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.3rem' }} />Archived account linked</span>
                   )}
                   <span className="text-xs" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {formatYM(goal.target_date)}
