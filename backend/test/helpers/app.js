@@ -15,8 +15,6 @@ function buildTestApp() {
   // port or exposed to real network traffic, so there's no CSRF surface to protect and no
   // transport to secure. secure:true would also break every session-based integration test:
   // supertest's cookie jar won't resend a secure cookie over the plain HTTP it uses internally.
-  // codeql[js/missing-csrf-middleware]
-  // codeql[js/clear-text-cookie]
   app.use(
     session({
       store: new SQLiteSessionStore(),
@@ -24,6 +22,8 @@ function buildTestApp() {
       resave: false,
       saveUninitialized: false,
       cookie: { maxAge: 72 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' },
+      // codeql[js/missing-csrf-middleware]
+      // codeql[js/clear-text-cookie]
     })
   );
 
