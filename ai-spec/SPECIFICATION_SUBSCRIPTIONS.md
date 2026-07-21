@@ -63,6 +63,8 @@ DELETE /api/dossiers/:id/subscriptions/:subscriptionId
 - `POST`/`PATCH` validate `distribution_template_item_id` resolves to an `expense_template_items` row in the same dossier with `section = 'distribution'` (400 otherwise).
 - `DELETE` is a genuine hard delete — cancelling via `PATCH { status: 'cancelled' }` is the soft, history-preserving path; deleting is for outright mistakes.
 - No draft/active-style field-locking rules like Loans — every field is editable regardless of status.
+- If the linked template item is deleted (`DELETE /expense-template/:itemId`), the FK's `ON DELETE SET NULL` clears the link automatically — `linked_distribution` becomes `null` on the next read.
+- If the dossier's distribution template section is bulk-replaced (`POST /expense-template/bulk-replace`, used by the Workbench "apply to template" action), all distribution-section template items are deleted and reinserted with **new UUIDs**. Any subscription linked to an item in that section is **re-linked by name** to the freshly-inserted item with the same `(section='distribution')` and name, inside the same transaction (same approach as Loans' expense-section re-linking — see `SPECIFICATION_LOANS.md` §5.1). If the item was renamed or removed, the subscription is left unlinked. If multiple template items share the same name, re-linking picks the first match.
 
 -----
 
