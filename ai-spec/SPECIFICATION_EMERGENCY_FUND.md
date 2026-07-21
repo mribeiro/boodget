@@ -133,6 +133,8 @@ Only relevant when `current_value < target_value`.
 | `current_value < target_value` | **Underfunded** |
 | No cycles exist (cannot compute average) | **No data** |
 
+When no cycles exist, `average_monthly_expense` is `0` (there is nothing to average), but `effective_monthly_base`, `target_value`, and `deficit` are still computed from the configured **extra monthly values** (`effective_monthly_base = extra_monthly_total`, `target_value = X × effective_monthly_base`, `deficit = target_value − current_value`) rather than being hardcoded to `0` — otherwise a dossier with a meaningful extra value (e.g. rent) but no cycles yet would show a non-zero "months covered" alongside a contradictory €0 target. The `status` itself stays `"no_data"` regardless.
+
 -----
 
 ## 6. Emergency Fund Tab
