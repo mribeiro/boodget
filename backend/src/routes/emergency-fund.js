@@ -161,10 +161,11 @@ function computeEmergencyFundStatus(dossierId) {
 
   if (cycles.length === 0) {
     const effective_monthly_base = extra_monthly_total;
+    const target_value = X * effective_monthly_base;
     return {
       current_value,
-      target_value: 0,
-      deficit: 0,
+      target_value,
+      deficit: target_value - current_value,
       average_monthly_expense: 0,
       extra_monthly_total,
       effective_monthly_base,
