@@ -82,7 +82,7 @@ function computeGoalValues(goal, dossierId) {
       const ids = distRows.map((r) => r.distribution_template_item_id);
       const ph = ids.map(() => '?').join(',');
       const row = db
-        .prepare(`SELECT COALESCE(SUM(COALESCE(must_amount, 0) + COALESCE(want_amount, 0) + COALESCE(save_amount, 0)), 0) as total FROM expense_template_items WHERE id IN (${ph})`)
+        .prepare(`SELECT COALESCE(SUM(value), 0) as total FROM expense_template_items WHERE id IN (${ph})`)
         .get(...ids);
       expectedMonthlyContribution = row.total || 0;
     }
@@ -177,7 +177,7 @@ function buildChartData(goal, dossierId, currentAccumulatedValue) {
       const ids = distRows.map((r) => r.distribution_template_item_id);
       const ph = ids.map(() => '?').join(',');
       const row = db
-        .prepare(`SELECT COALESCE(SUM(COALESCE(must_amount, 0) + COALESCE(want_amount, 0) + COALESCE(save_amount, 0)), 0) as total FROM expense_template_items WHERE id IN (${ph})`)
+        .prepare(`SELECT COALESCE(SUM(value), 0) as total FROM expense_template_items WHERE id IN (${ph})`)
         .get(...ids);
       expectedMonthlyContribution = row.total || 0;
     }
