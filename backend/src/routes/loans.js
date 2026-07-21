@@ -22,7 +22,7 @@ function computeMonthlyPayment(principal, ratePct, months) {
 }
 
 function daysInMonth(year, month) {
-  return new Date(year, month, 0).getDate();
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 // Months remaining until (and including) an "end_date" (YYYY-MM), counted from the
@@ -32,15 +32,17 @@ function daysInMonth(year, month) {
 // hasn't passed yet — once it has, this month's payment is treated as already made, and
 // counting starts from next month instead (dayOfPayment clamped to the current month's
 // length, so e.g. 31 means "last day" in a 30-day month).
+// "Now" is read in UTC rather than the server's OS-local timezone, so this doesn't depend
+// on where the server happens to be deployed relative to the user/dossier.
 function computeMonthsLeft(endDate, dayOfPayment) {
   if (!endDate) return null;
   const [endYear, endMonth] = endDate.split('-').map(Number);
   const now = new Date();
-  let curYear = now.getFullYear();
-  let curMonth = now.getMonth() + 1;
+  let curYear = now.getUTCFullYear();
+  let curMonth = now.getUTCMonth() + 1;
   if (dayOfPayment != null) {
     const effectiveDay = Math.min(dayOfPayment, daysInMonth(curYear, curMonth));
-    if (now.getDate() >= effectiveDay) {
+    if (now.getUTCDate() >= effectiveDay) {
       curMonth += 1;
       if (curMonth > 12) { curMonth = 1; curYear += 1; }
     }
