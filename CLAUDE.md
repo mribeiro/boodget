@@ -10,6 +10,7 @@ Rules:
 - Any change to a feature's behaviour, UI, API contract, data model, or business rules must be reflected in the corresponding `ai-spec/SPECIFICATION_*.md` file.
 - Any change that affects the key concepts, architecture, schema summary, API route list, component list, or business rules sections of this file must be reflected here.
 - When adding a new feature, create or extend the matching spec file and update the architecture / schema / API sections of CLAUDE.md.
+- A new feature must ship with tests covering its business logic (see `## Testing` below for conventions); a changed feature must have its existing tests updated to match the new behavior. If a change makes an existing test stop making sense (the behavior it pinned down no longer exists), delete that test rather than leaving it stale or working around it.
 - **Any new (or changed) dossier-scoped feature that carries financial impact** (a new data-bearing field, a new per-dossier financial concept, a change to how an existing one is computed) **must also be reflected in the AI Advisor's `buildDossierContext` payload** (`backend/src/routes/ai-advisor.js`) — trimmed/summarized the same way existing features are (e.g. reusing a `computeXValues`-style helper rather than dumping raw rows), plus a one-line mention in `ai-spec/SPECIFICATION_AI_ADVISOR.md`'s "Dossier context payload" section and the relevant prompt intro (`ANALYSIS_SYSTEM_INTRO`/`CHAT_SYSTEM_INTRO`/`EXPORT_PROMPT_INTRO`) if it should factor into the health score/highlights/risks. Purely cosmetic or UI-only changes are exempt.
 - Documentation commits must be part of the same logical change — do not leave docs for a follow-up.
 
@@ -205,6 +206,7 @@ Change `SESSION_SECRET` in `docker-compose.yml` before real use.
 - **Production/Dev** (`deploy.yml`): builds Docker image with `GIT_COMMIT` arg, deploys via `docker compose up -d --force-recreate`. `-dev` suffix for `dev` branch.
 - **Preview** (`preview-deploy.yml`): branch slug → Traefik-routed container at `<slug>.preview.<PREVIEW_DOMAIN>`. Posts/updates PR comment with preview URL.
 - **Pages** (`pages.yml`): on push to `main` touching `landing/**` (or manual dispatch), uploads `landing/` as a Pages artifact and deploys it via `actions/deploy-pages`. Requires the repo's *Settings → Pages → Build and deployment → Source* to be set to "GitHub Actions" (one-time, done outside this repo).
+- **Test** (`test.yml`): on `pull_request` against `main`/`dev`, runs `backend-test` and `frontend-test` as two independent jobs on GitHub-hosted `ubuntu-latest` runners (Node 20, `npm ci` + `npm test`) — see `## Testing` below. Not (yet) wired up as a required status check in branch protection; that's a one-time manual step in the repo's GitHub Settings.
 
 See `ai-spec/SPECIFICATION_PREVIEW_ENVIRONMENTS.md` for full preview environment details.
 
@@ -567,6 +569,17 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 | `[ai-advisor]` | Analysis run, chat turn (dossier, user, model, tokens, cost — never message content), failures |
 | `[push]` | Generated new VAPID keys; removed expired subscription (scheduler and test endpoint) |
 
-## No Test Suite
+## Testing
 
-No automated tests. Prefer pure functions and thin route handlers to make logic easy to test in isolation. (The Visual QA screenshot workflow under Frontend Conventions is a manual/AI-driven visual-QA aid, not an automated test suite — it doesn't change this.)
+Both packages use **Vitest**. Prefer pure functions and thin route handlers to make logic easy to test in isolation — the existing `computeLoanValues`/`computeEmergencyFundStatus`/`computeGoalValues`/`computeYearStatus`/`computeSummary`/`summarizeWorkbenchData`/`computeCostUsd` convention (a route file's business-logic function additionally exported via `module.exports.fnName = fnName`, alongside the router as the default export) is the established pattern for making a route file's logic unit-testable without moving it into a separate module — follow it for new business-logic functions rather than inventing a new convention.
+
+```bash
+cd backend && npm test    # vitest run
+cd frontend && npm test   # vitest run
+```
+
+- **Backend** (`backend/test/`, mirrors `backend/src/`'s structure — kept out of `src/` since the production Docker image only `COPY`s `backend/src`): `backend/vitest.config.js` + `backend/test/setup.js` set `DB_PATH=':memory:'` before any app module is imported, so every test file gets its own fresh in-memory SQLite database with the full schema/migrations applied (Vitest's `pool: 'forks'` + `isolate: true` guarantee one process, and therefore one `require` cache and one DB, per test file). `backend/test/fixtures/builders.js` has small composable fixture builders (`createUser`, `createDossier`, `createAccount`, `createExpenseCycle`, `createLoan`, etc.) distinct from `src/db/seed.js` (that file is a large, relative-date-based demo/preview seeder, not a test fixture). `backend/test/helpers/app.js`'s `buildTestApp()` builds a request-ready Express app (mirrors `src/index.js`'s router mounting, minus process-level concerns like `app.listen`/OIDC init/the push scheduler) for `supertest` integration tests — use `supertest.agent(app)` plus `POST /api/auth/login` (or the `loginAs` fixture helper) to carry a real session across requests. `backend/test/helpers/resetDb.js` offers row-level cleanup for suites that want to truncate between `it()` blocks rather than creating a fresh dossier per test.
+- **Frontend** (`frontend/vitest.config.js`, separate from `vite.config.js` since that file's `vite-plugin-pwa` build-time config has no bearing on tests): co-located `*.test.js` next to the source file (e.g. `frontend/src/utils/loanMath.test.js`). Currently covers the pure-function utils (`numbers.js`, `loanMath.js`) only — no React Testing Library / component-test setup yet (deliberately deferred: no existing convention for mocking `services/api.js` or jsdom setup).
+- Both configs set `test.globals: true`, so `describe`/`it`/`expect`/`vi`/etc. are available without an explicit `import`/`require` from `'vitest'`.
+- CI runs both suites on every PR via `.github/workflows/test.yml` (see CI/CD Pipeline above).
+- (The Visual QA screenshot workflow under Frontend Conventions is a separate manual/AI-driven visual-QA aid, not part of this automated suite.)

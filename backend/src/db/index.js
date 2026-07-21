@@ -830,11 +830,13 @@ class SQLiteSessionStore extends session.Store {
 }
 
 // Clean up expired sessions hourly
-setInterval(() => {
+const sessionCleanupTimer = setInterval(() => {
   const result = db.prepare('DELETE FROM sessions WHERE expired <= ?').run(Date.now());
   if (result.changes > 0) {
     console.log(`[db] Cleaned up ${result.changes} expired session(s)`);
   }
 }, 60 * 60 * 1000);
+// Don't let this timer keep the process (or a test runner) alive.
+sessionCleanupTimer.unref();
 
 module.exports = { db, SQLiteSessionStore };

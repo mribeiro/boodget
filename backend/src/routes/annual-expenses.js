@@ -722,3 +722,5 @@ router.put('/annual-expenses/distributions', (req, res) => {
 });
 
 module.exports = router;
+module.exports.remainingCycleMonthsInYear = remainingCycleMonthsInYear;
+module.exports.computeYearStatus = computeYearStatus;
