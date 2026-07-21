@@ -151,6 +151,11 @@ export default function LoansTab({ dossierId }) {
                 <span className={`badge badge-${loan.status === 'active' ? 'brand' : 'neutral'}`}>
                   {loan.status === 'active' ? 'Active' : 'Draft'}
                 </span>
+                {loan.is_matured && (
+                  <span className="badge badge-danger">
+                    <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.3rem' }} />Matured
+                  </span>
+                )}
                 <CoveragePill loan={loan} />
               </div>
 
