@@ -8,15 +8,6 @@ function formatEur(value) {
   return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-function cycleYearMonth(today, cycleStartDay) {
-  const d = today.getDate();
-  if (d >= cycleStartDay) {
-    return { year: today.getFullYear(), month: today.getMonth() + 1 };
-  }
-  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
-}
-
 function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay) {
   if (dayOfPayment >= cycleStartDay) {
     return new Date(cycleYear, cycleMonth - 1, dayOfPayment);
@@ -46,7 +37,10 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     );
   }
 
-  const current = cycleYearMonth(today, cycleStartDay);
+  // The cycle's own stored start day is used for its date math (not the dossier's
+  // current setting), so a later change to that setting doesn't reshape this cycle.
+  const activeCycleStartDay = currentCycleDetail.cycle_start_day ?? cycleStartDay;
+  const current = { year: currentCycleDetail.year, month: currentCycleDetail.month };
   const items = currentCycleDetail.items ?? [];
   const annualPayments = currentCycleDetail.annual_payments ?? [];
 
@@ -74,7 +68,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
         type: 'monthly',
         name: exp.name,
         value: exp.value || 0,
-        date: getExpenseDate(current.year, current.month, exp.day_of_payment, cycleStartDay),
+        date: getExpenseDate(current.year, current.month, exp.day_of_payment, activeCycleStartDay),
         day: exp.day_of_payment,
         item: exp,
       });

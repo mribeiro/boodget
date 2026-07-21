@@ -170,10 +170,10 @@ Behaviour:
 
 ### 5.1 Installment–Cycle Matching
 
-An installment matches a cycle when the full date `(year, installment.month, installment.day)` falls within the cycle's date range:
+An installment matches a cycle when the full date `(year, installment.month, installment.day)` falls within the cycle's date range, computed from that cycle's own stored `cycle_start_day` (see `SPECIFICATION_MONTHLY_EXPENSES.md` §3.1 — snapshotted at creation time, not the dossier's live setting):
 
-- Cycle start: `cycle_start_day` of `(cycle.year, cycle.month)`
-- Cycle end: `cycle_start_day - 1` of the following month
+- Cycle start: cycle's own `cycle_start_day` of `(cycle.year, cycle.month)`
+- Cycle end: cycle's own `cycle_start_day - 1` of the following month
 
 When a cycle is **created**, the system checks all annual expense years whose calendar year overlaps with the cycle's date range. For each matching installment, a **payment record** is created automatically with:
 

@@ -59,11 +59,12 @@ Each extra value entry has:
 | Field | Description |
 |---|---|
 | **Name** | Free text label (e.g. "Rent", "School fees") |
-| **Value** | Monthly amount (€) |
+| **Value** | Monthly amount (€), must be a non-negative number |
 
 ### 4.2 Rules
 
 - Multiple extra values can be defined.
+- Value must be `>= 0`; the API rejects negative values with a 400 (same validation as Annual Expenses' `budgeted_value`).
 - Extra values can be added, edited, and removed at any time.
 - Extra values are **persisted on the server** as part of the emergency fund configuration.
 - The sum of all extra values is added to the cycle-derived average **before** applying the multiplier.
@@ -142,6 +143,8 @@ Only relevant when `current_value < target_value`.
 | `current_value ≥ target_value` | **Healthy** |
 | `current_value < target_value` | **Underfunded** |
 | No cycles exist (cannot compute average) | **No data** |
+
+When no cycles exist, `average_monthly_expense` is `0` (there is nothing to average), but `effective_monthly_base`, `target_value`, and `deficit` are still computed from the configured **extra monthly values** (`effective_monthly_base = extra_monthly_total`, `target_value = X × effective_monthly_base`, `deficit = target_value − current_value`) rather than being hardcoded to `0` — otherwise a dossier with a meaningful extra value (e.g. rent) but no cycles yet would show a non-zero "months covered" alongside a contradictory €0 target. The `status` itself stays `"no_data"` regardless.
 
 -----
 

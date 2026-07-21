@@ -62,7 +62,9 @@ router.post('/emergency-fund/extra-values', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const { name, value } = req.body;
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
-  if (value == null || isNaN(Number(value))) return res.status(400).json({ error: 'value must be a number' });
+  if (value == null || isNaN(Number(value)) || Number(value) < 0) {
+    return res.status(400).json({ error: 'value must be a non-negative number' });
+  }
 
   const maxPos = db
     .prepare('SELECT COALESCE(MAX(position), 0) as maxp FROM emergency_fund_extra_values WHERE dossier_id = ?')
@@ -89,7 +91,9 @@ router.patch('/emergency-fund/extra-values/:itemId', (req, res) => {
   const newName = name !== undefined ? String(name).trim() : item.name;
   if (!newName) return res.status(400).json({ error: 'name cannot be empty' });
   const newValue = value !== undefined ? Number(value) : item.value;
-  if (isNaN(newValue)) return res.status(400).json({ error: 'value must be a number' });
+  if (isNaN(newValue) || newValue < 0) {
+    return res.status(400).json({ error: 'value must be a non-negative number' });
+  }
 
   db.prepare('UPDATE emergency_fund_extra_values SET name = ?, value = ? WHERE id = ?').run(
     newName, newValue, item.id
@@ -165,10 +169,11 @@ function computeEmergencyFundStatus(dossierId) {
 
   if (cycles.length === 0) {
     const effective_monthly_base = extra_monthly_total + annual_expenses_monthly_avg;
+    const target_value = X * effective_monthly_base;
     return {
       current_value,
-      target_value: 0,
-      deficit: 0,
+      target_value,
+      deficit: target_value - current_value,
       average_monthly_expense: 0,
       extra_monthly_total,
       annual_expenses_monthly_avg,
