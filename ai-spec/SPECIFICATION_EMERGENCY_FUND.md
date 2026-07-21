@@ -59,11 +59,12 @@ Each extra value entry has:
 | Field | Description |
 |---|---|
 | **Name** | Free text label (e.g. "Rent", "School fees") |
-| **Value** | Monthly amount (€) |
+| **Value** | Monthly amount (€), must be a non-negative number |
 
 ### 4.2 Rules
 
 - Multiple extra values can be defined.
+- Value must be `>= 0`; the API rejects negative values with a 400 (same validation as Annual Expenses' `budgeted_value`).
 - Extra values can be added, edited, and removed at any time.
 - Extra values are **persisted on the server** as part of the emergency fund configuration.
 - The sum of all extra values is added to the cycle-derived average **before** applying the multiplier.
