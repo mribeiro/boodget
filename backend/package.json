@@ -4,7 +4,9 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -16,5 +18,9 @@
     "openid-client": "^5.6.5",
     "uuid": "^9.0.1",
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2",
+    "vitest": "^2.1.9"
   }
 }

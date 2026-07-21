@@ -407,3 +407,7 @@ router.delete('/loans/:loanId', (req, res) => {
 module.exports = router;
 // Shared with the AI Advisor context builder
 module.exports.computeLoanValues = computeLoanValues;
+module.exports.computeMonthlyPayment = computeMonthlyPayment;
+module.exports.computeMonthsLeft = computeMonthsLeft;
+module.exports.daysInMonth = daysInMonth;
+module.exports.validateLoanFields = validateLoanFields;

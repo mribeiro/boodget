@@ -1295,3 +1295,5 @@ router.delete('/workbench-snapshots/:snapshotId', (req, res) => {
 });
 
 module.exports = router;
+module.exports.computeSummary = computeSummary;
+module.exports.createAnnualPaymentsForCycle = createAnnualPaymentsForCycle;

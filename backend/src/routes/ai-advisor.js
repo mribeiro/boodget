@@ -668,3 +668,6 @@ router.post('/ai-advisor/chat', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.summarizeWorkbenchData = summarizeWorkbenchData;
+module.exports.computeCostUsd = computeCostUsd;
+module.exports.buildDossierContext = buildDossierContext;
