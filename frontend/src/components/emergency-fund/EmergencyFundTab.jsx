@@ -228,6 +228,7 @@ export default function EmergencyFundTab({ dossierId }) {
               />
               <StatRow label="Months covered" value={`${status.months_covered}`} />
               <StatRow label="Average monthly expense" value={formatEur(status.average_monthly_expense)} />
+              <StatRow label="Annual expenses (monthly avg)" value={formatEur(status.annual_expenses_monthly_avg)} />
               <StatRow label="Extra monthly total" value={formatEur(status.extra_monthly_total)} />
               <StatRow label="Effective monthly base" value={formatEur(status.effective_monthly_base)} />
               <StatRow

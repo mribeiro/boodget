@@ -125,6 +125,14 @@ function computeEmergencyFundStatus(dossierId) {
     .all(dossierId);
   const extra_monthly_total = extraValues.reduce((s, e) => s + (e.value || 0), 0);
 
+  // Monthly-equivalent of the recurring Annual Expenses template (car tax, insurance, etc.),
+  // mirroring the AI Advisor's total_monthly_avg — otherwise these costs are invisible to the
+  // EF target and the user has to duplicate them manually as an extra monthly value.
+  const annualTemplateTotal = db
+    .prepare('SELECT COALESCE(SUM(value), 0) as total FROM annual_expense_template_items WHERE dossier_id = ?')
+    .get(dossierId).total;
+  const annual_expenses_monthly_avg = annualTemplateTotal / 12;
+
   const accountRows = db
     .prepare(
       `SELECT a.id as account_id, a.group_name, a.name
@@ -160,7 +168,7 @@ function computeEmergencyFundStatus(dossierId) {
     .all(dossierId, Y);
 
   if (cycles.length === 0) {
-    const effective_monthly_base = extra_monthly_total;
+    const effective_monthly_base = extra_monthly_total + annual_expenses_monthly_avg;
     const target_value = X * effective_monthly_base;
     return {
       current_value,
@@ -168,6 +176,7 @@ function computeEmergencyFundStatus(dossierId) {
       deficit: target_value - current_value,
       average_monthly_expense: 0,
       extra_monthly_total,
+      annual_expenses_monthly_avg,
       effective_monthly_base,
       months_covered: effective_monthly_base > 0 ? Math.round((current_value / effective_monthly_base) * 10) / 10 : 0,
       cycles_considered: 0,
@@ -194,7 +203,7 @@ function computeEmergencyFundStatus(dossierId) {
   }
 
   const average_monthly_expense = totalExpenses / cycles.length;
-  const effective_monthly_base = average_monthly_expense + extra_monthly_total;
+  const effective_monthly_base = average_monthly_expense + extra_monthly_total + annual_expenses_monthly_avg;
   const target_value = X * effective_monthly_base;
   const deficit = target_value - current_value;
   const months_covered =
@@ -210,6 +219,7 @@ function computeEmergencyFundStatus(dossierId) {
     deficit,
     average_monthly_expense,
     extra_monthly_total,
+    annual_expenses_monthly_avg,
     effective_monthly_base,
     months_covered,
     cycles_considered: cycles.length,

@@ -2,7 +2,7 @@
 
 ## 0. Instructions for Claude Code
 
-- This specification is an **extension** to `SPECIFICATION.md`, `SPECIFICATION_MONTHLY_EXPENSES.md`, `SPECIFICATION_WORKBENCH.md`, `SPECIFICATION_GOALS.md`, and `SPECIFICATION_GLANCES.md`. Read all of them before writing any code.
+- This specification is an **extension** to `SPECIFICATION.md`, `SPECIFICATION_MONTHLY_EXPENSES.md`, `SPECIFICATION_WORKBENCH.md`, `SPECIFICATION_GOALS.md`, `SPECIFICATION_GLANCES.md`, and `SPECIFICATION_ANNUAL_EXPENSES_TRACKING.md`. Read all of them before writing any code.
 - All architecture, auth, users, dossiers, and deployment rules defined in `SPECIFICATION.md` apply here without exception.
 - The **Emergency Fund** is a new section within each dossier, visible as a tab after Goals and before Settings.
 - Before generating any files, **propose the folder structure and any schema changes**, and wait for approval.
@@ -100,13 +100,23 @@ The average is then:
 average_monthly_expense = Σ cycle_expense_totals / number_of_cycles_considered
 ```
 
-### 5.2 Effective Monthly Base
+### 5.2 Annual Expenses Monthly Average
+
+Recurring annual costs (car tax, insurance, etc.) tracked via the **Annual Expenses** feature are automatically folded into the emergency fund target, so the user doesn't have to duplicate them as an extra monthly value.
+
+The figure is derived from the **Annual Expense Template** (the recurring definition annual years are instantiated from, not any single year instance), mirroring the `total_monthly_avg` figure already used by the AI Advisor:
 
 ```
-effective_monthly_base = average_monthly_expense + Σ extra_values
+annual_expenses_monthly_avg = Σ annual_expense_template_items.value / 12
 ```
 
-### 5.3 Target Value
+### 5.3 Effective Monthly Base
+
+```
+effective_monthly_base = average_monthly_expense + annual_expenses_monthly_avg + Σ extra_values
+```
+
+### 5.4 Target Value
 
 ```
 target_value = X × effective_monthly_base
@@ -114,11 +124,11 @@ target_value = X × effective_monthly_base
 
 Where X is the **months multiplier** from the dossier settings.
 
-### 5.4 Current Value
+### 5.5 Current Value
 
 Sum of the values of the selected contributing accounts, taken from the **most recent filled Capital snapshot**. Zero if no accounts are selected or no filled snapshot exists.
 
-### 5.5 Deficit
+### 5.6 Deficit
 
 ```
 deficit = target_value − current_value
@@ -126,7 +136,7 @@ deficit = target_value − current_value
 
 Only relevant when `current_value < target_value`.
 
-### 5.6 Health Status
+### 5.7 Health Status
 
 | Condition | Status |
 |---|---|
@@ -161,8 +171,9 @@ A card showing the key values:
 | Deficit / Surplus | Difference between current and target (colour-coded: green if surplus, red if deficit) |
 | Progress bar | Current value relative to target value |
 | Average monthly expense | Computed from cycles |
+| Annual expenses (monthly avg) | Recurring Annual Expenses template total ÷ 12 |
 | Extra monthly total | Sum of extra values |
-| Effective monthly base | Average + extras |
+| Effective monthly base | Average + annual expenses monthly avg + extras |
 | Months covered | `current_value / effective_monthly_base` (rounded to 1 decimal place) |
 | Multiplier (X) | As configured |
 | Cycles considered | How many cycles were used in the calculation (e.g. "6 of 6" or "4 of 6") |
@@ -307,8 +318,9 @@ Returns all calculated values needed by the frontend:
   "target_value": 21600.00,
   "deficit": 6600.00,
   "average_monthly_expense": 1500.00,
+  "annual_expenses_monthly_avg": 120.00,
   "extra_monthly_total": 300.00,
-  "effective_monthly_base": 1800.00,
+  "effective_monthly_base": 1920.00,
   "months_covered": 8.3,
   "cycles_considered": 6,
   "cycles_requested": 6,
