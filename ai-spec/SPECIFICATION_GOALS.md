@@ -243,6 +243,8 @@ A join table linking goals to their selected distributions from the template:
 |`goal_id`                 |integer|Foreign key to goal                       |
 |`distribution_template_item_id`|integer|Foreign key to distribution template entry|
 
+Cascades (`ON DELETE CASCADE`) when the linked template item is deleted (`DELETE /expense-template/:itemId`) — the association row disappears and the goal simply loses that one distribution from its selection. If the dossier's distribution template section is bulk-replaced (`POST /expense-template/bulk-replace`, used by the Workbench "apply to template" action), all distribution-section template items are deleted and reinserted with **new UUIDs**, which would cascade-delete every affected goal's associations; to prevent that, associations pointing at a deleted item are **re-linked by name** to the freshly-inserted item with the same `(section='distribution')` and name, inside the same transaction (same approach as Loans' expense-section re-linking — see `SPECIFICATION_LOANS.md` §5.1). If the item was renamed or removed, that association is dropped rather than restored. If multiple template items share the same name, re-linking picks the first match.
+
 ### 10.4 Goal cycle contributions (“Manual” mode only)
 
 A table to store manually entered real contributions per cycle:

@@ -461,6 +461,31 @@ router.post('/expense-template/bulk-replace', (req, res) => {
         .all(req.params.id, req.params.id);
     }
 
+    // Same problem for distribution-section links: subscriptions.distribution_template_item_id
+    // (ON DELETE SET NULL) and goal_distributions (ON DELETE CASCADE) both point at
+    // expense_template_items rows that are about to be wiped. Capture by name and re-link
+    // after reinsert, same approach as loans above.
+    let linkedSubscriptions = [];
+    let linkedGoalDistributions = [];
+    if (section === 'distribution') {
+      linkedSubscriptions = db
+        .prepare(
+          `SELECT s.id as subscription_id, eti.name as item_name
+           FROM subscriptions s JOIN expense_template_items eti ON eti.id = s.distribution_template_item_id
+           WHERE s.dossier_id = ? AND eti.dossier_id = ? AND eti.section = 'distribution'`
+        )
+        .all(req.params.id, req.params.id);
+      linkedGoalDistributions = db
+        .prepare(
+          `SELECT gd.goal_id as goal_id, eti.name as item_name
+           FROM goal_distributions gd
+           JOIN expense_template_items eti ON eti.id = gd.distribution_template_item_id
+           JOIN goals g ON g.id = gd.goal_id
+           WHERE g.dossier_id = ? AND eti.dossier_id = ? AND eti.section = 'distribution'`
+        )
+        .all(req.params.id, req.params.id);
+    }
+
     db.prepare('DELETE FROM expense_template_items WHERE dossier_id = ? AND section = ?').run(req.params.id, section);
     const insert = db.prepare(
       'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -498,6 +523,30 @@ router.post('/expense-template/bulk-replace', (req, res) => {
       for (const { loan_id, item_name } of linkedLoans) {
         const match = findByName.get(req.params.id, item_name);
         updateLoan.run(match ? match.id : null, loan_id);
+      }
+    }
+
+    // Re-link subscriptions and goal distributions by matching name on the freshly-inserted
+    // distribution items. Renamed/dropped items stay unlinked (matches loan semantics above).
+    if (section === 'distribution' && (linkedSubscriptions.length > 0 || linkedGoalDistributions.length > 0)) {
+      const findByName = db.prepare(
+        "SELECT id FROM expense_template_items WHERE dossier_id = ? AND section = 'distribution' AND name = ? LIMIT 1"
+      );
+      if (linkedSubscriptions.length > 0) {
+        const updateSubscription = db.prepare('UPDATE subscriptions SET distribution_template_item_id = ? WHERE id = ?');
+        for (const { subscription_id, item_name } of linkedSubscriptions) {
+          const match = findByName.get(req.params.id, item_name);
+          updateSubscription.run(match ? match.id : null, subscription_id);
+        }
+      }
+      if (linkedGoalDistributions.length > 0) {
+        const insertGoalDistribution = db.prepare(
+          'INSERT OR IGNORE INTO goal_distributions (goal_id, distribution_template_item_id) VALUES (?, ?)'
+        );
+        for (const { goal_id, item_name } of linkedGoalDistributions) {
+          const match = findByName.get(req.params.id, item_name);
+          if (match) insertGoalDistribution.run(goal_id, match.id);
+        }
       }
     }
   });
