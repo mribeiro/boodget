@@ -11,6 +11,12 @@ const { apiLimiter } = require('../../src/middleware/rate-limit');
 function buildTestApp() {
   const app = express();
   app.use(express.json());
+  // This app is only ever driven in-process by supertest — it's never bound to a real
+  // port or exposed to real network traffic, so there's no CSRF surface to protect and no
+  // transport to secure. secure:true would also break every session-based integration test:
+  // supertest's cookie jar won't resend a secure cookie over the plain HTTP it uses internally.
+  // codeql[js/missing-csrf-middleware]
+  // codeql[js/clear-text-cookie]
   app.use(
     session({
       store: new SQLiteSessionStore(),
