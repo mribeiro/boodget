@@ -6,6 +6,7 @@ const express = require('express');
 const session = require('express-session');
 const { SQLiteSessionStore } = require('../../src/db');
 const requireAuth = require('../../src/middleware/auth');
+const { apiLimiter } = require('../../src/middleware/rate-limit');
 
 function buildTestApp() {
   const app = express();
@@ -20,8 +21,11 @@ function buildTestApp() {
     })
   );
 
-  // Deliberately no apiLimiter here — it would throttle test suites making many requests
-  // per file. The limiter's own config is covered by middleware/rate-limit.test.js instead.
+  // Mirrors src/index.js: apiLimiter applies to every /api request. Its ceiling (300/min)
+  // comfortably exceeds the request count of any single test file, so it doesn't throttle
+  // the suite — middleware/rate-limit.test.js covers the limiter's own config directly.
+  app.use('/api', apiLimiter);
+
   app.use('/api/setup', require('../../src/routes/setup'));
   app.use('/api/auth', require('../../src/routes/auth'));
   app.use('/api/users', requireAuth, require('../../src/routes/users'));

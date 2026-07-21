@@ -4,11 +4,12 @@
 // NOT NULL/CHECK-constrained column to a valid value so a test only overrides what it's
 // actually asserting on.
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 let counter = 0;
 function uid(prefix) {
   counter += 1;
-  return `${prefix}-${Date.now()}-${counter}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${Date.now()}-${counter}-${crypto.randomUUID()}`;
 }
 
 function createUser(db, overrides = {}) {
