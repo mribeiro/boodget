@@ -132,13 +132,15 @@ function computeYearStatus(yearId, dossierId) {
       .get(...selectedDistIds);
     monthlyDistProjected = projRow.total || 0;
 
-    // Find cycles whose end date falls within this calendar year
+    // Find cycles whose end date falls within this calendar year. Each cycle's own
+    // stored cycle_start_day is used (not the dossier's current setting) so a later
+    // change to the setting doesn't retroactively reshape an already-created cycle.
     const cycles = db
-      .prepare('SELECT id, year, month FROM expense_cycles WHERE dossier_id = ? ORDER BY year ASC, month ASC')
+      .prepare('SELECT id, year, month, cycle_start_day FROM expense_cycles WHERE dossier_id = ? ORDER BY year ASC, month ASC')
       .all(dossierId);
 
     const cyclesInYear = cycles.filter((c) => {
-      const endDate = new Date(c.year, c.month, startDay - 1);
+      const endDate = new Date(c.year, c.month, (c.cycle_start_day ?? startDay) - 1);
       return endDate.getFullYear() === year.year;
     });
 
@@ -215,12 +217,13 @@ function computeYearStatus(yearId, dossierId) {
   }
 
   // Compute "needed this cycle": unpaid installments assigned to the currently active cycle
-  const allCycles = db.prepare('SELECT id, year, month FROM expense_cycles WHERE dossier_id = ?').all(dossierId);
+  const allCycles = db.prepare('SELECT id, year, month, cycle_start_day FROM expense_cycles WHERE dossier_id = ?').all(dossierId);
   const today = new Date();
   let currentCycleId = null;
   for (const cycle of allCycles) {
-    const cycleStart = new Date(cycle.year, cycle.month - 1, startDay);
-    const cycleEnd = new Date(cycle.year, cycle.month, startDay - 1);
+    const cStartDay = cycle.cycle_start_day ?? startDay;
+    const cycleStart = new Date(cycle.year, cycle.month - 1, cStartDay);
+    const cycleEnd = new Date(cycle.year, cycle.month, cStartDay - 1);
     if (today >= cycleStart && today <= cycleEnd) {
       currentCycleId = cycle.id;
       break;
@@ -478,11 +481,13 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
         }
       });
 
-      // Re-assign payments to the correct cycle after date changes.
+      // Re-assign payments to the correct cycle after date changes. Each cycle's own
+      // stored cycle_start_day is used, not the dossier's current setting, so existing
+      // cycles aren't reshaped by a later change to that setting.
       const yearRow = db.prepare('SELECT year FROM annual_expense_years WHERE id = ?').get(req.params.yearId);
       const dossierRow = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
       const startDay = dossierRow?.cycle_start_day ?? 25;
-      const allCycles = db.prepare('SELECT id, year, month FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
+      const allCycles = db.prepare('SELECT id, year, month, cycle_start_day FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
 
       const updatedInsts = db.prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ?').all(req.params.itemId);
       for (const inst of updatedInsts) {
@@ -492,8 +497,9 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
         const instDate = new Date(yearRow.year, inst.month - 1, inst.day);
         let targetCycle = null;
         for (const cycle of allCycles) {
-          const cycleStart = new Date(cycle.year, cycle.month - 1, startDay);
-          const cycleEnd = new Date(cycle.year, cycle.month, startDay - 1);
+          const cStartDay = cycle.cycle_start_day ?? startDay;
+          const cycleStart = new Date(cycle.year, cycle.month - 1, cStartDay);
+          const cycleEnd = new Date(cycle.year, cycle.month, cStartDay - 1);
           if (instDate >= cycleStart && instDate <= cycleEnd) {
             targetCycle = cycle;
             break;

@@ -47,7 +47,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -153,7 +153,7 @@ router.post('/import', (req, res) => {
     }
 
     const insertCycle = db.prepare(
-      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertCycleItem = db.prepare(
       'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -162,7 +162,10 @@ router.post('/import', (req, res) => {
     for (const c of (data.cycles || [])) {
       const cycleId = uuidv4();
       cycleYMToId[`${c.year}-${c.month}`] = cycleId;
-      insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null);
+      // cycle_start_day is per-cycle since v12; older exports only had the dossier-wide
+      // setting, so fall back to that (the same value the cycle would have used pre-fix).
+      const cycleStartDay = c.cycle_start_day ?? data.dossier.cycle_start_day ?? 25;
+      insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null, cycleStartDay);
       for (const ci of (c.items || [])) {
         const templateItemId = ci.section === 'expense' ? (expenseTemplateNameToId[ci.name] || null) : (templateNameToId[ci.name] || null);
         const accountId = ci.account_name ? (accountNameToId[ci.account_name] ?? null) : null;
@@ -406,7 +409,7 @@ router.get('/:id/export', (req, res) => {
     .map((s) => ({ ...s, data: JSON.parse(s.data) }));
 
   const cycles = db
-    .prepare('SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
+    .prepare('SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
     .all(req.params.id);
 
   const cycleItemsByCycleId = {};
@@ -542,7 +545,7 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 11,
+    version: 12,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
@@ -577,6 +580,7 @@ router.get('/:id/export', (req, res) => {
       previous_balance: c.previous_balance,
       is_closed: c.is_closed,
       final_real_balance: c.final_real_balance,
+      cycle_start_day: c.cycle_start_day,
       items: cycleItemsByCycleId[c.id] || [],
     })),
     goals: goalsExport,

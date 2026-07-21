@@ -111,7 +111,7 @@ export default function CycleList({ dossierId }) {
               onClick={() => navigate(`/dossiers/${dossierId}/cycles/${cycle.id}`)}
               style={{ cursor: 'pointer', marginBottom: '0.25rem' }}
             >
-              <span className="month-row-name">{cycleLabel(cycle.year, cycle.month, cycleStartDay)}</span>
+              <span className="month-row-name">{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? cycleStartDay)}</span>
               <span
                 className={`badge ${cycle.is_closed ? 'badge-filled' : 'badge-empty'}`}
                 style={{ marginLeft: 'auto' }}
