@@ -36,7 +36,7 @@ function computeYearStatus(yearId, dossierId) {
   const items = db.prepare(`
     SELECT ayi.*,
            COALESCE((
-             SELECT COUNT(p.id) * 1.0 * ayi.budgeted_value / NULLIF(ayi.num_installments, 0)
+             SELECT SUM(p.real_value)
              FROM annual_expense_payments p
              JOIN annual_expense_year_installments inst2 ON inst2.id = p.installment_id
              WHERE inst2.year_item_id = ayi.id AND p.paid = 1
