@@ -446,6 +446,20 @@ router.post('/expense-template/bulk-replace', (req, res) => {
   }
   if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
 
+  if (section === 'expense') {
+    for (const item of items) {
+      if (
+        item.type === 'Fixed' &&
+        (item.day_of_payment == null ||
+          !Number.isInteger(item.day_of_payment) ||
+          item.day_of_payment < 1 ||
+          item.day_of_payment > 31)
+      ) {
+        return res.status(400).json({ error: 'day_of_payment is required for Fixed expenses (1-31)' });
+      }
+    }
+  }
+
   const replace = db.transaction(() => {
     // Loans linked to an expense-section template item lose their id-based FK when the
     // whole section is wiped below — capture (loan_id, item_name) so they can be
