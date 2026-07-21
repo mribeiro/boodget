@@ -104,14 +104,23 @@ function computeLoanValues(loan, dossierId) {
   const totalAmountPayable =
     originationMonthlyPayment != null ? originationMonthlyPayment * loan.term_months + (loan.opening_fee || 0) : null;
 
+  // An active loan whose end_date has passed (months_left computed down to 0) without the
+  // user closing it out or pushing the end date — monthly_payment collapses to 0 (the
+  // computeMonthlyPayment guard) and a naive remaining_interest would read as a large
+  // negative number (0 × 0 − remaining_balance). Flag it instead of letting either reach
+  // the UI unexplained.
+  const isMatured = loan.status === 'active' && monthsLeft != null && monthsLeft <= 0;
+
   // Interest still left to pay from now to payoff, using the loan's *current* balance/term —
   // the forward-looking counterpart to total_interest's backward-looking full-term figure.
+  // Nonsensical once matured (see isMatured above), so left null rather than negative.
   const remainingInterest =
-    loan.status === 'active' ? monthlyPayment * monthsLeft - loan.remaining_balance : null;
+    loan.status === 'active' && !isMatured ? monthlyPayment * monthsLeft - loan.remaining_balance : null;
 
   return {
     monthly_payment: monthlyPayment,
     months_left: monthsLeft,
+    is_matured: isMatured,
     salary_pct: salaryPct,
     reference_salary: referenceSalary,
     linked_item: linkedItem,

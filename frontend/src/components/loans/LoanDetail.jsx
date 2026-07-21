@@ -206,12 +206,20 @@ export default function LoanDetail() {
         </div>
       </div>
 
+      {loan.is_matured && (
+        <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
+          <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.4rem' }} />
+          This loan's end date has passed with no payments left, but it's still marked active. Edit it to update the remaining balance and end date, or demote/delete it if it's been paid off.
+        </div>
+      )}
+
       {/* Hero: status + rate + monthly payment. Total interest / MTIC are historical
           (from origination) and show for any loan with that data, draft or active.
           Remaining interest is the forward-looking counterpart, active only. */}
       <div className="card card--flat" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span className={`badge badge-${isActive ? 'brand' : 'neutral'}`}>{isActive ? 'Active' : 'Draft'}</span>
+          {loan.is_matured && <span className="badge badge-danger">Matured</span>}
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% {isActive ? 'APR' : 'TAN'}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
