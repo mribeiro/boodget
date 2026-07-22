@@ -36,14 +36,12 @@ app.use(
 const requireAuth = require('./middleware/auth');
 const { apiLimiter } = require('./middleware/rate-limit');
 
-app.use('/api', apiLimiter);
-
-app.use('/api/setup', require('./routes/setup'));
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', requireAuth, require('./routes/users'));
-app.use('/api/dossiers', requireAuth, require('./routes/dossiers'));
-app.use('/api/push', requireAuth, require('./routes/push'));
-app.use('/api/notifications', requireAuth, require('./routes/notifications'));
+app.use('/api/setup', apiLimiter, require('./routes/setup'));
+app.use('/api/auth', apiLimiter, require('./routes/auth'));
+app.use('/api/users', apiLimiter, requireAuth, require('./routes/users'));
+app.use('/api/dossiers', apiLimiter, requireAuth, require('./routes/dossiers'));
+app.use('/api/push', apiLimiter, requireAuth, require('./routes/push'));
+app.use('/api/notifications', apiLimiter, requireAuth, require('./routes/notifications'));
 
 // Serve the built frontend when available (production, dev, ephemeral, etc.)
 const frontendDist = path.join(__dirname, '..', 'frontend-dist');
