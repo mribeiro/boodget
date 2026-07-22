@@ -56,11 +56,7 @@ router.post('/bank/connections/start', async (req, res) => {
     return res.status(400).json({ error: 'aspsp_name and aspsp_country are required' });
   }
 
-  const redirectUrl = process.env.ENABLE_BANKING_REDIRECT_URI;
-  if (!redirectUrl) {
-    return res.status(503).json({ error: 'ENABLE_BANKING_REDIRECT_URI is not configured on the server' });
-  }
-
+  const redirectUrl = config.redirectUri;
   const state = uuidv4();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 

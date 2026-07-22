@@ -468,6 +468,7 @@ function EnableBankingSettings({ dossierId }) {
   const [settings, setSettings] = useState({
     enablebanking_application_id: null,
     enablebanking_private_key_set: false,
+    enablebanking_redirect_uri: null,
   });
   const [editing, setEditing] = useState(null);
   const [inlineDraft, setInlineDraft] = useState('');
@@ -504,6 +505,7 @@ function EnableBankingSettings({ dossierId }) {
   const fields = [
     { key: 'enablebanking_application_id', label: 'Application ID', multiline: false, placeholder: 'Application ID from the Enable Banking Control Panel' },
     { key: 'enablebanking_private_key', label: 'Private Key', multiline: true, placeholder: '-----BEGIN PRIVATE KEY-----' },
+    { key: 'enablebanking_redirect_uri', label: 'Redirect URI', multiline: false, placeholder: 'https://your-domain.example.com/bank/callback' },
   ];
 
   function displayValue(key) {
@@ -518,8 +520,9 @@ function EnableBankingSettings({ dossierId }) {
   return (
     <div>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 0, marginBottom: '1rem' }}>
-        Both fields must be set for the integration to be active. Register an application at{' '}
-        <a href="https://enablebanking.com" target="_blank" rel="noreferrer">enablebanking.com</a> to get these values.
+        All three fields must be set for the integration to be active. Register an application at{' '}
+        <a href="https://enablebanking.com" target="_blank" rel="noreferrer">enablebanking.com</a> to get the Application ID and Private Key.
+        The Redirect URI must exactly match the callback URL whitelisted for your application (this app's callback page lives at <code>/bank/callback</code>).
       </p>
 
       {fields.map(({ key, label, multiline, placeholder }) => (

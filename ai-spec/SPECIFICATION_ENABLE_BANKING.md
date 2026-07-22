@@ -20,7 +20,7 @@ The integration is **per-dossier** and **entirely optional** — dossiers withou
 
 ## 2. Dossier Settings
 
-Two new settings are added to the **Dossier Settings** tab, grouped under a dedicated "Enable Banking Integration" section.
+Three new settings are added to the **Dossier Settings** tab, grouped under a dedicated "Enable Banking Integration" section. All Enable Banking configuration is settable per-dossier through this UI — env vars are optional operator-wide fallbacks only, never a hard requirement.
 
 ### 2.1 Settings Fields
 
@@ -28,23 +28,22 @@ Two new settings are added to the **Dossier Settings** tab, grouped under a dedi
 |---|---|---|---|
 | `enablebanking_application_id` | text (nullable) | null | Application ID issued by the Enable Banking Control Panel |
 | `enablebanking_private_key` | text (nullable) | null | PEM-encoded RSA private key used to sign API requests (JWT, RS256) |
+| `enablebanking_redirect_uri` | text (nullable) | null | Full OAuth callback URL whitelisted for this dossier's Enable Banking application (e.g. `https://your-domain.example.com/bank/callback`) — must exactly match, since Enable Banking rejects a mismatched `redirect_url`. This app's landing page for it is always the frontend route `/bank/callback`, regardless of dossier. |
 
 ### 2.2 UI Notes
 
 - The **Private Key** input is a multi-line `<textarea>` (a PEM key spans several lines), unlike the single-line `<input>` used for other secrets in this app.
-- Both fields must be filled for the integration to be considered **active**. If either is missing, the "Connect a bank" action is hidden.
-- Falls back to the operator-wide env vars `ENABLE_BANKING_APPLICATION_ID` / `ENABLE_BANKING_PRIVATE_KEY` when the dossier hasn't set its own — the same precedence as the AI Advisor's `ai_api_key` / `ANTHROPIC_API_KEY`.
+- All three fields must be filled for the integration to be considered **active**. If any is missing, the "Connect a bank" action is hidden.
+- Each field falls back to an operator-wide env var (`ENABLE_BANKING_APPLICATION_ID` / `ENABLE_BANKING_PRIVATE_KEY` / `ENABLE_BANKING_REDIRECT_URI`) when the dossier hasn't set its own — the same precedence as the AI Advisor's `ai_api_key` / `ANTHROPIC_API_KEY`. The fallback exists purely for operator convenience (e.g. a single-dossier deployment); it is never required, since the requirement is that Settings UI configuration works standalone.
 
 ### 2.3 API
 
 The existing settings endpoints are extended:
 
-- `GET /api/dossiers/:id/settings` — now also returns `enablebanking_application_id` (raw) and `enablebanking_private_key_set` (boolean).
-- `PATCH /api/dossiers/:id/settings` — now also accepts `enablebanking_application_id` and `enablebanking_private_key`.
+- `GET /api/dossiers/:id/settings` — now also returns `enablebanking_application_id` (raw), `enablebanking_private_key_set` (boolean), and `enablebanking_redirect_uri` (raw — not a secret).
+- `PATCH /api/dossiers/:id/settings` — now also accepts `enablebanking_application_id`, `enablebanking_private_key`, and `enablebanking_redirect_uri`.
 
-`enablebanking_private_key` is stored in plain text in SQLite (same acceptable-for-self-hosted convention as `paperless_token`/`ai_api_key`). It is **never returned to the frontend** — `GET /settings` returns `enablebanking_private_key_set` instead. Sending `null` clears it.
-
-An additional env var, `ENABLE_BANKING_REDIRECT_URI`, must be set by the operator to the full whitelisted callback URL (e.g. `https://boodget.example.com/bank/callback`) — this is a deployment-wide constant, not a per-dossier setting, since every dossier in one deployment shares the same frontend origin and Enable Banking whitelists exact redirect URLs per registered application.
+`enablebanking_private_key` is stored in plain text in SQLite (same acceptable-for-self-hosted convention as `paperless_token`/`ai_api_key`). It is **never returned to the frontend** — `GET /settings` returns `enablebanking_private_key_set` instead. Sending `null` clears it. `enablebanking_redirect_uri` is not a secret and is returned as-is.
 
 -----
 
@@ -85,13 +84,13 @@ POST /api/dossiers/:id/bank/connections/start
 → { "url": "https://..." }
 ```
 
-The backend signs a JWT (RS256, `kid` = application ID) and calls Enable Banking's `POST /auth`, requesting a redirect to `ENABLE_BANKING_REDIRECT_URI` (the fixed, whitelisted `/bank/callback` frontend path). Before returning the redirect `url`, it stores a **pending connection request** row keyed by a random `state` value (15-minute TTL) — since the callback path is fixed and dossier-agnostic (it cannot carry a dossier id in its URL), this row is what lets the callback recover which dossier and user initiated the flow.
+The backend signs a JWT (RS256, `kid` = application ID) and calls Enable Banking's `POST /auth`, requesting a redirect to the dossier's `enablebanking_redirect_uri` (the fixed, whitelisted `/bank/callback` frontend path). Before returning the redirect `url`, it stores a **pending connection request** row keyed by a random `state` value (15-minute TTL) — since the callback path is fixed and dossier-agnostic (it cannot carry a dossier id in its URL), this row is what lets the callback recover which dossier and user initiated the flow.
 
 The frontend navigates the full browser (`window.location.href = url`) to the returned URL — the user then authenticates with their bank and gives consent there.
 
 ### 4.2 Callback
 
-The bank redirects back to `{ENABLE_BANKING_REDIRECT_URI}?code=...&state=...` (or `?error=...` if the user cancelled consent). The frontend's `/bank/callback` page calls:
+The bank redirects back to `{enablebanking_redirect_uri}?code=...&state=...` (or `?error=...` if the user cancelled consent). The frontend's `/bank/callback` page calls:
 
 ```
 POST /api/bank/callback
@@ -156,6 +155,14 @@ A **"Refresh from bank"** button appears in `MonthEditor` whenever the month has
 |---|---|---|
 | `enablebanking_application_id` | TEXT | NULL |
 | `enablebanking_private_key` | TEXT | NULL |
+
+### 6.1a Migration `040_add_enablebanking_redirect_uri_to_dossiers`
+
+**`dossiers` table** — 1 new column, added in a follow-up migration (appended, not merged into `039`, per the migration system's append-only rule):
+
+| Column | Type | Default |
+|---|---|---|
+| `enablebanking_redirect_uri` | TEXT | NULL |
 
 **New table `bank_connections`**:
 

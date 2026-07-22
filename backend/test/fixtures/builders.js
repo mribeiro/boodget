@@ -50,6 +50,7 @@ function createDossier(db, overrides = {}) {
     'ai_user_context',
     'enablebanking_application_id',
     'enablebanking_private_key',
+    'enablebanking_redirect_uri',
   ];
   const sets = [];
   const params = [];

@@ -834,6 +834,15 @@ const migrations = [
       `);
     },
   },
+  {
+    id: '040_add_enablebanking_redirect_uri_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'enablebanking_redirect_uri')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN enablebanking_redirect_uri TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

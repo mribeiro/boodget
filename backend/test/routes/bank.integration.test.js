@@ -40,12 +40,13 @@ describe('Bank connections — settings gating', () => {
     expect(res.status).toBe(400);
   });
 
-  it('POST /bank/connections/start returns 503 when configured but ENABLE_BANKING_REDIRECT_URI is unset', async () => {
+  it('POST /bank/connections/start returns 400 when application ID and key are set but redirect_uri is not', async () => {
     const user = createUser(db);
     const dossier = createDossier(db, {
       creatorId: user.id,
       enablebanking_application_id: 'app-id',
       enablebanking_private_key: 'not-a-real-key',
+      enablebanking_redirect_uri: null,
     });
     delete process.env.ENABLE_BANKING_REDIRECT_URI;
     const app = buildTestApp();
@@ -54,7 +55,28 @@ describe('Bank connections — settings gating', () => {
     const res = await agent
       .post(`/api/dossiers/${dossier.id}/bank/connections/start`)
       .send({ aspsp_name: 'Test Bank', aspsp_country: 'FI' });
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(400);
+  });
+
+  it('resolves each field independently from env var fallbacks when the dossier only sets some of them', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, {
+      creatorId: user.id,
+      enablebanking_application_id: 'app-id',
+      enablebanking_private_key: 'not-a-real-key',
+      enablebanking_redirect_uri: null,
+    });
+    process.env.ENABLE_BANKING_REDIRECT_URI = 'https://example.com/bank/callback';
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    // Config is now fully resolved (dossier app id/key + env var redirect_uri), so the
+    // request proceeds past the gating check and only fails on the real network call.
+    const res = await agent
+      .post(`/api/dossiers/${dossier.id}/bank/connections/start`)
+      .send({ aspsp_name: 'Test Bank', aspsp_country: 'FI' });
+    expect(res.status).not.toBe(400);
+    delete process.env.ENABLE_BANKING_REDIRECT_URI;
   });
 });
 

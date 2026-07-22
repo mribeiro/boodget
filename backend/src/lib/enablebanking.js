@@ -38,11 +38,19 @@ function signJwt(applicationId, privateKeyPem, { now = Date.now(), ttlSeconds = 
 
 function resolveEnableBankingConfig(dossierId) {
   const dossier = db
-    .prepare('SELECT enablebanking_application_id, enablebanking_private_key FROM dossiers WHERE id = ?')
+    .prepare(
+      'SELECT enablebanking_application_id, enablebanking_private_key, enablebanking_redirect_uri FROM dossiers WHERE id = ?'
+    )
     .get(dossierId);
   const applicationId = dossier?.enablebanking_application_id || process.env.ENABLE_BANKING_APPLICATION_ID || null;
   const privateKey = dossier?.enablebanking_private_key || process.env.ENABLE_BANKING_PRIVATE_KEY || null;
-  return { applicationId, privateKey, configured: !!applicationId && !!privateKey };
+  const redirectUri = dossier?.enablebanking_redirect_uri || process.env.ENABLE_BANKING_REDIRECT_URI || null;
+  return {
+    applicationId,
+    privateKey,
+    redirectUri,
+    configured: !!applicationId && !!privateKey && !!redirectUri,
+  };
 }
 
 async function ebFetch(config, path, { method = 'GET', body, prefix = '[enable-banking]' } = {}) {
