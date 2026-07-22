@@ -63,13 +63,15 @@ Icons are generated at build time from `frontend/public/icon.svg` (light mode) a
 | `icon-512-dark.png` | 512×512 | dark | Manifest (dark mode) |
 | `icon-512-maskable-dark.png` | 512×512 | dark | Maskable icon (dark mode) |
 
-The maskable variant must have the icon content centred within the inner 80% of the canvas, with the background colour filling the full 512×512 area. Light maskable uses `#38bdf8`; dark maskable uses `#0f172a`.
+The maskable variant must have the icon content centred within the inner 80% of the canvas, with the background colour filling the full 512×512 area. Light maskable uses `#1F7A8C`; dark maskable uses `#060F16` — each the darker stop of that variant's background gradient, matching the solid-colour convention.
 
 #### Icon colour schemes
 
-**Light mode** (`icon.svg`): blue-to-indigo gradient background (`#38bdf8` → `#6366f1`), white "C" and trend line.
+The mark is a friendly ghost mascot holding a coin, outlined in `#123A46`.
 
-**Dark mode** (`icon-dark.svg`): dark navy gradient background (`#0f172a` → `#1e1b4b`), sky-blue "C" (`#38bdf8`), indigo trend line (`#818cf8`).
+**Light mode** (`icon.svg`): teal gradient background (`#7FD7DD` → `#1F7A8C`), white-to-pale-teal ghost body gradient (`#FFFFFF` → `#EAF6F8`), gold radial-gradient coin (`#FFE9A8` → `#F4BE3E` → `#D98E04`).
+
+**Dark mode** (`icon-dark.svg`): dark navy gradient background (`#123244` → `#060F16`), pale cyan-to-teal ghost body gradient (`#BFF0F2` → `#7FD7DD`), same gold coin gradient as light mode.
 
 ### 2.3 HTML Meta Tags
 
@@ -657,43 +659,67 @@ Two SVG source files drive icon generation:
 
 **`frontend/public/icon.svg`** (light mode):
 ```svg
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8"/>
-      <stop offset="100%" stop-color="#6366f1"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
-  <path d="M330 160 A120 120 0 1 0 330 352"
-    fill="none" stroke="#ffffff" stroke-width="42" stroke-linecap="round"/>
-  <polyline points="190,300 240,260 280,280 330,210"
-    fill="none" stroke="#ffffff" stroke-width="28"
-    stroke-linecap="round" stroke-linejoin="round"/>
-  <polygon points="330,210 312,214 326,228" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+<linearGradient id="bgLight" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" stop-color="#7FD7DD"></stop>
+<stop offset="100%" stop-color="#1F7A8C"></stop>
+</linearGradient>
+<linearGradient id="bodyLight" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#FFFFFF"></stop>
+<stop offset="100%" stop-color="#EAF6F8"></stop>
+</linearGradient>
+<radialGradient id="gcoin" cx="35%" cy="30%" r="80%">
+<stop offset="0%" stop-color="#FFE9A8"></stop>
+<stop offset="55%" stop-color="#F4BE3E"></stop>
+<stop offset="100%" stop-color="#D98E04"></stop>
+</radialGradient>
+</defs>
+<rect x="0" y="0" width="512" height="512" rx="120" ry="120" fill="url(#bgLight)"></rect>
+
+<g transform="translate(110.5,96) scale(1.4545)">
+<path d="M16,102 A84,84 0 0 1 184,102 L184,178 Q176,206 160,178 Q152,206 136,178 Q128,206 112,178 Q104,206 88,178 Q80,206 64,178 Q56,206 40,178 Q32,206 16,178 Z" fill="url(#bodyLight)" stroke="#123A46" stroke-width="4.5" stroke-linejoin="round"></path>
+<path d="M52,100 Q60,88 68,100" fill="none" stroke="#123A46" stroke-width="5" stroke-linecap="round"></path>
+<path d="M112,100 Q120,88 128,100" fill="none" stroke="#123A46" stroke-width="5" stroke-linecap="round"></path>
+<path d="M78,116 Q90,126 102,116" fill="none" stroke="#123A46" stroke-width="4.5" stroke-linecap="round"></path>
+<circle cx="128" cy="164" r="25" fill="url(#gcoin)" stroke="#123A46" stroke-width="4"></circle>
+<circle cx="128" cy="164" r="17" fill="none" stroke="#D98E04" stroke-width="2.5" opacity="0.6"></circle>
+</g>
 </svg>
 ```
 
 **`frontend/public/icon-dark.svg`** (dark mode):
 ```svg
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#1e1b4b"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
-  <path d="M330 160 A120 120 0 1 0 330 352"
-    fill="none" stroke="#38bdf8" stroke-width="42" stroke-linecap="round"/>
-  <polyline points="190,300 240,260 280,280 330,210"
-    fill="none" stroke="#818cf8" stroke-width="28"
-    stroke-linecap="round" stroke-linejoin="round"/>
-  <polygon points="330,210 312,214 326,228" fill="#818cf8"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+<linearGradient id="bgDark" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" stop-color="#123244"></stop>
+<stop offset="100%" stop-color="#060F16"></stop>
+</linearGradient>
+<linearGradient id="bodyDark" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#BFF0F2"></stop>
+<stop offset="100%" stop-color="#7FD7DD"></stop>
+</linearGradient>
+<radialGradient id="gcoin" cx="35%" cy="30%" r="80%">
+<stop offset="0%" stop-color="#FFE9A8"></stop>
+<stop offset="55%" stop-color="#F4BE3E"></stop>
+<stop offset="100%" stop-color="#D98E04"></stop>
+</radialGradient>
+</defs>
+<rect x="0" y="0" width="512" height="512" rx="120" ry="120" fill="url(#bgDark)"></rect>
+
+<g transform="translate(110.5,96) scale(1.4545)">
+<path d="M16,102 A84,84 0 0 1 184,102 L184,178 Q176,206 160,178 Q152,206 136,178 Q128,206 112,178 Q104,206 88,178 Q80,206 64,178 Q56,206 40,178 Q32,206 16,178 Z" fill="url(#bodyDark)" stroke="#123A46" stroke-width="4.5" stroke-linejoin="round"></path>
+<path d="M52,100 Q60,88 68,100" fill="none" stroke="#123A46" stroke-width="5" stroke-linecap="round"></path>
+<path d="M112,100 Q120,88 128,100" fill="none" stroke="#123A46" stroke-width="5" stroke-linecap="round"></path>
+<path d="M78,116 Q90,126 102,116" fill="none" stroke="#123A46" stroke-width="4.5" stroke-linecap="round"></path>
+<circle cx="128" cy="164" r="25" fill="url(#gcoin)" stroke="#123A46" stroke-width="4"></circle>
+<circle cx="128" cy="164" r="17" fill="none" stroke="#D98E04" stroke-width="2.5" opacity="0.6"></circle>
+</g>
 </svg>
 ```
 
-Both icons share the same "C" + upward trend line design. The dark variant uses a dark navy background with coloured accent strokes instead of white.
+Both icons share the same ghost-mascot-holding-a-coin design (identical geometry). The dark variant swaps the background and body gradients for a dark-navy/pale-cyan palette; the gold coin gradient is identical in both.
 
 -----
 
