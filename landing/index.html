@@ -383,21 +383,29 @@
     <a class="nav-logo" href="#">
       <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#8b5cf6"/>
-            <stop offset="100%" stop-color="#38bdf8"/>
+          <linearGradient id="ng" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#7FD7DD"/>
+            <stop offset="100%" stop-color="#1F7A8C"/>
           </linearGradient>
+          <linearGradient id="ngBody" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#FFFFFF"/>
+            <stop offset="100%" stop-color="#EAF6F8"/>
+          </linearGradient>
+          <radialGradient id="ngCoin" cx="35%" cy="30%" r="80%">
+            <stop offset="0%" stop-color="#FFE9A8"/>
+            <stop offset="55%" stop-color="#F4BE3E"/>
+            <stop offset="100%" stop-color="#D98E04"/>
+          </radialGradient>
         </defs>
         <rect width="512" height="512" rx="120" fill="url(#ng)"/>
-        <path d="M136,400 L136,280 A120,120 0 0,1 376,280 L376,400 Q346,368 316,400 Q286,432 256,400 Q226,368 196,400 Q166,432 136,400 Z" fill="white"/>
-        <circle cx="210" cy="250" r="26" fill="#1e1b4b"/>
-        <circle cx="302" cy="250" r="26" fill="#1e1b4b"/>
-        <circle cx="220" cy="240" r="9" fill="white"/>
-        <circle cx="312" cy="240" r="9" fill="white"/>
-        <path d="M220,295 Q256,318 292,295" fill="none" stroke="#1e1b4b" stroke-width="8" stroke-linecap="round"/>
-        <circle cx="256" cy="348" r="34" fill="#f59e0b"/>
-        <circle cx="256" cy="348" r="25" fill="#fbbf24"/>
-        <circle cx="256" cy="348" r="15" fill="#f59e0b"/>
+        <g transform="translate(110.5,96) scale(1.4545)">
+          <path d="M16,102 A84,84 0 0 1 184,102 L184,178 Q176,206 160,178 Q152,206 136,178 Q128,206 112,178 Q104,206 88,178 Q80,206 64,178 Q56,206 40,178 Q32,206 16,178 Z" fill="url(#ngBody)" stroke="#123A46" stroke-width="4.5" stroke-linejoin="round"/>
+          <path d="M52,100 Q60,88 68,100" fill="none" stroke="#123A46" stroke-width="5" stroke-linecap="round"/>
+          <path d="M112,100 Q120,88 128,100" fill="none" stroke="#123A46" stroke-width="5" stroke-linecap="round"/>
+          <path d="M78,116 Q90,126 102,116" fill="none" stroke="#123A46" stroke-width="4.5" stroke-linecap="round"/>
+          <circle cx="128" cy="164" r="25" fill="url(#ngCoin)" stroke="#123A46" stroke-width="4"/>
+          <circle cx="128" cy="164" r="17" fill="none" stroke="#D98E04" stroke-width="2.5" opacity="0.6"/>
+        </g>
       </svg>
       boodget
     </a>

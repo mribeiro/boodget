@@ -51,7 +51,7 @@ async function generate() {
       width: maskableSize,
       height: maskableSize,
       channels: 4,
-      background: { r: 56, g: 189, b: 248, alpha: 1 }, // #38bdf8
+      background: { r: 31, g: 122, b: 140, alpha: 1 }, // #1F7A8C
     },
   })
     .composite([{ input: innerBuf, top: offset, left: offset }])
@@ -80,7 +80,7 @@ async function generate() {
       width: maskableSize,
       height: maskableSize,
       channels: 4,
-      background: { r: 15, g: 23, b: 42, alpha: 1 }, // #0f172a
+      background: { r: 6, g: 15, b: 22, alpha: 1 }, // #060F16
     },
   })
     .composite([{ input: innerBufDark, top: offset, left: offset }])
