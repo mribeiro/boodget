@@ -19,6 +19,11 @@ services:
       - DB_PATH=/data/capital-tracker.db
       # Push notifications — set in .env (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT)
       # AI Advisor — set ANTHROPIC_API_KEY in .env (get one at console.anthropic.com)
+      # Enable Banking — required to use the integration; set in .env:
+      #   ENABLE_BANKING_REDIRECT_URI=https://your-domain.example.com/bank/callback
+      #   (must exactly match the redirect URL whitelisted for your Enable Banking application)
+      #   ENABLE_BANKING_APPLICATION_ID / ENABLE_BANKING_PRIVATE_KEY are optional
+      #   operator-wide fallbacks — each dossier can also set its own in Settings.
       # OIDC (optional — uncomment and fill in to enable)
       # - OIDC_ENABLED=true
       # - OIDC_ISSUER_URL=https://your-oidc-provider.com
