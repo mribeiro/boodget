@@ -49,7 +49,7 @@ app.use('/api/notifications', requireAuth, require('./routes/notifications'));
 const frontendDist = path.join(__dirname, '..', 'frontend-dist');
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist, { index: false }));
-  app.get('*', (req, res) => {
+  app.get('*', apiLimiter, (req, res) => {
     const html = fs.readFileSync(path.join(frontendDist, 'index.html'), 'utf8');
     const appEnv = process.env.NODE_ENV || 'production';
     const injected = html.replace('<head>', `<head><script>window.__APP_ENV__="${appEnv}";</script>`);
