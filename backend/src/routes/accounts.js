@@ -151,6 +151,7 @@ router.delete('/:accountId', (req, res) => {
   }
 
   db.prepare('UPDATE accounts SET archived = 1 WHERE id = ?').run(req.params.accountId);
+  db.prepare('UPDATE bank_connection_accounts SET account_id = NULL WHERE account_id = ?').run(req.params.accountId);
   console.log(`[accounts] Archived account "${account.name}" (${req.params.accountId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();
 });

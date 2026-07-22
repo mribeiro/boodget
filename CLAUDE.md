@@ -20,7 +20,8 @@ Rules:
 
 Key concepts:
 - **Dossier**: A named container for a set of accounts, monthly snapshots, and expense cycles. Owned by one user, shareable with others.
-- **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier. `money_category` is one of `idle` / `active` / `stocks` (default `active`) — `stocks` is for unvested/illiquid holdings (e.g. unvested company equity) and is always excluded from the Capital total, tracked separately instead. `can_receive_transfers` (default `true`, defaults to `false` for new `stocks` accounts) controls whether the account can be picked as a distribution's funding account — disabling it only blocks new assignments, existing links are left untouched. Archiving an account (`DELETE /accounts/:accountId`) is blocked with a `409` while it's still linked as the funding `account_id` of any expense-template or cycle-item distribution — the error lists the linked distributions (grouped by template vs. cycle, with the cycle named the same way cycle displays are) so the user can reassign or clear those links first; this is preventive only, not retroactive — links created before this check existed are not swept up.
+- **Account**: An asset being tracked (bank account, investment fund, etc.), belonging to a dossier. `money_category` is one of `idle` / `active` / `stocks` (default `active`) — `stocks` is for unvested/illiquid holdings (e.g. unvested company equity) and is always excluded from the Capital total, tracked separately instead. `can_receive_transfers` (default `true`, defaults to `false` for new `stocks` accounts) controls whether the account can be picked as a distribution's funding account — disabling it only blocks new assignments, existing links are left untouched. Archiving an account (`DELETE /accounts/:accountId`) is blocked with a `409` while it's still linked as the funding `account_id` of any expense-template or cycle-item distribution — the error lists the linked distributions (grouped by template vs. cycle, with the cycle named the same way cycle displays are) so the user can reassign or clear those links first; this is preventive only, not retroactive — links created before this check existed are not swept up. Archiving an account also clears (sets to `null`) any Bank Connection Account mapping pointing to it.
+- **Bank Connection**: A per-dossier link to a real bank via [Enable Banking](https://enablebanking.com), an open-banking (PSD2) aggregator. Created through an OAuth-style consent flow: the app redirects the user to their bank, the bank redirects back to the fixed frontend path `/bank/callback` with a `code`+`state`, and the backend exchanges it for a session (`session_id`, `valid_until` — up to ~90 days, no refresh token; full re-consent is required after expiry). Each connection carries one or more **Bank Connection Accounts** (`external_account_uid`, `iban`, `currency`, `display_name`), each optionally mapped 1:1 to a boodget `account` (`account_id`, nullable) — mapping to an archived or already-mapped-elsewhere account is rejected. Disconnecting (`status='revoked'`) keeps the connection row and its mappings (only live balance refresh stops working); reconnecting the same bank re-links accounts to their prior mapping by IBAN (falling back to `external_account_uid`) as an editable suggestion. All API calls to Enable Banking are authenticated with a JWT (RS256) signed by a per-dossier `enablebanking_application_id`/`enablebanking_private_key` (falls back to `ENABLE_BANKING_APPLICATION_ID`/`ENABLE_BANKING_PRIVATE_KEY` env vars), configured in Dossier Settings → **Enable Banking Integration**. A two-step fetch-then-apply flow (`GET .../bank/months/:monthId/balances-preview` → `POST .../balances-apply`), mirroring the Paperless-ngx integration's UX, lets the user pull a mapped account's live bank balance into the month currently open in `MonthEditor` instead of typing it in by hand; per-account fetch failures become warnings rather than failing the whole request. This feature only populates an existing `month_entries.value` — it introduces no new financial concept, so it is exempt from the AI Advisor `buildDossierContext` documentation-maintenance rule below. See `ai-spec/SPECIFICATION_ENABLE_BANKING.md`.
 - **Month**: A monthly snapshot capturing the value of all accounts at a point in time.
 - **Expense Cycle**: A monthly budget/expense tracking period. Has a salary, previous balance, and a list of expense/distribution items. Cycles are independent — multiple can be open at the same time; the only uniqueness constraint is `(dossier_id, year, month)`. A cycle stores its own `cycle_start_day`, snapshotted from the dossier's setting at creation time (`POST /cycles`) — every place that computes that cycle's own date range, item ordering, or day-of-payment clamping uses this stored value, never the dossier's *current* setting, so later changing the dossier setting only affects cycles created from that point on and never retroactively reshapes an existing cycle (open or closed). A cycle stored as `(year, month)` runs from its own `cycle_start_day` of that calendar month to `cycle_start_day − 1` of the following month, and is **named after the month it ends in** — e.g. a cycle stored as `month=3` with `cycle_start_day=25` runs Mar 25 – Apr 24 and is displayed as "April".
 - **Cycle Item**: An expense or distribution within a cycle. Expenses are either `Fixed` (with a `day_of_payment` and paid checkbox) or `Budget` (with a max and a `spent` amount). Distributions have a `done` checkbox. Distributions may optionally be linked to a funding `account_id`; not propagated from template to existing cycles. The linked account must have `can_receive_transfers = 1` at the time it's assigned; an account already linked is unaffected if later disabled.
@@ -61,7 +62,11 @@ money_manager/
 │   │       ├── subscriptions.js  # Subscription CRUD + linked-distribution coverage
 │   │       ├── annual-expenses.js # Annual template, years, payments
 │   │       ├── push.js           # Push subscriptions + VAPID public key
-│   │       └── notifications.js  # User notification settings + dossier opt-in
+│   │       ├── notifications.js  # User notification settings + dossier opt-in
+│   │       ├── bank.js           # Bank connections CRUD, ASPSP proxy, month balance fetch/apply
+│   │       └── bank-callback.js  # Dossier-agnostic OAuth callback (mounted at /api/bank)
+│   ├── lib/
+│   │   └── enablebanking.js      # JWT signing, Enable Banking API client, reconnect carry-forward matching
 │   ├── notifications/
 │   │   ├── push.js               # VAPID init, sendPush() helper
 │   │   └── scheduler.js          # node-cron: evaluates 5 event types, deduplicates, sends push
@@ -97,7 +102,8 @@ money_manager/
 │   │       ├── workbench/WorkbenchTab.jsx
 │   │       ├── goals/GoalsTab.jsx, GoalFormModal.jsx, GoalDetail.jsx
 │   │       ├── loans/LoansTab.jsx, LoanFormModal.jsx, LoanDetail.jsx, PromoteLoanModal.jsx
-│   │       └── subscriptions/SubscriptionsTab.jsx
+│   │       ├── subscriptions/SubscriptionsTab.jsx
+│   │       └── bank/BankConnectionsPanel.jsx, BankCallbackPage.jsx
 ├── ai-spec/
 │   ├── SPECIFICATION.md                          # Core product spec (Capital section)
 │   ├── SPECIFICATION_MONTHLY_EXPENSES.md
@@ -113,7 +119,8 @@ money_manager/
 │   ├── SPECIFICATION_UI.md
 │   ├── SPECIFICATION_BACKEND_LOGGING.md
 │   ├── SPECIFICATION_PREVIEW_ENVIRONMENTS.md
-│   └── SPECIFICATION_PWA.md
+│   ├── SPECIFICATION_PWA.md
+│   └── SPECIFICATION_ENABLE_BANKING.md
 ├── preview-index/            # Lightweight service listing preview environments
 ├── docs/
 │   └── PLATFORM_GUIDE.md     # Human-facing platform guide (features, usage philosophy)
@@ -226,7 +233,7 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 |---|---|
 | `users` | User accounts. `is_oidc=1` for SSO users. |
 | `sessions` | Express session store. |
-| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds (`capital_snapshot_warning_day` default 7, `next_cycle_warning_day` default 22, `previous_cycle_close_warning_day` default 25), two EF settings (`emergency_fund_months_multiplier` default 6, `emergency_fund_cycles_to_average` default 6), four Paperless fields (all nullable), `expense_notification_days_before` (default 1), `ai_enabled` (default `1` — gates the entire AI Advisor feature for the dossier), `ai_model` (default `claude-opus-4-8`; whitelist enforced in settings PATCH), `ai_api_key` (nullable, secret — per-dossier Claude API key, write-only, never returned by any GET; falls back to the `ANTHROPIC_API_KEY` env var when unset), `ai_user_context` (nullable, user-authored free text ≤ 4000 chars, included in every AI Advisor prompt), `reference_salary` (nullable, manually-set — prefills new loans' `salary` and denominates the Loans tab's total % of salary; not derived from `expense_cycles`), `loans_max_salary_pct` (nullable, 0–100 — the Loans tab's red/amber/green threshold against `reference_salary`). |
+| `dossiers` | Capital dossiers. `creator_id` FK → `users`. Holds `cycle_start_day` (default 25), three Glances warning thresholds (`capital_snapshot_warning_day` default 7, `next_cycle_warning_day` default 22, `previous_cycle_close_warning_day` default 25), two EF settings (`emergency_fund_months_multiplier` default 6, `emergency_fund_cycles_to_average` default 6), four Paperless fields (all nullable), `expense_notification_days_before` (default 1), `ai_enabled` (default `1` — gates the entire AI Advisor feature for the dossier), `ai_model` (default `claude-opus-4-8`; whitelist enforced in settings PATCH), `ai_api_key` (nullable, secret — per-dossier Claude API key, write-only, never returned by any GET; falls back to the `ANTHROPIC_API_KEY` env var when unset), `ai_user_context` (nullable, user-authored free text ≤ 4000 chars, included in every AI Advisor prompt), `reference_salary` (nullable, manually-set — prefills new loans' `salary` and denominates the Loans tab's total % of salary; not derived from `expense_cycles`), `loans_max_salary_pct` (nullable, 0–100 — the Loans tab's red/amber/green threshold against `reference_salary`), `enablebanking_application_id` (nullable — Enable Banking application ID, falls back to the `ENABLE_BANKING_APPLICATION_ID` env var when unset), `enablebanking_private_key` (nullable, secret — PEM RSA private key used to sign Enable Banking API requests, write-only, never returned by any GET; falls back to the `ENABLE_BANKING_PRIVATE_KEY` env var when unset). |
 | `dossier_access` | Many-to-many sharing: `(dossier_id, user_id)` PK. |
 | `accounts` | `type` ∈ `{Risk Investment, Guaranteed Investment, Current Account}`. `archived`, `money_category` ∈ `{idle, active, stocks}` (default `active`; `stocks` accounts are excluded from `capital_total` and tracked separately), `can_receive_transfers` (default `1`; gates eligibility as a distribution funding account), `position`. |
 | `months` | Monthly snapshots. `(dossier_id, year, month)` UNIQUE. `filled` bool. |
@@ -254,6 +261,9 @@ SQLite database at `DB_PATH` env var (default: `/data/capital-tracker.db` in Doc
 | `emergency_fund_accounts` | `(dossier_id, account_id)`. Current value from most recent filled snapshot. |
 | `emergency_fund_extra_values` | `name`, `value`, `position`. |
 | `ai_analyses` | Latest AI Advisor analysis per dossier. `dossier_id` UNIQUE (upserted on re-run). `model`, `content` (analysis JSON), token counts, `cost_usd`, `created_at`. Not exported. |
+| `bank_connections` | One row per successful Enable Banking consent. `aspsp_name`, `aspsp_country`, `session_id`, `status` (`active`/`expired`/`revoked` — `expired` computed lazily from `valid_until`, `revoked` set explicitly on disconnect; row is kept, not deleted, either way), `valid_until` (session expiry, ~90 days max, no refresh). Not exported. |
+| `bank_connection_accounts` | `connection_id` FK, `external_account_uid`, `iban`/`currency`/`display_name` (nullable, from the bank), `account_id` (nullable FK → `accounts`, `ON DELETE SET NULL` — the 1:1 mapping; also nulled explicitly when the mapped account is archived). `UNIQUE(connection_id, external_account_uid)`. Not exported. |
+| `bank_connection_requests` | Pending OAuth `state` (PK), `dossier_id`, `user_id`, `aspsp_name`/`aspsp_country`, `expires_at` (15-minute TTL). Single-use — deleted on completion or expiry. Not exported. |
 | `app_settings` | Key-value. Holds VAPID keys (auto-generated on first startup). |
 | `push_subscriptions` | `user_id`, `endpoint` (UNIQUE), `keys_p256dh`, `keys_auth`. One per device/browser. |
 | `user_notification_settings` | `enabled`, `send_hour`, `send_minute`, `repeat_enabled`, `repeat_interval_days`. Created on first PATCH. |
@@ -267,7 +277,7 @@ All schema changes **must** go through the migration system in `backend/src/db/i
 - `schema_migrations` table tracks applied migrations by `id`.
 - IDs follow `NNN_description` pattern (e.g. `003_add_foo_to_bar`).
 - Each `up()` must be idempotent (guard with `PRAGMA table_info` checks before `ALTER TABLE`).
-- **Last applied migration**: `038_add_cycle_start_day_to_expense_cycles`. **Next id must be `039_...`**
+- **Last applied migration**: `039_enable_banking_integration`. **Next id must be `040_...`**
 - Never modify or remove existing migration entries — only append.
 
 **To add a new migration**, append to the `migrations` array:
@@ -356,7 +366,8 @@ PATCH  /api/dossiers/:id/settings   { cycle_start_day?, capital_snapshot_warning
                                        emergency_fund_months_multiplier?, emergency_fund_cycles_to_average?,
                                        paperless_url?, paperless_token?, paperless_date_field_id?,
                                        paperless_amount_field_id?, expense_notification_days_before?,
-                                       ai_enabled?, ai_model?, ai_api_key?, ai_user_context?, reference_salary?, loans_max_salary_pct? }
+                                       ai_enabled?, ai_model?, ai_api_key?, ai_user_context?, reference_salary?, loans_max_salary_pct?,
+                                       enablebanking_application_id?, enablebanking_private_key? }
 
 GET    /api/dossiers/:id/expense-template
 POST   /api/dossiers/:id/expense-template     { section, name, type?, value, day_of_payment?, classification?, must_amount?, want_amount?, save_amount? }
@@ -440,6 +451,15 @@ GET    /api/dossiers/:id/ai-advisor/analysis   # { configured, analysis|null }
 POST   /api/dossiers/:id/ai-advisor/analysis   # run + persist a new analysis
 POST   /api/dossiers/:id/ai-advisor/chat       { messages: [{role, content}] }
 GET    /api/dossiers/:id/ai-advisor/export-prompt   # { prompt } — paste into claude.ai chat, no API key needed
+
+GET    /api/dossiers/:id/bank/aspsps?country=XX
+POST   /api/dossiers/:id/bank/connections/start   { aspsp_name, aspsp_country, psu_type? }  # → { url }
+GET    /api/dossiers/:id/bank/connections
+PATCH  /api/dossiers/:id/bank/connections/:connectionId/accounts/:bankAccountId  { account_id: string|null }
+DELETE /api/dossiers/:id/bank/connections/:connectionId   # disconnect (status='revoked'; mapping kept)
+GET    /api/dossiers/:id/bank/months/:monthId/balances-preview
+POST   /api/dossiers/:id/bank/months/:monthId/balances-apply   { entries: [{account_id, value}] }
+POST   /api/bank/callback   { code, state }   # dossier-agnostic OAuth callback exchange
 
 GET    /api/push/vapid-public-key
 POST   /api/push/subscribe              { endpoint, keys: { p256dh, auth } }
@@ -537,6 +557,9 @@ Inline styles + `index.css`. No CSS framework. Match existing inline-style patte
 | `VAPID_PRIVATE_KEY` | No | Base64url VAPID private key. Must be set together with `VAPID_PUBLIC_KEY`. |
 | `VAPID_SUBJECT` | No | VAPID subject URI (`mailto:` or `https://`). Default: `mailto:admin@capitaltracker.local`. Set to a real email/URL — some push services (Apple) reject `.local` domains. |
 | `ANTHROPIC_API_KEY` | No | Fallback Anthropic API key for the AI Advisor, used by dossiers that haven't set their own key in Settings → AI Settings. If no key resolves (neither dossier nor env var), the AI Advisor tab shows a setup hint and its POST endpoints return 503. |
+| `ENABLE_BANKING_APPLICATION_ID` | No | Fallback Enable Banking application ID, used by dossiers that haven't set their own in Settings → Enable Banking Integration. |
+| `ENABLE_BANKING_PRIVATE_KEY` | No | Fallback Enable Banking PEM private key, paired with `ENABLE_BANKING_APPLICATION_ID`. If neither resolves (dossier nor env var), bank-connection endpoints return 400. |
+| `ENABLE_BANKING_REDIRECT_URI` | Yes, to use the integration | Full callback URL registered with Enable Banking (e.g. `https://boodget.example.com/bank/callback`) — must exactly match what's whitelisted for the application. Not derived from request headers. |
 | `OIDC_ENABLED` | No | `true` to enable OIDC SSO. |
 | `OIDC_ISSUER_URL` | If OIDC | OIDC provider issuer URL. |
 | `OIDC_CLIENT_ID` | If OIDC | OIDC client ID. |
@@ -567,6 +590,7 @@ Mutations and auth events logged to stdout as `[category] message`. GET operatio
 | `[subscriptions]` | Created, updated, deleted |
 | `[emergency-fund]` | Account selection updated |
 | `[ai-advisor]` | Analysis run, chat turn (dossier, user, model, tokens, cost — never message content), failures |
+| `[enable-banking]` | Connection started/completed, disconnected, balance fetch failures (dossier, connection/account ids — never the JWT or private key) |
 | `[push]` | Generated new VAPID keys; removed expired subscription (scheduler and test endpoint) |
 
 ## Testing

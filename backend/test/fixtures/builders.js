@@ -48,6 +48,8 @@ function createDossier(db, overrides = {}) {
     'ai_model',
     'ai_api_key',
     'ai_user_context',
+    'enablebanking_application_id',
+    'enablebanking_private_key',
   ];
   const sets = [];
   const params = [];
@@ -363,6 +365,64 @@ function createAnnualExpensePayment(db, overrides = {}) {
   return db.prepare('SELECT * FROM annual_expense_payments WHERE id = ?').get(id);
 }
 
+function createBankConnection(db, overrides = {}) {
+  const id = overrides.id || uid('bank-conn');
+  const dossierId = overrides.dossierId || overrides.dossier_id;
+  if (!dossierId) throw new Error('createBankConnection requires dossierId');
+  db.prepare(
+    `INSERT INTO bank_connections (id, dossier_id, aspsp_name, aspsp_country, session_id, status, valid_until)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    dossierId,
+    overrides.aspsp_name || 'Test Bank',
+    overrides.aspsp_country || 'FI',
+    overrides.session_id || uid('session'),
+    overrides.status || 'active',
+    overrides.valid_until || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+  );
+  return db.prepare('SELECT * FROM bank_connections WHERE id = ?').get(id);
+}
+
+function createBankConnectionAccount(db, overrides = {}) {
+  const id = overrides.id || uid('bank-acc');
+  const connectionId = overrides.connectionId || overrides.connection_id;
+  if (!connectionId) throw new Error('createBankConnectionAccount requires connectionId');
+  db.prepare(
+    `INSERT INTO bank_connection_accounts (id, connection_id, external_account_uid, iban, currency, display_name, account_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    connectionId,
+    overrides.external_account_uid || uid('ext-acc'),
+    overrides.iban ?? null,
+    overrides.currency ?? 'EUR',
+    overrides.display_name ?? 'Bank Account',
+    overrides.account_id ?? null
+  );
+  return db.prepare('SELECT * FROM bank_connection_accounts WHERE id = ?').get(id);
+}
+
+function createBankConnectionRequest(db, overrides = {}) {
+  const state = overrides.state || uid('state');
+  const dossierId = overrides.dossierId || overrides.dossier_id;
+  const userId = overrides.userId || overrides.user_id;
+  if (!dossierId) throw new Error('createBankConnectionRequest requires dossierId');
+  if (!userId) throw new Error('createBankConnectionRequest requires userId');
+  db.prepare(
+    `INSERT INTO bank_connection_requests (state, dossier_id, user_id, aspsp_name, aspsp_country, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(
+    state,
+    dossierId,
+    userId,
+    overrides.aspsp_name || 'Test Bank',
+    overrides.aspsp_country || 'FI',
+    overrides.expires_at || new Date(Date.now() + 15 * 60 * 1000).toISOString()
+  );
+  return db.prepare('SELECT * FROM bank_connection_requests WHERE state = ?').get(state);
+}
+
 // Logs the given user in through the real HTTP endpoint (not a DB shortcut) so the
 // supertest agent carries a genuine session cookie for subsequent requests.
 async function loginAs(agent, { username, password }) {
@@ -390,5 +450,8 @@ module.exports = {
   createAnnualExpenseYear,
   createAnnualExpenseYearItem,
   createAnnualExpensePayment,
+  createBankConnection,
+  createBankConnectionAccount,
+  createBankConnectionRequest,
   loginAs,
 };

@@ -151,7 +151,7 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct, enablebanking_application_id, enablebanking_private_key FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
@@ -171,6 +171,8 @@ router.get('/settings', (req, res) => {
     ai_user_context: dossier.ai_user_context ?? '',
     reference_salary: dossier.reference_salary ?? null,
     loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
+    enablebanking_application_id: dossier.enablebanking_application_id ?? null,
+    enablebanking_private_key_set: !!dossier.enablebanking_private_key,
   });
 });
 
@@ -201,6 +203,8 @@ router.patch('/settings', (req, res) => {
     ai_user_context,
     reference_salary,
     loans_max_salary_pct,
+    enablebanking_application_id,
+    enablebanking_private_key,
   } = req.body;
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
@@ -262,6 +266,12 @@ router.patch('/settings', (req, res) => {
       return res.status(400).json({ error: 'loans_max_salary_pct must be null or a number between 0 and 100' });
     }
   }
+  if (enablebanking_application_id !== undefined && enablebanking_application_id !== null && typeof enablebanking_application_id !== 'string') {
+    return res.status(400).json({ error: 'enablebanking_application_id must be a string or null' });
+  }
+  if (enablebanking_private_key !== undefined && enablebanking_private_key !== null && typeof enablebanking_private_key !== 'string') {
+    return res.status(400).json({ error: 'enablebanking_private_key must be a string or null' });
+  }
 
   const updates = [];
   const params = [];
@@ -282,6 +292,8 @@ router.patch('/settings', (req, res) => {
   if (ai_user_context !== undefined) { updates.push('ai_user_context = ?'); params.push(ai_user_context || null); }
   if (reference_salary !== undefined) { updates.push('reference_salary = ?'); params.push(reference_salary); }
   if (loans_max_salary_pct !== undefined) { updates.push('loans_max_salary_pct = ?'); params.push(loans_max_salary_pct); }
+  if (enablebanking_application_id !== undefined) { updates.push('enablebanking_application_id = ?'); params.push(enablebanking_application_id || null); }
+  if (enablebanking_private_key !== undefined) { updates.push('enablebanking_private_key = ?'); params.push(enablebanking_private_key || null); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -290,7 +302,7 @@ router.patch('/settings', (req, res) => {
   console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct, enablebanking_application_id, enablebanking_private_key FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
@@ -310,6 +322,8 @@ router.patch('/settings', (req, res) => {
     ai_user_context: updated.ai_user_context ?? '',
     reference_salary: updated.reference_salary ?? null,
     loans_max_salary_pct: updated.loans_max_salary_pct ?? null,
+    enablebanking_application_id: updated.enablebanking_application_id ?? null,
+    enablebanking_private_key_set: !!updated.enablebanking_private_key,
   });
 });
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPencil,
@@ -14,6 +14,7 @@ import ExpenseTemplate from './expenses/ExpenseTemplate';
 import AnnualExpenseTemplate from './expenses/AnnualExpenseTemplate';
 import AccountManager from './AccountManager';
 import ShareManager from './ShareManager';
+import BankConnectionsPanel from './bank/BankConnectionsPanel';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Modal from './ui/Modal';
@@ -463,6 +464,115 @@ function PaperlessSettings({ dossierId }) {
   );
 }
 
+function EnableBankingSettings({ dossierId }) {
+  const [settings, setSettings] = useState({
+    enablebanking_application_id: null,
+    enablebanking_private_key_set: false,
+  });
+  const [editing, setEditing] = useState(null);
+  const [inlineDraft, setInlineDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
+  }, [dossierId]);
+
+  function startInlineEdit(key) {
+    setEditing(key);
+    setInlineDraft(key === 'enablebanking_private_key' ? '' : String(settings[key] ?? ''));
+    setError('');
+  }
+
+  function cancelInlineEdit() { setEditing(null); setInlineDraft(''); setError(''); }
+
+  async function saveInline(key) {
+    setError('');
+    const val = inlineDraft.trim() || null;
+    setSaving(true);
+    try {
+      const updated = await api.updateDossierSettings(dossierId, { [key]: val });
+      setSettings(updated);
+      setEditing(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fields = [
+    { key: 'enablebanking_application_id', label: 'Application ID', multiline: false, placeholder: 'Application ID from the Enable Banking Control Panel' },
+    { key: 'enablebanking_private_key', label: 'Private Key', multiline: true, placeholder: '-----BEGIN PRIVATE KEY-----' },
+  ];
+
+  function displayValue(key) {
+    if (key === 'enablebanking_private_key') {
+      return settings.enablebanking_private_key_set ? '••••••••' : <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
+    }
+    const v = settings[key];
+    if (v == null || v === '') return <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
+    return String(v);
+  }
+
+  return (
+    <div>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 0, marginBottom: '1rem' }}>
+        Both fields must be set for the integration to be active. Register an application at{' '}
+        <a href="https://enablebanking.com" target="_blank" rel="noreferrer">enablebanking.com</a> to get these values.
+      </p>
+
+      {fields.map(({ key, label, multiline, placeholder }) => (
+        <div key={key} style={{ marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: multiline ? 'flex-start' : 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{label}</span>
+            {editing === key ? (
+              <>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  {multiline ? (
+                    <textarea
+                      value={inlineDraft}
+                      onChange={(e) => setInlineDraft(e.target.value)}
+                      placeholder={placeholder}
+                      autoFocus
+                      rows={6}
+                      style={{ width: '24rem', fontFamily: 'monospace', fontSize: '0.75rem' }}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={inlineDraft}
+                      onChange={(e) => setInlineDraft(e.target.value)}
+                      placeholder={placeholder}
+                      autoFocus
+                      style={{ width: '20rem' }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveInline(key); if (e.key === 'Escape') cancelInlineEdit(); }}
+                    />
+                  )}
+                </div>
+                <button className="btn-primary" onClick={() => saveInline(key)} disabled={saving}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button className="btn-secondary" onClick={cancelInlineEdit}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{displayValue(key)}</span>
+                <button className="btn-secondary" onClick={() => startInlineEdit(key)} style={{ padding: '0.5rem 0.75rem' }}>
+                  <FontAwesomeIcon icon={faPencil} />
+                </button>
+              </>
+            )}
+          </div>
+          {editing === key && error && (
+            <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AISettings({ dossierId }) {
   const [settings, setSettings] = useState({ ai_enabled: true, ai_model: 'claude-opus-4-8', ai_api_key_set: false });
   const [editingKey, setEditingKey] = useState(false);
@@ -665,6 +775,8 @@ function NotificationDossierSettings({ dossierId }) {
 
 export default function DossierSettingsTab({ dossierId, dossier }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const bankConnectionId = location.state?.bankConnectionId;
   const [exporting, setExporting] = useState(false);
   const [actionError, setActionError] = useState('');
   const [confirmState, setConfirmState] = useState(null);
@@ -760,8 +872,23 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         <AISettings dossierId={dossierId} />
       </SettingsCard>
 
+      <SettingsCard
+        title="Enable Banking Integration"
+        description="App credentials for connecting real bank accounts. Once set, manage connections and account mappings below in Bank Connections."
+      >
+        <EnableBankingSettings dossierId={dossierId} />
+      </SettingsCard>
+
       <SettingsCard title="Accounts" description="Add, reorder, and archive accounts tracked in this dossier.">
         <AccountManager dossierId={dossierId} inline />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Bank Connections"
+        description="Connect a real bank account, map it to an account above, and pull its live balance into a monthly snapshot instead of typing it in by hand."
+        defaultOpen={!!bankConnectionId}
+      >
+        <BankConnectionsPanel dossierId={dossierId} autoExpandConnectionId={bankConnectionId} />
       </SettingsCard>
 
       {dossier?.is_creator && (

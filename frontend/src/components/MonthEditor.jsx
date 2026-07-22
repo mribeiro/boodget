@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk, faChevronRight, faBuildingColumns } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import KpiStrip from './ui/KpiStrip';
+import Modal from './ui/Modal';
+import Checkbox from './ui/Checkbox';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
 
 const MONTH_NAMES = [
@@ -31,6 +33,7 @@ export default function MonthEditor() {
   const [saving, setSaving] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
+  const [bankModal, setBankModal] = useState(null); // { loading, results, warnings, selected: Set, applying, error }
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -99,6 +102,57 @@ export default function MonthEditor() {
       setSuccess('New accounts added to this month');
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  async function openBankModal() {
+    setBankModal({ loading: true, results: [], warnings: [], selected: new Set(), applying: false, error: '' });
+    try {
+      const { results, warnings } = await api.getBankBalancesPreview(dossierId, monthId);
+      setBankModal({
+        loading: false,
+        results,
+        warnings,
+        selected: new Set(results.map((r) => r.account_id)),
+        applying: false,
+        error: '',
+      });
+    } catch (err) {
+      setBankModal({ loading: false, results: [], warnings: [], selected: new Set(), applying: false, error: err.message });
+    }
+  }
+
+  function toggleBankSelection(accountId) {
+    setBankModal((m) => {
+      const next = new Set(m.selected);
+      next.has(accountId) ? next.delete(accountId) : next.add(accountId);
+      return { ...m, selected: next };
+    });
+  }
+
+  async function applyBankBalances() {
+    setBankModal((m) => ({ ...m, applying: true, error: '' }));
+    const entries = bankModal.results
+      .filter((r) => bankModal.selected.has(r.account_id))
+      .map((r) => ({ account_id: r.account_id, value: r.proposed_value }));
+    try {
+      await api.applyBankBalances(dossierId, monthId, entries);
+      const data = await api.getMonth(dossierId, monthId);
+      setMonthData(data);
+      const v = { ...values };
+      const c = { ...comments };
+      for (const entry of data.entries) {
+        if (entries.some((e) => e.account_id === entry.id)) {
+          v[entry.id] = entry.value != null ? String(entry.value) : '';
+          c[entry.id] = entry.comment || '';
+        }
+      }
+      setValues(v);
+      setComments(c);
+      setBankModal(null);
+      setSuccess(`Updated ${entries.length} account value${entries.length === 1 ? '' : 's'} from your bank`);
+    } catch (err) {
+      setBankModal((m) => ({ ...m, applying: false, error: err.message }));
     }
   }
 
@@ -190,6 +244,15 @@ export default function MonthEditor() {
           </span>
           <button className="btn-secondary" style={{ marginLeft: '1rem', whiteSpace: 'nowrap' }} onClick={handleSyncAccounts}>
             <FontAwesomeIcon icon={faArrowsRotate} style={{ marginRight: '0.4rem' }} />Add to month
+          </button>
+        </div>
+      )}
+
+      {monthData && monthData.bankable_accounts_count > 0 && (
+        <div style={{ marginBottom: '1rem' }}>
+          <button className="btn-secondary" onClick={openBankModal}>
+            <FontAwesomeIcon icon={faBuildingColumns} style={{ marginRight: '0.4rem' }} />
+            Refresh from bank
           </button>
         </div>
       )}
@@ -379,6 +442,78 @@ export default function MonthEditor() {
         </div>
       </form>
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+
+      {bankModal && (
+        <Modal
+          title="Refresh from bank"
+          onClose={() => setBankModal(null)}
+          footer={
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setBankModal(null)}>Cancel</button>
+              <button
+                className="btn-primary"
+                disabled={bankModal.loading || bankModal.applying || bankModal.selected.size === 0}
+                onClick={applyBankBalances}
+              >
+                {bankModal.applying ? 'Applying…' : `Apply (${bankModal.selected.size})`}
+              </button>
+            </div>
+          }
+        >
+          {bankModal.loading ? (
+            <p>Fetching balances…</p>
+          ) : bankModal.error ? (
+            <div className="alert alert-error">{bankModal.error}</div>
+          ) : (
+            <>
+              {bankModal.warnings.length > 0 && (
+                <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>
+                  {bankModal.warnings.map((w, i) => <div key={i}>{w}</div>)}
+                </div>
+              )}
+              {bankModal.results.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)' }}>No bank balances available to apply.</p>
+              ) : (
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Account</th>
+                        <th style={{ textAlign: 'right' }}>Current</th>
+                        <th style={{ textAlign: 'right' }}>Bank balance</th>
+                        <th>As of</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bankModal.results.map((r) => (
+                        <tr key={r.account_id}>
+                          <td>
+                            <Checkbox
+                              checked={bankModal.selected.has(r.account_id)}
+                              onChange={() => toggleBankSelection(r.account_id)}
+                            />
+                          </td>
+                          <td>{r.account_name}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            {r.current_value != null
+                              ? formatNumber(r.current_value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                            {formatNumber(r.proposed_value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{r.as_of || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

@@ -228,4 +228,24 @@ export const api = {
   runAiAnalysis: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/analysis`),
   sendAiChatMessage: (dossierId, data) => request('POST', `/dossiers/${dossierId}/ai-advisor/chat`, data),
   getAiExportPrompt: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/export-prompt`),
+
+  // Bank connections (Enable Banking)
+  listAspsps: (dossierId, country) =>
+    request('GET', `/dossiers/${dossierId}/bank/aspsps?country=${encodeURIComponent(country)}`),
+  startBankConnection: (dossierId, data) =>
+    request('POST', `/dossiers/${dossierId}/bank/connections/start`, data),
+  completeBankConnection: (data) => request('POST', '/bank/callback', data),
+  getBankConnections: (dossierId) => request('GET', `/dossiers/${dossierId}/bank/connections`),
+  setBankAccountMapping: (dossierId, connectionId, bankAccountId, accountId) =>
+    request(
+      'PATCH',
+      `/dossiers/${dossierId}/bank/connections/${connectionId}/accounts/${bankAccountId}`,
+      { account_id: accountId }
+    ),
+  disconnectBankConnection: (dossierId, connectionId) =>
+    request('DELETE', `/dossiers/${dossierId}/bank/connections/${connectionId}`),
+  getBankBalancesPreview: (dossierId, monthId) =>
+    request('GET', `/dossiers/${dossierId}/bank/months/${monthId}/balances-preview`),
+  applyBankBalances: (dossierId, monthId, entries) =>
+    request('POST', `/dossiers/${dossierId}/bank/months/${monthId}/balances-apply`, { entries }),
 };

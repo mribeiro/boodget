@@ -12,6 +12,7 @@ const annualExpensesRouter = require('./annual-expenses');
 const aiAdvisorRouter = require('./ai-advisor');
 const loansRouter = require('./loans');
 const subscriptionsRouter = require('./subscriptions');
+const bankRouter = require('./bank');
 
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
@@ -350,6 +351,7 @@ router.get('/:id', (req, res) => {
     .prepare('SELECT *, (creator_id = ?) as is_creator FROM dossiers WHERE id = ?')
     .get(req.user.id, req.params.id);
   delete dossier.ai_api_key;
+  delete dossier.enablebanking_private_key;
   res.json(dossier);
 });
 
@@ -669,5 +671,7 @@ router.use('/:id', aiAdvisorRouter);
 // Loans sub-router
 router.use('/:id', loansRouter);
 router.use('/:id', subscriptionsRouter);
+// Bank connections (Enable Banking) sub-router
+router.use('/:id', bankRouter);
 
 module.exports = router;
