@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faChevronDown, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
 /**
  * CollapsibleSection — a card with a clickable header that expands/collapses.
@@ -55,13 +55,8 @@ export default function CollapsibleSection({
           )}
         </div>
         <FontAwesomeIcon
-          icon={faChevronDown}
-          style={{
-            fontSize: 12,
-            color: 'var(--text-muted)',
-            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-            transition: 'transform 0.25s cubic-bezier(.4,0,.2,1)',
-          }}
+          icon={collapsed ? faChevronRight : faChevronDown}
+          style={{ fontSize: 12, color: 'var(--text-muted)' }}
         />
       </button>
       {/* Animate with grid-template-rows 0fr→1fr — works for any content height */}

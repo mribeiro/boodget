@@ -1060,6 +1060,37 @@ textarea {
 .badge-filled { background: var(--color-success-light); color: var(--color-success-text); }
 .badge-empty  { background: var(--color-neutral-light); color: var(--text-muted); }
 
+/* ── Classification pill toggle (Must/Want) ─────────────── */
+
+.class-toggle {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.class-pill {
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.class-pill.must-active {
+  background: var(--color-warning-light);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.class-pill.want-active {
+  background: var(--color-brand-light);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
 /* ── Tabs ────────────────────────────────────────────────── */
 
 .tabs {
@@ -1953,6 +1984,13 @@ tr:hover td {
   }
   .mobile-expanded .card-expand-btn {
     transform: rotate(90deg);
+  }
+
+  /* Chevron swaps icon (right → down) instead of rotating; used where the
+     caller renders faChevronDown itself on expand rather than relying on
+     this rotate transform. */
+  .mobile-expanded .card-expand-btn.icon-swap {
+    transform: none;
   }
 
   /* Inline value shown inside title row; standalone summary td hidden */

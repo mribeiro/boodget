@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
-import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faReceipt, faWallet } from '@fortawesome/free-solid-svg-icons';
+import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faChevronDown, faReceipt, faArrowsSplitUpAndLeft } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import CollapsibleSection from '../ui/CollapsibleSection';
@@ -14,34 +14,25 @@ function formatValue(v) {
 
 function ClassificationPills({ value, onChange }) {
   const options = [
-    { value: 'must', label: 'Must', bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
-    { value: 'want', label: 'Want', bg: '#dbeafe', color: '#1e40af', border: '#3b82f6' },
+    { value: 'must', label: 'Must', activeClass: 'must-active' },
+    { value: 'want', label: 'Want', activeClass: 'want-active' },
   ];
   return (
-    <div style={{ display: 'flex', gap: '0.25rem' }}>
+    <span className="class-toggle">
       {options.map((opt) => {
         const active = value === opt.value;
         return (
           <button
             key={opt.value}
             type="button"
+            className={`class-pill${active ? ` ${opt.activeClass}` : ''}`}
             onClick={() => onChange(active ? null : opt.value)}
-            style={{
-              fontSize: '0.7rem',
-              padding: '0.15rem 0.5rem',
-              borderRadius: '999px',
-              border: active ? `1px solid ${opt.border}` : '1px solid var(--color-border)',
-              background: active ? opt.bg : 'transparent',
-              color: active ? opt.color : 'var(--color-text-muted)',
-              cursor: 'pointer',
-              fontWeight: active ? 600 : 400,
-            }}
           >
             {opt.label}
           </button>
         );
       })}
-    </div>
+    </span>
   );
 }
 
@@ -233,24 +224,16 @@ export default function ExpenseTemplate({ dossierId }) {
                       {item.exclude_from_emergency_fund === 1 && (
                         <span
                           title="Excluded from emergency fund average"
-                          style={{
-                            marginLeft: '0.4rem',
-                            fontSize: '0.65rem',
-                            padding: '0.1rem 0.4rem',
-                            borderRadius: '999px',
-                            background: 'var(--color-bg-muted, #f1f5f9)',
-                            color: 'var(--color-text-muted)',
-                            border: '1px solid var(--color-border)',
-                            fontWeight: 500,
-                            verticalAlign: 'middle',
-                            whiteSpace: 'nowrap',
-                          }}
+                          className="badge badge-neutral"
+                          style={{ marginLeft: '0.4rem', verticalAlign: 'middle' }}
                         >
                           EF excluded
                         </span>
                       )}
                       <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
-                      <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
+                      <button className="card-expand-btn icon-swap" tabIndex={-1}>
+                        <FontAwesomeIcon icon={expandedRows.has(item.id) ? faChevronDown : faChevronRight} />
+                      </button>
                     </td>
                     <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
                     <td data-label="Type" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)' }}>{item.type}</td>
@@ -303,7 +286,7 @@ export default function ExpenseTemplate({ dossierId }) {
 
       <CollapsibleSection
         title="Distributions"
-        icon={faWallet}
+        icon={faArrowsSplitUpAndLeft}
         accent="var(--color-brand)"
         count={distItems.length}
         collapsed={distCollapsed}
@@ -338,7 +321,9 @@ export default function ExpenseTemplate({ dossierId }) {
                       <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                         <span>{item.name}</span>
                         <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
-                        <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
+                        <button className="card-expand-btn icon-swap" tabIndex={-1}>
+                          <FontAwesomeIcon icon={expandedRows.has(item.id) ? faChevronDown : faChevronRight} />
+                        </button>
                       </td>
                       <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
                       <td data-label="Account" className="mobile-detail" style={{ padding: '0.3rem 0.4rem' }}>
