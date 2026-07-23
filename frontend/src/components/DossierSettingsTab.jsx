@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPencil,
   faChevronDown,
+  faChevronRight,
   faFileExport,
   faTrash,
   faEye,
@@ -59,15 +60,8 @@ function SettingsCard({ title, description, children, defaultOpen = false }) {
       >
         <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>{title}</h2>
         <FontAwesomeIcon
-          icon={faChevronDown}
-          style={{
-            color: 'var(--text-muted)',
-            fontSize: 12,
-            flexShrink: 0,
-            marginLeft: 8,
-            transition: 'transform 0.3s ease',
-            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-          }}
+          icon={open ? faChevronDown : faChevronRight}
+          style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0, marginLeft: 8 }}
         />
       </button>
       {/* grid-template-rows animates to actual content height — no fixed max-height needed */}

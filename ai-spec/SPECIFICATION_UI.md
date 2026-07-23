@@ -742,10 +742,12 @@ GOALS
 
 ### 9.3 Expense Template
 
-- Accessible from Dossier Settings tab.
-- Two tabs: “Expenses” | “Distributions” using the `.tabs` component (Section 6.7).
-- Table layout identical to CycleEditor but with edit-in-place capability.
-- Classification (Must/Want) column: small badge — `success` for Must, `brand` for Want, `neutral` for unclassified.
+- Accessible from Dossier Settings tab, inside a "Monthly Expense Template" `SettingsCard`.
+- Two sections — "Expenses" and "Distributions" — each a page-local `ExpenseSection` (not the shared `CollapsibleSection` of Section 6.8) with a `faReceipt`/`faArrowsSplitUpAndLeft` icon and a `.badge.badge-brand` item-count badge; Expenses open by default. Unlike `CollapsibleSection`, the header is a standalone filled chip (`.collapsible-header`/`.collapsible-chevron`, matching the design mockup) sitting above — not fused into one bordered box with — the separately-bordered card/table list below it; the expand/collapse still animates via the same `grid-template-rows` technique as `CollapsibleSection`.
+- Desktop (`≥768px`): a `.table` identical in shape to CycleEditor's, with edit-in-place capability. Classification (Must/Want) column uses the token-based `.class-toggle`/`.class-pill` pair-of-buttons pattern (amber `must-active`, brand-blue `want-active`, transparent/muted when unset) rather than a static badge.
+- Mobile (`<768px`): rows collapse into the shared expandable "mobile card" pattern (Section 14) — bordered card per item, name + inline value + chevron in the title row, Type/Day/Class/Paperless Tag ID revealed as label/value rows on expand. Two refinements scoped to this screen only (not shared with other `.mobile-cards` tables): the inline header value uses a bigger, primary-colored, tabular-nums style (`.mobile-card-inline-value.value-emphasis`) instead of the default muted summary treatment, and the expanded card's Edit/Delete buttons (`.btn-sm`, wrapped in `.met-actions`) stretch to fill the row width, each taking half, instead of sitting as a small right-aligned pair — `.mobile-detail-actions` in `index.css`.
+- The "EF excluded" badge on an expense row uses `.badge.badge-neutral`.
+- Empty states ("No expenses/distributions in template yet.") use the shared `.empty-state` class (Section 6, centered muted text).
 
 ### 9.4 Checkboxes
 

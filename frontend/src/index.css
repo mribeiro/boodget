@@ -140,7 +140,7 @@
   --bg-input:                #252840;
   --bg-table-header:         #252840;
   --bg-table-row-hover:      #2a2e45;
-  --bg-table-group-header:   #1e2130;
+  --bg-table-group-header:   #252840;
 
   --border-default:          #2d3250;
   --border-strong:           #3a3f5c;
@@ -1060,6 +1060,56 @@ textarea {
 .badge-filled { background: var(--color-success-light); color: var(--color-success-text); }
 .badge-empty  { background: var(--color-neutral-light); color: var(--text-muted); }
 
+/* ── Classification pill toggle (Must/Want) ─────────────── */
+
+.class-toggle {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.class-pill {
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.class-pill.must-active {
+  background: var(--color-warning-light);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.class-pill.want-active {
+  background: var(--color-brand-light);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+/* ── Row action buttons (Edit/Delete pairs in table rows) ─── */
+
+.met-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.met-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.met-mismatch {
+  font-size: 11px;
+  color: var(--color-danger);
+  margin-right: var(--space-2);
+}
+
 /* ── Tabs ────────────────────────────────────────────────── */
 
 .tabs {
@@ -1955,6 +2005,13 @@ tr:hover td {
     transform: rotate(90deg);
   }
 
+  /* Chevron swaps icon (right → down) instead of rotating; used where the
+     caller renders faChevronDown itself on expand rather than relying on
+     this rotate transform. */
+  .mobile-expanded .card-expand-btn.icon-swap {
+    transform: none;
+  }
+
   /* Inline value shown inside title row; standalone summary td hidden */
   .mobile-card-inline-value {
     display: block;
@@ -2084,6 +2141,35 @@ tr:hover td {
 
   /* Drag-handle column: pointless on mobile, hide it */
   .mobile-cards td.mobile-drag-col { display: none; }
+
+  /* Emphasized inline value shown in a card's title row (opt-in via
+     modifier) — bigger and primary-colored instead of the default muted
+     summary treatment. */
+  .mobile-card-inline-value.value-emphasis {
+    font-size: 15px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Row action buttons stretch full-width and wrap onto their own line
+     inside an expanded mobile card, instead of the cramped inline pair
+     used in the desktop table row. */
+  .mobile-cards tr.mobile-expanded td.mobile-detail-actions {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+  .mobile-detail-actions .met-mismatch {
+    flex: 1 0 100%;
+    text-align: left;
+    margin-right: 0;
+  }
+  .mobile-detail-actions .met-actions {
+    flex: 1 0 100%;
+  }
+  .mobile-detail-actions .met-actions button {
+    flex: 1;
+    justify-content: center;
+  }
 
   .value-input {
     width: 100px;
