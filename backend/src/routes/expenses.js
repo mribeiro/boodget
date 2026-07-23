@@ -659,7 +659,7 @@ router.get('/cycles/:cycleId', (req, res) => {
     .all(req.params.cycleId);
 
   const annualPayments = db.prepare(`
-    SELECT p.id, p.paid,
+    SELECT p.id, p.paid, p.real_value,
            ayi.id as year_item_id, ayi.name, ayi.num_installments, ayi.budgeted_value,
            ayi.classification, ayi.position as item_position,
            ayii.installment_number, ayii.month, ayii.day,

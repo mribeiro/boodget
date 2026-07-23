@@ -1,6 +1,13 @@
 const { db } = require('../../src/db');
 const { buildTestApp } = require('../helpers/app');
-const { createUser, createDossier } = require('../fixtures/builders');
+const {
+  createUser,
+  createDossier,
+  createExpenseCycle,
+  createAnnualExpenseYear,
+  createAnnualExpenseYearItem,
+  createAnnualExpensePayment,
+} = require('../fixtures/builders');
 const supertest = require('supertest');
 
 async function loggedInAgent(app, user) {
@@ -50,6 +57,33 @@ describe('cycle_start_day snapshotting', () => {
       .post(`/api/dossiers/${dossier.id}/cycles`)
       .send({ year: 2026, month: 4, salary: 1000, previous_balance: 0 });
     expect(newCycleRes.body.cycle_start_day).toBe(1);
+  });
+});
+
+describe('GET /cycles/:cycleId — annual_payments payload', () => {
+  it('includes both budgeted_value and real_value for each annual payment row', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 6 });
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2026 });
+    const item = createAnnualExpenseYearItem(db, {
+      yearId: year.id,
+      name: 'Car Insurance',
+      budgeted_value: 240,
+      installments: [{ month: 6, day: 25 }],
+    });
+    createAnnualExpensePayment(db, { installmentId: item.installmentIds[0], cycleId: cycle.id, paid: false });
+
+    const detail = await agent.get(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.annual_payments).toHaveLength(1);
+    const payment = detail.body.annual_payments[0];
+    expect(payment.budgeted_value).toBe(240);
+    expect(payment.real_value).toBe(0); // unpaid — real_value defaults to 0, not meaningful yet
+    expect(payment.paid).toBe(0);
   });
 });
 
