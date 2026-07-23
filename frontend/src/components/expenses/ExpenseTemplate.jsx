@@ -199,9 +199,7 @@ export default function ExpenseTemplate({ dossierId }) {
         noPad
       >
         {expenseItems.length === 0 ? (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '12px 16px 0' }}>
-            No expenses in template yet.
-          </p>
+          <div className="empty-state"><p>No expenses in template yet.</p></div>
         ) : (
           <div className="mobile-cards table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
@@ -230,7 +228,7 @@ export default function ExpenseTemplate({ dossierId }) {
                           EF excluded
                         </span>
                       )}
-                      <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
+                      <span className="mobile-card-inline-value value-emphasis">{formatValue(item.value)}</span>
                       <button className="card-expand-btn icon-swap" tabIndex={-1}>
                         <FontAwesomeIcon icon={expandedRows.has(item.id) ? faChevronDown : faChevronRight} />
                       </button>
@@ -251,21 +249,21 @@ export default function ExpenseTemplate({ dossierId }) {
                         {item.type === 'Fixed' ? (item.paperless_tag_id != null ? item.paperless_tag_id : '—') : ''}
                       </td>
                     )}
-                    <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => { setActiveSection('expense'); setEditingItem(item); setShowAddModal(true); }}
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
-                      >
-                        <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-                      </button>
-                      <button
-                        className="btn-danger"
-                        onClick={() => handleDelete(item)}
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                      >
-                        <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
-                      </button>
+                    <td data-label="" className="mobile-detail mobile-detail-actions" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span className="met-actions">
+                        <button
+                          className="btn-secondary btn-sm"
+                          onClick={() => { setActiveSection('expense'); setEditingItem(item); setShowAddModal(true); }}
+                        >
+                          <FontAwesomeIcon icon={faPencil} />Edit
+                        </button>
+                        <button
+                          className="btn-danger btn-sm"
+                          onClick={() => handleDelete(item)}
+                        >
+                          <FontAwesomeIcon icon={faTrash} />Delete
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -294,9 +292,7 @@ export default function ExpenseTemplate({ dossierId }) {
         noPad
       >
         {distItems.length === 0 ? (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '12px 16px 0' }}>
-            No distributions in template yet.
-          </p>
+          <div className="empty-state"><p>No distributions in template yet.</p></div>
         ) : (
           <div className="mobile-cards table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
@@ -320,7 +316,7 @@ export default function ExpenseTemplate({ dossierId }) {
                     <tr key={item.id} style={{ borderTop: '1px solid var(--color-border)' }} className={expandedRows.has(item.id) ? 'mobile-expanded' : ''}>
                       <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
                         <span>{item.name}</span>
-                        <span className="mobile-card-inline-value">{formatValue(item.value)}</span>
+                        <span className="mobile-card-inline-value value-emphasis">{formatValue(item.value)}</span>
                         <button className="card-expand-btn icon-swap" tabIndex={-1}>
                           <FontAwesomeIcon icon={expandedRows.has(item.id) ? faChevronDown : faChevronRight} />
                         </button>
@@ -358,26 +354,26 @@ export default function ExpenseTemplate({ dossierId }) {
                           />
                         </td>
                       ))}
-                      <td data-label="" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <td data-label="" className="mobile-detail mobile-detail-actions" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         {mismatch && (
-                          <span style={{ fontSize: '0.7rem', color: 'var(--color-danger)', marginRight: '0.4rem' }}>
+                          <span className="met-mismatch">
                             sum ≠ {formatValue(item.value)}
                           </span>
                         )}
-                        <button
-                          className="btn-secondary"
-                          onClick={() => { setActiveSection('distribution'); setEditingItem(item); setShowAddModal(true); }}
-                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', marginRight: '0.25rem' }}
-                        >
-                          <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.35rem' }} />Edit
-                        </button>
-                        <button
-                          className="btn-danger"
-                          onClick={() => handleDelete(item)}
-                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                        >
-                          <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
-                        </button>
+                        <span className="met-actions">
+                          <button
+                            className="btn-secondary btn-sm"
+                            onClick={() => { setActiveSection('distribution'); setEditingItem(item); setShowAddModal(true); }}
+                          >
+                            <FontAwesomeIcon icon={faPencil} />Edit
+                          </button>
+                          <button
+                            className="btn-danger btn-sm"
+                            onClick={() => handleDelete(item)}
+                          >
+                            <FontAwesomeIcon icon={faTrash} />Delete
+                          </button>
+                        </span>
                       </td>
                     </tr>
                   );

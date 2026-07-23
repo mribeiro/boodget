@@ -1091,6 +1091,25 @@ textarea {
   color: var(--color-brand);
 }
 
+/* ── Row action buttons (Edit/Delete pairs in table rows) ─── */
+
+.met-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.met-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.met-mismatch {
+  font-size: 11px;
+  color: var(--color-danger);
+  margin-right: var(--space-2);
+}
+
 /* ── Tabs ────────────────────────────────────────────────── */
 
 .tabs {
@@ -2122,6 +2141,35 @@ tr:hover td {
 
   /* Drag-handle column: pointless on mobile, hide it */
   .mobile-cards td.mobile-drag-col { display: none; }
+
+  /* Emphasized inline value shown in a card's title row (opt-in via
+     modifier) — bigger and primary-colored instead of the default muted
+     summary treatment. */
+  .mobile-card-inline-value.value-emphasis {
+    font-size: 15px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Row action buttons stretch full-width and wrap onto their own line
+     inside an expanded mobile card, instead of the cramped inline pair
+     used in the desktop table row. */
+  .mobile-cards tr.mobile-expanded td.mobile-detail-actions {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+  .mobile-detail-actions .met-mismatch {
+    flex: 1 0 100%;
+    text-align: left;
+    margin-right: 0;
+  }
+  .mobile-detail-actions .met-actions {
+    flex: 1 0 100%;
+  }
+  .mobile-detail-actions .met-actions button {
+    flex: 1;
+    justify-content: center;
+  }
 
   .value-input {
     width: 100px;
