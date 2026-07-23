@@ -15,6 +15,7 @@ import PasswordChange from './components/PasswordChange';
 import GoalDetail from './components/goals/GoalDetail';
 import LoanDetail from './components/loans/LoanDetail';
 import NotificationSettings from './pages/NotificationSettings';
+import BankCallbackPage from './components/bank/BankCallbackPage';
 import UpdateBanner from './components/ui/UpdateBanner';
 
 export const AuthContext = createContext(null);
@@ -127,6 +128,7 @@ function AppRoutes() {
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
           <Route path="/notifications" element={<NotificationSettings />} />
+          <Route path="/bank/callback" element={<BankCallbackPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>

@@ -42,6 +42,7 @@ app.use('/api/users', apiLimiter, requireAuth, require('./routes/users'));
 app.use('/api/dossiers', apiLimiter, requireAuth, require('./routes/dossiers'));
 app.use('/api/push', apiLimiter, requireAuth, require('./routes/push'));
 app.use('/api/notifications', apiLimiter, requireAuth, require('./routes/notifications'));
+app.use('/api/bank', apiLimiter, requireAuth, require('./routes/bank-callback'));
 
 // Serve the built frontend when available (production, dev, ephemeral, etc.)
 const frontendDist = path.join(__dirname, '..', 'frontend-dist');

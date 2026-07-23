@@ -789,6 +789,60 @@ const migrations = [
       }
     },
   },
+  {
+    id: '039_enable_banking_integration',
+    up() {
+      const dossierCols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!dossierCols.find((c) => c.name === 'enablebanking_application_id')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN enablebanking_application_id TEXT');
+      }
+      if (!dossierCols.find((c) => c.name === 'enablebanking_private_key')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN enablebanking_private_key TEXT');
+      }
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS bank_connections (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          aspsp_name TEXT NOT NULL,
+          aspsp_country TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'expired', 'revoked')),
+          valid_until TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS bank_connection_accounts (
+          id TEXT PRIMARY KEY,
+          connection_id TEXT NOT NULL REFERENCES bank_connections(id) ON DELETE CASCADE,
+          external_account_uid TEXT NOT NULL,
+          iban TEXT,
+          currency TEXT,
+          display_name TEXT,
+          account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+          UNIQUE(connection_id, external_account_uid)
+        );
+
+        CREATE TABLE IF NOT EXISTS bank_connection_requests (
+          state TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          aspsp_name TEXT NOT NULL,
+          aspsp_country TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now')),
+          expires_at TEXT NOT NULL
+        );
+      `);
+    },
+  },
+  {
+    id: '040_add_enablebanking_redirect_uri_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'enablebanking_redirect_uri')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN enablebanking_redirect_uri TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

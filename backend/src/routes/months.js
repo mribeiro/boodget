@@ -164,7 +164,17 @@ router.get('/:monthId', (req, res) => {
     )
     .get(req.params.id, req.params.monthId);
 
-  res.json({ ...month, entries, missing_accounts });
+  const { bankable_accounts_count } = db
+    .prepare(
+      `SELECT COUNT(*) AS bankable_accounts_count
+       FROM bank_connection_accounts bca
+       JOIN bank_connections bc ON bc.id = bca.connection_id
+       WHERE bc.dossier_id = ? AND bc.status = 'active'
+         AND bca.account_id IN (SELECT account_id FROM month_account_snapshot WHERE month_id = ?)`
+    )
+    .get(req.params.id, req.params.monthId);
+
+  res.json({ ...month, entries, missing_accounts, bankable_accounts_count });
 });
 
 // PUT /api/dossiers/:id/months/:monthId  (save / submit)
