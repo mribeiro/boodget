@@ -2179,7 +2179,7 @@ tr:hover td {
     border-radius: var(--radius-lg);
   }
   .met-cards.mobile-cards td.mobile-card-title {
-    padding: 22px 20px;
+    padding: 18px 20px;
     font-size: 16px;
     font-weight: 700;
   }
@@ -2195,7 +2195,7 @@ tr:hover td {
        (collapsed state) sets padding-top/padding-bottom: 0 !important to
        animate the collapse, and that always wins over a non-important
        declaration regardless of selector specificity. */
-    padding: 26px 20px !important;
+    padding: 15px 20px !important;
     max-height: 160px;
   }
   .met-cards.mobile-cards td[data-label]::before {
@@ -2207,10 +2207,10 @@ tr:hover td {
     gap: 8px;
   }
   .met-cards .class-pill {
-    padding: 8px 18px;
+    padding: 6px 16px;
   }
   .met-cards.mobile-cards tr.mobile-expanded td.mobile-detail-actions {
-    padding: 18px 20px 22px !important;
+    padding: 16px 20px 20px !important;
     max-height: 160px;
   }
   .met-cards .mobile-detail-actions .met-actions {
@@ -2218,7 +2218,7 @@ tr:hover td {
   }
   .met-cards .mobile-detail-actions .met-actions button {
     border-radius: 10px;
-    padding: 16px;
+    padding: 13px;
     font-size: 14px;
     font-weight: 600;
     gap: 8px;
