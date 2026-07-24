@@ -151,31 +151,38 @@ export default function AnnualExpenseTemplate({ dossierId }) {
                         </span>
                       </td>
                     </tr>
-                    {expanded && (
-                      <tr style={{ borderTop: '1px solid var(--color-border)' }}>
-                        <td colSpan={5} style={{ padding: '0.4rem 0.5rem' }}>
-                          <div className="annual-schedule">
-                            <div className="annual-schedule-row annual-schedule-head">
-                              <span className="num">#</span>
-                              <span className="date">Date</span>
-                              <span className="expected">Expected</span>
+                    <tr className={`annual-schedule-tr${expanded ? ' expanded' : ''}`}>
+                      <td colSpan={5} style={{ padding: 0 }}>
+                        {/* grid-template-rows animates to actual content height — same
+                            technique as CollapsibleSection/ExpenseSection, chosen here
+                            because a plain conditional mount gave no animation, and a
+                            <tr>/<td> max-height transition can't size itself to an
+                            arbitrary number of installments the way 0fr/1fr can. */}
+                        <div className={`annual-schedule-grid${expanded ? ' open' : ''}`}>
+                          <div style={{ overflow: 'hidden' }}>
+                            <div className="annual-schedule" style={{ padding: '0.4rem 0.5rem' }}>
+                              <div className="annual-schedule-row annual-schedule-head">
+                                <span className="num">#</span>
+                                <span className="date">Date</span>
+                                <span className="expected">Expected</span>
+                              </div>
+                              {(item.installments || []).map((inst) => (
+                                <div className="annual-schedule-row" key={inst.installment_number}>
+                                  <span className="num">{inst.installment_number}/{numInst}</span>
+                                  <span className="date">{MONTHS[inst.month - 1]} {inst.day}</span>
+                                  <span className="expected">{formatValue(item.value / numInst)}</span>
+                                </div>
+                              ))}
+                              {(item.installments || []).length === 0 && (
+                                <div className="annual-schedule-row">
+                                  <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No installments defined — edit to add dates.</span>
+                                </div>
+                              )}
                             </div>
-                            {(item.installments || []).map((inst) => (
-                              <div className="annual-schedule-row" key={inst.installment_number}>
-                                <span className="num">{inst.installment_number}/{numInst}</span>
-                                <span className="date">{MONTHS[inst.month - 1]} {inst.day}</span>
-                                <span className="expected">{formatValue(item.value / numInst)}</span>
-                              </div>
-                            ))}
-                            {(item.installments || []).length === 0 && (
-                              <div className="annual-schedule-row">
-                                <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No installments defined — edit to add dates.</span>
-                              </div>
-                            )}
                           </div>
-                        </td>
-                      </tr>
-                    )}
+                        </div>
+                      </td>
+                    </tr>
                   </Fragment>
                 );
               })}

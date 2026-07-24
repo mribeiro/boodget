@@ -1129,9 +1129,24 @@ textarea {
 
 /* ── Annual Expense Template installment schedule ───────────── */
 
+/* Always-mounted grid-row animation (same technique as CollapsibleSection/
+   ExpenseSection) so opening a row slides the schedule in instead of
+   popping it in/out — and sizes to any number of installments without a
+   guessed max-height ceiling. */
+.annual-schedule-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(.4, 0, .2, 1);
+}
+
+.annual-schedule-grid.open {
+  grid-template-rows: 1fr;
+}
+
 .annual-schedule {
   display: flex;
   flex-direction: column;
+  border-top: 1px solid var(--border-default);
 }
 
 .annual-schedule-row {
@@ -2140,6 +2155,33 @@ tr:hover td {
     border-bottom: none;
   }
   .mobile-cards tbody tr.group-header td::before { display: none; }
+
+  /* Annual Expense Template's installment-schedule row: always mounted
+     (see .annual-schedule-grid) so it needs to opt out of the default
+     card chrome and border/padding a normal .mobile-cards row gets,
+     same idea as .group-header above. */
+  .mobile-cards tbody tr.annual-schedule-tr {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    transition: margin-top 0.25s ease;
+  }
+  /* Always mounted (for the slide animation), so it always consumes a
+     tbody flex gap on both sides — cancel both out while collapsed, since
+     it should then look identical to not being in the DOM at all. Only
+     while expanded does it need real room above and below. */
+  .mobile-cards tbody tr.annual-schedule-tr:not(.expanded) {
+    margin-top: calc(-1 * var(--space-3));
+  }
+  .mobile-cards tbody tr.annual-schedule-tr:not(.expanded) + tr {
+    margin-top: calc(-1 * var(--space-3));
+  }
+  .mobile-cards tbody tr.annual-schedule-tr td {
+    display: block;
+    padding: 0;
+    border-bottom: none;
+  }
 
   /* Each cell → label + value row */
   .mobile-cards td {
