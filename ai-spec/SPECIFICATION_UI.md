@@ -601,6 +601,31 @@ Total capital
 
 **KPI strip** (`KpiStrip`/`KpiBlock`, used in `CycleEditor` and Goal Detail): on screens wider than 640px, renders each stat as a `KpiBlock` inside a responsive grid (`display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr))`), so cards stay evenly sized regardless of count instead of wrapping unevenly like a `flex-wrap` row. A block flagged `large` spans 2 grid columns. At ≤640px the strip collapses into a single summary row (primary stat + item count + chevron) that expands into a plain label/value list.
 
+### 6.11 Toggle Switch
+
+For a boolean setting that reads better as on/off than a checkbox (e.g. `AccountManager.jsx`'s per-account "Transfers" flag). Same controlled/accessible pattern as `<Checkbox>` (Section 9.5): a `<span role="switch" aria-checked tabIndex={0}>` with Space/Enter keyboard handling, `ui/Toggle.jsx`, `.toggle-switch` CSS class.
+
+```css
+.toggle-switch {
+  --toggle-w: 36px; --toggle-h: 20px;
+  width: var(--toggle-w); height: var(--toggle-h);
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  position: relative; cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.toggle-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: calc(var(--toggle-h) - 4px); height: calc(var(--toggle-h) - 4px);
+  border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast);
+}
+.toggle-switch.checked { background: var(--color-brand); }
+.toggle-switch.checked::after { transform: translateX(calc(var(--toggle-w) - var(--toggle-h))); }
+```
+
+Usage: `<Toggle checked={value} onChange={handler} title="..." />`
+
 -----
 
 ## 7. Glances Panel
@@ -703,14 +728,17 @@ GOALS
 - Chart: recharts `LineChart`, `height: 220px`. Line colour `var(--color-brand)`. Grid lines `var(--border-default)`. Axis text `var(--text-muted)`, 11 px. Dot fill `var(--color-brand)`, stroke `var(--bg-card)`.
 - Tooltip: white card with shadow, `border-radius: var(--radius-sm)`, `border: 1px solid var(--border-default)`.
 
-### 8.2 Accounts table
+### 8.2 Accounts table (`AccountManager.jsx`)
 
-- Section title “Accounts” (16 px, weight 600) above the `.card` wrapping the table.
-- Uses the `.table` styles.
-- Columns: Account name | Value € (right-aligned, `font-variant-numeric: tabular-nums`) | Idle Money (centred, checkmark icon `✓` in `--color-success` or dash) | Actions (right-aligned icon buttons).
-- Group header row: bold group name + account count + chevron. Clicking collapses/expands the group (existing functionality).
-- Action icons: `⚙` (settings/edit) and `⋮` (more menu) — icon buttons, ghost variant, 28 px × 28 px.
-- “Add account” button: primary, small, top-right of section header row.
+Account management lives in Dossier Settings, inside an "Accounts" `SettingsCard` (`AccountManager` rendered `inline`; it also has a standalone-modal mode, unused by `DossierSettingsTab`). Active accounts are grouped by `group_name`; each group is its own `CollapsibleSection` (expanded by default) wrapping its own `.mobile-cards.table-container table.accounts-table`.
+
+- Columns: drag handle | Name | Type | Category (`money_category` `<select>`) | Transfers (`can_receive_transfers` `<Toggle>`) | Actions (Edit/Archive).
+- **Consistent column widths across groups**: since each group renders a separate `<table>`, plain `table-layout: auto` lets the Name column's width drift per table based on that table's own content (e.g. a bank with long account names vs. one with short ones). `.accounts-table { table-layout: fixed }` plus explicit `px` widths on every `<th>` except Name (drag 32px, Type 200px, Category 130px, Transfers 110px, Actions 190px) fixes this — Name, the only unconstrained column, ends up identical across every group's table at a given viewport width. `.accounts-table td.mobile-card-title` gets `overflow: hidden; text-overflow: ellipsis; white-space: nowrap` so an overlong name truncates instead of forcing the row taller.
+- **Transfers toggle**: a `<Toggle>` (`ui/Toggle.jsx`, Section 6.11), replacing an earlier plain Yes/No text button. Clicking flips `can_receive_transfers` optimistically via `PATCH /accounts/:accountId`, reverting on error.
+- **Edit / Archive actions**: both live in the last column (`td.mobile-detail-actions`, right-aligned), matching the Monthly/Annual Expense Template row-action pattern (Section 9.3) — `<span className="met-actions">` wrapping `<button className="btn-secondary btn-sm">` (Edit, transparent/bordered) and `<button className="btn-danger btn-sm">` (Archive, filled red), each with icon + text. Edit switches the row's title cell into an inline rename form (Name + Group inputs, check/cancel buttons) instead of opening a modal; the Actions cell renders nothing while that row is mid-edit. On mobile (`<768px`) the shared `.mobile-detail-actions .met-actions` rule stretches both buttons full-width side by side inside the expanded card, same as Expense Template.
+- Archiving (`DELETE /accounts/:accountId`) opens the shared `ConfirmModal` before calling the API; a `409` (still linked as a distribution's funding account) surfaces as an inline `alert-error`.
+- “Add account” button: primary, top-right of the "Active accounts" row.
+- Archived accounts: a separate `CollapsibleSection` (collapsed by default), plain 3-column table (Name/Group/Type), no actions — not affected by the `.accounts-table` fixed-width treatment above.
 
 -----
 
@@ -793,7 +821,7 @@ The component renders a `<span>` with `role="checkbox"`, `tabIndex={0}`, and key
 
 Usage: `<Checkbox checked={value} onChange={handler} title="..." />`
 
-Files using `<Checkbox>`: `CycleEditor` (paid/done toggles), `AccountManager` (idle money), `EmergencyFundTab` (account picker), `GoalFormModal` (distribution and account multi-select).
+Files using `<Checkbox>`: `CycleEditor` (paid/done toggles), `AccountManager` (the "Can receive transfers" field in the add-account form — the per-row Transfers column itself uses `<Toggle>`, Section 6.11), `EmergencyFundTab` (account picker), `GoalFormModal` (distribution and account multi-select).
 
 -----
 

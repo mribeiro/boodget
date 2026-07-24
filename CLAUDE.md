@@ -93,7 +93,7 @@ money_manager/
 │   │       ├── emergency-fund/EmergencyFundTab.jsx
 │   │       ├── expenses/ExpensesTab.jsx, CycleList.jsx, CycleEditor.jsx,
 │   │       │          ExpenseTemplate.jsx, AnnualExpenseTemplate.jsx, DossierSettings.jsx
-│   │       ├── ui/Checkbox.jsx, Badge.jsx, Button.jsx, Card.jsx, Modal.jsx, UpdateBanner.jsx, ClassificationPills.jsx
+│   │       ├── ui/Checkbox.jsx, Toggle.jsx, Badge.jsx, Button.jsx, Card.jsx, Modal.jsx, UpdateBanner.jsx, ClassificationPills.jsx
 │   │       ├── workbench/WorkbenchTab.jsx
 │   │       ├── goals/GoalsTab.jsx, GoalFormModal.jsx, GoalDetail.jsx
 │   │       ├── loans/LoansTab.jsx, LoanFormModal.jsx, LoanDetail.jsx, PromoteLoanModal.jsx
@@ -488,6 +488,7 @@ Tab state restorable via location state: `navigate('/dossiers/:id', { state: { t
 - CSS only styles `input[type='text/password/number']`, `select`, `textarea` — always include explicit `type`.
 - **ConfirmModal pattern**: all destructive actions use `ConfirmModal` (never `window.confirm()`). Hold `const [confirmState, setConfirmState] = useState(null)`, render `{confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}`.
 - **Custom checkboxes**: use `<Checkbox>` from `ui/Checkbox.jsx` — never native `<input type="checkbox">`.
+- **Toggle switches**: use `<Toggle>` from `ui/Toggle.jsx` for a boolean setting that reads better as on/off than a checkbox (e.g. `AccountManager.jsx`'s per-account "Transfers" flag) — same controlled/accessible pattern as `Checkbox`, styled as a sliding pill switch.
 
 ### Animations
 
