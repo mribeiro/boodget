@@ -56,6 +56,7 @@ The **Annual Expenses Template** editor in Dossier Settings is updated:
 - Below each item (or in an expandable row), the installment dates are listed and editable: installment number, month, day.
 - Changing the number of installments adjusts the list of dates accordingly (adding or removing rows).
 - The expected value per installment (value / num_installments) is displayed as a read-only computed field next to each installment.
+- The read-only list view (as opposed to the add/edit modal) shares its responsive card/table treatment with the Monthly Expense Template — see `SPECIFICATION_UI.md` Section 9.4 for the exact desktop-column vs. mobile-card breakdown, including how the variable-length installment schedule is shown as an expand-only nested table on both breakpoints.
 
 ### 2.4 Template API Changes
 

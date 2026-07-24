@@ -6,33 +6,10 @@ import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Toast from '../ui/Toast';
 import Checkbox from '../ui/Checkbox';
+import ClassificationPills from '../ui/ClassificationPills';
 
 function formatValue(v) {
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-}
-
-function ClassificationPills({ value, onChange }) {
-  const options = [
-    { value: 'must', label: 'Must', activeClass: 'must-active' },
-    { value: 'want', label: 'Want', activeClass: 'want-active' },
-  ];
-  return (
-    <span className="class-toggle">
-      {options.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            className={`class-pill${active ? ` ${opt.activeClass}` : ''}`}
-            onClick={() => onChange(active ? null : opt.value)}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </span>
-  );
 }
 
 // A standalone, filled-chip section header (reusing the app's existing
@@ -294,7 +271,7 @@ export default function ExpenseTemplate({ dossierId }) {
             </table>
           </div>
         )}
-        <div style={{ padding: '10px 16px 14px' }}>
+        <div style={{ padding: '10px 0 14px' }}>
           <button
             className="btn-primary"
             onClick={() => { setActiveSection('expense'); setEditingItem(null); setShowAddModal(true); }}
@@ -403,7 +380,7 @@ export default function ExpenseTemplate({ dossierId }) {
             </table>
           </div>
         )}
-        <div style={{ padding: '10px 16px 14px' }}>
+        <div style={{ padding: '10px 0 14px' }}>
           <button
             className="btn-primary"
             onClick={() => { setActiveSection('distribution'); setEditingItem(null); setShowAddModal(true); }}

@@ -1110,6 +1110,87 @@ textarea {
   margin-right: var(--space-2);
 }
 
+/* ── Annual Expense Template row chevron / installment subtitle ──
+   Desktop shows a chevron before the name (no room for a hidden
+   .card-expand-btn there — that class stays mobile-only) and the
+   installment count as its own column; mobile shows the count as a
+   subtitle under the name instead and hides the column. */
+
+.annual-desktop-chevron {
+  display: inline-flex;
+  margin-right: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.annual-inst-subtitle {
+  display: none;
+}
+
+/* ── Annual Expense Template installment schedule ───────────── */
+
+/* Always-mounted grid-row animation (same technique as CollapsibleSection/
+   ExpenseSection) so opening a row slides the schedule in instead of
+   popping it in/out — and sizes to any number of installments without a
+   guessed max-height ceiling. */
+.annual-schedule-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(.4, 0, .2, 1);
+}
+
+.annual-schedule-grid.open {
+  grid-template-rows: 1fr;
+}
+
+.annual-schedule {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-default);
+}
+
+.annual-schedule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.annual-schedule-row .num {
+  width: 40px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.annual-schedule-row .date {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.annual-schedule-row .expected {
+  width: 100px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.annual-schedule-row.annual-schedule-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.annual-schedule-row.annual-schedule-head .expected {
+  text-align: right;
+}
+
 /* ── Tabs ────────────────────────────────────────────────── */
 
 .tabs {
@@ -2075,6 +2156,33 @@ tr:hover td {
   }
   .mobile-cards tbody tr.group-header td::before { display: none; }
 
+  /* Annual Expense Template's installment-schedule row: always mounted
+     (see .annual-schedule-grid) so it needs to opt out of the default
+     card chrome and border/padding a normal .mobile-cards row gets,
+     same idea as .group-header above. */
+  .mobile-cards tbody tr.annual-schedule-tr {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    transition: margin-top 0.25s ease;
+  }
+  /* Always mounted (for the slide animation), so it always consumes a
+     tbody flex gap on both sides — cancel both out while collapsed, since
+     it should then look identical to not being in the DOM at all. Only
+     while expanded does it need real room above and below. */
+  .mobile-cards tbody tr.annual-schedule-tr:not(.expanded) {
+    margin-top: calc(-1 * var(--space-3));
+  }
+  .mobile-cards tbody tr.annual-schedule-tr:not(.expanded) + tr {
+    margin-top: calc(-1 * var(--space-3));
+  }
+  .mobile-cards tbody tr.annual-schedule-tr td {
+    display: block;
+    padding: 0;
+    border-bottom: none;
+  }
+
   /* Each cell → label + value row */
   .mobile-cards td {
     display: flex;
@@ -2177,11 +2285,12 @@ tr:hover td {
     justify-content: center;
   }
 
-  /* Monthly Expense Template mobile card — pixel-matched to the source
-     Claude Design mockup's own .exp-card/.exp-detail-row/.seg-btn rules
-     (--space-2/3/4 scale), not the shared .mobile-cards defaults, which
-     differ slightly. Scoped to .met-cards (only used by ExpenseTemplate.jsx)
-     so other .mobile-cards tables are unaffected. */
+  /* Monthly/Annual Expense Template mobile cards — pixel-matched to the
+     source Claude Design mockup's own .exp-card/.exp-detail-row/.seg-btn
+     rules (--space-2/3/4 scale), not the shared .mobile-cards defaults,
+     which differ slightly. Scoped to .met-cards (used by
+     ExpenseTemplate.jsx and AnnualExpenseTemplate.jsx only) so other
+     .mobile-cards tables are unaffected. */
   .met-cards.mobile-cards td.mobile-card-title {
     /* !important needed: the JSX sets an inline padding style on this <td>
        (used for its desktop table layout), and inline styles always beat
@@ -2219,6 +2328,23 @@ tr:hover td {
   }
   .met-cards .mobile-detail-actions .met-actions {
     gap: var(--space-2);
+  }
+  /* Annual Expense Template: swap the desktop chevron+column pair for a
+     subtitle under the name, matching Monthly's title-row treatment. */
+  .met-cards .annual-desktop-chevron {
+    display: none;
+  }
+  .met-cards .annual-title-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+  .met-cards .annual-inst-subtitle {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
   }
 
   .value-input {
