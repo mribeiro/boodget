@@ -911,6 +911,28 @@ textarea {
   min-height: 70px;
 }
 
+/* Custom-styled select: real <select> (accessible, no reimplemented
+   listbox) with native OS chrome swapped for a design-system chevron. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
 /* ── Alerts ──────────────────────────────────────────────── */
 
 .alert {
