@@ -2171,6 +2171,57 @@ tr:hover td {
     justify-content: center;
   }
 
+  /* Monthly Expense Template mobile card redesign — more generous row
+     height, bigger/bolder header type, rounded corners, and separated
+     (rather than flush) action buttons. Scoped to .met-cards (only used
+     by ExpenseTemplate.jsx) so other .mobile-cards tables are unaffected. */
+  .met-cards.mobile-cards tbody tr {
+    border-radius: var(--radius-lg);
+  }
+  .met-cards.mobile-cards td.mobile-card-title {
+    padding: 18px 20px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .met-cards .mobile-card-inline-value.value-emphasis {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .met-cards.mobile-cards td.mobile-detail {
+    font-size: 14px;
+  }
+  .met-cards.mobile-cards tr.mobile-expanded td.mobile-detail {
+    padding: 15px 20px;
+  }
+  .met-cards.mobile-cards td[data-label]::before {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .07em;
+  }
+  .met-cards .class-toggle {
+    gap: 8px;
+  }
+  .met-cards .class-pill {
+    padding: 6px 16px;
+  }
+  .met-cards.mobile-cards tr.mobile-expanded td.mobile-detail-actions {
+    padding: 16px 20px 20px;
+  }
+  .met-cards .mobile-detail-actions .met-actions {
+    gap: 10px;
+  }
+  .met-cards .mobile-detail-actions .met-actions button {
+    border-radius: 10px;
+    padding: 13px;
+    font-size: 14px;
+    font-weight: 600;
+    gap: 8px;
+  }
+  .met-cards .mobile-detail-actions .met-actions .btn-secondary {
+    background: var(--bg-card-hover);
+    border-color: var(--border-strong);
+  }
+
   .value-input {
     width: 100px;
   }

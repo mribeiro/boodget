@@ -224,7 +224,7 @@ export default function ExpenseTemplate({ dossierId }) {
         {expenseItems.length === 0 ? (
           <div className="empty-state"><p>No expenses in template yet.</p></div>
         ) : (
-          <div className="mobile-cards table-container">
+          <div className="mobile-cards table-container met-cards">
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
@@ -315,7 +315,7 @@ export default function ExpenseTemplate({ dossierId }) {
         {distItems.length === 0 ? (
           <div className="empty-state"><p>No distributions in template yet.</p></div>
         ) : (
-          <div className="mobile-cards table-container">
+          <div className="mobile-cards table-container met-cards">
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
