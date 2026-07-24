@@ -4,6 +4,7 @@ import { faGripVertical, faXmark, faPlus, faBoxArchive, faChevronRight, faPencil
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Checkbox from './ui/Checkbox';
+import Toggle from './ui/Toggle';
 import CollapsibleSection from './ui/CollapsibleSection';
 import Toast from './ui/Toast';
 
@@ -283,15 +284,15 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
           onToggle={() => setGroupCollapsed((prev) => ({ ...prev, [groupName]: !prev[groupName] }))}
         >
           <div className="mobile-cards table-container" style={{ marginTop: 0, borderRadius: 0, border: 'none', borderTop: '1px solid var(--color-border)' }}>
-            <table>
+            <table className="accounts-table">
               <thead>
                 <tr>
-                  <th style={{ width: '1rem' }}></th>
+                  <th style={{ width: 32 }}></th>
                   <th>Name</th>
-                  <th>Type</th>
-                  <th style={{ textAlign: 'center' }}>Category</th>
-                  <th style={{ textAlign: 'center' }}>Transfers</th>
-                  <th></th>
+                  <th style={{ width: 200 }}>Type</th>
+                  <th style={{ width: 130, textAlign: 'center' }}>Category</th>
+                  <th style={{ width: 110, textAlign: 'center' }}>Transfers</th>
+                  <th style={{ width: 190 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -348,17 +349,6 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                     ) : (
                       <td className="mobile-card-title" onClick={() => toggleRow(a.id)}>
                         <span>{a.name}</span>
-                        <button
-                          className="btn-ghost"
-                          style={{ fontSize: '0.75rem', padding: '2px 4px', color: 'var(--color-text-muted)' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingId(a.id);
-                            setEditDraft({ name: a.name, group_name: a.group_name });
-                          }}
-                        >
-                          <FontAwesomeIcon icon={faPencil} />
-                        </button>
                         <button className="card-expand-btn" tabIndex={-1}><FontAwesomeIcon icon={faChevronRight} /></button>
                       </td>
                     )}
@@ -376,22 +366,32 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                       </select>
                     </td>
                     <td data-label="Transfers" className="mobile-detail" style={{ textAlign: 'center' }}>
-                      <button
-                        className="btn-ghost"
-                        style={{ fontSize: '0.8rem', color: a.can_receive_transfers ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
-                        onClick={() => handleToggleTransfers(a)}
-                      >
-                        {a.can_receive_transfers ? 'Yes' : 'No'}
-                      </button>
+                      <Toggle
+                        checked={!!a.can_receive_transfers}
+                        onChange={() => handleToggleTransfers(a)}
+                        title={a.can_receive_transfers ? 'Can receive transfers' : 'Cannot receive transfers'}
+                      />
                     </td>
-                    <td data-label="" className="mobile-detail">
-                      <button
-                        className="btn-ghost"
-                        style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}
-                        onClick={() => handleArchive(a)}
-                      >
-                        <FontAwesomeIcon icon={faBoxArchive} style={{ marginRight: '0.35rem' }} />Archive
-                      </button>
+                    <td data-label="" className="mobile-detail mobile-detail-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {editingId !== a.id && (
+                        <span className="met-actions">
+                          <button
+                            className="btn-secondary btn-sm"
+                            onClick={() => {
+                              setEditingId(a.id);
+                              setEditDraft({ name: a.name, group_name: a.group_name });
+                            }}
+                          >
+                            <FontAwesomeIcon icon={faPencil} />Edit
+                          </button>
+                          <button
+                            className="btn-danger btn-sm"
+                            onClick={() => handleArchive(a)}
+                          >
+                            <FontAwesomeIcon icon={faBoxArchive} />Archive
+                          </button>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

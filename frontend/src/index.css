@@ -1298,6 +1298,22 @@ tr:hover td {
   background: var(--bg-table-group-header);
 }
 
+/* Accounts settings table: each bank/group renders its own <table>, so
+   without a shared fixed layout the Name column's width drifts per table
+   based on that table's own content (e.g. a bank with long account names
+   vs. one with short ones) — fixed layout + explicit widths on every other
+   column keeps Name (the only unconstrained column) identical across all
+   of them at a given viewport width. */
+.accounts-table {
+  table-layout: fixed;
+}
+
+.accounts-table td.mobile-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Modal ───────────────────────────────────────────────── */
 
 .modal-overlay {
@@ -1619,6 +1635,60 @@ tr:hover td {
   color: var(--text-primary);
   font-weight: 400;
   white-space: nowrap;
+}
+
+/* ── Toggle switch ───────────────────────────────────────── */
+
+.toggle-switch {
+  --toggle-w: 36px;
+  --toggle-h: 20px;
+  display: inline-block;
+  width: var(--toggle-w);
+  height: var(--toggle-h);
+  min-width: var(--toggle-w);
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  position: relative;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(var(--toggle-h) - 4px);
+  height: calc(var(--toggle-h) - 4px);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast);
+}
+
+.toggle-switch.checked {
+  background: var(--color-brand);
+}
+
+.toggle-switch.checked::after {
+  transform: translateX(calc(var(--toggle-w) - var(--toggle-h)));
+}
+
+.toggle-switch:hover:not(.disabled) {
+  background: var(--border-strong);
+  filter: brightness(0.92);
+}
+
+.toggle-switch.checked:hover:not(.disabled) {
+  background: var(--color-brand-hover);
+  filter: none;
+}
+
+.toggle-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-brand-light), 0 0 0 5px var(--color-brand);
 }
 
 /* ── Progress bar ────────────────────────────────────────── */
