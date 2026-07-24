@@ -2131,8 +2131,14 @@ tr:hover td {
   .mobile-cards tr.mobile-expanded td.mobile-detail {
     max-height: 120px;
     opacity: 1;
-    padding-top: var(--space-3);
-    padding-bottom: var(--space-3);
+    /* !important: the collapsed-state rule above sets padding-top/bottom
+       to 0 !important (needed so the row truly collapses to zero height),
+       which otherwise always wins over this non-important declaration
+       regardless of specificity — silently zeroing this padding on every
+       .mobile-cards consumer app-wide (CycleEditor, AnnualExpenseTemplate,
+       SubscriptionsTab, LoansTab, ...), not just this rule. */
+    padding-top: var(--space-3) !important;
+    padding-bottom: var(--space-3) !important;
     border-bottom: 1px solid var(--border-subtle, var(--border-default));
   }
   .mobile-cards tr.mobile-expanded td.mobile-detail:last-child {
@@ -2171,61 +2177,48 @@ tr:hover td {
     justify-content: center;
   }
 
-  /* Monthly Expense Template mobile card redesign — more generous row
-     height, bigger/bolder header type, rounded corners, and separated
-     (rather than flush) action buttons. Scoped to .met-cards (only used
-     by ExpenseTemplate.jsx) so other .mobile-cards tables are unaffected. */
-  .met-cards.mobile-cards tbody tr {
-    border-radius: var(--radius-lg);
-  }
+  /* Monthly Expense Template mobile card — pixel-matched to the source
+     Claude Design mockup's own .exp-card/.exp-detail-row/.seg-btn rules
+     (--space-2/3/4 scale), not the shared .mobile-cards defaults, which
+     differ slightly. Scoped to .met-cards (only used by ExpenseTemplate.jsx)
+     so other .mobile-cards tables are unaffected. */
   .met-cards.mobile-cards td.mobile-card-title {
-    padding: 18px 20px;
-    font-size: 16px;
-    font-weight: 700;
+    /* !important needed: the JSX sets an inline padding style on this <td>
+       (used for its desktop table layout), and inline styles always beat
+       an external class rule regardless of specificity — only !important
+       can override them. */
+    padding: var(--space-3) var(--space-4) !important;
+    font-size: 15px;
   }
   .met-cards .mobile-card-inline-value.value-emphasis {
-    font-size: 16px;
-    font-weight: 600;
-  }
-  .met-cards.mobile-cards td.mobile-detail {
-    font-size: 14px;
+    font-size: 15px;
   }
   .met-cards.mobile-cards tr.mobile-expanded td.mobile-detail {
-    /* !important needed: the base .mobile-cards td.mobile-detail rule
-       (collapsed state) sets padding-top/padding-bottom: 0 !important to
-       animate the collapse, and that always wins over a non-important
-       declaration regardless of selector specificity. */
-    padding: 15px 20px !important;
-    max-height: 160px;
+    /* !important needed: see the shared .mobile-cards rule above — the
+       collapsed-state rule's !important always wins over a non-important
+       declaration regardless of specificity. */
+    padding: var(--space-2) var(--space-4) !important;
   }
-  .met-cards.mobile-cards td[data-label]::before {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .07em;
+  /* The mock keeps Day in primary (unmuted) color on mobile, unlike the
+     desktop table's muted treatment (both share the same inline-styled
+     <td> in ExpenseTemplate.jsx) — override needs !important to beat the
+     inline style, but only inside this <768px block, so desktop is
+     unaffected. */
+  .met-cards.mobile-cards td.mobile-detail[data-label="Day"] {
+    color: var(--text-primary) !important;
   }
   .met-cards .class-toggle {
-    gap: 8px;
+    gap: var(--space-2);
   }
   .met-cards .class-pill {
-    padding: 6px 16px;
+    padding: 4px 14px;
+    font-size: 13px;
   }
   .met-cards.mobile-cards tr.mobile-expanded td.mobile-detail-actions {
-    padding: 16px 20px 20px !important;
-    max-height: 160px;
+    padding: var(--space-3) var(--space-4) !important;
   }
   .met-cards .mobile-detail-actions .met-actions {
-    gap: 10px;
-  }
-  .met-cards .mobile-detail-actions .met-actions button {
-    border-radius: 10px;
-    padding: 13px;
-    font-size: 14px;
-    font-weight: 600;
-    gap: 8px;
-  }
-  .met-cards .mobile-detail-actions .met-actions .btn-secondary {
-    background: var(--bg-card-hover);
-    border-color: var(--border-strong);
+    gap: var(--space-2);
   }
 
   .value-input {
