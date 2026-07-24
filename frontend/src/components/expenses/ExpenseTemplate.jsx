@@ -271,7 +271,7 @@ export default function ExpenseTemplate({ dossierId }) {
             </table>
           </div>
         )}
-        <div style={{ padding: '10px 16px 14px' }}>
+        <div style={{ padding: '10px 0 14px' }}>
           <button
             className="btn-primary"
             onClick={() => { setActiveSection('expense'); setEditingItem(null); setShowAddModal(true); }}
@@ -380,7 +380,7 @@ export default function ExpenseTemplate({ dossierId }) {
             </table>
           </div>
         )}
-        <div style={{ padding: '10px 16px 14px' }}>
+        <div style={{ padding: '10px 0 14px' }}>
           <button
             className="btn-primary"
             onClick={() => { setActiveSection('distribution'); setEditingItem(null); setShowAddModal(true); }}
