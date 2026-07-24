@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { faPencil, faTrash, faPlus, faXmark, faChevronDown, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
+import ClassificationPills from '../ui/ClassificationPills';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -12,39 +13,6 @@ const MONTHS = [
 
 function formatValue(v) {
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-}
-
-function ClassificationPills({ value, onChange }) {
-  const options = [
-    { value: 'must', label: 'Must', bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
-    { value: 'want', label: 'Want', bg: '#dbeafe', color: '#1e40af', border: '#3b82f6' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: '0.25rem' }}>
-      {options.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(active ? null : opt.value)}
-            style={{
-              fontSize: '0.7rem',
-              padding: '0.15rem 0.5rem',
-              borderRadius: '999px',
-              border: active ? `1px solid ${opt.border}` : '1px solid var(--color-border)',
-              background: active ? opt.bg : 'transparent',
-              color: active ? opt.color : 'var(--color-text-muted)',
-              cursor: 'pointer',
-              fontWeight: active ? 600 : 400,
-            }}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 export default function AnnualExpenseTemplate({ dossierId }) {
@@ -125,61 +93,94 @@ export default function AnnualExpenseTemplate({ dossierId }) {
       {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
 
       {items.length === 0 ? (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-          No annual expenses in template yet.
-        </p>
+        <div className="empty-state"><p>No annual expenses in template yet.</p></div>
       ) : (
-        <div style={{ marginBottom: '0.75rem' }}>
-          {items.map((item) => {
-            const expanded = expandedRows.has(item.id);
-            const numInst = item.num_installments ?? 1;
-            return (
-              <div key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0', cursor: 'pointer' }} onClick={() => toggleRow(item.id)}>
-                  <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} style={{ fontSize: 11, color: 'var(--color-text-muted)', width: 14 }} />
-                  <span style={{ flex: 1, fontSize: '0.875rem', fontWeight: 500 }}>{item.name}</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', minWidth: 90, textAlign: 'right' }}>{formatValue(item.value)}</span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', minWidth: 60, textAlign: 'center' }}>{numInst} installment{numInst !== 1 ? 's' : ''}</span>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ClassificationPills value={item.classification} onChange={(v) => handleClassificationChange(item, v)} />
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-secondary" onClick={() => { setEditingItem(item); setShowAddModal(true); }} style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>
-                      <FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.3rem' }} />Edit
-                    </button>
-                    <button className="btn-danger" onClick={() => handleDelete(item)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>
-                      <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.3rem' }} />Delete
-                    </button>
-                  </div>
-                </div>
-                {expanded && (
-                  <div style={{ marginLeft: 22, paddingBottom: 8 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                      <thead>
-                        <tr style={{ color: 'var(--color-text-muted)' }}>
-                          <th style={{ textAlign: 'left', fontWeight: 500, padding: '2px 6px' }}>#</th>
-                          <th style={{ textAlign: 'left', fontWeight: 500, padding: '2px 6px' }}>Date</th>
-                          <th style={{ textAlign: 'right', fontWeight: 500, padding: '2px 6px' }}>Expected</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(item.installments || []).map((inst) => (
-                          <tr key={inst.installment_number}>
-                            <td style={{ padding: '2px 6px', color: 'var(--color-text-muted)' }}>{inst.installment_number}/{numInst}</td>
-                            <td style={{ padding: '2px 6px' }}>{MONTHS[inst.month - 1]} {inst.day}</td>
-                            <td style={{ padding: '2px 6px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatValue(item.value / numInst)}</td>
-                          </tr>
-                        ))}
-                        {(item.installments || []).length === 0 && (
-                          <tr><td colSpan={3} style={{ padding: '4px 6px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No installments defined — edit to add dates.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="mobile-cards met-cards table-container" style={{ marginBottom: '0.75rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ color: 'var(--color-text-muted)', textAlign: 'left' }}>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Name</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'center' }}>Installments</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
+                <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const expanded = expandedRows.has(item.id);
+                const numInst = item.num_installments ?? 1;
+                return (
+                  <Fragment key={item.id}>
+                    <tr style={{ borderTop: '1px solid var(--color-border)' }} className={expanded ? 'mobile-expanded' : ''}>
+                      <td className="mobile-card-title" style={{ padding: '0.4rem 0.5rem' }} onClick={() => toggleRow(item.id)}>
+                        <span className="annual-desktop-chevron">
+                          <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} />
+                        </span>
+                        <span className="annual-title-group">
+                          <span>{item.name}</span>
+                          <span className="annual-inst-subtitle">{numInst} installment{numInst !== 1 ? 's' : ''}</span>
+                        </span>
+                        <span className="mobile-card-inline-value value-emphasis">{formatValue(item.value)}</span>
+                        <button className="card-expand-btn icon-swap" tabIndex={-1}>
+                          <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} />
+                        </button>
+                      </td>
+                      <td data-label="Value" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>{formatValue(item.value)}</td>
+                      <td data-label="Installments" className="mobile-summary-in-title" style={{ padding: '0.4rem 0.5rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>{numInst}</td>
+                      <td data-label="Class" className="mobile-detail" style={{ padding: '0.3rem 0.5rem' }}>
+                        <ClassificationPills
+                          value={item.classification}
+                          onChange={(v) => handleClassificationChange(item, v)}
+                        />
+                      </td>
+                      <td data-label="" className="mobile-detail mobile-detail-actions" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span className="met-actions">
+                          <button
+                            className="btn-secondary btn-sm"
+                            onClick={() => { setEditingItem(item); setShowAddModal(true); }}
+                          >
+                            <FontAwesomeIcon icon={faPencil} />Edit
+                          </button>
+                          <button
+                            className="btn-danger btn-sm"
+                            onClick={() => handleDelete(item)}
+                          >
+                            <FontAwesomeIcon icon={faTrash} />Delete
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr style={{ borderTop: '1px solid var(--color-border)' }}>
+                        <td colSpan={5} style={{ padding: '0.4rem 0.5rem' }}>
+                          <div className="annual-schedule">
+                            <div className="annual-schedule-row annual-schedule-head">
+                              <span className="num">#</span>
+                              <span className="date">Date</span>
+                              <span className="expected">Expected</span>
+                            </div>
+                            {(item.installments || []).map((inst) => (
+                              <div className="annual-schedule-row" key={inst.installment_number}>
+                                <span className="num">{inst.installment_number}/{numInst}</span>
+                                <span className="date">{MONTHS[inst.month - 1]} {inst.day}</span>
+                                <span className="expected">{formatValue(item.value / numInst)}</span>
+                              </div>
+                            ))}
+                            {(item.installments || []).length === 0 && (
+                              <div className="annual-schedule-row">
+                                <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No installments defined — edit to add dates.</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
