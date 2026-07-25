@@ -13,37 +13,30 @@ const MODEL_OPTIONS = [
   { value: 'claude-fable-5', label: 'Fable 5 — most capable ($10/$50 per MTok)' },
 ];
 
-export default function AIAdvisorTab({ dossierId, dossierName }) {
+export default function AIAdvisorTab({ dossierId, dossierName, settings, onSettingsChange }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [aiDisabled, setAiDisabled] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [analysis, setAnalysis] = useState(null);
-  const [aiModel, setAiModel] = useState('claude-opus-4-8');
+  const [aiModel, setAiModel] = useState(settings?.ai_model || 'claude-opus-4-8');
   const [analyzing, setAnalyzing] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const [exportingPrompt, setExportingPrompt] = useState(false);
   const [exportError, setExportError] = useState('');
   const [justCopied, setJustCopied] = useState(false);
-  const [userNotes, setUserNotes] = useState('');
-  const [notesDraft, setNotesDraft] = useState('');
+  const [userNotes, setUserNotes] = useState(settings?.ai_user_context || '');
+  const [notesDraft, setNotesDraft] = useState(settings?.ai_user_context || '');
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
 
+  // DossierView already fetches dossier settings once and only mounts this tab when
+  // settings.ai_enabled is true, so this only needs the analysis itself. aiDisabled still
+  // has its own state for the race where AI gets disabled elsewhere mid-session (a 403
+  // from any AI Advisor call below).
   const loadAll = useCallback(async () => {
     setError('');
     try {
-      const settings = await api.getDossierSettings(dossierId);
-      setAiModel(settings.ai_model || 'claude-opus-4-8');
-      setUserNotes(settings.ai_user_context || '');
-      setNotesDraft(settings.ai_user_context || '');
-      if (settings.ai_enabled === false) {
-        setAiDisabled(true);
-        setConfigured(false);
-        setAnalysis(null);
-        return;
-      }
-      setAiDisabled(false);
       const analysisResp = await api.getAiAnalysis(dossierId);
       setConfigured(analysisResp.configured);
       setAnalysis(analysisResp.analysis);
@@ -66,7 +59,8 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
     setAiModel(value);
     setSavingModel(true);
     try {
-      await api.updateDossierSettings(dossierId, { ai_model: value });
+      const updated = await api.updateDossierSettings(dossierId, { ai_model: value });
+      onSettingsChange?.(updated);
     } catch (err) {
       setAiModel(previous);
       setError(err.message);
@@ -82,6 +76,7 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       const updated = await api.updateDossierSettings(dossierId, { ai_user_context: notesDraft });
       setUserNotes(updated.ai_user_context || '');
       setNotesDraft(updated.ai_user_context || '');
+      onSettingsChange?.(updated);
       setNotesSaved(true);
       setTimeout(() => setNotesSaved(false), 2000);
     } catch (err) {

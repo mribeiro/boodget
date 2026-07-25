@@ -63,22 +63,28 @@ export default function DossierView() {
 
   const [dossier, setDossier] = useState(null);
   const [months, setMonths] = useState([]);
+  // Fetched once here and passed down to every tab that needs it (Glances, Monthly
+  // Expenses, Loans, Subscriptions, AI Advisor) instead of each of them fetching the
+  // same dossier-settings row independently on mount. The Settings tab itself keeps its
+  // own fetch (see DossierSettingsTab) — that one was already fixed in #260/#261.
+  const [settings, setSettings] = useState(null);
   const [activeTab, setActiveTab] = useState(location.state?.tab ?? 'capital');
   const [showAddMonth, setShowAddMonth] = useState(false);
   const [compareView, setCompareView] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([api.getDossier(id), api.getMonths(id)])
-      .then(([d, m]) => {
+    Promise.all([api.getDossier(id), api.getMonths(id), api.getDossierSettings(id)])
+      .then(([d, m, s]) => {
         setDossier(d);
         setMonths(m);
+        setSettings(s);
         setCurrentDossier(d);
       })
       .catch(() => setError('Failed to load dossier'));
   }, [id]);
 
-  const aiEnabled = dossier ? dossier.ai_enabled !== 0 : true;
+  const aiEnabled = settings ? settings.ai_enabled !== false : true;
 
   useEffect(() => {
     if (!aiEnabled && activeTab === 'ai-advisor') setActiveTab('capital');
@@ -110,7 +116,7 @@ export default function DossierView() {
     }
   }
 
-  if (!dossier) return <div className="loading">Loading...</div>;
+  if (!dossier || !settings) return <div className="loading">Loading...</div>;
 
   return (
     <div className="page-fade-in">
@@ -128,6 +134,7 @@ export default function DossierView() {
       <GlancesPanel
         dossierId={id}
         months={months}
+        settings={settings}
         onNavigate={setActiveTab}
       />
 
@@ -271,7 +278,7 @@ export default function DossierView() {
       )}
 
       {activeTab === 'expenses' && (
-        <ExpensesTab dossierId={id} />
+        <ExpensesTab dossierId={id} settings={settings} />
       )}
 
       {activeTab === 'annual-expenses' && (
@@ -287,11 +294,11 @@ export default function DossierView() {
       )}
 
       {activeTab === 'loans' && (
-        <LoansTab dossierId={id} />
+        <LoansTab dossierId={id} settings={settings} />
       )}
 
       {activeTab === 'subscriptions' && (
-        <SubscriptionsTab dossierId={id} />
+        <SubscriptionsTab dossierId={id} settings={settings} />
       )}
 
       {activeTab === 'emergency-fund' && (
@@ -299,7 +306,7 @@ export default function DossierView() {
       )}
 
       {activeTab === 'ai-advisor' && aiEnabled && (
-        <AIAdvisorTab dossierId={id} dossierName={dossier.name} />
+        <AIAdvisorTab dossierId={id} dossierName={dossier.name} settings={settings} onSettingsChange={setSettings} />
       )}
 
       {activeTab === 'settings' && (

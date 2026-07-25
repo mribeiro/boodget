@@ -17,8 +17,7 @@ function cycleYearMonth(today, cycleStartDay) {
   return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
 }
 
-export default function GlancesPanel({ dossierId, months, onNavigate }) {
-  const [settings, setSettings] = useState(null);
+export default function GlancesPanel({ dossierId, months, settings, onNavigate }) {
   const [cyclesList, setCyclesList] = useState([]);
   const [currentCycleDetail, setCurrentCycleDetail] = useState(null);
   const [goals, setGoals] = useState([]);
@@ -39,25 +38,22 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
 
   useEffect(() => {
     Promise.all([
-      api.getDossierSettings(dossierId),
       api.getCycles(dossierId),
       api.getGoals(dossierId),
       api.getEmergencyFundStatus(dossierId),
-    ]).then(([s, c, g, ef]) => {
-      setSettings(s);
+    ]).then(([c, g, ef]) => {
       setCyclesList(c);
       setGoals(g);
       setEfStatus(ef);
 
-      const cur = cycleYearMonth(today, s.cycle_start_day ?? 25);
+      const cur = cycleYearMonth(today, settings.cycle_start_day ?? 25);
       const curCycle = c.find((cy) => cy.year === cur.year && cy.month === cur.month);
       if (curCycle) {
         api.getCycle(dossierId, curCycle.id).then(setCurrentCycleDetail).catch(() => {});
       }
     }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
-
-  if (!settings) return null;
 
   return (
     <div className="glances-panel">

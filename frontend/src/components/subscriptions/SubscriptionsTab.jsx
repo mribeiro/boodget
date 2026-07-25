@@ -68,10 +68,10 @@ function CoveragePill({ coverage }) {
   );
 }
 
-export default function SubscriptionsTab({ dossierId }) {
+export default function SubscriptionsTab({ dossierId, settings }) {
   const [subscriptions, setSubscriptions] = useState([]);
   const [distributions, setDistributions] = useState([]);
-  const [cycleStartDay, setCycleStartDay] = useState(25);
+  const cycleStartDay = settings?.cycle_start_day ?? 25;
   const [showCancelled, setShowCancelled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -89,14 +89,12 @@ export default function SubscriptionsTab({ dossierId }) {
     setLoading(true);
     setError('');
     try {
-      const [subs, template, settings] = await Promise.all([
+      const [subs, template] = await Promise.all([
         api.getSubscriptions(dossierId, showCancelled),
         api.getExpenseTemplate(dossierId),
-        api.getDossierSettings(dossierId),
       ]);
       setSubscriptions(subs);
       setDistributions(template.filter((i) => i.section === 'distribution'));
-      setCycleStartDay(settings.cycle_start_day ?? 25);
     } catch (err) {
       setError(err.message);
     } finally {

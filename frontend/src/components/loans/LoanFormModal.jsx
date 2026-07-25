@@ -28,7 +28,7 @@ function formatDecimal(value) {
   return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
+export default function LoanFormModal({ dossierId, loan, settings, onSave, onClose }) {
   const isEdit = !!loan;
   const now = new Date();
   const initialEndYM = loan?.end_date ? parseYM(loan.end_date) : { year: now.getFullYear(), month: now.getMonth() + 1 };
@@ -59,15 +59,9 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
       .then((items) => setFixedExpenses(items.filter((i) => i.section === 'expense' && i.type === 'Fixed')))
       .catch(() => {});
 
-    if (!isEdit) {
-      api.getDossierSettings(dossierId)
-        .then((s) => {
-          if (s.reference_salary != null) {
-            setReferenceSalary(s.reference_salary);
-            setSalary((prev) => (prev === '' ? String(s.reference_salary) : prev));
-          }
-        })
-        .catch(() => {});
+    if (!isEdit && settings?.reference_salary != null) {
+      setReferenceSalary(settings.reference_salary);
+      setSalary((prev) => (prev === '' ? String(settings.reference_salary) : prev));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);

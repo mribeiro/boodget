@@ -41,17 +41,16 @@ function CoveragePill({ loan }) {
   );
 }
 
-export default function LoansTab({ dossierId }) {
+export default function LoansTab({ dossierId, settings }) {
   const navigate = useNavigate();
   const [loans, setLoans] = useState([]);
-  const [maxSalaryPct, setMaxSalaryPct] = useState(null);
+  const maxSalaryPct = settings?.loans_max_salary_pct ?? null;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     loadLoans();
-    api.getDossierSettings(dossierId).then((s) => setMaxSalaryPct(s.loans_max_salary_pct)).catch(() => {});
   }, [dossierId]);
 
   async function loadLoans() {
@@ -186,6 +185,7 @@ export default function LoansTab({ dossierId }) {
         <LoanFormModal
           dossierId={dossierId}
           loan={null}
+          settings={settings}
           onSave={handleLoanCreated}
           onClose={() => setShowCreate(false)}
         />

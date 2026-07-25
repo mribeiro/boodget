@@ -168,7 +168,7 @@ export default function CycleEditor() {
   useEffect(() => {
     window.scrollTo(0, 0);
     load();
-    api.getDossierSettings(dossierId).then(setPaperlessSettings).catch(() => {});
+    api.getDossierSettings(dossierId).then(setPaperlessSettings).catch((err) => setError(err.message));
     api.getAccounts(dossierId, true).then(setAccounts).catch(() => {});
   }, [cycleId]);
 

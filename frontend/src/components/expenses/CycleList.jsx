@@ -32,13 +32,13 @@ function prevMonth(year, month) {
   return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 }
 
-export default function CycleList({ dossierId }) {
+export default function CycleList({ dossierId, settings }) {
   const navigate = useNavigate();
   const [cycles, setCycles] = useState([]);
-  const [cycleStartDay, setCycleStartDay] = useState(25);
   // null = no modal; { year, month } = modal open with pre-filled values
   const [modalPreset, setModalPreset] = useState(null);
   const [error, setError] = useState('');
+  const cycleStartDay = settings?.cycle_start_day ?? 25;
 
   useEffect(() => {
     load();
@@ -46,14 +46,10 @@ export default function CycleList({ dossierId }) {
 
   async function load() {
     try {
-      const [data, settings] = await Promise.all([
-        api.getCycles(dossierId),
-        api.getDossierSettings(dossierId),
-      ]);
+      const data = await api.getCycles(dossierId);
       // Sort newest-first
       data.sort((a, b) => b.year - a.year || b.month - a.month);
       setCycles(data);
-      setCycleStartDay(settings.cycle_start_day ?? 25);
     } catch (err) {
       setError(err.message);
     }
