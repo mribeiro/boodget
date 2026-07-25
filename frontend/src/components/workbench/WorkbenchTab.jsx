@@ -1180,9 +1180,9 @@ function ExpenseEntryRow({ entry, onChangeName, onChangeValue, onChangeClassific
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem',
-      background: noClass ? '#fffbeb' : 'var(--color-surface)',
+      background: noClass ? 'var(--color-warning-light)' : 'var(--color-surface)',
       borderRadius: 'var(--radius)',
-      border: `1px solid ${noClass ? '#fde68a' : 'var(--color-border)'}`,
+      border: `1px solid ${noClass ? 'var(--color-warning-border)' : 'var(--color-border)'}`,
       flexWrap: 'wrap',
     }}>
       <input
@@ -1208,7 +1208,7 @@ function ExpenseEntryRow({ entry, onChangeName, onChangeValue, onChangeClassific
 function AnnualEntryRow({ entry, onChangeName, onChangeValue, onChangeClassification, onRemove }) {
   const noClass = !entry.classification;
   return (
-    <tr style={{ borderTop: '1px solid var(--color-border)', background: noClass ? '#fffbeb' : 'transparent' }}>
+    <tr style={{ borderTop: '1px solid var(--color-border)', background: noClass ? 'var(--color-warning-light)' : 'transparent' }}>
       <td style={{ padding: '0.3rem 0.4rem' }}>
         <input
           type="text"
