@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faPencil,
   faChevronDown,
   faChevronRight,
   faFileExport,
@@ -20,6 +19,7 @@ import ConfirmModal from './ConfirmModal';
 import Modal from './ui/Modal';
 import Checkbox from './ui/Checkbox';
 import SettingsSkeleton from './ui/SettingsSkeleton';
+import SettingRow from './ui/SettingRow';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
 
 const AI_MODEL_OPTIONS = [
@@ -125,14 +125,13 @@ function EmergencyFundSettings({ dossierId, settings, onChange }) {
   return (
     <div>
       {fields.map((field) => (
-        <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
-          <strong>{settings[field.key]}</strong>
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.suffix}</span>
-          <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
-            <FontAwesomeIcon icon={faPencil} />
-          </button>
-        </div>
+        <SettingRow
+          key={field.key}
+          label={field.label}
+          value={settings[field.key]}
+          suffix={field.suffix}
+          onEdit={() => openModal(field)}
+        />
       ))}
 
       {modal && (
@@ -213,21 +212,17 @@ function LoanSettings({ dossierId, settings, onChange }) {
 
   return (
     <div>
-      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Reference monthly salary</span>
-        <strong>{formatEur(referenceSalary)}</strong>
-        <button className="btn-secondary" onClick={() => openEdit('reference_salary')} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        label="Reference monthly salary"
+        value={referenceSalary == null ? null : formatEur(referenceSalary)}
+        onEdit={() => openEdit('reference_salary')}
+      />
 
-      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Max % of salary assigned to loans</span>
-        <strong>{formatPct(maxSalaryPct)}</strong>
-        <button className="btn-secondary" onClick={() => openEdit('loans_max_salary_pct')} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        label="Max % of salary assigned to loans"
+        value={maxSalaryPct == null ? null : formatPct(maxSalaryPct)}
+        onEdit={() => openEdit('loans_max_salary_pct')}
+      />
 
       {editingField && (
         <Modal
@@ -340,10 +335,11 @@ function PaperlessSettings({ dossierId, settings, onChange }) {
     { key: 'paperless_amount_field_id', label: 'Amount custom field ID' },
   ];
 
+  // Returns null when unset — SettingRow renders the shared "Not set" empty treatment.
   function displayValue(key) {
-    if (key === 'paperless_token') return settings.paperless_token_set ? '••••••••' : <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
+    if (key === 'paperless_token') return settings.paperless_token_set ? '••••••••' : null;
     const v = settings[key];
-    if (v == null || v === '') return <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
+    if (v == null || v === '') return null;
     return String(v);
   }
 
@@ -356,46 +352,43 @@ function PaperlessSettings({ dossierId, settings, onChange }) {
       </p>
 
       {/* Text / password fields — inline editing, icon-only button */}
-      {textFields.map(({ key, label, type, placeholder, isToken }) => (
-        <div key={key} style={{ marginBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{label}</span>
-            {editing === key ? (
-              <>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type={isToken && !showToken ? 'password' : 'text'}
-                    value={inlineDraft}
-                    onChange={(e) => setInlineDraft(e.target.value)}
-                    placeholder={placeholder}
-                    autoFocus
-                    style={{ width: isToken ? '16rem' : '20rem', paddingRight: isToken ? '2rem' : undefined }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveInline(key); if (e.key === 'Escape') cancelInlineEdit(); }}
-                  />
-                  {isToken && (
-                    <button
-                      type="button"
-                      onClick={() => setShowToken((v) => !v)}
-                      style={{ position: 'absolute', right: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
-                    >
-                      <FontAwesomeIcon icon={showToken ? faEyeSlash : faEye} />
-                    </button>
-                  )}
-                </div>
-                <button className="btn-primary" onClick={() => saveInline(key)} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-                <button className="btn-secondary" onClick={cancelInlineEdit}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{displayValue(key)}</span>
-                <button className="btn-secondary" onClick={() => startInlineEdit(key)} style={{ padding: '0.5rem 0.75rem' }}>
-                  <FontAwesomeIcon icon={faPencil} />
-                </button>
-              </>
-            )}
-          </div>
+      {textFields.map(({ key, label, placeholder, isToken }) => (
+        <div key={key}>
+          {editing === key ? (
+            <SettingRow label={label}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type={isToken && !showToken ? 'password' : 'text'}
+                  value={inlineDraft}
+                  onChange={(e) => setInlineDraft(e.target.value)}
+                  placeholder={placeholder}
+                  autoFocus
+                  style={{ paddingRight: isToken ? '2rem' : undefined }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveInline(key); if (e.key === 'Escape') cancelInlineEdit(); }}
+                />
+                {isToken && (
+                  <button
+                    type="button"
+                    className="input-reveal-btn"
+                    onClick={() => setShowToken((v) => !v)}
+                    aria-label={showToken ? 'Hide token' : 'Show token'}
+                  >
+                    <FontAwesomeIcon icon={showToken ? faEyeSlash : faEye} />
+                  </button>
+                )}
+              </div>
+              <button className="btn-primary btn-sm" onClick={() => saveInline(key)} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button className="btn-secondary btn-sm" onClick={cancelInlineEdit}>Cancel</button>
+            </SettingRow>
+          ) : (
+            <SettingRow
+              label={label}
+              value={displayValue(key)}
+              onEdit={() => startInlineEdit(key)}
+            />
+          )}
           {editing === key && error && (
             <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>
           )}
@@ -404,13 +397,12 @@ function PaperlessSettings({ dossierId, settings, onChange }) {
 
       {/* Number fields — modal editing */}
       {numberFields.map((field) => (
-        <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
-          <strong>{displayValue(field.key)}</strong>
-          <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
-            <FontAwesomeIcon icon={faPencil} />
-          </button>
-        </div>
+        <SettingRow
+          key={field.key}
+          label={field.label}
+          value={displayValue(field.key)}
+          onEdit={() => openModal(field)}
+        />
       ))}
 
       {modal && (
@@ -508,62 +500,60 @@ function AISettings({ dossierId, settings, onChange }) {
         />
       </div>
 
-      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Default model</span>
-        <select value={settings.ai_model} onChange={handleModelChange} disabled={saving} style={{ minWidth: '14rem' }}>
+      <SettingRow label="Default model">
+        <select value={settings.ai_model} onChange={handleModelChange} disabled={saving}>
           {AI_MODEL_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-      </div>
+      </SettingRow>
 
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Claude API key</span>
-          {editingKey ? (
-            <>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  value={keyDraft}
-                  onChange={(e) => setKeyDraft(e.target.value)}
-                  placeholder="sk-ant-…"
-                  autoFocus
-                  style={{ width: '16rem', paddingRight: '2rem' }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') saveKey(); if (e.key === 'Escape') cancelKeyEdit(); }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((v) => !v)}
-                  style={{ position: 'absolute', right: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
-                >
-                  <FontAwesomeIcon icon={showKey ? faEyeSlash : faEye} />
-                </button>
-              </div>
-              <button className="btn-primary" onClick={saveKey} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button className="btn-secondary" onClick={cancelKeyEdit}>Cancel</button>
-            </>
-          ) : (
-            <>
-              <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>
-                {settings.ai_api_key_set
-                  ? '••••••••'
-                  : <em style={{ color: 'var(--text-muted)' }}>Not set — falls back to the server's ANTHROPIC_API_KEY</em>}
-              </span>
-              <button className="btn-secondary" onClick={startKeyEdit} style={{ padding: '0.5rem 0.75rem' }}>
-                <FontAwesomeIcon icon={faPencil} />
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      {editingKey ? (
+        <SettingRow label="Claude API key">
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              placeholder="sk-ant-…"
+              autoFocus
+              style={{ paddingRight: '2rem' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveKey(); if (e.key === 'Escape') cancelKeyEdit(); }}
+            />
+            <button
+              type="button"
+              className="input-reveal-btn"
+              onClick={() => setShowKey((v) => !v)}
+              aria-label={showKey ? 'Hide API key' : 'Show API key'}
+            >
+              <FontAwesomeIcon icon={showKey ? faEyeSlash : faEye} />
+            </button>
+          </div>
+          <button className="btn-primary btn-sm" onClick={saveKey} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button className="btn-secondary btn-sm" onClick={cancelKeyEdit}>Cancel</button>
+        </SettingRow>
+      ) : (
+        <SettingRow
+          label="Claude API key"
+          value={settings.ai_api_key_set ? '••••••••' : null}
+          emptyLabel="Not set"
+          onEdit={startKeyEdit}
+        />
+      )}
+      <p className="hint" style={{ textAlign: 'right' }}>
+        {settings.ai_api_key_set
+          ? 'Overrides the server\'s ANTHROPIC_API_KEY for this dossier.'
+          : 'Falls back to the server\'s ANTHROPIC_API_KEY.'}
+      </p>
 
       {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
     </div>
   );
 }
+
+const DAYS_BEFORE_SUFFIX = 'day(s) before a fixed expense is due';
 
 function NotificationDossierSettings({ dossierId, settings, onChange }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -600,14 +590,12 @@ function NotificationDossierSettings({ dossierId, settings, onChange }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Notify me</span>
-        <strong>{value}</strong>
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
-        <button className="btn-secondary" onClick={openModal} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        label="Notify me"
+        value={value}
+        suffix={DAYS_BEFORE_SUFFIX}
+        onEdit={openModal}
+      />
 
       {modalOpen && (
         <Modal
@@ -631,7 +619,7 @@ function NotificationDossierSettings({ dossierId, settings, onChange }) {
               style={{ width: '5rem' }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{DAYS_BEFORE_SUFFIX}</span>
           </div>
           {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
         </Modal>

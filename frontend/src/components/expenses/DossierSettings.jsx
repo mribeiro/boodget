@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPencil } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import Modal from '../ui/Modal';
 import SettingsSkeleton from '../ui/SettingsSkeleton';
+import SettingRow from '../ui/SettingRow';
 
 const CYCLE_FIELD = { key: 'cycle_start_day', label: 'Cycle starts on day', suffix: null };
 
@@ -45,14 +44,13 @@ export default function DossierSettings({ dossierId, settings, onChange }) {
 
   function renderRow(field) {
     return (
-      <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
-        <strong>{settings[field.key] ?? ''}</strong>
-        {field.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.suffix}</span>}
-        <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        key={field.key}
+        label={field.label}
+        value={settings[field.key]}
+        suffix={field.suffix}
+        onEdit={() => openModal(field)}
+      />
     );
   }
 

@@ -1960,6 +1960,78 @@ tr:hover td {
   transform: rotate(180deg);
 }
 
+/* ── Setting row ─────────────────────────────────────────── */
+
+/* SPECIFICATION_UI.md §12.2: label left 60%, control right 40%; on mobile the
+   label sits above a full-width control. Owned by ui/SettingRow.jsx. */
+/* Bottom margin is unconditional rather than reset on :last-child — some sections
+   wrap each row in its own container (Paperless pairs a row with an inline error),
+   which would make every row a :last-child and collapse the spacing between them. */
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.setting-row__label {
+  flex: 0 0 60%;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.setting-row__control {
+  flex: 1 1 40%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.setting-row__value {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.setting-row__value--empty {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.setting-row__suffix {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Show/hide affordance sitting inside a password input (Paperless token, AI key). */
+.input-reveal-btn {
+  position: absolute;
+  right: 0.4rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.input-reveal-btn:hover { color: var(--text-primary); }
+
+@media (max-width: 767px) {
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .setting-row__label { flex: none; }
+  .setting-row__control { justify-content: space-between; }
+}
+
 /* ── Toast ───────────────────────────────────────────────── */
 
 .toast {

@@ -948,7 +948,17 @@ A single-column stack (no side-by-side chart column) so each block gets full pag
 
 ### 12.2 Field layout
 
-Each setting field: label on the left (60% width), control on the right (40% width). On mobile: label above, control full width.
+Every setting field is a `<SettingRow>` (`ui/SettingRow.jsx`, styled by `.setting-row`). Sections must not hand-roll the row — ten byte-identical copies of a `display:flex` + `flex:1` label object had drifted apart on spacing, value rendering and empty states before this was extracted.
+
+- **Desktop**: label left at `flex: 0 0 60%`, control right at `flex: 1 1 40%`, contents right-aligned. Label typography follows §6.4 — `13px / 500 / var(--text-secondary)`.
+- **Mobile (`<768px`)**: the row becomes `flex-direction: column`, so the label sits above a full-width control with `justify-content: space-between`.
+- **Values**: `.setting-row__value` is 600 weight, `--text-primary`, `tabular-nums`. A `null`/`undefined`/`''` value renders `emptyLabel` (default `"Not set"`) via `.setting-row__value--empty` — muted italic — so "unset" looks identical everywhere. Sections pass `null` rather than formatting their own placeholder.
+- **Two shapes**: `value` + optional `suffix` with an `onEdit` pencil (`btn-secondary btn-icon`, carrying an `aria-label`), or an arbitrary control passed as `children` (the AI model `<select>`, Paperless/AI inline editors).
+- The bottom margin is unconditional, deliberately not reset on `:last-child`: some sections wrap each row in its own container, which would make every row a `:last-child` and collapse the spacing between them.
+
+Password-style inline editors put their show/hide eye on `.input-reveal-btn`, absolutely positioned inside the input.
+
+Note the row is not a `<label>`/`for` pair: most "controls" are a value plus a pencil that opens a modal, with no focusable form field to associate. The edit button's `aria-label` carries the field name instead.
 
 ### 12.3 Data flow & loading state
 

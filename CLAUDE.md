@@ -93,7 +93,7 @@ money_manager/
 │   │       ├── emergency-fund/EmergencyFundTab.jsx
 │   │       ├── expenses/ExpensesTab.jsx, CycleList.jsx, CycleEditor.jsx,
 │   │       │          ExpenseTemplate.jsx, AnnualExpenseTemplate.jsx, DossierSettings.jsx
-│   │       ├── ui/Checkbox.jsx, Toggle.jsx, Badge.jsx, Button.jsx, Card.jsx, Modal.jsx, UpdateBanner.jsx, ClassificationPills.jsx, SettingsSkeleton.jsx
+│   │       ├── ui/Checkbox.jsx, Toggle.jsx, Badge.jsx, Button.jsx, Card.jsx, Modal.jsx, UpdateBanner.jsx, ClassificationPills.jsx, SettingsSkeleton.jsx, SettingRow.jsx, Toast.jsx + useToast.js
 │   │       ├── workbench/WorkbenchTab.jsx
 │   │       ├── goals/GoalsTab.jsx, GoalFormModal.jsx, GoalDetail.jsx
 │   │       ├── loans/LoansTab.jsx, LoanFormModal.jsx, LoanDetail.jsx, PromoteLoanModal.jsx
