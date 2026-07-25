@@ -91,21 +91,22 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
                 <thead>
                   <tr>
                     <th>Username</th>
-                    <th></th>
+                    <th style={{ width: 150 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {sharedUsers.map((u) => (
                     <tr key={u.id}>
                       <td className="mobile-card-title" style={{ cursor: 'default' }}>{u.username}</td>
-                      <td data-label="">
-                        <button
-                          className="btn-ghost"
-                          style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}
-                          onClick={() => handleRevoke(u.id)}
-                        >
-                          <FontAwesomeIcon icon={faUserMinus} style={{ marginRight: '0.35rem' }} />Revoke
-                        </button>
+                      <td data-label="" className="mobile-detail-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span className="met-actions">
+                          <button
+                            className="btn-danger btn-sm"
+                            onClick={() => handleRevoke(u.id)}
+                          >
+                            <FontAwesomeIcon icon={faUserMinus} />Revoke
+                          </button>
+                        </span>
                       </td>
                     </tr>
                   ))}

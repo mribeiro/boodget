@@ -501,6 +501,26 @@ input:focus, select:focus, textarea:focus {
 
 Label style: `font-size: 13px`, `font-weight: 500`, `color: var(--text-secondary)`, `margin-bottom: 5px`, `display: block`.
 
+#### Select — custom chevron
+
+`<select>` is a real, accessible native element (no reimplemented listbox) — only its OS chrome is swapped for a design-system chevron, on top of the shared input rule above:
+
+```css
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg ...%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+select:disabled { opacity: 0.5; cursor: not-allowed; }
+select option { background: var(--bg-card); color: var(--text-primary); }
+```
+
+The chevron stroke (`#64748b`) is a fixed value shared by both themes (an inline SVG data-URI can't reference CSS custom properties) rather than theme-tokenized — it reads as muted against both `--bg-input` values. `select option` styling has limited effect cross-browser: the native OS dropdown *list* popup can't be fully restyled (a real `<select>` was kept deliberately, over a custom listbox, to keep native keyboard/accessibility behavior) — an accepted tradeoff. No component wrapper: plain `<select className="...">` picks this up automatically since it's a bare-tag selector, same as the text-input rule above — no per-usage changes needed anywhere in the app.
+
 #### Currency / decimal inputs
 
 Currency (money) inputs must accept **both `.` and `,`** as the decimal separator. They are rendered as `type="text"` with `inputMode="decimal"` (not `type="number"`, which rejects `,` and is locale-dependent). The raw string is held in component state and parsed on submit/compute with `parseDecimalInput()` from `frontend/src/utils/numbers.js` (`Number(String(str).replace(',', '.'))`). Do **not** add `step` / `min` / `max` numeric attributes to these text inputs.
@@ -886,6 +906,10 @@ A single-column stack (no side-by-side chart column) so each block gets full pag
 ### 12.2 Field layout
 
 Each setting field: label on the left (60% width), control on the right (40% width). On mobile: label above, control full width.
+
+### 12.3 Sharing table (`ShareManager.jsx`)
+
+Same last-column action-button pattern as the Accounts table (Section 8.2): the Revoke button lives in a right-aligned `td.mobile-detail-actions` cell (`<span className="met-actions">` wrapping `<button className="btn-danger btn-sm">`, icon + text) instead of the earlier `btn-ghost` colored-text-only treatment — filled red, since revoking access is destructive. Only one action exists here (no Edit analog), so there's no `btn-secondary` counterpart. The share-user picker above the table is a plain `<select>` (Section 6.4).
 
 -----
 
