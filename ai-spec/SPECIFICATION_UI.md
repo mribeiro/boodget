@@ -608,7 +608,7 @@ Every collapsible header row is full-width, flex, space-between: left is the sec
 
 | Class | Level | Typography | Fill | Rendered by |
 |---|---|---|---|---|
-| `.settings-card-header` | Card title | 16 px / 600 | none | `SettingsCard` (`DossierSettingsTab.jsx`) |
+| `.settings-card-header` | Card title | 16 px / 600 | none | `ui/SettingsCard.jsx` |
 | `.section-chip-header` | Filled chip | 15 px / 600 | `var(--bg-table-group-header)`, `var(--radius-md)`, hover `var(--bg-table-row-hover)` | `ExpenseSection` (`ExpenseTemplate.jsx`) |
 | `.collapsible-section-header` | Sub-group | 14 px / 700 | none; `border-bottom` fades in when open | `ui/CollapsibleSection.jsx` |
 
@@ -618,7 +618,7 @@ All three share the base flex/reset rule, the chevron, and the animation:
 - **Expand animation** (`.collapsible-body`): `display: grid` with `grid-template-rows: 0fr → 1fr` over `0.25s cubic-bezier(.4, 0, .2, 1)`, with `overflow: hidden` on the child so it sizes to any content height without a hardcoded `max-height`. One timing for every accordion in the app.
 - The header is a real `<button type="button">` carrying `aria-expanded`.
 
-`ui/CollapsibleSection.jsx` additionally accepts `accent` (a 3 px left bar plus icon tint) and `count` (a badge tinted from the accent via `color-mix`, falling back to `var(--bg-surface)`), and wraps its content in `.collapsible-section` — a bordered `var(--bg-card)` card. `noPad` hands padding control to the caller.
+`ui/SettingsCard.jsx` and `ui/CollapsibleSection.jsx` both delegate this shared mechanics to `CollapsibleShell` (also exported from `ui/CollapsibleSection.jsx`) — an internal primitive taking `containerClassName`/`containerStyle`, `headerClassName`, `open`, `onToggle`, and a `header` node, and rendering the `.collapsible-body` animation wrapper around `children`. Everything level-specific — container look, header markup, body padding, open-state ownership (`SettingsCard` holds its own `open`/`defaultOpen` state; `CollapsibleSection` is fully controlled via `collapsed`/`onToggle`) — stays in the two presets rather than being unioned into one component with a `level` prop (rejected during #271/#287: it would give every `SettingsCard` title a filled-chip background). `ui/CollapsibleSection.jsx` additionally accepts `accent` (a 3 px left bar plus icon tint) and `count` (a badge tinted from the accent via `color-mix`, falling back to `var(--bg-surface)`), and wraps its content in `.collapsible-section` — a bordered `var(--bg-card)` card. `noPad` hands padding control to the caller.
 
 ### 6.9 Toast
 

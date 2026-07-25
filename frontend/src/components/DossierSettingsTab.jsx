@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faChevronDown,
-  faChevronRight,
   faFileExport,
   faTrash,
   faEye,
@@ -20,6 +18,7 @@ import Modal from './ui/Modal';
 import Checkbox from './ui/Checkbox';
 import SettingsSkeleton from './ui/SettingsSkeleton';
 import SettingRow from './ui/SettingRow';
+import SettingsCard from './ui/SettingsCard';
 import Toast from './ui/Toast';
 import useToast from './ui/useToast';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
@@ -34,31 +33,6 @@ const AI_MODEL_OPTIONS = [
 function formatEur(value) {
   if (value == null || isNaN(value)) return 'Not set';
   return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-}
-
-function SettingsCard({ title, description, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="card card--flat" style={{ marginBottom: 'var(--space-5)' }}>
-      <button
-        type="button"
-        className={`settings-card-header${open ? ' open' : ''}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <h2>{title}</h2>
-        <FontAwesomeIcon icon={open ? faChevronDown : faChevronRight} className="collapsible-chevron" />
-      </button>
-      <div className={`collapsible-body${open ? ' open' : ''}`}>
-        <div>
-          <div style={{ paddingTop: 'var(--space-4)' }}>
-            {description && <p className="hint" style={{ marginTop: 0, marginBottom: 'var(--space-4)' }}>{description}</p>}
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function EmergencyFundSettings({ dossierId, settings, onChange, showToast }) {
