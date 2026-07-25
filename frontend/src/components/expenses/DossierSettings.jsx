@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPencil } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import Modal from '../ui/Modal';
+import SettingsSkeleton from '../ui/SettingsSkeleton';
 
 const CYCLE_FIELD = { key: 'cycle_start_day', label: 'Cycle starts on day', suffix: null };
 
@@ -12,20 +13,10 @@ const WARNING_FIELDS = [
   { key: 'previous_cycle_close_warning_day',  label: 'Warn about previous cycle not closed from day', suffix: 'of the month' },
 ];
 
-export default function DossierSettings({ dossierId }) {
-  const [settings, setSettings] = useState({
-    cycle_start_day: 25,
-    capital_snapshot_warning_day: 7,
-    next_cycle_warning_day: 22,
-    previous_cycle_close_warning_day: 25,
-  });
+export default function DossierSettings({ dossierId, settings, onChange }) {
   const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s));
-  }, [dossierId]);
 
   function openModal(field) {
     setModal({ ...field, draft: String(settings[field.key] ?? '') });
@@ -43,7 +34,7 @@ export default function DossierSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [modal.key]: day });
-      setSettings(updated);
+      onChange(updated);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -64,6 +55,8 @@ export default function DossierSettings({ dossierId }) {
       </div>
     );
   }
+
+  if (!settings) return <SettingsSkeleton rows={4} />;
 
   return (
     <div style={{ marginBottom: '1.5rem' }}>

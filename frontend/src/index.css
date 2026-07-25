@@ -1960,6 +1960,30 @@ tr:hover td {
   transform: rotate(180deg);
 }
 
+/* ── Settings loading skeleton ───────────────────────────── */
+
+.settings-skeleton-row {
+  height: 20px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  margin-bottom: var(--space-3);
+  animation: settingsSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.settings-skeleton-row:last-child { margin-bottom: 0; }
+.settings-skeleton-row:nth-child(2) { animation-delay: 0.15s; }
+.settings-skeleton-row:nth-child(3) { animation-delay: 0.3s; }
+.settings-skeleton-row:nth-child(4) { animation-delay: 0.45s; }
+
+@keyframes settingsSkeletonPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-skeleton-row { animation: none; }
+}
+
 /* ── Empty state ─────────────────────────────────────────── */
 
 .empty-state {

@@ -19,6 +19,7 @@ import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Modal from './ui/Modal';
 import Checkbox from './ui/Checkbox';
+import SettingsSkeleton from './ui/SettingsSkeleton';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
 
 const AI_MODEL_OPTIONS = [
@@ -87,15 +88,10 @@ function SettingsCard({ title, description, children, defaultOpen = false }) {
   );
 }
 
-function EmergencyFundSettings({ dossierId }) {
-  const [settings, setSettings] = useState({ emergency_fund_months_multiplier: 6, emergency_fund_cycles_to_average: 6 });
+function EmergencyFundSettings({ dossierId, settings, onChange }) {
   const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
-  }, [dossierId]);
 
   const fields = [
     { key: 'emergency_fund_months_multiplier', label: 'Emergency fund should cover', suffix: 'months of expenses' },
@@ -115,7 +111,7 @@ function EmergencyFundSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [modal.key]: v });
-      setSettings(updated);
+      onChange(updated);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -123,6 +119,8 @@ function EmergencyFundSettings({ dossierId }) {
       setSaving(false);
     }
   }
+
+  if (!settings) return <SettingsSkeleton rows={2} />;
 
   return (
     <div>
@@ -173,20 +171,14 @@ function formatPct(value) {
   return formatNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 }
 
-function LoanSettings({ dossierId }) {
-  const [referenceSalary, setReferenceSalary] = useState(null);
-  const [maxSalaryPct, setMaxSalaryPct] = useState(null);
+function LoanSettings({ dossierId, settings, onChange }) {
   const [editingField, setEditingField] = useState(null); // 'reference_salary' | 'loans_max_salary_pct' | null
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => {
-      setReferenceSalary(s.reference_salary);
-      setMaxSalaryPct(s.loans_max_salary_pct);
-    }).catch(() => {});
-  }, [dossierId]);
+  const referenceSalary = settings?.reference_salary ?? null;
+  const maxSalaryPct = settings?.loans_max_salary_pct ?? null;
 
   function openEdit(field) {
     const current = field === 'reference_salary' ? referenceSalary : maxSalaryPct;
@@ -208,8 +200,7 @@ function LoanSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [editingField]: v });
-      setReferenceSalary(updated.reference_salary);
-      setMaxSalaryPct(updated.loans_max_salary_pct);
+      onChange(updated);
       setEditingField(null);
     } catch (err) {
       setError(err.message);
@@ -217,6 +208,8 @@ function LoanSettings({ dossierId }) {
       setSaving(false);
     }
   }
+
+  if (!settings) return <SettingsSkeleton rows={2} />;
 
   return (
     <div>
@@ -266,13 +259,7 @@ function LoanSettings({ dossierId }) {
   );
 }
 
-function PaperlessSettings({ dossierId }) {
-  const [settings, setSettings] = useState({
-    paperless_url: null,
-    paperless_token_set: false,
-    paperless_date_field_id: null,
-    paperless_amount_field_id: null,
-  });
+function PaperlessSettings({ dossierId, settings, onChange }) {
   // inline editing state for text/password fields
   const [editing, setEditing] = useState(null);
   const [inlineDraft, setInlineDraft] = useState('');
@@ -281,10 +268,6 @@ function PaperlessSettings({ dossierId }) {
   const [modal, setModal] = useState(null); // { key, label, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
-  }, [dossierId]);
 
   // --- inline (text/password) ---
   function startInlineEdit(key) {
@@ -301,7 +284,7 @@ function PaperlessSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [key]: val });
-      setSettings(updated);
+      onChange(updated);
       setEditing(null);
     } catch (err) {
       setError(err.message);
@@ -324,7 +307,7 @@ function PaperlessSettings({ dossierId }) {
       setSaving(true);
       try {
         const updated = await api.updateDossierSettings(dossierId, { [modal.key]: null });
-        setSettings(updated);
+        onChange(updated);
         closeModal();
       } catch (err) {
         setError(err.message);
@@ -338,7 +321,7 @@ function PaperlessSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [modal.key]: val });
-      setSettings(updated);
+      onChange(updated);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -363,6 +346,8 @@ function PaperlessSettings({ dossierId }) {
     if (v == null || v === '') return <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
     return String(v);
   }
+
+  if (!settings) return <SettingsSkeleton rows={4} />;
 
   return (
     <div>
@@ -457,24 +442,19 @@ function PaperlessSettings({ dossierId }) {
   );
 }
 
-function AISettings({ dossierId }) {
-  const [settings, setSettings] = useState({ ai_enabled: true, ai_model: 'claude-opus-4-8', ai_api_key_set: false });
+function AISettings({ dossierId, settings, onChange }) {
   const [editingKey, setEditingKey] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
-  }, [dossierId]);
-
   async function updateField(fields) {
     setSaving(true);
     setError('');
     try {
       const updated = await api.updateDossierSettings(dossierId, fields);
-      setSettings(updated);
+      onChange(updated);
       return updated;
     } catch (err) {
       setError(err.message);
@@ -514,6 +494,8 @@ function AISettings({ dossierId }) {
       // error already surfaced via updateField
     }
   }
+
+  if (!settings) return <SettingsSkeleton rows={3} />;
 
   return (
     <div>
@@ -583,18 +565,13 @@ function AISettings({ dossierId }) {
   );
 }
 
-function NotificationDossierSettings({ dossierId }) {
-  const [value, setValue] = useState(1);
+function NotificationDossierSettings({ dossierId, settings, onChange }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => {
-      setValue(s.expense_notification_days_before ?? 1);
-    }).catch(() => {});
-  }, [dossierId]);
+  const value = settings?.expense_notification_days_before ?? 1;
 
   function openModal() {
     setDraft(String(value));
@@ -610,7 +587,7 @@ function NotificationDossierSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { expense_notification_days_before: v });
-      setValue(updated.expense_notification_days_before ?? v);
+      onChange(updated);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -618,6 +595,8 @@ function NotificationDossierSettings({ dossierId }) {
       setSaving(false);
     }
   }
+
+  if (!settings) return <SettingsSkeleton rows={1} />;
 
   return (
     <div>
@@ -667,6 +646,26 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
   const [actionError, setActionError] = useState('');
   const [confirmState, setConfirmState] = useState(null);
 
+  // One fetch for the whole tab. Every section below reads from this and reports
+  // its saved result back via onSettingsChange — previously each of them fetched
+  // the same payload independently on mount (seven identical calls, all firing
+  // immediately because SettingsCard never unmounts its collapsed children).
+  const [settings, setSettings] = useState(null);
+  const [settingsError, setSettingsError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setSettings(null);
+    setSettingsError('');
+    api
+      .getDossierSettings(dossierId)
+      .then((s) => { if (!cancelled) setSettings(s); })
+      .catch((err) => { if (!cancelled) setSettingsError(err.message || 'Failed to load dossier settings'); });
+    return () => { cancelled = true; };
+  }, [dossierId]);
+
+  const settingsProps = { dossierId, settings, onChange: setSettings };
+
   async function handleExport() {
     setExporting(true);
     setActionError('');
@@ -705,15 +704,21 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
 
   return (
     <div>
+      {settingsError && (
+        <div className="alert alert-error" style={{ marginBottom: 'var(--space-4)' }}>
+          {settingsError}
+        </div>
+      )}
+
       <SettingsCard title="Cycle Settings">
-        <DossierSettings dossierId={dossierId} />
+        <DossierSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="Monthly Expense Template"
         description="Template entries are copied into each new cycle. Changes here do not affect existing cycles. Use the Classification column to set Must/Want for Workbench calculations."
       >
-        <ExpenseTemplate dossierId={dossierId} />
+        <ExpenseTemplate dossierId={dossierId} settings={settings} />
       </SettingsCard>
 
       <SettingsCard
@@ -727,35 +732,35 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         title="Emergency Fund Settings"
         description="Configure how the emergency fund target is calculated. The target = multiplier × average monthly expense (computed from recent cycles)."
       >
-        <EmergencyFundSettings dossierId={dossierId} />
+        <EmergencyFundSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="Loan Settings"
         description="A manually-set reference salary used to prefill new loans and to compute the Loans tab's total % of salary — set this deliberately rather than relying on a cycle's salary, which can include one-off bonuses. The max % sets the threshold the Loans tab warns against as your loan payments approach it."
       >
-        <LoanSettings dossierId={dossierId} />
+        <LoanSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="Notifications"
         description="Configure how many days before a fixed expense is due you receive a push notification reminder."
       >
-        <NotificationDossierSettings dossierId={dossierId} />
+        <NotificationDossierSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="Paperless-ngx Integration"
         description="Link fixed expenses to Paperless-ngx document tags to auto-fill values and payment days from scanned documents."
       >
-        <PaperlessSettings dossierId={dossierId} />
+        <PaperlessSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="AI Settings"
         description="Control the AI Advisor for this dossier. When disabled, the AI Advisor tab and all AI references are hidden. The API key is optional — if left unset, the server's ANTHROPIC_API_KEY environment variable is used instead."
       >
-        <AISettings dossierId={dossierId} />
+        <AISettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard title="Accounts" description="Add, reorder, and archive accounts tracked in this dossier.">

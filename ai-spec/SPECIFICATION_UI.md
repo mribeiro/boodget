@@ -932,7 +932,20 @@ A single-column stack (no side-by-side chart column) so each block gets full pag
 
 Each setting field: label on the left (60% width), control on the right (40% width). On mobile: label above, control full width.
 
-### 12.3 Sharing table (`ShareManager.jsx`)
+### 12.3 Data flow & loading state
+
+`DossierSettingsTab` fetches `GET /dossiers/:id/settings` **once** for the whole tab and passes the result down. Each section receives `{ dossierId, settings, onChange }`, renders from the `settings` prop, and after a successful `PATCH` calls `onChange(updated)` with the server's response so every other section sees the new value immediately.
+
+Sections must **not** fetch the settings payload themselves. They previously did — seven of them independently (`DossierSettings`, `EmergencyFundSettings`, `LoanSettings`, `PaperlessSettings`, `AISettings`, `NotificationDossierSettings`, `ExpenseTemplate`), all firing on mount because `SettingsCard` keeps its collapsed children mounted, so simply opening the tab issued seven identical requests for content nobody could see yet.
+
+Two consequences for how a section renders:
+
+- **While loading**, `settings` is `null` and the section returns `<SettingsSkeleton rows={n} />` (`ui/SettingsSkeleton.jsx`, styled by `.settings-skeleton-row`). Sections must not seed state with hardcoded defaults and render those — doing so presents fabricated values (`25/7/22/25`, `6/6`, `1`) that are indistinguishable from saved ones.
+- **On load failure**, the tab renders a single `.alert-error` banner above the cards and every section stays on its skeleton. There is no per-section load error.
+
+`ExpenseTemplate` is the one non-settings consumer wired the same way: it takes `settings` as a prop purely to read `cycle_start_day` and the four Paperless fields, and keeps its own fetches for template items and accounts.
+
+### 12.4 Sharing table (`ShareManager.jsx`)
 
 Same last-column action-button pattern as the Accounts table (Section 8.2): the Revoke button lives in a right-aligned `td.mobile-detail-actions` cell (`<span className="met-actions">` wrapping `<button className="btn-danger btn-sm">`, icon + text) instead of the earlier `btn-ghost` colored-text-only treatment — filled red, since revoking access is destructive. Only one action exists here (no Edit analog), so there's no `btn-secondary` counterpart. The share-user picker above the table is a plain `<select>` (Section 6.4).
 

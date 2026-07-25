@@ -65,11 +65,18 @@ function transferableAccounts(accounts, currentAccountId) {
   return accounts.filter((a) => a.can_receive_transfers || a.id === currentAccountId);
 }
 
-export default function ExpenseTemplate({ dossierId }) {
+// `settings` is supplied by DossierSettingsTab, which fetches it once for the whole
+// tab; this component only reads cycle_start_day and the Paperless field set from it.
+export default function ExpenseTemplate({ dossierId, settings }) {
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [cycleStartDay, setCycleStartDay] = useState(25);
-  const [paperlessActive, setPaperlessActive] = useState(false);
+  const cycleStartDay = settings?.cycle_start_day ?? 25;
+  const paperlessActive = !!(
+    settings?.paperless_url &&
+    settings?.paperless_token_set &&
+    settings?.paperless_date_field_id &&
+    settings?.paperless_amount_field_id
+  );
   const [activeSection, setActiveSection] = useState('expense'); // tracks which modal to open
   const [expenseCollapsed, setExpenseCollapsed] = useState(false);
   const [distCollapsed, setDistCollapsed] = useState(false);
@@ -100,17 +107,12 @@ export default function ExpenseTemplate({ dossierId }) {
 
   async function load() {
     try {
-      const [data, settings, accountsData] = await Promise.all([
+      const [data, accountsData] = await Promise.all([
         api.getExpenseTemplate(dossierId),
-        api.getDossierSettings(dossierId),
         api.getAccounts(dossierId, false),
       ]);
       setItems(data);
       setAccounts(accountsData);
-      setCycleStartDay(settings.cycle_start_day ?? 25);
-      setPaperlessActive(
-        !!(settings.paperless_url && settings.paperless_token_set && settings.paperless_date_field_id && settings.paperless_amount_field_id)
-      );
     } catch (err) {
       setError(err.message);
     }
