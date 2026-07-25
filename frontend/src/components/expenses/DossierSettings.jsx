@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPencil } from '@fortawesome/free-solid-svg-icons';
+import { useState } from 'react';
 import { api } from '../../services/api';
 import Modal from '../ui/Modal';
+import SettingsSkeleton from '../ui/SettingsSkeleton';
+import SettingRow from '../ui/SettingRow';
 
 const CYCLE_FIELD = { key: 'cycle_start_day', label: 'Cycle starts on day', suffix: null };
 
@@ -12,20 +12,10 @@ const WARNING_FIELDS = [
   { key: 'previous_cycle_close_warning_day',  label: 'Warn about previous cycle not closed from day', suffix: 'of the month' },
 ];
 
-export default function DossierSettings({ dossierId }) {
-  const [settings, setSettings] = useState({
-    cycle_start_day: 25,
-    capital_snapshot_warning_day: 7,
-    next_cycle_warning_day: 22,
-    previous_cycle_close_warning_day: 25,
-  });
+export default function DossierSettings({ dossierId, settings, onChange, showToast }) {
   const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s));
-  }, [dossierId]);
 
   function openModal(field) {
     setModal({ ...field, draft: String(settings[field.key] ?? '') });
@@ -43,7 +33,8 @@ export default function DossierSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [modal.key]: day });
-      setSettings(updated);
+      onChange(updated);
+      showToast(`${modal.label} saved`);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -54,25 +45,24 @@ export default function DossierSettings({ dossierId }) {
 
   function renderRow(field) {
     return (
-      <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
-        <strong>{settings[field.key] ?? ''}</strong>
-        {field.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.suffix}</span>}
-        <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        key={field.key}
+        label={field.label}
+        value={settings[field.key]}
+        suffix={field.suffix}
+        onEdit={() => openModal(field)}
+      />
     );
   }
 
+  if (!settings) return <SettingsSkeleton rows={4} />;
+
   return (
-    <div style={{ marginBottom: '1.5rem' }}>
+    <div style={{ marginBottom: 'var(--space-6)' }}>
       {renderRow(CYCLE_FIELD)}
 
-      <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem', marginTop: '0.75rem' }}>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
-          Glances warning thresholds
-        </div>
+      <div className="settings-subsection">
+        <div className="settings-subsection__title">Glances warning thresholds</div>
         {WARNING_FIELDS.map(renderRow)}
       </div>
 
@@ -81,7 +71,7 @@ export default function DossierSettings({ dossierId }) {
           title={modal.label}
           onClose={closeModal}
           footer={
-            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+            <div className="form-actions">
               <button className="btn-secondary" onClick={closeModal}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
@@ -89,7 +79,7 @@ export default function DossierSettings({ dossierId }) {
             </div>
           }
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="modal-field-row">
             <input
               type="number" inputMode="numeric" min={1} max={28}
               value={modal.draft}
@@ -98,14 +88,14 @@ export default function DossierSettings({ dossierId }) {
               style={{ width: '5rem' }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
-            {modal.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{modal.suffix}</span>}
+            {modal.suffix && <span className="setting-row__suffix">{modal.suffix}</span>}
           </div>
           {modal.key === 'cycle_start_day' && (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.75rem', marginBottom: 0 }}>
+            <p className="hint" style={{ marginBottom: 0 }}>
               This only affects cycles opened from now on — existing cycles (open or closed) keep the date range, ordering, and payment-day logic they were created with.
             </p>
           )}
-          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+          {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}
     </div>

@@ -1934,30 +1934,290 @@ tr:hover td {
 
 /* ── Collapsible section ─────────────────────────────────── */
 
-.collapsible-header {
+/* Three collapsible header levels, deliberately distinct — they are a hierarchy,
+   not three copies of one thing. All were previously inline-styled per component
+   except the chip, which had a class with a single consumer.
+
+     .settings-card-header       card title      16/600, no fill   (SettingsCard)
+     .section-chip-header        filled chip     15/600, tinted    (ExpenseSection)
+     .collapsible-section-header sub-group       14/700, no fill   (CollapsibleSection)
+
+   They share the chevron and the expand animation below. */
+
+.settings-card-header,
+.section-chip-header,
+.collapsible-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+}
+
+.settings-card-header {
+  padding: 0;
+}
+
+.settings-card-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.settings-card-header.open {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.section-chip-header {
   background: var(--bg-table-group-header);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: background var(--transition-fast);
-  user-select: none;
 }
 
-.collapsible-header:hover {
+.section-chip-header:hover {
   background: var(--bg-table-row-hover);
 }
 
+.collapsible-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+}
+
+.collapsible-section__body {
+  padding: var(--space-3) var(--space-4);
+}
+
+.collapsible-section-header {
+  padding: var(--space-3) var(--space-4);
+  transition: border-bottom-color var(--transition-normal);
+  border-bottom: 1px solid transparent;
+}
+
+.collapsible-section-header.open {
+  border-bottom-color: var(--border-default);
+}
+
+.collapsible-section-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.collapsible-section-header__accent {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.collapsible-section-header__count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-md);
+}
+
+/* Shared chevron. All three swap faChevronRight -> faChevronDown rather than
+   rotating; the old .open { rotate(180deg) } rule had no consumer. */
 .collapsible-chevron {
-  transition: transform var(--transition-normal);
   font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: var(--space-2);
+}
+
+/* Shared expand animation — grid-template-rows sizes to any content height.
+   One timing for every accordion in the app; SettingsCard used to run 0.3s ease
+   while CollapsibleSection ran this curve, and both were visible at once. */
+.collapsible-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(.4, 0, .2, 1);
+}
+
+.collapsible-body.open {
+  grid-template-rows: 1fr;
+}
+
+.collapsible-body > * {
+  overflow: hidden;
+}
+
+/* ── Setting row ─────────────────────────────────────────── */
+
+/* SPECIFICATION_UI.md §12.2: label left 60%, control right 40%; on mobile the
+   label sits above a full-width control. Owned by ui/SettingRow.jsx. */
+/* Bottom margin is unconditional rather than reset on :last-child — some sections
+   wrap each row in its own container (Paperless pairs a row with an inline error),
+   which would make every row a :last-child and collapse the spacing between them. */
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.setting-row__label {
+  flex: 0 0 60%;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.setting-row__control {
+  flex: 1 1 40%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.setting-row__value {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.setting-row__value--empty {
+  font-weight: 400;
+  font-style: italic;
   color: var(--text-muted);
 }
 
-.collapsible-chevron.open {
-  transform: rotate(180deg);
+.setting-row__suffix {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* A labelled group of related rows inside a settings section (e.g. Cycle
+   Settings' "Glances warning thresholds"). */
+.settings-subsection {
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.settings-subsection__title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+/* Input + suffix line inside an edit modal. */
+.modal-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* .alert carries margin-bottom by default; inside a modal it follows the field
+   instead, so flip the margin rather than overriding it per call site. */
+.alert--modal {
+  margin-top: var(--space-3);
+  margin-bottom: 0;
+}
+
+/* Show/hide affordance sitting inside a password input (Paperless token, AI key). */
+.input-reveal-btn {
+  position: absolute;
+  right: 0.4rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.input-reveal-btn:hover { color: var(--text-primary); }
+
+@media (max-width: 767px) {
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .setting-row__label { flex: none; }
+  .setting-row__control { justify-content: space-between; }
+}
+
+/* ── Toast ───────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 32px;
+  right: 24px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  color: var(--text-on-dark);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.35s cubic-bezier(.22, 1, .36, 1),
+              transform 0.35s cubic-bezier(.22, 1, .36, 1);
+  pointer-events: none;
+  z-index: var(--z-toast);
+  box-shadow: var(--shadow-modal);
+}
+
+.toast--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast--success { background: var(--color-success); }
+.toast--error   { background: var(--color-danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: opacity 0.35s ease; transform: none; }
+  .toast--visible { transform: none; }
+}
+
+/* ── Settings loading skeleton ───────────────────────────── */
+
+.settings-skeleton-row {
+  height: 20px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  margin-bottom: var(--space-3);
+  animation: settingsSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.settings-skeleton-row:last-child { margin-bottom: 0; }
+.settings-skeleton-row:nth-child(2) { animation-delay: 0.15s; }
+.settings-skeleton-row:nth-child(3) { animation-delay: 0.3s; }
+.settings-skeleton-row:nth-child(4) { animation-delay: 0.45s; }
+
+@keyframes settingsSkeletonPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-skeleton-row { animation: none; }
 }
 
 /* ── Empty state ─────────────────────────────────────────── */

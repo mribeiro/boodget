@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faPencil,
   faChevronDown,
   faChevronRight,
   faFileExport,
@@ -19,6 +18,10 @@ import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import Modal from './ui/Modal';
 import Checkbox from './ui/Checkbox';
+import SettingsSkeleton from './ui/SettingsSkeleton';
+import SettingRow from './ui/SettingRow';
+import Toast from './ui/Toast';
+import useToast from './ui/useToast';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
 
 const AI_MODEL_OPTIONS = [
@@ -36,49 +39,20 @@ function formatEur(value) {
 function SettingsCard({ title, description, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div
-      className="card card--flat"
-      style={{
-        marginBottom: 'var(--space-5)',
-      }}
-    >
+    <div className="card card--flat" style={{ marginBottom: 'var(--space-5)' }}>
       <button
+        type="button"
+        className={`settings-card-header${open ? ' open' : ''}`}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '100%',
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          paddingBottom: open ? 'var(--space-3)' : 0,
-          borderBottom: open ? '1px solid var(--border-default)' : 'none',
-          textAlign: 'left',
-        }}
       >
-        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>{title}</h2>
-        <FontAwesomeIcon
-          icon={open ? faChevronDown : faChevronRight}
-          style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0, marginLeft: 8 }}
-        />
+        <h2>{title}</h2>
+        <FontAwesomeIcon icon={open ? faChevronDown : faChevronRight} className="collapsible-chevron" />
       </button>
-      {/* grid-template-rows animates to actual content height — no fixed max-height needed */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateRows: open ? '1fr' : '0fr',
-          transition: 'grid-template-rows 0.3s ease',
-        }}
-      >
-        <div style={{ overflow: 'hidden' }}>
+      <div className={`collapsible-body${open ? ' open' : ''}`}>
+        <div>
           <div style={{ paddingTop: 'var(--space-4)' }}>
-            {description && (
-              <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 'var(--space-4)', marginTop: 0 }}>
-                {description}
-              </p>
-            )}
+            {description && <p className="hint" style={{ marginTop: 0, marginBottom: 'var(--space-4)' }}>{description}</p>}
             {children}
           </div>
         </div>
@@ -87,15 +61,10 @@ function SettingsCard({ title, description, children, defaultOpen = false }) {
   );
 }
 
-function EmergencyFundSettings({ dossierId }) {
-  const [settings, setSettings] = useState({ emergency_fund_months_multiplier: 6, emergency_fund_cycles_to_average: 6 });
+function EmergencyFundSettings({ dossierId, settings, onChange, showToast }) {
   const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
-  }, [dossierId]);
 
   const fields = [
     { key: 'emergency_fund_months_multiplier', label: 'Emergency fund should cover', suffix: 'months of expenses' },
@@ -115,7 +84,8 @@ function EmergencyFundSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [modal.key]: v });
-      setSettings(updated);
+      onChange(updated);
+      showToast(`${modal.label} saved`);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -124,17 +94,18 @@ function EmergencyFundSettings({ dossierId }) {
     }
   }
 
+  if (!settings) return <SettingsSkeleton rows={2} />;
+
   return (
     <div>
       {fields.map((field) => (
-        <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
-          <strong>{settings[field.key]}</strong>
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.suffix}</span>
-          <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
-            <FontAwesomeIcon icon={faPencil} />
-          </button>
-        </div>
+        <SettingRow
+          key={field.key}
+          label={field.label}
+          value={settings[field.key]}
+          suffix={field.suffix}
+          onEdit={() => openModal(field)}
+        />
       ))}
 
       {modal && (
@@ -142,7 +113,7 @@ function EmergencyFundSettings({ dossierId }) {
           title={modal.label}
           onClose={closeModal}
           footer={
-            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+            <div className="form-actions">
               <button className="btn-secondary" onClick={closeModal}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
@@ -150,7 +121,7 @@ function EmergencyFundSettings({ dossierId }) {
             </div>
           }
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="modal-field-row">
             <input
               type="number" inputMode="numeric" min={1}
               value={modal.draft}
@@ -159,9 +130,9 @@ function EmergencyFundSettings({ dossierId }) {
               style={{ width: '5rem' }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
-            {modal.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{modal.suffix}</span>}
+            {modal.suffix && <span className="setting-row__suffix">{modal.suffix}</span>}
           </div>
-          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+          {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}
     </div>
@@ -173,20 +144,19 @@ function formatPct(value) {
   return formatNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 }
 
-function LoanSettings({ dossierId }) {
-  const [referenceSalary, setReferenceSalary] = useState(null);
-  const [maxSalaryPct, setMaxSalaryPct] = useState(null);
+const LOAN_FIELD_LABELS = {
+  reference_salary: 'Reference monthly salary',
+  loans_max_salary_pct: 'Max % of salary assigned to loans',
+};
+
+function LoanSettings({ dossierId, settings, onChange, showToast }) {
   const [editingField, setEditingField] = useState(null); // 'reference_salary' | 'loans_max_salary_pct' | null
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => {
-      setReferenceSalary(s.reference_salary);
-      setMaxSalaryPct(s.loans_max_salary_pct);
-    }).catch(() => {});
-  }, [dossierId]);
+  const referenceSalary = settings?.reference_salary ?? null;
+  const maxSalaryPct = settings?.loans_max_salary_pct ?? null;
 
   function openEdit(field) {
     const current = field === 'reference_salary' ? referenceSalary : maxSalaryPct;
@@ -208,8 +178,8 @@ function LoanSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { [editingField]: v });
-      setReferenceSalary(updated.reference_salary);
-      setMaxSalaryPct(updated.loans_max_salary_pct);
+      onChange(updated);
+      showToast(`${LOAN_FIELD_LABELS[editingField]} ${v == null ? 'cleared' : 'saved'}`);
       setEditingField(null);
     } catch (err) {
       setError(err.message);
@@ -218,30 +188,28 @@ function LoanSettings({ dossierId }) {
     }
   }
 
+  if (!settings) return <SettingsSkeleton rows={2} />;
+
   return (
     <div>
-      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Reference monthly salary</span>
-        <strong>{formatEur(referenceSalary)}</strong>
-        <button className="btn-secondary" onClick={() => openEdit('reference_salary')} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        label={LOAN_FIELD_LABELS.reference_salary}
+        value={referenceSalary == null ? null : formatEur(referenceSalary)}
+        onEdit={() => openEdit('reference_salary')}
+      />
 
-      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Max % of salary assigned to loans</span>
-        <strong>{formatPct(maxSalaryPct)}</strong>
-        <button className="btn-secondary" onClick={() => openEdit('loans_max_salary_pct')} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        label={LOAN_FIELD_LABELS.loans_max_salary_pct}
+        value={maxSalaryPct == null ? null : formatPct(maxSalaryPct)}
+        onEdit={() => openEdit('loans_max_salary_pct')}
+      />
 
       {editingField && (
         <Modal
-          title={editingField === 'reference_salary' ? 'Reference monthly salary' : 'Max % of salary assigned to loans'}
+          title={LOAN_FIELD_LABELS[editingField]}
           onClose={() => setEditingField(null)}
           footer={
-            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+            <div className="form-actions">
               <button className="btn-secondary" onClick={() => setEditingField(null)}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
@@ -259,86 +227,55 @@ function LoanSettings({ dossierId }) {
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
           </div>
-          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+          {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}
     </div>
   );
 }
 
-function PaperlessSettings({ dossierId }) {
-  const [settings, setSettings] = useState({
-    paperless_url: null,
-    paperless_token_set: false,
-    paperless_date_field_id: null,
-    paperless_amount_field_id: null,
-  });
-  // inline editing state for text/password fields
-  const [editing, setEditing] = useState(null);
-  const [inlineDraft, setInlineDraft] = useState('');
-  const [showToken, setShowToken] = useState(false);
-  // modal state for number fields
-  const [modal, setModal] = useState(null); // { key, label, draft }
+const PAPERLESS_FIELDS = [
+  { key: 'paperless_url',             label: 'Paperless-ngx URL',            kind: 'text',     placeholder: 'https://paperless.example.com' },
+  { key: 'paperless_token',           label: 'API Token',                    kind: 'password', placeholder: 'Token value' },
+  { key: 'paperless_date_field_id',   label: 'Payment date custom field ID', kind: 'number',   placeholder: 'Leave blank to clear' },
+  { key: 'paperless_amount_field_id', label: 'Amount custom field ID',       kind: 'number',   placeholder: 'Leave blank to clear' },
+];
+
+function PaperlessSettings({ dossierId, settings, onChange, showToast }) {
+  // One editing model for all four fields. This card used to mix two: inline
+  // edit-in-place for the text/password pair and a modal for the numbers, so
+  // which affordance you got depended on which row you clicked.
+  const [modal, setModal] = useState(null); // { ...field, draft }
+  const [showSecret, setShowSecret] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
-  }, [dossierId]);
-
-  // --- inline (text/password) ---
-  function startInlineEdit(key) {
-    setEditing(key);
-    setInlineDraft(key === 'paperless_token' ? '' : String(settings[key] ?? ''));
-    setError('');
-  }
-
-  function cancelInlineEdit() { setEditing(null); setInlineDraft(''); setError(''); }
-
-  async function saveInline(key) {
-    setError('');
-    const val = inlineDraft.trim() || null;
-    setSaving(true);
-    try {
-      const updated = await api.updateDossierSettings(dossierId, { [key]: val });
-      setSettings(updated);
-      setEditing(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // --- modal (number) ---
   function openModal(field) {
-    setModal({ ...field, draft: String(settings[field.key] ?? '') });
+    // A stored token is never returned by the API, so editing it always starts blank.
+    setModal({ ...field, draft: field.kind === 'password' ? '' : String(settings[field.key] ?? '') });
+    setShowSecret(false);
     setError('');
   }
 
   function closeModal() { setModal(null); setError(''); }
 
-  async function handleModalSave() {
-    if (modal.draft === '') {
-      // allow clearing
-      setSaving(true);
-      try {
-        const updated = await api.updateDossierSettings(dossierId, { [modal.key]: null });
-        setSettings(updated);
-        closeModal();
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setSaving(false);
-      }
-      return;
+  async function handleSave() {
+    const raw = modal.draft.trim();
+    let value;
+    if (raw === '') {
+      value = null; // blank clears the field
+    } else if (modal.kind === 'number') {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 1) { setError('Must be a positive integer'); return; }
+      value = n;
+    } else {
+      value = raw;
     }
-    const val = Number(modal.draft);
-    if (!Number.isInteger(val) || val < 1) { setError('Must be a positive integer'); return; }
     setSaving(true);
     try {
-      const updated = await api.updateDossierSettings(dossierId, { [modal.key]: val });
-      setSettings(updated);
+      const updated = await api.updateDossierSettings(dossierId, { [modal.key]: value });
+      onChange(updated);
+      showToast(raw === '' ? `${modal.label} cleared` : `${modal.label} saved`);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -347,85 +284,25 @@ function PaperlessSettings({ dossierId }) {
     }
   }
 
-  const textFields = [
-    { key: 'paperless_url',   label: 'Paperless-ngx URL', type: 'text',     placeholder: 'https://paperless.example.com', isToken: false },
-    { key: 'paperless_token', label: 'API Token',          type: 'password', placeholder: 'Token value',                   isToken: true  },
-  ];
-
-  const numberFields = [
-    { key: 'paperless_date_field_id',   label: 'Payment date custom field ID' },
-    { key: 'paperless_amount_field_id', label: 'Amount custom field ID' },
-  ];
-
+  // Returns null when unset — SettingRow renders the shared "Not set" empty treatment.
   function displayValue(key) {
-    if (key === 'paperless_token') return settings.paperless_token_set ? '••••••••' : <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
+    if (key === 'paperless_token') return settings.paperless_token_set ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : null;
     const v = settings[key];
-    if (v == null || v === '') return <em style={{ color: 'var(--text-muted)' }}>Not set</em>;
+    if (v == null || v === '') return null;
     return String(v);
   }
 
+  if (!settings) return <SettingsSkeleton rows={4} />;
+
   return (
     <div>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 0, marginBottom: '1rem' }}>
-        All four fields must be set for the integration to be active.
-      </p>
-
-      {/* Text / password fields — inline editing, icon-only button */}
-      {textFields.map(({ key, label, type, placeholder, isToken }) => (
-        <div key={key} style={{ marginBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{label}</span>
-            {editing === key ? (
-              <>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type={isToken && !showToken ? 'password' : 'text'}
-                    value={inlineDraft}
-                    onChange={(e) => setInlineDraft(e.target.value)}
-                    placeholder={placeholder}
-                    autoFocus
-                    style={{ width: isToken ? '16rem' : '20rem', paddingRight: isToken ? '2rem' : undefined }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveInline(key); if (e.key === 'Escape') cancelInlineEdit(); }}
-                  />
-                  {isToken && (
-                    <button
-                      type="button"
-                      onClick={() => setShowToken((v) => !v)}
-                      style={{ position: 'absolute', right: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
-                    >
-                      <FontAwesomeIcon icon={showToken ? faEyeSlash : faEye} />
-                    </button>
-                  )}
-                </div>
-                <button className="btn-primary" onClick={() => saveInline(key)} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-                <button className="btn-secondary" onClick={cancelInlineEdit}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{displayValue(key)}</span>
-                <button className="btn-secondary" onClick={() => startInlineEdit(key)} style={{ padding: '0.5rem 0.75rem' }}>
-                  <FontAwesomeIcon icon={faPencil} />
-                </button>
-              </>
-            )}
-          </div>
-          {editing === key && error && (
-            <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{error}</div>
-          )}
-        </div>
-      ))}
-
-      {/* Number fields — modal editing */}
-      {numberFields.map((field) => (
-        <div key={field.key} style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{field.label}</span>
-          <strong>{displayValue(field.key)}</strong>
-          <button className="btn-secondary" onClick={() => openModal(field)} style={{ padding: '0.5rem 0.75rem' }}>
-            <FontAwesomeIcon icon={faPencil} />
-          </button>
-        </div>
+      {PAPERLESS_FIELDS.map((field) => (
+        <SettingRow
+          key={field.key}
+          label={field.label}
+          value={displayValue(field.key)}
+          onEdit={() => openModal(field)}
+        />
       ))}
 
       {modal && (
@@ -433,48 +310,61 @@ function PaperlessSettings({ dossierId }) {
           title={modal.label}
           onClose={closeModal}
           footer={
-            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+            <div className="form-actions">
               <button className="btn-secondary" onClick={closeModal}>Cancel</button>
-              <button className="btn-primary" onClick={handleModalSave} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
+              <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving\u2026' : 'Save'}
               </button>
             </div>
           }
         >
-          <input
-            type="number" inputMode="numeric" min={1}
-            value={modal.draft}
-            onChange={(e) => setModal((m) => ({ ...m, draft: e.target.value }))}
-            autoFocus
-            style={{ width: '8rem' }}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleModalSave(); }}
-            placeholder="Leave blank to clear"
-          />
-          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type={modal.kind === 'number' ? 'number' : (modal.kind === 'password' && !showSecret ? 'password' : 'text')}
+              inputMode={modal.kind === 'number' ? 'numeric' : undefined}
+              min={modal.kind === 'number' ? 1 : undefined}
+              value={modal.draft}
+              onChange={(e) => setModal((m) => ({ ...m, draft: e.target.value }))}
+              placeholder={modal.placeholder}
+              autoFocus
+              style={{ paddingRight: modal.kind === 'password' ? '2rem' : undefined }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+            />
+            {modal.kind === 'password' && (
+              <button
+                type="button"
+                className="input-reveal-btn"
+                onClick={() => setShowSecret((v) => !v)}
+                aria-label={showSecret ? 'Hide token' : 'Show token'}
+              >
+                <FontAwesomeIcon icon={showSecret ? faEyeSlash : faEye} />
+              </button>
+            )}
+          </div>
+          <p className="hint">Leave blank to clear this field.</p>
+          {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}
     </div>
   );
 }
 
-function AISettings({ dossierId }) {
-  const [settings, setSettings] = useState({ ai_enabled: true, ai_model: 'claude-opus-4-8', ai_api_key_set: false });
-  const [editingKey, setEditingKey] = useState(false);
+function AISettings({ dossierId, settings, onChange, showToast }) {
+  // The API key edits in a modal like every other scalar setting; only the
+  // enable toggle and the model select auto-save, and both confirm with a toast.
+  const [modalOpen, setModalOpen] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => setSettings(s)).catch(() => {});
-  }, [dossierId]);
-
-  async function updateField(fields) {
+  async function updateField(fields, toastMessage) {
     setSaving(true);
     setError('');
     try {
       const updated = await api.updateDossierSettings(dossierId, fields);
-      setSettings(updated);
+      onChange(updated);
+      if (toastMessage) showToast(toastMessage);
       return updated;
     } catch (err) {
       setError(err.message);
@@ -485,39 +375,41 @@ function AISettings({ dossierId }) {
   }
 
   function toggleEnabled() {
-    updateField({ ai_enabled: !settings.ai_enabled }).catch(() => {});
+    const next = !settings.ai_enabled;
+    updateField({ ai_enabled: next }, next ? 'AI features enabled' : 'AI features disabled').catch(() => {});
   }
 
   function handleModelChange(e) {
-    updateField({ ai_model: e.target.value }).catch(() => {});
+    const value = e.target.value;
+    const label = AI_MODEL_OPTIONS.find((o) => o.value === value)?.label ?? value;
+    updateField({ ai_model: value }, `Model set to ${label.split(' \u2014 ')[0]}`).catch(() => {});
   }
 
-  function startKeyEdit() {
+  function openModal() {
+    // The stored key is never returned by the API, so editing always starts blank.
     setKeyDraft('');
     setShowKey(false);
-    setEditingKey(true);
     setError('');
+    setModalOpen(true);
   }
 
-  function cancelKeyEdit() {
-    setEditingKey(false);
-    setKeyDraft('');
-    setError('');
-  }
+  function closeModal() { setModalOpen(false); setKeyDraft(''); setError(''); }
 
-  async function saveKey() {
+  async function handleSave() {
+    const raw = keyDraft.trim();
     try {
-      await updateField({ ai_api_key: keyDraft.trim() || null });
-      setEditingKey(false);
-      setKeyDraft('');
-    } catch (err) {
+      await updateField({ ai_api_key: raw || null }, raw ? 'API key saved' : 'API key cleared');
+      closeModal();
+    } catch {
       // error already surfaced via updateField
     }
   }
 
+  if (!settings) return <SettingsSkeleton rows={3} />;
+
   return (
     <div>
-      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+      <div style={{ marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center' }}>
         <Checkbox
           label="Enable AI features for this dossier"
           checked={settings.ai_enabled}
@@ -526,75 +418,76 @@ function AISettings({ dossierId }) {
         />
       </div>
 
-      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Default model</span>
-        <select value={settings.ai_model} onChange={handleModelChange} disabled={saving} style={{ minWidth: '14rem' }}>
+      <SettingRow label="Default model">
+        <select value={settings.ai_model} onChange={handleModelChange} disabled={saving}>
           {AI_MODEL_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-      </div>
+      </SettingRow>
 
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Claude API key</span>
-          {editingKey ? (
-            <>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  value={keyDraft}
-                  onChange={(e) => setKeyDraft(e.target.value)}
-                  placeholder="sk-ant-…"
-                  autoFocus
-                  style={{ width: '16rem', paddingRight: '2rem' }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') saveKey(); if (e.key === 'Escape') cancelKeyEdit(); }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((v) => !v)}
-                  style={{ position: 'absolute', right: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 12 }}
-                >
-                  <FontAwesomeIcon icon={showKey ? faEyeSlash : faEye} />
-                </button>
-              </div>
-              <button className="btn-primary" onClick={saveKey} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button className="btn-secondary" onClick={cancelKeyEdit}>Cancel</button>
-            </>
-          ) : (
-            <>
-              <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>
-                {settings.ai_api_key_set
-                  ? '••••••••'
-                  : <em style={{ color: 'var(--text-muted)' }}>Not set — falls back to the server's ANTHROPIC_API_KEY</em>}
-              </span>
-              <button className="btn-secondary" onClick={startKeyEdit} style={{ padding: '0.5rem 0.75rem' }}>
-                <FontAwesomeIcon icon={faPencil} />
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <SettingRow
+        label="Claude API key"
+        value={settings.ai_api_key_set ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : null}
+        onEdit={openModal}
+      />
+      <p className="hint" style={{ textAlign: 'right' }}>
+        {settings.ai_api_key_set
+          ? "Overrides the server's ANTHROPIC_API_KEY for this dossier."
+          : "Falls back to the server's ANTHROPIC_API_KEY."}
+      </p>
 
-      {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+      {modalOpen && (
+        <Modal
+          title="Claude API key"
+          onClose={closeModal}
+          footer={
+            <div className="form-actions">
+              <button className="btn-secondary" onClick={closeModal}>Cancel</button>
+              <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving\u2026' : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              placeholder="sk-ant-\u2026"
+              autoFocus
+              style={{ paddingRight: '2rem' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+            />
+            <button
+              type="button"
+              className="input-reveal-btn"
+              onClick={() => setShowKey((v) => !v)}
+              aria-label={showKey ? 'Hide API key' : 'Show API key'}
+            >
+              <FontAwesomeIcon icon={showKey ? faEyeSlash : faEye} />
+            </button>
+          </div>
+          <p className="hint">Leave blank to clear the key and fall back to the server's ANTHROPIC_API_KEY.</p>
+          {error && <div className="alert alert-error alert--modal">{error}</div>}
+        </Modal>
+      )}
+
+      {error && !modalOpen && <div className="alert alert-error alert--modal">{error}</div>}
     </div>
   );
 }
 
-function NotificationDossierSettings({ dossierId }) {
-  const [value, setValue] = useState(1);
+const DAYS_BEFORE_SUFFIX = 'day(s) before a fixed expense is due';
+
+function NotificationDossierSettings({ dossierId, settings, onChange, showToast }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.getDossierSettings(dossierId).then((s) => {
-      setValue(s.expense_notification_days_before ?? 1);
-    }).catch(() => {});
-  }, [dossierId]);
+  const value = settings?.expense_notification_days_before ?? 1;
 
   function openModal() {
     setDraft(String(value));
@@ -610,7 +503,8 @@ function NotificationDossierSettings({ dossierId }) {
     setSaving(true);
     try {
       const updated = await api.updateDossierSettings(dossierId, { expense_notification_days_before: v });
-      setValue(updated.expense_notification_days_before ?? v);
+      onChange(updated);
+      showToast('Notification timing saved');
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -619,23 +513,23 @@ function NotificationDossierSettings({ dossierId }) {
     }
   }
 
+  if (!settings) return <SettingsSkeleton rows={1} />;
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Notify me</span>
-        <strong>{value}</strong>
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
-        <button className="btn-secondary" onClick={openModal} style={{ padding: '0.5rem 0.75rem' }}>
-          <FontAwesomeIcon icon={faPencil} />
-        </button>
-      </div>
+      <SettingRow
+        label="Notify me"
+        value={value}
+        suffix={DAYS_BEFORE_SUFFIX}
+        onEdit={openModal}
+      />
 
       {modalOpen && (
         <Modal
           title="Notification timing"
           onClose={closeModal}
           footer={
-            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+            <div className="form-actions">
               <button className="btn-secondary" onClick={closeModal}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
@@ -643,7 +537,7 @@ function NotificationDossierSettings({ dossierId }) {
             </div>
           }
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="modal-field-row">
             <input
               type="number" inputMode="numeric" min={0} max={7}
               value={draft}
@@ -652,9 +546,9 @@ function NotificationDossierSettings({ dossierId }) {
               style={{ width: '5rem' }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>day(s) before a fixed expense is due</span>
+            <span className="setting-row__suffix">{DAYS_BEFORE_SUFFIX}</span>
           </div>
-          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+          {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}
     </div>
@@ -666,6 +560,27 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
   const [exporting, setExporting] = useState(false);
   const [actionError, setActionError] = useState('');
   const [confirmState, setConfirmState] = useState(null);
+
+  // One fetch for the whole tab. Every section below reads from this and reports
+  // its saved result back via onSettingsChange — previously each of them fetched
+  // the same payload independently on mount (seven identical calls, all firing
+  // immediately because SettingsCard never unmounts its collapsed children).
+  const [settings, setSettings] = useState(null);
+  const [settingsError, setSettingsError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setSettings(null);
+    setSettingsError('');
+    api
+      .getDossierSettings(dossierId)
+      .then((s) => { if (!cancelled) setSettings(s); })
+      .catch((err) => { if (!cancelled) setSettingsError(err.message || 'Failed to load dossier settings'); });
+    return () => { cancelled = true; };
+  }, [dossierId]);
+
+  const { toast, showToast } = useToast();
+  const settingsProps = { dossierId, settings, onChange: setSettings, showToast };
 
   async function handleExport() {
     setExporting(true);
@@ -705,84 +620,95 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
 
   return (
     <div>
-      <SettingsCard title="Cycle Settings">
-        <DossierSettings dossierId={dossierId} />
+      {settingsError && (
+        <div className="alert alert-error" style={{ marginBottom: 'var(--space-4)' }}>
+          {settingsError}
+        </div>
+      )}
+
+      <SettingsCard
+        title="Cycles"
+        description="When each monthly cycle starts, and how early the Glances panel warns you about a missing snapshot or an unopened/unclosed cycle."
+        defaultOpen
+      >
+        <DossierSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="Monthly Expense Template"
         description="Template entries are copied into each new cycle. Changes here do not affect existing cycles. Use the Classification column to set Must/Want for Workbench calculations."
       >
-        <ExpenseTemplate dossierId={dossierId} />
+        <ExpenseTemplate dossierId={dossierId} settings={settings} showToast={showToast} />
       </SettingsCard>
 
       <SettingsCard
         title="Annual Expense Template"
         description="Annual expenses are used in the Workbench (as monthly averages). They are not copied into cycles."
       >
-        <AnnualExpenseTemplate dossierId={dossierId} />
+        <AnnualExpenseTemplate dossierId={dossierId} showToast={showToast} />
       </SettingsCard>
 
       <SettingsCard
-        title="Emergency Fund Settings"
+        title="Emergency Fund"
         description="Configure how the emergency fund target is calculated. The target = multiplier × average monthly expense (computed from recent cycles)."
       >
-        <EmergencyFundSettings dossierId={dossierId} />
+        <EmergencyFundSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
-        title="Loan Settings"
+        title="Loans"
         description="A manually-set reference salary used to prefill new loans and to compute the Loans tab's total % of salary — set this deliberately rather than relying on a cycle's salary, which can include one-off bonuses. The max % sets the threshold the Loans tab warns against as your loan payments approach it."
       >
-        <LoanSettings dossierId={dossierId} />
+        <LoanSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="Notifications"
         description="Configure how many days before a fixed expense is due you receive a push notification reminder."
       >
-        <NotificationDossierSettings dossierId={dossierId} />
+        <NotificationDossierSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
         title="Paperless-ngx Integration"
-        description="Link fixed expenses to Paperless-ngx document tags to auto-fill values and payment days from scanned documents."
+        description="Link fixed expenses to Paperless-ngx document tags to auto-fill values and payment days from scanned documents. All four fields must be set for the integration to be active."
       >
-        <PaperlessSettings dossierId={dossierId} />
+        <PaperlessSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
-        title="AI Settings"
+        title="AI Advisor"
         description="Control the AI Advisor for this dossier. When disabled, the AI Advisor tab and all AI references are hidden. The API key is optional — if left unset, the server's ANTHROPIC_API_KEY environment variable is used instead."
       >
-        <AISettings dossierId={dossierId} />
+        <AISettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard title="Accounts" description="Add, reorder, and archive accounts tracked in this dossier.">
-        <AccountManager dossierId={dossierId} inline />
+        <AccountManager dossierId={dossierId} inline showToast={showToast} />
       </SettingsCard>
 
       {dossier?.is_creator && (
         <SettingsCard title="Sharing" description="Share this dossier with other users. Shared users have full edit rights.">
-          <ShareManager dossierId={dossierId} inline />
+          <ShareManager dossierId={dossierId} inline showToast={showToast} />
         </SettingsCard>
       )}
 
-      <SettingsCard title="Dossier">
-        {actionError && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{actionError}</div>}
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <SettingsCard title="Dossier" description="Export this dossier as a JSON file, or delete it permanently.">
+        {actionError && <div className="alert alert-error">{actionError}</div>}
+        <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
-            <FontAwesomeIcon icon={faFileExport} style={{ marginRight: '0.4rem' }} />
+            <FontAwesomeIcon icon={faFileExport} style={{ marginRight: 'var(--space-2)' }} />
             {exporting ? 'Exporting…' : 'Export'}
           </button>
           {dossier?.is_creator && (
             <button className="btn-danger" onClick={handleDelete}>
-              <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.4rem' }} />Delete dossier
+              <FontAwesomeIcon icon={faTrash} style={{ marginRight: 'var(--space-2)' }} />Delete dossier
             </button>
           )}
         </div>
       </SettingsCard>
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      <Toast {...toast} />
     </div>
   );
 }

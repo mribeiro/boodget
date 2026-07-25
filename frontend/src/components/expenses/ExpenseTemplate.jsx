@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faChevronDown, faReceipt, faArrowsSplitUpAndLeft } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
-import Toast from '../ui/Toast';
 import Checkbox from '../ui/Checkbox';
 import ClassificationPills from '../ui/ClassificationPills';
 
@@ -12,27 +11,25 @@ function formatValue(v) {
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-// A standalone, filled-chip section header (reusing the app's existing
-// .collapsible-header/.collapsible-chevron CSS) followed by its content with
-// no shared outer border — matching the design mockup, where each item card
-// below draws its own border instead of being nested inside one continuous
-// section box like the generic <CollapsibleSection>.
+// A standalone, filled-chip section header (.section-chip-header — the filled
+// level of the three collapsible headers, see SPECIFICATION_UI.md §6.8) followed
+// by its content with no shared outer border — matching the design mockup, where
+// each item card below draws its own border instead of being nested inside one
+// continuous section box like the generic <CollapsibleSection>.
 function ExpenseSection({ icon, title, count, collapsed, onToggle, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-      <div className="collapsible-header" onClick={onToggle}>
+      <button type="button" className="section-chip-header" aria-expanded={!collapsed} onClick={onToggle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
           <span style={{ width: 3, alignSelf: 'stretch', background: 'var(--color-brand)', borderRadius: 2, flexShrink: 0 }} />
           <FontAwesomeIcon icon={icon} style={{ fontSize: 15, color: 'var(--color-brand)' }} />
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</span>
           {count != null && <span className="badge badge-brand">{count}</span>}
         </div>
-        <span className="collapsible-chevron">
-          <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronDown} />
-        </span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateRows: collapsed ? '0fr' : '1fr', transition: 'grid-template-rows 0.25s cubic-bezier(.4,0,.2,1)' }}>
-        <div style={{ overflow: 'hidden' }}>{children}</div>
+        <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronDown} className="collapsible-chevron" />
+      </button>
+      <div className={`collapsible-body${collapsed ? '' : ' open'}`}>
+        <div>{children}</div>
       </div>
     </div>
   );
@@ -65,11 +62,18 @@ function transferableAccounts(accounts, currentAccountId) {
   return accounts.filter((a) => a.can_receive_transfers || a.id === currentAccountId);
 }
 
-export default function ExpenseTemplate({ dossierId }) {
+// `settings` is supplied by DossierSettingsTab, which fetches it once for the whole
+// tab; this component only reads cycle_start_day and the Paperless field set from it.
+export default function ExpenseTemplate({ dossierId, settings, showToast }) {
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [cycleStartDay, setCycleStartDay] = useState(25);
-  const [paperlessActive, setPaperlessActive] = useState(false);
+  const cycleStartDay = settings?.cycle_start_day ?? 25;
+  const paperlessActive = !!(
+    settings?.paperless_url &&
+    settings?.paperless_token_set &&
+    settings?.paperless_date_field_id &&
+    settings?.paperless_amount_field_id
+  );
   const [activeSection, setActiveSection] = useState('expense'); // tracks which modal to open
   const [expenseCollapsed, setExpenseCollapsed] = useState(false);
   const [distCollapsed, setDistCollapsed] = useState(false);
@@ -78,13 +82,6 @@ export default function ExpenseTemplate({ dossierId }) {
   const [error, setError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -100,17 +97,12 @@ export default function ExpenseTemplate({ dossierId }) {
 
   async function load() {
     try {
-      const [data, settings, accountsData] = await Promise.all([
+      const [data, accountsData] = await Promise.all([
         api.getExpenseTemplate(dossierId),
-        api.getDossierSettings(dossierId),
         api.getAccounts(dossierId, false),
       ]);
       setItems(data);
       setAccounts(accountsData);
-      setCycleStartDay(settings.cycle_start_day ?? 25);
-      setPaperlessActive(
-        !!(settings.paperless_url && settings.paperless_token_set && settings.paperless_date_field_id && settings.paperless_amount_field_id)
-      );
     } catch (err) {
       setError(err.message);
     }
@@ -401,7 +393,6 @@ export default function ExpenseTemplate({ dossierId }) {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
     </div>
   );
 }

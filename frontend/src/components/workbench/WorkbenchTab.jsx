@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown, faMoneyBillWave, faReceipt, faCalendarDays, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
@@ -7,6 +7,7 @@ import ConfirmModal from '../ConfirmModal';
 import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import Toast from '../ui/Toast';
+import useToast from '../ui/useToast';
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -202,14 +203,8 @@ export default function WorkbenchTab({ dossierId }) {
   const [saveNameInput, setSaveNameInput] = useState('');
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
+  const { toast, showToast } = useToast();
 
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
 
   useEffect(() => {
     loadAll();
@@ -611,7 +606,7 @@ export default function WorkbenchTab({ dossierId }) {
         </>
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
     </div>
   );
 }
