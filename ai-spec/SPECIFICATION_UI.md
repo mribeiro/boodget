@@ -956,11 +956,24 @@ Every setting field is a `<SettingRow>` (`ui/SettingRow.jsx`, styled by `.settin
 - **Two shapes**: `value` + optional `suffix` with an `onEdit` pencil (`btn-secondary btn-icon`, carrying an `aria-label`), or an arbitrary control passed as `children` (the AI model `<select>`, Paperless/AI inline editors).
 - The bottom margin is unconditional, deliberately not reset on `:last-child`: some sections wrap each row in its own container, which would make every row a `:last-child` and collapse the spacing between them.
 
-Password-style inline editors put their show/hide eye on `.input-reveal-btn`, absolutely positioned inside the input.
+Supporting classes: `.settings-subsection` + `.settings-subsection__title` for a labelled group of related rows (Cycle Settings' "Glances warning thresholds"); `.modal-field-row` for an input + suffix line inside an edit modal; `.alert--modal` to flip `.alert`'s default `margin-bottom` to a `margin-top` when it follows a modal field; and `.input-reveal-btn` for the show/hide eye absolutely positioned inside a password input.
+
+Settings sections use design-system classes rather than inline styles: `.btn-icon` for the row pencil, `.btn-sm` for compact buttons, `.form-actions` for modal footers, `.empty-state` for empty lists, `.hint` for explanatory text, and the `var(--space-*)` scale for spacing.
 
 Note the row is not a `<label>`/`for` pair: most "controls" are a value plus a pencil that opens a modal, with no focusable form field to associate. The edit button's `aria-label` carries the field name instead.
 
-### 12.3 Data flow & loading state
+### 12.3 Save model & feedback
+
+**One save model across the tab.** Scalar settings edit in a `Modal` opened from the row's pencil; only genuine toggles and selects auto-save on change. Every mutation — including the auto-saves — confirms with a toast (§6.9). Sections must not invent a third pattern: this card previously mixed modal editing for its number fields with inline edit-in-place for its text fields, so which affordance you got depended on which row you clicked.
+
+`DossierSettingsTab` owns **one** `useToast()` for the whole tab and passes `showToast` down alongside `settings`/`onChange`; there is a single `<Toast>` element, not one per section.
+
+Two deliberate exceptions:
+
+- `AccountManager`'s row rename stays an inline edit-in-place. It is a table row, not a setting row — opening a modal to rename a row would be worse there.
+- Secrets (Paperless token, Claude API key) always open with a blank draft, since the API never returns the stored value. Saving blank clears the field.
+
+### 12.4 Data flow & loading state
 
 `DossierSettingsTab` fetches `GET /dossiers/:id/settings` **once** for the whole tab and passes the result down. Each section receives `{ dossierId, settings, onChange }`, renders from the `settings` prop, and after a successful `PATCH` calls `onChange(updated)` with the server's response so every other section sees the new value immediately.
 
@@ -973,7 +986,7 @@ Two consequences for how a section renders:
 
 `ExpenseTemplate` is the one non-settings consumer wired the same way: it takes `settings` as a prop purely to read `cycle_start_day` and the four Paperless fields, and keeps its own fetches for template items and accounts.
 
-### 12.4 Sharing table (`ShareManager.jsx`)
+### 12.5 Sharing table (`ShareManager.jsx`)
 
 Same last-column action-button pattern as the Accounts table (Section 8.2): the Revoke button lives in a right-aligned `td.mobile-detail-actions` cell (`<span className="met-actions">` wrapping `<button className="btn-danger btn-sm">`, icon + text) instead of the earlier `btn-ghost` colored-text-only treatment — filled red, since revoking access is destructive. Only one action exists here (no Edit analog), so there's no `btn-secondary` counterpart. The share-user picker above the table is a plain `<select>` (Section 6.4).
 

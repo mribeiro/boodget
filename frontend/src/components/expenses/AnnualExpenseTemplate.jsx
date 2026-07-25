@@ -15,7 +15,7 @@ function formatValue(v) {
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-export default function AnnualExpenseTemplate({ dossierId }) {
+export default function AnnualExpenseTemplate({ dossierId, showToast }) {
   const [items, setItems] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -53,6 +53,7 @@ export default function AnnualExpenseTemplate({ dossierId }) {
       onConfirm: async () => {
         try {
           await api.deleteAnnualTemplateItem(dossierId, item.id);
+          showToast?.('Annual expense deleted');
           setItems((prev) => prev.filter((i) => i.id !== item.id));
         } catch (err) {
           setError(err.message);
@@ -66,9 +67,11 @@ export default function AnnualExpenseTemplate({ dossierId }) {
       if (itemId) {
         const updated = await api.updateAnnualTemplateItem(dossierId, itemId, data);
         setItems((prev) => prev.map((i) => (i.id === itemId ? updated : i)));
+        showToast?.('Annual expense updated');
       } else {
         const created = await api.createAnnualTemplateItem(dossierId, data);
         setItems((prev) => [...prev, created]);
+        showToast?.('Annual expense added');
       }
       setShowAddModal(false);
       setEditingItem(null);

@@ -4,8 +4,6 @@ import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faChevronDown, faReceipt, faArrowsSplitUpAndLeft } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
-import Toast from '../ui/Toast';
-import useToast from '../ui/useToast';
 import Checkbox from '../ui/Checkbox';
 import ClassificationPills from '../ui/ClassificationPills';
 
@@ -68,7 +66,7 @@ function transferableAccounts(accounts, currentAccountId) {
 
 // `settings` is supplied by DossierSettingsTab, which fetches it once for the whole
 // tab; this component only reads cycle_start_day and the Paperless field set from it.
-export default function ExpenseTemplate({ dossierId, settings }) {
+export default function ExpenseTemplate({ dossierId, settings, showToast }) {
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const cycleStartDay = settings?.cycle_start_day ?? 25;
@@ -86,7 +84,6 @@ export default function ExpenseTemplate({ dossierId, settings }) {
   const [error, setError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
-  const { toast, showToast } = useToast();
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -398,7 +395,6 @@ export default function ExpenseTemplate({ dossierId, settings }) {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast {...toast} />
     </div>
   );
 }

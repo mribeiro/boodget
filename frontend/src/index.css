@@ -2008,6 +2008,38 @@ tr:hover td {
   color: var(--text-muted);
 }
 
+/* A labelled group of related rows inside a settings section (e.g. Cycle
+   Settings' "Glances warning thresholds"). */
+.settings-subsection {
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.settings-subsection__title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+/* Input + suffix line inside an edit modal. */
+.modal-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* .alert carries margin-bottom by default; inside a modal it follows the field
+   instead, so flip the margin rather than overriding it per call site. */
+.alert--modal {
+  margin-top: var(--space-3);
+  margin-bottom: 0;
+}
+
 /* Show/hide affordance sitting inside a password input (Paperless token, AI key). */
 .input-reveal-btn {
   position: absolute;

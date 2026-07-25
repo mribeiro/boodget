@@ -12,7 +12,7 @@ const WARNING_FIELDS = [
   { key: 'previous_cycle_close_warning_day',  label: 'Warn about previous cycle not closed from day', suffix: 'of the month' },
 ];
 
-export default function DossierSettings({ dossierId, settings, onChange }) {
+export default function DossierSettings({ dossierId, settings, onChange, showToast }) {
   const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +34,7 @@ export default function DossierSettings({ dossierId, settings, onChange }) {
     try {
       const updated = await api.updateDossierSettings(dossierId, { [modal.key]: day });
       onChange(updated);
+      showToast(`${modal.label} saved`);
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -57,13 +58,11 @@ export default function DossierSettings({ dossierId, settings, onChange }) {
   if (!settings) return <SettingsSkeleton rows={4} />;
 
   return (
-    <div style={{ marginBottom: '1.5rem' }}>
+    <div style={{ marginBottom: 'var(--space-6)' }}>
       {renderRow(CYCLE_FIELD)}
 
-      <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem', marginTop: '0.75rem' }}>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
-          Glances warning thresholds
-        </div>
+      <div className="settings-subsection">
+        <div className="settings-subsection__title">Glances warning thresholds</div>
         {WARNING_FIELDS.map(renderRow)}
       </div>
 
@@ -72,7 +71,7 @@ export default function DossierSettings({ dossierId, settings, onChange }) {
           title={modal.label}
           onClose={closeModal}
           footer={
-            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+            <div className="form-actions">
               <button className="btn-secondary" onClick={closeModal}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
@@ -80,7 +79,7 @@ export default function DossierSettings({ dossierId, settings, onChange }) {
             </div>
           }
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="modal-field-row">
             <input
               type="number" inputMode="numeric" min={1} max={28}
               value={modal.draft}
@@ -89,14 +88,14 @@ export default function DossierSettings({ dossierId, settings, onChange }) {
               style={{ width: '5rem' }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
             />
-            {modal.suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{modal.suffix}</span>}
+            {modal.suffix && <span className="setting-row__suffix">{modal.suffix}</span>}
           </div>
           {modal.key === 'cycle_start_day' && (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.75rem', marginBottom: 0 }}>
+            <p className="hint" style={{ marginBottom: 0 }}>
               This only affects cycles opened from now on — existing cycles (open or closed) keep the date range, ordering, and payment-day logic they were created with.
             </p>
           )}
-          {error && <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
+          {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}
     </div>
