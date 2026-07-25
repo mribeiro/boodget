@@ -543,9 +543,14 @@ On mobile: modal takes up 95% width, anchored to screen centre.
 
 - `role="dialog"`, `aria-modal="true"`, `tabIndex={-1}`, and `aria-labelledby` pointing at the header `<h2>`.
 - **Escape closes** (calls `onClose`). Before this existed, Escape worked in the app's inline edit-in-place fields but in none of the modals, which only handled Enter.
-- **Focus moves into the dialog on open** — first focusable control, falling back to the dialog element itself so a footer-only dialog is still announced rather than leaving focus behind on the page.
+- **Focus moves into the dialog on open** — the first `input`/`select`/`textarea`, falling back to the first focusable control, then to the dialog element itself so a text-only dialog is still announced rather than leaving focus behind on the page. Form fields are preferred over the first focusable because the first focusable is the header's close button, and focusing it would override the `autoFocus` callers put on the field the dialog was opened to edit.
 - **Tab is trapped**: Tab from the last focusable control wraps to the first, Shift+Tab from the first wraps to the last. Hidden controls (`offsetParent === null`) are skipped.
-- **Focus is restored** to whatever was focused before the modal opened, on unmount.
+- **Focus is restored** to whatever was focused before the modal opened, on unmount — skipped if that element has since been detached (confirming a delete removes the row its trigger lived in), since focusing a detached node silently drops focus to `<body>`.
+
+Two ordering constraints in `useModalDismiss` are load-bearing; changing either breaks the dialog in a way that is easy to miss:
+
+- The effect **depends on nothing** and runs exactly once per open. Callers pass an inline arrow as `onClose`, so a `[onClose]` dependency re-runs the effect on every render of the parent — and its setup moves focus. The symptom is that only the **first character you type** in a modal input ever lands; every keystroke after it re-focuses the close button. `onClose` is therefore read through a ref.
+- The previously-focused element is captured **during the first render**, not in the effect. React applies a child's `autoFocus` while committing the DOM, which is before passive effects run, so by effect time the active element is already the dialog's own input — "restoring" that on close focuses a detached node and drops focus to `<body>`.
 
 `ConfirmModal.jsx` **builds on `Modal`** rather than re-implementing the overlay markup, so it inherits all of the above plus the guarded backdrop click. Its confirm button calls `onConfirm` **before** `onCancel` — closing first unmounts the dialog before the handler runs. New dialogs must go through `Modal`; do not hand-roll `.modal-overlay` markup.
 
