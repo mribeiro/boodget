@@ -19,6 +19,23 @@ function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
+// Pure, exported for testing: the two boolean-toggle handlers just need to turn a
+// checked flag into the {field: 0|1} PATCH body the API expects. Checkbox/Toggle's
+// onChange hands back a DOM event (always truthy), never a boolean — callers must
+// compute the next checked value themselves before calling this.
+export function computeNotificationSettingsPatch(field, checked) {
+  return { [field]: checked ? 1 : 0 };
+}
+
+// Pure, exported for testing: this is the computation that was silently broken by the
+// truthy-event bug (issue #256) — unchecking a dossier must remove its id, not append
+// a duplicate.
+export function computeDossierOptIn(currentOptedIn, dossierId, checked) {
+  return checked
+    ? [...currentOptedIn, dossierId]
+    : currentOptedIn.filter((id) => id !== dossierId);
+}
+
 export default function NotificationSettings() {
   const [settings, setSettings] = useState(null);
   const [dossiers, setDossiers] = useState([]);
@@ -75,7 +92,7 @@ export default function NotificationSettings() {
 
   async function handleToggleMaster(enabled) {
     try {
-      const updated = await api.updateNotificationSettings({ enabled: enabled ? 1 : 0 });
+      const updated = await api.updateNotificationSettings(computeNotificationSettingsPatch('enabled', enabled));
       setSettings(updated);
     } catch (err) {
       setError(err.message);
@@ -96,7 +113,7 @@ export default function NotificationSettings() {
 
   async function handleRepeatToggle(enabled) {
     try {
-      const updated = await api.updateNotificationSettings({ repeat_enabled: enabled ? 1 : 0 });
+      const updated = await api.updateNotificationSettings(computeNotificationSettingsPatch('repeat_enabled', enabled));
       setSettings(updated);
     } catch (err) {
       setError(err.message);
@@ -192,7 +209,7 @@ export default function NotificationSettings() {
   }
 
   async function handleDossierToggle(dossierId, checked) {
-    const next = checked ? [...optedIn, dossierId] : optedIn.filter((id) => id !== dossierId);
+    const next = computeDossierOptIn(optedIn, dossierId, checked);
     setSaving(true);
     try {
       const updated = await api.setNotificationDossiers(next);
@@ -238,7 +255,7 @@ export default function NotificationSettings() {
           </div>
           <Checkbox
             checked={!!settings.enabled}
-            onChange={(checked) => handleToggleMaster(checked)}
+            onChange={() => handleToggleMaster(!settings.enabled)}
           />
         </div>
       </div>
@@ -376,7 +393,7 @@ export default function NotificationSettings() {
           </div>
           <Checkbox
             checked={!!settings.repeat_enabled}
-            onChange={(checked) => handleRepeatToggle(checked)}
+            onChange={() => handleRepeatToggle(!settings.repeat_enabled)}
           />
         </div>
         {!!settings.repeat_enabled && (
@@ -408,7 +425,7 @@ export default function NotificationSettings() {
             <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--border-default)' }}>
               <Checkbox
                 checked={optedIn.includes(d.id)}
-                onChange={(checked) => handleDossierToggle(d.id, checked)}
+                onChange={() => handleDossierToggle(d.id, !optedIn.includes(d.id))}
               />
               <span style={{ fontSize: 13 }}>{d.name}</span>
             </div>

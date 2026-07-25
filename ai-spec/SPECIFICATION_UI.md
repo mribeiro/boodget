@@ -55,6 +55,7 @@ All tokens are defined as CSS custom properties on `:root` (light theme) and ove
   --bg-navbar:               #ffffff;
   --bg-card:                 #ffffff;
   --bg-card-hover:           #f8fafc;
+  --bg-surface:              #f8fafc;
   --bg-input:                #ffffff;
   --bg-overlay:              rgba(0, 0, 0, 0.45);
   --bg-table-header:         #f8fafc;
@@ -167,10 +168,11 @@ All tokens are defined as CSS custom properties on `:root` (light theme) and ove
   --bg-navbar:               #1a1d27;
   --bg-card:                 #1e2130;
   --bg-card-hover:           #252840;
+  --bg-surface:              #252840;
   --bg-input:                #252840;
   --bg-table-header:         #252840;
   --bg-table-row-hover:      #2a2e45;
-  --bg-table-group-header:   #1e2130;
+  --bg-table-group-header:   #252840;
 
   /* Borders */
   --border-default:          #2d3250;
@@ -811,9 +813,28 @@ Account management lives in Dossier Settings, inside an "Accounts" `SettingsCard
 
 All checkboxes use the `<Checkbox>` React component (`frontend/src/components/ui/Checkbox.jsx`). Native `<input type="checkbox">` is **never used** — it breaks dark mode on iOS/Chrome and produces tiny tap targets.
 
-The component renders a `<span>` with `role="checkbox"`, `tabIndex={0}`, and keyboard handling (Space/Enter toggles). It uses the `.checkbox-custom` CSS class.
+The component renders a `<span>` with `role="checkbox"`, `tabIndex={0}`, and keyboard handling (Space/Enter toggles).
+
+Its DOM depends on whether a `label` is passed:
+
+- **No label** — a single `.checkbox-custom` span *is* the control.
+- **With a label** — an outer `.checkbox-field` span carries the interaction and ARIA, wrapping an `aria-hidden` `.checkbox-custom` box plus a `.checkbox-custom__label` span. The whole field is therefore one tap target.
+
+The label must **not** be rendered inside `.checkbox-custom`: that box is pinned to `width: 20px; min-width: 20px`, so text placed within it overflows and collides with adjacent controls.
 
 ```css
+.checkbox-field {
+  display: inline-flex; align-items: center;
+  gap: var(--space-2);
+  font-size: 13px; cursor: pointer; user-select: none;
+}
+.checkbox-field:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 0 0 3px var(--color-brand-light), 0 0 0 5px var(--color-brand);
+}
+.checkbox-field:hover .checkbox-custom:not(.checked) { border-color: var(--color-brand); }
+
 .checkbox-custom {
   width: 20px; height: 20px; min-width: 20px;
   border: 2px solid var(--border-strong);
@@ -841,7 +862,11 @@ The component renders a `<span>` with `role="checkbox"`, `tabIndex={0}`, and key
 
 Usage: `<Checkbox checked={value} onChange={handler} title="..." />`
 
-Files using `<Checkbox>`: `CycleEditor` (paid/done toggles), `AccountManager` (the "Can receive transfers" field in the add-account form — the per-row Transfers column itself uses `<Toggle>`, Section 6.11), `EmergencyFundTab` (account picker), `GoalFormModal` (distribution and account multi-select).
+**Attaching text**: always pass it via the `label` prop — `<Checkbox label="Can receive transfers" … />` — so the text sits inside the clickable `.checkbox-field` and forms part of the tap target. Never place the text in a sibling `<span>`, and never wrap `<Checkbox>` in a `<label>`: the component renders a `<span role="checkbox">`, not an `<input>`, so implicit label association does nothing and only the 20 px box stays clickable. (A `.checkbox-label` wrapper class existed for exactly that mistaken hand-rolled pattern; it was removed once its last consumer was converted, and its layout now lives inside the component as `.checkbox-field`.)
+
+**`onChange` receives the DOM event, not a boolean.** `Checkbox` (and `Toggle`, Section 6.11) wire the handler straight to `onClick`/`onKeyDown`, so the argument is always truthy. Callers must derive the next value from current state — `onChange={() => setX(!x)}` — never `onChange={(checked) => setX(checked)}`. Getting this wrong produces a control that can only ever be switched *on*.
+
+Files using `<Checkbox>`: `CycleEditor` (paid/done toggles), `AccountManager` (the "Can receive transfers" field in the add-account form — the per-row Transfers column itself uses `<Toggle>`, Section 6.11), `EmergencyFundTab` (account picker), `GoalFormModal` (distribution and account multi-select), `NotificationSettings` (master toggle, repeat toggle, per-dossier opt-in).
 
 -----
 
