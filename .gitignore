@@ -11,3 +11,6 @@ frontend/dist/
 ds-bundle/
 .design-sync/.cache/
 .design-sync/node_modules
+
+# Build output copied into the backend for local production-build verification
+backend/frontend-dist/
