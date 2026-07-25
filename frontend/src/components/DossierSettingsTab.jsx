@@ -39,49 +39,20 @@ function formatEur(value) {
 function SettingsCard({ title, description, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div
-      className="card card--flat"
-      style={{
-        marginBottom: 'var(--space-5)',
-      }}
-    >
+    <div className="card card--flat" style={{ marginBottom: 'var(--space-5)' }}>
       <button
+        type="button"
+        className={`settings-card-header${open ? ' open' : ''}`}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '100%',
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          paddingBottom: open ? 'var(--space-3)' : 0,
-          borderBottom: open ? '1px solid var(--border-default)' : 'none',
-          textAlign: 'left',
-        }}
       >
-        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>{title}</h2>
-        <FontAwesomeIcon
-          icon={open ? faChevronDown : faChevronRight}
-          style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0, marginLeft: 8 }}
-        />
+        <h2>{title}</h2>
+        <FontAwesomeIcon icon={open ? faChevronDown : faChevronRight} className="collapsible-chevron" />
       </button>
-      {/* grid-template-rows animates to actual content height — no fixed max-height needed */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateRows: open ? '1fr' : '0fr',
-          transition: 'grid-template-rows 0.3s ease',
-        }}
-      >
-        <div style={{ overflow: 'hidden' }}>
+      <div className={`collapsible-body${open ? ' open' : ''}`}>
+        <div>
           <div style={{ paddingTop: 'var(--space-4)' }}>
-            {description && (
-              <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 'var(--space-4)', marginTop: 0 }}>
-                {description}
-              </p>
-            )}
+            {description && <p className="hint" style={{ marginTop: 0, marginBottom: 'var(--space-4)' }}>{description}</p>}
             {children}
           </div>
         </div>
@@ -325,10 +296,6 @@ function PaperlessSettings({ dossierId, settings, onChange, showToast }) {
 
   return (
     <div>
-      <p className="hint" style={{ marginTop: 0, marginBottom: 'var(--space-4)' }}>
-        All four fields must be set for the integration to be active.
-      </p>
-
       {PAPERLESS_FIELDS.map((field) => (
         <SettingRow
           key={field.key}
@@ -659,7 +626,11 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         </div>
       )}
 
-      <SettingsCard title="Cycle Settings">
+      <SettingsCard
+        title="Cycles"
+        description="When each monthly cycle starts, and how early the Glances panel warns you about a missing snapshot or an unopened/unclosed cycle."
+        defaultOpen
+      >
         <DossierSettings {...settingsProps} />
       </SettingsCard>
 
@@ -678,14 +649,14 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
       </SettingsCard>
 
       <SettingsCard
-        title="Emergency Fund Settings"
+        title="Emergency Fund"
         description="Configure how the emergency fund target is calculated. The target = multiplier × average monthly expense (computed from recent cycles)."
       >
         <EmergencyFundSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
-        title="Loan Settings"
+        title="Loans"
         description="A manually-set reference salary used to prefill new loans and to compute the Loans tab's total % of salary — set this deliberately rather than relying on a cycle's salary, which can include one-off bonuses. The max % sets the threshold the Loans tab warns against as your loan payments approach it."
       >
         <LoanSettings {...settingsProps} />
@@ -700,13 +671,13 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
 
       <SettingsCard
         title="Paperless-ngx Integration"
-        description="Link fixed expenses to Paperless-ngx document tags to auto-fill values and payment days from scanned documents."
+        description="Link fixed expenses to Paperless-ngx document tags to auto-fill values and payment days from scanned documents. All four fields must be set for the integration to be active."
       >
         <PaperlessSettings {...settingsProps} />
       </SettingsCard>
 
       <SettingsCard
-        title="AI Settings"
+        title="AI Advisor"
         description="Control the AI Advisor for this dossier. When disabled, the AI Advisor tab and all AI references are hidden. The API key is optional — if left unset, the server's ANTHROPIC_API_KEY environment variable is used instead."
       >
         <AISettings {...settingsProps} />
@@ -722,7 +693,7 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         </SettingsCard>
       )}
 
-      <SettingsCard title="Dossier">
+      <SettingsCard title="Dossier" description="Export this dossier as a JSON file, or delete it permanently.">
         {actionError && <div className="alert alert-error">{actionError}</div>}
         <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
