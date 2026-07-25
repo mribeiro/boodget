@@ -250,13 +250,11 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="checkbox-label">
-                <Checkbox
-                  checked={form.can_receive_transfers}
-                  onChange={() => setForm((f) => ({ ...f, can_receive_transfers: !f.can_receive_transfers }))}
-                />
-                Can receive transfers
-              </label>
+              <Checkbox
+                label="Can receive transfers"
+                checked={form.can_receive_transfers}
+                onChange={() => setForm((f) => ({ ...f, can_receive_transfers: !f.can_receive_transfers }))}
+              />
             </div>
             <button type="submit" className="btn-secondary" onClick={(e) => handleCreate(e, true)}>
               Add &amp; another
@@ -413,8 +411,8 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
             <table>
               <thead>
                 <tr>
-                  <th>Group</th>
                   <th>Name</th>
+                  <th>Group</th>
                   <th>Type</th>
                 </tr>
               </thead>

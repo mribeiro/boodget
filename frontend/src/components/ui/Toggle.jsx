@@ -5,6 +5,10 @@
  *
  * Usage:
  *   <Toggle checked={value} onChange={handler} />
+ *
+ * Note: onChange receives the underlying DOM event (from onClick/onKeyDown), NOT a
+ * boolean — it is always truthy. Compute the next checked value yourself from current
+ * state, e.g. onChange={() => setChecked(!checked)}.
  */
 export default function Toggle({ checked, onChange, title, style, disabled }) {
   return (

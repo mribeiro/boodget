@@ -16,6 +16,7 @@
   --bg-navbar:               #ffffff;
   --bg-card:                 #ffffff;
   --bg-card-hover:           #f8fafc;
+  --bg-surface:              #f8fafc;
   --bg-input:                #ffffff;
   --bg-overlay:              rgba(0, 0, 0, 0.45);
   --bg-table-header:         #f8fafc;
@@ -137,6 +138,7 @@
   --bg-navbar:               #1a1d27;
   --bg-card:                 #1e2130;
   --bg-card-hover:           #252840;
+  --bg-surface:              #252840;
   --bg-input:                #252840;
   --bg-table-header:         #252840;
   --bg-table-row-hover:      #2a2e45;
@@ -1603,16 +1605,26 @@ tr:hover td {
 
 /* ── Checkbox (custom) ───────────────────────────────────── */
 
-.checkbox-label {
-  display: flex;
+/* Labelled checkbox: the interactive element wraps the 20px box AND the text, so
+   the whole field is one tap target. The label cannot live inside .checkbox-custom
+   — that box is pinned to 20px and text placed in it overflows its neighbours. */
+.checkbox-field {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   font-size: 13px;
   cursor: pointer;
+  user-select: none;
 }
 
-.checkbox-label input[type='checkbox'] {
-  width: auto;
+.checkbox-field:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 0 0 3px var(--color-brand-light), 0 0 0 5px var(--color-brand);
+}
+
+.checkbox-field:hover .checkbox-custom:not(.checked) {
+  border-color: var(--color-brand);
 }
 
 .checkbox-custom {
@@ -1634,7 +1646,6 @@ tr:hover td {
   font-size: 13px;
   font-weight: 700;
   color: transparent;
-  gap: 0.5rem;
 }
 
 .checkbox-custom:focus-visible {

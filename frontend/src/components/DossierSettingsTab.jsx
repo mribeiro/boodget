@@ -517,9 +517,13 @@ function AISettings({ dossierId }) {
 
   return (
     <div>
-      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <Checkbox checked={settings.ai_enabled} onChange={toggleEnabled} disabled={saving} />
-        <span style={{ fontSize: '0.875rem' }}>Enable AI features for this dossier</span>
+      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+        <Checkbox
+          label="Enable AI features for this dossier"
+          checked={settings.ai_enabled}
+          onChange={toggleEnabled}
+          disabled={saving}
+        />
       </div>
 
       <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
