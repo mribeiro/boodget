@@ -6,14 +6,12 @@ import ConfirmModal from './ConfirmModal';
 import Checkbox from './ui/Checkbox';
 import Toggle from './ui/Toggle';
 import CollapsibleSection from './ui/CollapsibleSection';
-import Toast from './ui/Toast';
-import useToast from './ui/useToast';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
 const MONEY_CATEGORIES = ['idle', 'active', 'stocks'];
 const MONEY_CATEGORY_LABELS = { idle: 'Idle', active: 'Active', stocks: 'Stocks' };
 
-export default function AccountManager({ dossierId, onClose, inline = false }) {
+export default function AccountManager({ dossierId, onClose, inline = false, showToast }) {
   const [accounts, setAccounts] = useState([]);
   const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], money_category: 'active', can_receive_transfers: true });
   const [showForm, setShowForm] = useState(false);
@@ -26,7 +24,6 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
   const [editDraft, setEditDraft] = useState({ name: '', group_name: '' });
   const [groupCollapsed, setGroupCollapsed] = useState({});
   const [archivedCollapsed, setArchivedCollapsed] = useState(true);
-  const { toast, showToast } = useToast();
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -91,6 +88,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     );
     try {
       await api.updateAccount(dossierId, account.id, { money_category: newCategory });
+      showToast(`${account.name} set to ${MONEY_CATEGORY_LABELS[newCategory]}`);
     } catch (err) {
       setError(err.message);
       setAccounts((prev) =>
@@ -106,6 +104,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     );
     try {
       await api.updateAccount(dossierId, account.id, { can_receive_transfers: newVal });
+      showToast(newVal ? `${account.name} can receive transfers` : `${account.name} can no longer receive transfers`);
     } catch (err) {
       setError(err.message);
       setAccounts((prev) =>
@@ -173,7 +172,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
 
       <div className="section-header">
         <h3 style={{ fontWeight: 600, fontSize: '0.875rem' }}>Active accounts</h3>
-        <button className="btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }} onClick={() => setShowForm((v) => !v)}>
+        <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
           {showForm
             ? <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
             : <><FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add account</>}
@@ -184,9 +183,9 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
         <form
           onSubmit={handleCreate}
           style={{
-            background: 'var(--color-bg)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)',
+            background: 'var(--bg-app)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-md)',
             padding: '1rem',
             display: 'flex',
             flexDirection: 'column',
@@ -262,9 +261,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
       )}
 
       {active.length === 0 && !showForm && (
-        <p className="text-muted" style={{ fontSize: '0.875rem' }}>
-          No active accounts.
-        </p>
+        <div className="empty-state"><p>No active accounts.</p></div>
       )}
 
       {Object.entries(groupedActive).map(([groupName, groupAccounts]) => (
@@ -276,7 +273,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
           collapsed={!!groupCollapsed[groupName]}
           onToggle={() => setGroupCollapsed((prev) => ({ ...prev, [groupName]: !prev[groupName] }))}
         >
-          <div className="mobile-cards table-container" style={{ marginTop: 0, borderRadius: 0, border: 'none', borderTop: '1px solid var(--color-border)' }}>
+          <div className="mobile-cards table-container" style={{ marginTop: 0, borderRadius: 0, border: 'none', borderTop: '1px solid var(--border-default)' }}>
             <table className="accounts-table">
               <thead>
                 <tr>
@@ -300,7 +297,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                     className={expandedRows.has(a.id) ? 'mobile-expanded' : ''}
                     style={{
                       cursor: 'grab',
-                      outline: dragOver === a.activeIndex ? '2px solid var(--color-primary)' : undefined,
+                      outline: dragOver === a.activeIndex ? '2px solid var(--color-brand)' : undefined,
                     }}
                   >
                     <td className="mobile-drag-col text-muted" style={{ userSelect: 'none' }}><FontAwesomeIcon icon={faGripVertical} /></td>
@@ -331,7 +328,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                             placeholder="Group"
                             style={{ fontSize: '0.8rem', minWidth: 90 }}
                           />
-                          <button className="btn-ghost" style={{ color: 'var(--color-primary)', fontSize: '0.8rem' }} onClick={() => handleRename(a)}>
+                          <button className="btn-ghost" style={{ color: 'var(--color-brand)', fontSize: '0.8rem' }} onClick={() => handleRename(a)}>
                             <FontAwesomeIcon icon={faCheck} />
                           </button>
                           <button className="btn-ghost" style={{ fontSize: '0.8rem' }} onClick={() => setEditingId(null)}>
@@ -351,7 +348,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
                         value={a.money_category}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => handleChangeCategory(a, e.target.value)}
-                        style={{ fontSize: '0.8rem', color: a.money_category === 'active' ? 'var(--color-text-muted)' : 'var(--color-primary)' }}
+                        style={{ fontSize: '0.8rem', color: a.money_category === 'active' ? 'var(--text-muted)' : 'var(--color-brand)' }}
                       >
                         {MONEY_CATEGORIES.map((c) => (
                           <option key={c} value={c}>{MONEY_CATEGORY_LABELS[c]}</option>
@@ -398,11 +395,11 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
         <CollapsibleSection
           title="Archived accounts"
           count={archived.length}
-          accent="var(--color-text-muted)"
+          accent="var(--text-muted)"
           collapsed={archivedCollapsed}
           onToggle={() => setArchivedCollapsed((v) => !v)}
         >
-          <div className="mobile-cards table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--color-border)' }}>
+          <div className="mobile-cards table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--border-default)' }}>
             <table>
               <thead>
                 <tr>
@@ -431,7 +428,6 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     <div>
       {body}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast {...toast} />
     </div>
   );
 
@@ -450,7 +446,6 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
         </div>
       </div>
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast {...toast} />
     </div>
   );
 }

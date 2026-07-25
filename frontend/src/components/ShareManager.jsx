@@ -4,7 +4,7 @@ import { faXmark, faUserMinus } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import ConfirmModal from './ConfirmModal';
 
-export default function ShareManager({ dossierId, onClose, inline = false }) {
+export default function ShareManager({ dossierId, onClose, inline = false, showToast }) {
   const [sharedUsers, setSharedUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -33,6 +33,7 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
       const user = allUsers.find((u) => u.id === selectedUserId);
       setSharedUsers((prev) => [...prev, user]);
       setSelectedUserId('');
+      showToast?.(`Shared with ${user.username}`);
     } catch (err) {
       setError(err.message);
     }
@@ -50,6 +51,7 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
         try {
           await api.revokeAccess(dossierId, userId);
           setSharedUsers((prev) => prev.filter((u) => u.id !== userId));
+          showToast?.(`Access revoked for ${user?.username ?? 'user'}`);
         } catch (err) {
           setError(err.message);
         }
@@ -82,9 +84,7 @@ export default function ShareManager({ dossierId, onClose, inline = false }) {
           )}
 
           {sharedUsers.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: '0.875rem' }}>
-              This dossier is not shared with anyone.
-            </p>
+            <div className="empty-state"><p>This dossier is not shared with anyone.</p></div>
           ) : (
             <div className="mobile-cards table-container">
               <table>
