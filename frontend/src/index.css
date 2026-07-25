@@ -1934,30 +1934,126 @@ tr:hover td {
 
 /* ── Collapsible section ─────────────────────────────────── */
 
-.collapsible-header {
+/* Three collapsible header levels, deliberately distinct — they are a hierarchy,
+   not three copies of one thing. All were previously inline-styled per component
+   except the chip, which had a class with a single consumer.
+
+     .settings-card-header       card title      16/600, no fill   (SettingsCard)
+     .section-chip-header        filled chip     15/600, tinted    (ExpenseSection)
+     .collapsible-section-header sub-group       14/700, no fill   (CollapsibleSection)
+
+   They share the chevron and the expand animation below. */
+
+.settings-card-header,
+.section-chip-header,
+.collapsible-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+}
+
+.settings-card-header {
+  padding: 0;
+}
+
+.settings-card-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.settings-card-header.open {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.section-chip-header {
   background: var(--bg-table-group-header);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: background var(--transition-fast);
-  user-select: none;
 }
 
-.collapsible-header:hover {
+.section-chip-header:hover {
   background: var(--bg-table-row-hover);
 }
 
-.collapsible-chevron {
-  transition: transform var(--transition-normal);
-  font-size: 12px;
-  color: var(--text-muted);
+.collapsible-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
 }
 
-.collapsible-chevron.open {
-  transform: rotate(180deg);
+.collapsible-section__body {
+  padding: var(--space-3) var(--space-4);
+}
+
+.collapsible-section-header {
+  padding: var(--space-3) var(--space-4);
+  transition: border-bottom-color var(--transition-normal);
+  border-bottom: 1px solid transparent;
+}
+
+.collapsible-section-header.open {
+  border-bottom-color: var(--border-default);
+}
+
+.collapsible-section-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.collapsible-section-header__accent {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.collapsible-section-header__count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-md);
+}
+
+/* Shared chevron. All three swap faChevronRight -> faChevronDown rather than
+   rotating; the old .open { rotate(180deg) } rule had no consumer. */
+.collapsible-chevron {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: var(--space-2);
+}
+
+/* Shared expand animation — grid-template-rows sizes to any content height.
+   One timing for every accordion in the app; SettingsCard used to run 0.3s ease
+   while CollapsibleSection ran this curve, and both were visible at once. */
+.collapsible-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(.4, 0, .2, 1);
+}
+
+.collapsible-body.open {
+  grid-template-rows: 1fr;
+}
+
+.collapsible-body > * {
+  overflow: hidden;
 }
 
 /* ── Setting row ─────────────────────────────────────────── */

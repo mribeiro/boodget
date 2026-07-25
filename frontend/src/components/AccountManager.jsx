@@ -11,7 +11,7 @@ const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Acco
 const MONEY_CATEGORIES = ['idle', 'active', 'stocks'];
 const MONEY_CATEGORY_LABELS = { idle: 'Idle', active: 'Active', stocks: 'Stocks' };
 
-export default function AccountManager({ dossierId, onClose, inline = false, showToast }) {
+export default function AccountManager({ dossierId, showToast }) {
   const [accounts, setAccounts] = useState([]);
   const [form, setForm] = useState({ group_name: '', name: '', type: ACCOUNT_TYPES[0], money_category: 'active', can_receive_transfers: true });
   const [showForm, setShowForm] = useState(false);
@@ -171,7 +171,7 @@ export default function AccountManager({ dossierId, onClose, inline = false, sho
       {error && <div className="alert alert-error">{error}</div>}
 
       <div className="section-header">
-        <h3 style={{ fontWeight: 600, fontSize: '0.875rem' }}>Active accounts</h3>
+        <h2>Active accounts</h2>
         <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
           {showForm
             ? <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
@@ -424,27 +424,9 @@ export default function AccountManager({ dossierId, onClose, inline = false, sho
     </div>
   );
 
-  if (inline) return (
+  return (
     <div>
       {body}
-      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-    </div>
-  );
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 700 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Manage Accounts</h2>
-          <button className="close-btn" onClick={onClose}>
-            <FontAwesomeIcon icon={faXmark} />
-          </button>
-        </div>
-        <div className="modal-body">{body}</div>
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Close</button>
-        </div>
-      </div>
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
     </div>
   );

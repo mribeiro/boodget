@@ -539,6 +539,21 @@ For inputs that drive live calculations (e.g. the Workbench), use the `MoneyInpu
 
 On mobile: modal takes up 95% width, anchored to screen centre.
 
+**Dialog semantics and keyboard behaviour** live in `ui/useModalDismiss.js`, a hook `ui/Modal.jsx` consumes. Every modal therefore gets, without the caller doing anything:
+
+- `role="dialog"`, `aria-modal="true"`, `tabIndex={-1}`, and `aria-labelledby` pointing at the header `<h2>`.
+- **Escape closes** (calls `onClose`). Before this existed, Escape worked in the app's inline edit-in-place fields but in none of the modals, which only handled Enter.
+- **Focus moves into the dialog on open** — the first `input`/`select`/`textarea`, falling back to the first focusable control, then to the dialog element itself so a text-only dialog is still announced rather than leaving focus behind on the page. Form fields are preferred over the first focusable because the first focusable is the header's close button, and focusing it would override the `autoFocus` callers put on the field the dialog was opened to edit.
+- **Tab is trapped**: Tab from the last focusable control wraps to the first, Shift+Tab from the first wraps to the last. Hidden controls (`offsetParent === null`) are skipped.
+- **Focus is restored** to whatever was focused before the modal opened, on unmount — skipped if that element has since been detached (confirming a delete removes the row its trigger lived in), since focusing a detached node silently drops focus to `<body>`.
+
+Two ordering constraints in `useModalDismiss` are load-bearing; changing either breaks the dialog in a way that is easy to miss:
+
+- The effect **depends on nothing** and runs exactly once per open. Callers pass an inline arrow as `onClose`, so a `[onClose]` dependency re-runs the effect on every render of the parent — and its setup moves focus. The symptom is that only the **first character you type** in a modal input ever lands; every keystroke after it re-focuses the close button. `onClose` is therefore read through a ref.
+- The previously-focused element is captured **during the first render**, not in the effect. React applies a child's `autoFocus` while committing the DOM, which is before passive effects run, so by effect time the active element is already the dialog's own input — "restoring" that on close focuses a detached node and drops focus to `<body>`.
+
+`ConfirmModal.jsx` **builds on `Modal`** rather than re-implementing the overlay markup, so it inherits all of the above plus the guarded backdrop click. Its confirm button calls `onConfirm` **before** `onCancel` — closing first unmounts the dialog before the handler runs. New dialogs must go through `Modal`; do not hand-roll `.modal-overlay` markup.
+
 ### 6.6 Table
 
 ```css
@@ -589,12 +604,21 @@ A horizontal strip of tab buttons below the Glances panel (or wherever tabs appe
 
 ### 6.8 Collapsible Section
 
-Used in Workbench and cycle editors to show/hide section details.
+Every collapsible header row is full-width, flex, space-between: left is the section title (plus optional accent bar, icon, count badge or summary values), right is the chevron. There are **three levels**, deliberately distinct — they form a hierarchy and are visible together (a `SettingsCard` header wrapping `CollapsibleSection` headers, with `ExpenseSection`'s chip one card above). Do not add a fourth.
 
-- Header row: full-width, flex, space-between. Left: section title + summary values. Right: expand/collapse chevron.
-- Header background: `var(--bg-table-group-header)`, `padding: var(--space-3) var(--space-4)`, `border-radius: var(--radius-md)`, `cursor: pointer`.
-- On hover: `background: var(--bg-table-row-hover)`.
-- Chevron rotates 180° when expanded.
+| Class | Level | Typography | Fill | Rendered by |
+|---|---|---|---|---|
+| `.settings-card-header` | Card title | 16 px / 600 | none | `SettingsCard` (`DossierSettingsTab.jsx`) |
+| `.section-chip-header` | Filled chip | 15 px / 600 | `var(--bg-table-group-header)`, `var(--radius-md)`, hover `var(--bg-table-row-hover)` | `ExpenseSection` (`ExpenseTemplate.jsx`) |
+| `.collapsible-section-header` | Sub-group | 14 px / 700 | none; `border-bottom` fades in when open | `ui/CollapsibleSection.jsx` |
+
+All three share the base flex/reset rule, the chevron, and the animation:
+
+- **Chevron** (`.collapsible-chevron`, 12 px, `var(--text-muted)`): the icon is **swapped**, `faChevronRight` when collapsed → `faChevronDown` when expanded. It does **not** rotate — a right→down icon swap reads better for this transition, and the old `.open { transform: rotate(180deg) }` rule had no consumer.
+- **Expand animation** (`.collapsible-body`): `display: grid` with `grid-template-rows: 0fr → 1fr` over `0.25s cubic-bezier(.4, 0, .2, 1)`, with `overflow: hidden` on the child so it sizes to any content height without a hardcoded `max-height`. One timing for every accordion in the app.
+- The header is a real `<button type="button">` carrying `aria-expanded`.
+
+`ui/CollapsibleSection.jsx` additionally accepts `accent` (a 3 px left bar plus icon tint) and `count` (a badge tinted from the accent via `color-mix`, falling back to `var(--bg-surface)`), and wraps its content in `.collapsible-section` — a bordered `var(--bg-card)` card. `noPad` hands padding control to the caller.
 
 ### 6.9 Toast
 
@@ -770,7 +794,7 @@ GOALS
 
 ### 8.2 Accounts table (`AccountManager.jsx`)
 
-Account management lives in Dossier Settings, inside an "Accounts" `SettingsCard` (`AccountManager` rendered `inline`; it also has a standalone-modal mode, unused by `DossierSettingsTab`). Active accounts are grouped by `group_name`; each group is its own `CollapsibleSection` (expanded by default) wrapping its own `.mobile-cards.table-container table.accounts-table`.
+Account management lives in Dossier Settings, inside an "Accounts" `SettingsCard`. Active accounts are grouped by `group_name`; each group is its own `CollapsibleSection` (expanded by default) wrapping its own `.mobile-cards.table-container table.accounts-table`.
 
 - Columns: drag handle | Name | Type | Category (`money_category` `<select>`) | Transfers (`can_receive_transfers` `<Toggle>`) | Actions (Edit/Archive).
 - **Consistent column widths across groups**: since each group renders a separate `<table>`, plain `table-layout: auto` lets the Name column's width drift per table based on that table's own content (e.g. a bank with long account names vs. one with short ones). `.accounts-table { table-layout: fixed }` plus explicit `px` widths on every `<th>` except Name (drag 32px, Type 200px, Category 130px, Transfers 110px, Actions 190px) fixes this — Name, the only unconstrained column, ends up identical across every group's table at a given viewport width. `.accounts-table td.mobile-card-title` gets `overflow: hidden; text-overflow: ellipsis; white-space: nowrap` so an overlong name truncates instead of forcing the row taller.
@@ -811,7 +835,7 @@ Account management lives in Dossier Settings, inside an "Accounts" `SettingsCard
 ### 9.3 Expense Template
 
 - Accessible from Dossier Settings tab, inside a "Monthly Expense Template" `SettingsCard`.
-- Two sections — "Expenses" and "Distributions" — each a page-local `ExpenseSection` (not the shared `CollapsibleSection` of Section 6.8) with a `faReceipt`/`faArrowsSplitUpAndLeft` icon and a `.badge.badge-brand` item-count badge; Expenses open by default. Unlike `CollapsibleSection`, the header is a standalone filled chip (`.collapsible-header`/`.collapsible-chevron`, matching the design mockup) sitting above — not fused into one bordered box with — the separately-bordered card/table list below it; the expand/collapse still animates via the same `grid-template-rows` technique as `CollapsibleSection`.
+- Two sections — "Expenses" and "Distributions" — each a page-local `ExpenseSection` (not the shared `CollapsibleSection` of Section 6.8) with a `faReceipt`/`faArrowsSplitUpAndLeft` icon and a `.badge.badge-brand` item-count badge; Expenses open by default. Unlike `CollapsibleSection`, the header is a standalone filled chip (`.section-chip-header`/`.collapsible-chevron` — the filled level of §6.8, matching the design mockup) sitting above — not fused into one bordered box with — the separately-bordered card/table list below it; the expand/collapse still animates via the same `grid-template-rows` technique as `CollapsibleSection`.
 - Desktop (`≥768px`): a `.table` identical in shape to CycleEditor's, with edit-in-place capability. Classification (Must/Want) column uses the token-based `.class-toggle`/`.class-pill` pair-of-buttons pattern (amber `must-active`, brand-blue `want-active`, transparent/muted when unset) rather than a static badge.
 - Mobile (`<768px`): rows collapse into the shared expandable "mobile card" pattern (Section 14) — bordered card per item, name + inline value + chevron in the title row, Type/Day/Class/Paperless Tag ID revealed as label/value rows on expand. This screen is pixel-matched to the source Claude Design mockup's own `.exp-card`/`.exp-detail-row`/`.seg-btn` spec via a `.met-cards` modifier class (on the `.mobile-cards` wrapper — also used by `AnnualExpenseTemplate.jsx`, Section 9.4; other `.mobile-cards` tables app-wide keep the shared defaults): title row at `var(--space-3) var(--space-4)` padding with a 15px name and matching 15px primary-colored tabular-nums value (`.mobile-card-inline-value.value-emphasis`, no bold) instead of the shared pattern's smaller muted summary treatment; detail rows at `var(--space-2) var(--space-4)` padding (labels/font-size otherwise identical to the shared pattern's own 11px/600/.05em-tracked uppercase labels and 13px body text); Day is kept in primary (unmuted) color, unlike the desktop table's muted treatment for that same column; `.class-toggle`/`.class-pill` Must/Want pills at `var(--space-2)` gap and 4px/14px padding/13px font; and the expanded card's Edit/Delete buttons keep the shared `.btn-sm` sizing, stretched full-width via `flex:1` with a `var(--space-2)` gap between them, rather than a small right-aligned pair — `.mobile-detail-actions`/`.met-cards` rules in `index.css`. The shared `.mobile-cards` expand animation itself had a longstanding bug (fixed alongside this): the collapsed-state rule's `padding-top/bottom: 0 !important` always won over the expanded-state rule's non-important padding regardless of specificity, silently zeroing vertical padding on every expanded mobile-card row app-wide (CycleEditor, AnnualExpenseTemplate, SubscriptionsTab, LoansTab, ...) until the expanded-state rule was made `!important` too.
 - The "EF excluded" badge on an expense row uses `.badge.badge-neutral`.
@@ -943,8 +967,38 @@ A single-column stack (no side-by-side chart column) so each block gets full pag
 
 ### 12.1 Layout
 
-- Settings cards grouped by topic: “Cycle Settings” | “Glances Thresholds” | “Dossier”.
-- Each group: `.card` with a group title (16 px, weight 600, `border-bottom: 1px solid var(--border-default)`, `padding-bottom: var(--space-3)`, `margin-bottom: var(--space-4)`).
+The tab is a vertical stack of **eleven** `SettingsCard`s (`DossierSettingsTab.jsx`), in this order:
+
+| # | Title | Renders |
+|---|---|---|
+| 1 | Cycles | `DossierSettings` — cycle start day + the three Glances warning thresholds |
+| 2 | Monthly Expense Template | `ExpenseTemplate` |
+| 3 | Annual Expense Template | `AnnualExpenseTemplate` |
+| 4 | Emergency Fund | `EmergencyFundSettings` |
+| 5 | Loans | `LoanSettings` |
+| 6 | Notifications | `NotificationDossierSettings` |
+| 7 | Paperless-ngx Integration | `PaperlessSettings` |
+| 8 | AI Advisor | `AISettings` |
+| 9 | Accounts | `AccountManager` |
+| 10 | Sharing | `ShareManager` |
+| 11 | Dossier | Export / delete |
+
+**Titles are bare nouns** — no "Settings" suffix, since the tab is already Settings. **Every card carries a `description`**, rendered in the card body as `.hint` above the content; a section must not render its own description-style paragraph inside its body instead.
+
+Each card is a `.card--flat` (no shadow) with `margin-bottom: var(--space-5)`, wrapping:
+
+- A `.settings-card-header` button (§6.8, card-title level) holding the `<h2>` and the chevron, with `aria-expanded`. `padding-bottom: var(--space-3)` and `border-bottom: 1px solid var(--border-default)` apply **only while open** (`.settings-card-header.open`) — a collapsed card is a bare title row.
+- A `.collapsible-body` (§6.8) whose inner wrapper adds `paddingTop: var(--space-4)`.
+
+`SettingsCard` takes `defaultOpen`; **the first card (Cycles) passes it**, so the tab opens with an entry point rather than a wall of eleven identical bars. It is the only caller that does.
+
+Note that `SettingsCard` keeps collapsed children **mounted** — see §12.4 for why that makes the single hoisted settings fetch mandatory.
+
+**Heading hierarchy inside a card.** Four typographies used to stack vertically here; there are now three, and they map onto §6.8's levels:
+
+1. **Card title** — the `SettingsCard` `<h2>`, 16 px / 600 (`.settings-card-header h2`).
+2. **In-card section** — a `.section-header` `<h2>`, 16 px / 600 ("Active accounts" in Accounts, "Shared with" in Sharing). Same size as the card title above it, which is acceptable because the two are never ambiguous: the card title sits in the header row above the rule, the section header inside the body. Use `<h2>`, not `<h3>` — `index.css` only styles `.section-header h2`, so an `<h3>` inherits nothing and needs an inline `font-size` to compensate, which is exactly the drift this level was introduced to remove.
+3. **Sub-group** — either a `CollapsibleSection` header (14 px / 700, for collapsible groups like account groups) or a `.settings-subsection__title` eyebrow (12 px / 600 / uppercase, for a non-collapsible run of related rows such as Cycles' "Glances warning thresholds").
 
 ### 12.2 Field layout
 

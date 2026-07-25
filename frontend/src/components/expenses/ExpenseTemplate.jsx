@@ -11,27 +11,25 @@ function formatValue(v) {
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-// A standalone, filled-chip section header (reusing the app's existing
-// .collapsible-header/.collapsible-chevron CSS) followed by its content with
-// no shared outer border — matching the design mockup, where each item card
-// below draws its own border instead of being nested inside one continuous
-// section box like the generic <CollapsibleSection>.
+// A standalone, filled-chip section header (.section-chip-header — the filled
+// level of the three collapsible headers, see SPECIFICATION_UI.md §6.8) followed
+// by its content with no shared outer border — matching the design mockup, where
+// each item card below draws its own border instead of being nested inside one
+// continuous section box like the generic <CollapsibleSection>.
 function ExpenseSection({ icon, title, count, collapsed, onToggle, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-      <div className="collapsible-header" onClick={onToggle}>
+      <button type="button" className="section-chip-header" aria-expanded={!collapsed} onClick={onToggle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
           <span style={{ width: 3, alignSelf: 'stretch', background: 'var(--color-brand)', borderRadius: 2, flexShrink: 0 }} />
           <FontAwesomeIcon icon={icon} style={{ fontSize: 15, color: 'var(--color-brand)' }} />
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</span>
           {count != null && <span className="badge badge-brand">{count}</span>}
         </div>
-        <span className="collapsible-chevron">
-          <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronDown} />
-        </span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateRows: collapsed ? '0fr' : '1fr', transition: 'grid-template-rows 0.25s cubic-bezier(.4,0,.2,1)' }}>
-        <div style={{ overflow: 'hidden' }}>{children}</div>
+        <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronDown} className="collapsible-chevron" />
+      </button>
+      <div className={`collapsible-body${collapsed ? '' : ' open'}`}>
+        <div>{children}</div>
       </div>
     </div>
   );
