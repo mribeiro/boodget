@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { faPencil, faTrash, faPlus, faXmark, faChevronRight, faChevronDown, faReceipt, faArrowsSplitUpAndLeft } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Toast from '../ui/Toast';
+import useToast from '../ui/useToast';
 import Checkbox from '../ui/Checkbox';
 import ClassificationPills from '../ui/ClassificationPills';
 
@@ -85,13 +86,7 @@ export default function ExpenseTemplate({ dossierId, settings }) {
   const [error, setError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
+  const { toast, showToast } = useToast();
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -403,7 +398,7 @@ export default function ExpenseTemplate({ dossierId, settings }) {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
     </div>
   );
 }

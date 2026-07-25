@@ -596,7 +596,25 @@ Used in Workbench and cycle editors to show/hide section details.
 - On hover: `background: var(--bg-table-row-hover)`.
 - Chevron rotates 180° when expanded.
 
-### 6.9 Progress Bar
+### 6.9 Toast
+
+Transient confirmation pill, fixed bottom-right, used to acknowledge a completed mutation. `ui/Toast.jsx` renders it; `ui/useToast.js` owns the state and dismiss timer. Never hand-roll the timer — every consumer used to, and only one of the eight cleared it on unmount.
+
+```jsx
+const { toast, showToast, showError } = useToast();   // default 2000ms
+showToast('Account updated');
+showError(err.message);
+<Toast {...toast} />
+```
+
+- Two variants: `success` (default — `--color-success`, `faCircleCheck`) and `error` (`--color-danger`, `faCircleExclamation`).
+- `position: fixed; bottom: 32px; right: 24px`, `z-index: var(--z-toast)` (400 — above `--z-modal`, so a toast fired from inside a modal is visible), `box-shadow: var(--shadow-modal)`, text `var(--text-on-dark)`.
+- Enters by fading in and rising 12px (`opacity` + `transform`, `0.35s cubic-bezier(.22,1,.36,1)`); `prefers-reduced-motion` drops the translate.
+- Carries `role="status"` and `aria-live="polite"` so screen readers announce it.
+- Renders **nothing** until a message has been shown at least once. The message is deliberately retained while `visible` flips back to false so the exit transition can play.
+- `pointer-events: none` — it is never interactive and has no dismiss control.
+
+### 6.10 Progress Bar
 
 ```
 [████████░░░░░░░░░░░░] 42%
@@ -607,7 +625,7 @@ Used in Workbench and cycle editors to show/hide section details.
 - Fill colour changes based on progress: < 25% → `--color-danger`; 25–74% → `--color-warning`; ≥ 75% → `--color-success`.
 - A larger variant (`height: 12px`) is used on the Goal Detail page.
 
-### 6.10 Stat / KPI display
+### 6.11 Stat / KPI display
 
 A small data block showing a label + value pair, used extensively in Glances cards and cycle summaries.
 
@@ -623,7 +641,7 @@ Total capital
 
 **KPI strip** (`KpiStrip`/`KpiBlock`, used in `CycleEditor` and Goal Detail): on screens wider than 640px, renders each stat as a `KpiBlock` inside a responsive grid (`display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr))`), so cards stay evenly sized regardless of count instead of wrapping unevenly like a `flex-wrap` row. A block flagged `large` spans 2 grid columns. At ≤640px the strip collapses into a single summary row (primary stat + item count + chevron) that expands into a plain label/value list.
 
-### 6.11 Toggle Switch
+### 6.12 Toggle Switch
 
 For a boolean setting that reads better as on/off than a checkbox (e.g. `AccountManager.jsx`'s per-account "Transfers" flag). Same controlled/accessible pattern as `<Checkbox>` (Section 9.5): a `<span role="switch" aria-checked tabIndex={0}>` with Space/Enter keyboard handling, `ui/Toggle.jsx`, `.toggle-switch` CSS class.
 
@@ -756,7 +774,7 @@ Account management lives in Dossier Settings, inside an "Accounts" `SettingsCard
 
 - Columns: drag handle | Name | Type | Category (`money_category` `<select>`) | Transfers (`can_receive_transfers` `<Toggle>`) | Actions (Edit/Archive).
 - **Consistent column widths across groups**: since each group renders a separate `<table>`, plain `table-layout: auto` lets the Name column's width drift per table based on that table's own content (e.g. a bank with long account names vs. one with short ones). `.accounts-table { table-layout: fixed }` plus explicit `px` widths on every `<th>` except Name (drag 32px, Type 200px, Category 130px, Transfers 110px, Actions 190px) fixes this — Name, the only unconstrained column, ends up identical across every group's table at a given viewport width. `.accounts-table td.mobile-card-title` gets `overflow: hidden; text-overflow: ellipsis; white-space: nowrap` so an overlong name truncates instead of forcing the row taller.
-- **Transfers toggle**: a `<Toggle>` (`ui/Toggle.jsx`, Section 6.11), replacing an earlier plain Yes/No text button. Clicking flips `can_receive_transfers` optimistically via `PATCH /accounts/:accountId`, reverting on error.
+- **Transfers toggle**: a `<Toggle>` (`ui/Toggle.jsx`, Section 6.12), replacing an earlier plain Yes/No text button. Clicking flips `can_receive_transfers` optimistically via `PATCH /accounts/:accountId`, reverting on error.
 - **Edit / Archive actions**: both live in the last column (`td.mobile-detail-actions`, right-aligned), matching the Monthly/Annual Expense Template row-action pattern (Section 9.3) — `<span className="met-actions">` wrapping `<button className="btn-secondary btn-sm">` (Edit, transparent/bordered) and `<button className="btn-danger btn-sm">` (Archive, filled red), each with icon + text. Edit switches the row's title cell into an inline rename form (Name + Group inputs, check/cancel buttons) instead of opening a modal; the Actions cell renders nothing while that row is mid-edit. On mobile (`<768px`) the shared `.mobile-detail-actions .met-actions` rule stretches both buttons full-width side by side inside the expanded card, same as Expense Template.
 - Archiving (`DELETE /accounts/:accountId`) opens the shared `ConfirmModal` before calling the API; a `409` (still linked as a distribution's funding account) surfaces as an inline `alert-error`.
 - “Add account” button: primary, top-right of the "Active accounts" row.
@@ -864,9 +882,9 @@ Usage: `<Checkbox checked={value} onChange={handler} title="..." />`
 
 **Attaching text**: always pass it via the `label` prop — `<Checkbox label="Can receive transfers" … />` — so the text sits inside the clickable `.checkbox-field` and forms part of the tap target. Never place the text in a sibling `<span>`, and never wrap `<Checkbox>` in a `<label>`: the component renders a `<span role="checkbox">`, not an `<input>`, so implicit label association does nothing and only the 20 px box stays clickable. (A `.checkbox-label` wrapper class existed for exactly that mistaken hand-rolled pattern; it was removed once its last consumer was converted, and its layout now lives inside the component as `.checkbox-field`.)
 
-**`onChange` receives the DOM event, not a boolean.** `Checkbox` (and `Toggle`, Section 6.11) wire the handler straight to `onClick`/`onKeyDown`, so the argument is always truthy. Callers must derive the next value from current state — `onChange={() => setX(!x)}` — never `onChange={(checked) => setX(checked)}`. Getting this wrong produces a control that can only ever be switched *on*.
+**`onChange` receives the DOM event, not a boolean.** `Checkbox` (and `Toggle`, Section 6.12) wire the handler straight to `onClick`/`onKeyDown`, so the argument is always truthy. Callers must derive the next value from current state — `onChange={() => setX(!x)}` — never `onChange={(checked) => setX(checked)}`. Getting this wrong produces a control that can only ever be switched *on*.
 
-Files using `<Checkbox>`: `CycleEditor` (paid/done toggles), `AccountManager` (the "Can receive transfers" field in the add-account form — the per-row Transfers column itself uses `<Toggle>`, Section 6.11), `EmergencyFundTab` (account picker), `GoalFormModal` (distribution and account multi-select), `NotificationSettings` (master toggle, repeat toggle, per-dossier opt-in).
+Files using `<Checkbox>`: `CycleEditor` (paid/done toggles), `AccountManager` (the "Can receive transfers" field in the add-account form — the per-row Transfers column itself uses `<Toggle>`, Section 6.12), `EmergencyFundTab` (account picker), `GoalFormModal` (distribution and account multi-select), `NotificationSettings` (master toggle, repeat toggle, per-dossier opt-in).
 
 -----
 
@@ -914,7 +932,7 @@ A single-column stack (no side-by-side chart column) so each block gets full pag
 - Page header: goal name. Below it, a `cycle-toolbar` action bar (Section 9.2's convention) with Edit and Delete right-aligned as a single group — icon + text label on desktop, icon-only in the fixed bottom bar on mobile.
 - **Infeasibility warning**: a prominent alert box using `--color-warning-light` background, `--color-warning-border` border, `--color-warning-text` text, with a ⚠ icon. Positioned above the hero card when applicable.
 - **Hero card** (`.card`): state badge + percentage in a header row, the large-variant progress bar (`height: 12px`) below it, then a 3-column headline-number row (`.goal-hero-numbers`) — Target | Progress | Remaining — each a label + large (22px, weight 800) value, divided by vertical rules that become horizontal rules stacking to 1 column at ≤640px. For Ad-hoc goals that are active and have a positive monthly value needed, a faded italic line (12.5px, `var(--text-muted)`) follows immediately below, rendered as a full-width borderless button: "To reach this goal by [target date], you'd need to budget roughly [monthly value needed] per month — consider switching to a monthly-reinforced goal to track this automatically." Clicking it opens `GoalFormModal` with its `focusContributionMode` prop set, which scrolls the "Monthly contribution mode" field into view, focuses its first radio, and applies a temporary `var(--color-brand)` highlight ring (fades out after 1.5s).
-- **Secondary KPI grid** (`KpiStrip`, Section 6.10): the remaining stats — Target date, Estimated done (if the goal is on pace to finish early, immediately after Target date so it sits to its right on desktop / directly below it on mobile), Months left, Monthly needed, Monthly budgeted, Extra (if set) — rendered as the shared auto-fit KPI grid, collapsing to a summary row on mobile.
+- **Secondary KPI grid** (`KpiStrip`, Section 6.11): the remaining stats — Target date, Estimated done (if the goal is on pace to finish early, immediately after Target date so it sits to its right on desktop / directly below it on mobile), Months left, Monthly needed, Monthly budgeted, Extra (if set) — rendered as the shared auto-fit KPI grid, collapsing to a summary row on mobile.
 - **Month-by-month chart** (`.card`, full width): recharts `LineChart` with three lines — Expected, Real, and Projected (dashed, from the current month to the target date). Not shown for Ad-hoc mode. When the goal is on pace to finish early (`anticipated_completion_date` set), a dashed `ReferenceLine` at that month marks the estimated completion, labelled "Estimated" and styled with `var(--text-primary)` — a neutral color chosen because Expected/Real/Projected already claim indigo/emerald/amber, so the milestone reads as an annotation rather than a fourth series.
 - **Historical contributions** (Manual / Via Distributions): a `CollapsibleSection` (Section 6.8) with an item-count badge, containing a small table (year/month/amount) plus single-entry and batch-range add forms.
 - **Cycle contributions list** (Manual mode): below the historical contributions section — cycle name | real (editable inline input).

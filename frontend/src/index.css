@@ -1960,6 +1960,42 @@ tr:hover td {
   transform: rotate(180deg);
 }
 
+/* ── Toast ───────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 32px;
+  right: 24px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  color: var(--text-on-dark);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.35s cubic-bezier(.22, 1, .36, 1),
+              transform 0.35s cubic-bezier(.22, 1, .36, 1);
+  pointer-events: none;
+  z-index: var(--z-toast);
+  box-shadow: var(--shadow-modal);
+}
+
+.toast--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast--success { background: var(--color-success); }
+.toast--error   { background: var(--color-danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: opacity 0.35s ease; transform: none; }
+  .toast--visible { transform: none; }
+}
+
 /* ── Settings loading skeleton ───────────────────────────── */
 
 .settings-skeleton-row {

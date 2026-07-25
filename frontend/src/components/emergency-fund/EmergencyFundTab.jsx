@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faTriangleExclamation, faListCheck, faPlus, faPencil, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
@@ -6,6 +6,7 @@ import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
 import Toast from '../ui/Toast';
+import useToast from '../ui/useToast';
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -48,13 +49,7 @@ export default function EmergencyFundTab({ dossierId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [confirmState, setConfirmState] = useState(null);
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
+  const { toast, showToast } = useToast();
 
   // Account picker dialog state
   const [showAccountPicker, setShowAccountPicker] = useState(false);
@@ -387,7 +382,7 @@ export default function EmergencyFundTab({ dossierId }) {
         </div>
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -12,6 +12,7 @@ import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
 import Toast from '../ui/Toast';
+import useToast from '../ui/useToast';
 import KpiBlock from '../ui/KpiBlock';
 import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
@@ -161,21 +162,14 @@ export default function CycleEditor() {
   const [transferCollapsed, setTransferCollapsed] = useState(false);
 
   // Toast
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
+  const { toast, showToast } = useToast();
 
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
 
   useEffect(() => {
     window.scrollTo(0, 0);
     load();
     api.getDossierSettings(dossierId).then(setPaperlessSettings).catch(() => {});
     api.getAccounts(dossierId, true).then(setAccounts).catch(() => {});
-    return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, [cycleId]);
 
   async function load() {
@@ -644,7 +638,7 @@ export default function CycleEditor() {
           onClose={() => setShowEditPeriod(false)}
         />
       )}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
       {/* Spacer so fixed bottom toolbar doesn't overlap last section on mobile */}
       <div className="cycle-toolbar-spacer" />
     </div>

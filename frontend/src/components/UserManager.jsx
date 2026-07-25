@@ -1,10 +1,11 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserPlus, faTrash, faXmark, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
 import ConfirmModal from './ConfirmModal';
 import Toast from './ui/Toast';
+import useToast from './ui/useToast';
 
 export default function UserManager() {
   const { user: currentUser } = useContext(AuthContext);
@@ -13,13 +14,7 @@ export default function UserManager() {
   const [form, setForm] = useState({ username: '', password: '', confirm: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
+  const { toast, showToast } = useToast();
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [confirmState, setConfirmState] = useState(null);
 
@@ -199,7 +194,7 @@ export default function UserManager() {
         </table>
       </div>
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
     </div>
   );
 }

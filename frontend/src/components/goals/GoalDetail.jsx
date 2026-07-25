@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faPencil, faTrash, faTriangleExclamation, faPlus } from '@fortawesome/free-solid-svg-icons';
 import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import Toast from '../ui/Toast';
+import useToast from '../ui/useToast';
 import {
   LineChart,
   Line,
@@ -92,15 +93,9 @@ export default function GoalDetail() {
   const [savingHist, setSavingHist] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
+  const { toast, showToast } = useToast();
   const [unlinkingArchived, setUnlinkingArchived] = useState(false);
 
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
 
   useEffect(() => {
     load();
@@ -597,7 +592,7 @@ export default function GoalDetail() {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
       {/* Spacer so fixed bottom toolbar doesn't overlap content on mobile */}
       <div className="cycle-toolbar-spacer" />
     </div>

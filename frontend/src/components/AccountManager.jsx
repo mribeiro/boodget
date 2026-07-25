@@ -7,6 +7,7 @@ import Checkbox from './ui/Checkbox';
 import Toggle from './ui/Toggle';
 import CollapsibleSection from './ui/CollapsibleSection';
 import Toast from './ui/Toast';
+import useToast from './ui/useToast';
 
 const ACCOUNT_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
 const MONEY_CATEGORIES = ['idle', 'active', 'stocks'];
@@ -25,13 +26,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
   const [editDraft, setEditDraft] = useState({ name: '', group_name: '' });
   const [groupCollapsed, setGroupCollapsed] = useState({});
   const [archivedCollapsed, setArchivedCollapsed] = useState(true);
-  const [toast, setToast] = useState({ msg: '', show: false });
-  const toastTimer = useRef(null);
-  function showToast(msg) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, show: true });
-    toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
+  const { toast, showToast } = useToast();
 
   function toggleRow(id) {
     setExpandedRows((prev) => {
@@ -436,7 +431,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
     <div>
       {body}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
     </div>
   );
 
@@ -455,7 +450,7 @@ export default function AccountManager({ dossierId, onClose, inline = false }) {
         </div>
       </div>
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
     </div>
   );
 }

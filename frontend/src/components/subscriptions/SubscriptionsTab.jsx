@@ -6,6 +6,7 @@ import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import KpiStrip from '../ui/KpiStrip';
 import Toast from '../ui/Toast';
+import useToast from '../ui/useToast';
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -77,16 +78,12 @@ export default function SubscriptionsTab({ dossierId }) {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
-  const [toast, setToast] = useState({ msg: '', show: false });
+  const { toast, showToast } = useToast();
 
   useEffect(() => {
     load();
   }, [dossierId, showCancelled]);
 
-  function showToast(msg) {
-    setToast({ msg, show: true });
-    setTimeout(() => setToast((t) => ({ ...t, show: false })), 2000);
-  }
 
   async function load() {
     setLoading(true);
@@ -302,7 +299,7 @@ export default function SubscriptionsTab({ dossierId }) {
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
-      <Toast message={toast.msg} visible={toast.show} />
+      <Toast {...toast} />
     </div>
   );
 }
