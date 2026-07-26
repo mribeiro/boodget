@@ -45,13 +45,19 @@ export default function LoansTab({ dossierId }) {
   const navigate = useNavigate();
   const [loans, setLoans] = useState([]);
   const [maxSalaryPct, setMaxSalaryPct] = useState(null);
+  // Distinct from maxSalaryPct === null, which also means "no maximum configured".
+  // Without this the two are indistinguishable and a failed load silently shows
+  // the same neutral traffic light as a deliberately unset threshold.
+  const [settingsFailed, setSettingsFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     loadLoans();
-    api.getDossierSettings(dossierId).then((s) => setMaxSalaryPct(s.loans_max_salary_pct)).catch(() => {});
+    api.getDossierSettings(dossierId)
+      .then((s) => { setMaxSalaryPct(s.loans_max_salary_pct); setSettingsFailed(false); })
+      .catch(() => setSettingsFailed(true));
   }, [dossierId]);
 
   async function loadLoans() {
@@ -84,6 +90,8 @@ export default function LoansTab({ dossierId }) {
   // Traffic-light against the configured max % of salary for loans: red once at or over the
   // max, yellow within the last 2 percentage points below it, green otherwise. No highlight
   // if the max hasn't been configured (Dossier Settings → Loan Settings) — nothing to compare against.
+  // If the settings load failed we also can't compare, but that is not the same thing: say so in
+  // the note rather than rendering a confident-looking neutral that reads as "no maximum set".
   const maxSalaryAbsolute = maxSalaryPct != null && referenceSalary > 0 ? (maxSalaryPct / 100) * referenceSalary : null;
   const pctHighlight =
     maxSalaryPct == null || totalSalaryPct == null
@@ -95,11 +103,13 @@ export default function LoansTab({ dossierId }) {
           : 'success';
   const freeRoom = maxSalaryAbsolute != null ? maxSalaryAbsolute - totalMonthlyAmount : null;
   const pctNote =
-    maxSalaryPct != null && totalSalaryPct != null
-      ? `${formatEur(totalMonthlyAmount)} of ${formatEur(maxSalaryAbsolute)} max · ${
-          freeRoom >= 0 ? `${formatEur(freeRoom)} free` : `${formatEur(Math.abs(freeRoom))} over`
-        }`
-      : undefined;
+    settingsFailed
+      ? 'Could not load the salary threshold — this figure is not being checked'
+      : maxSalaryPct != null && totalSalaryPct != null
+        ? `${formatEur(totalMonthlyAmount)} of ${formatEur(maxSalaryAbsolute)} max · ${
+            freeRoom >= 0 ? `${formatEur(freeRoom)} free` : `${formatEur(Math.abs(freeRoom))} over`
+          }`
+        : undefined;
 
   return (
     <div>
