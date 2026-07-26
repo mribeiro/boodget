@@ -6,6 +6,7 @@ import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
+import ClassificationPills from '../ui/ClassificationPills';
 import Toast from '../ui/Toast';
 import useToast from '../ui/useToast';
 
@@ -28,57 +29,6 @@ function fmtPct(v, total) {
 
 const sum = (arr, fn) => arr.reduce((s, x) => s + (fn(x) || 0), 0);
 
-const CLASS_COLORS = {
-  must: { background: '#fef3c7', color: '#92400e' },
-  want: { background: '#dbeafe', color: '#1e40af' },
-};
-
-function ClassBadge({ classification }) {
-  if (!classification) return (
-    <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: 'var(--radius)', background: '#fff8e1', color: '#b45309', border: '1px solid #fde68a' }}>
-      ! unset
-    </span>
-  );
-  const c = CLASS_COLORS[classification];
-  return (
-    <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: 'var(--radius)', background: c.background, color: c.color }}>
-      {classification === 'must' ? 'Must' : 'Want'}
-    </span>
-  );
-}
-
-function ClassificationPills({ value, onChange }) {
-  const options = [
-    { value: 'must', label: 'Must', bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
-    { value: 'want', label: 'Want', bg: '#dbeafe', color: '#1e40af', border: '#3b82f6' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: '0.25rem' }}>
-      {options.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(active ? null : opt.value)}
-            style={{
-              fontSize: '0.7rem',
-              padding: '0.15rem 0.5rem',
-              borderRadius: '999px',
-              border: active ? `1px solid ${opt.border}` : '1px solid var(--color-border)',
-              background: active ? opt.bg : 'transparent',
-              color: active ? opt.color : 'var(--color-text-muted)',
-              cursor: 'pointer',
-              fontWeight: active ? 600 : 400,
-            }}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function TemplateTag() {
   return (
@@ -1180,9 +1130,9 @@ function ExpenseEntryRow({ entry, onChangeName, onChangeValue, onChangeClassific
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem',
-      background: noClass ? '#fffbeb' : 'var(--color-surface)',
+      background: noClass ? 'var(--color-warning-light)' : 'var(--color-surface)',
       borderRadius: 'var(--radius)',
-      border: `1px solid ${noClass ? '#fde68a' : 'var(--color-border)'}`,
+      border: `1px solid ${noClass ? 'var(--color-warning-border)' : 'var(--color-border)'}`,
       flexWrap: 'wrap',
     }}>
       <input
@@ -1208,7 +1158,7 @@ function ExpenseEntryRow({ entry, onChangeName, onChangeValue, onChangeClassific
 function AnnualEntryRow({ entry, onChangeName, onChangeValue, onChangeClassification, onRemove }) {
   const noClass = !entry.classification;
   return (
-    <tr style={{ borderTop: '1px solid var(--color-border)', background: noClass ? '#fffbeb' : 'transparent' }}>
+    <tr style={{ borderTop: '1px solid var(--color-border)', background: noClass ? 'var(--color-warning-light)' : 'transparent' }}>
       <td style={{ padding: '0.3rem 0.4rem' }}>
         <input
           type="text"

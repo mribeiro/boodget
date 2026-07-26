@@ -7,6 +7,7 @@ import {
   faFileArrowDown, faSpinner, faFileLines, faArrowRotateLeft,
   faReceipt, faWallet, faHandHoldingDollar, faMoneyBillWave, faSackDollar, faPiggyBank,
   faCircleCheck, faClock, faCalendarDays, faLeaf, faBuildingColumns,
+  faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import {
@@ -147,6 +148,7 @@ export default function CycleEditor() {
   const [annualEditModal, setAnnualEditModal] = useState(null);
 
   const [paperlessSettings, setPaperlessSettings] = useState(null);
+  const [settingsFailed, setSettingsFailed] = useState(false);
   const [fetchingPaperless, setFetchingPaperless] = useState(false);
   const [paperlessModal, setPaperlessModal] = useState(null);
   const [pullingAnnual, setPullingAnnual] = useState(false);
@@ -165,7 +167,12 @@ export default function CycleEditor() {
   useEffect(() => {
     window.scrollTo(0, 0);
     load();
-    api.getDossierSettings(dossierId).then(setPaperlessSettings).catch(() => {});
+    // A failed load leaves paperlessSettings null, which reads as "Paperless isn't
+    // configured" and silently hides the Paperless button — indistinguishable from
+    // the real thing. Track the failure so the toolbar can say so instead.
+    api.getDossierSettings(dossierId)
+      .then((s) => { setPaperlessSettings(s); setSettingsFailed(false); })
+      .catch(() => setSettingsFailed(true));
     api.getAccounts(dossierId, true).then(setAccounts).catch(() => {});
   }, [cycleId]);
 
@@ -412,6 +419,16 @@ export default function CycleEditor() {
             <button className="cycle-toolbar-btn btn-secondary" onClick={handleFetchPaperless} disabled={fetchingPaperless}>
               <FontAwesomeIcon icon={fetchingPaperless ? faSpinner : faLeaf} spin={fetchingPaperless} />
               <span className="cycle-toolbar-label">{fetchingPaperless ? 'Fetching…' : 'Paperless'}</span>
+            </button>
+          )}
+          {settingsFailed && (
+            <button
+              className="cycle-toolbar-btn btn-secondary"
+              onClick={() => window.location.reload()}
+              title="The dossier settings could not be loaded, so Paperless may be unavailable here. Reload to retry."
+            >
+              <FontAwesomeIcon icon={faTriangleExclamation} style={{ color: 'var(--color-warning)' }} />
+              <span className="cycle-toolbar-label">Settings unavailable</span>
             </button>
           )}
         </div>
