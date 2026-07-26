@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { api } from '../services/api';
 import Checkbox from '../components/ui/Checkbox';
+import Toggle from '../components/ui/Toggle';
 
 function localToUTC(localHour, localMinute) {
   const now = new Date();
@@ -253,7 +254,7 @@ export default function NotificationSettings() {
               Receive alerts for expenses, cycles, and snapshots
             </div>
           </div>
-          <Checkbox
+          <Toggle
             checked={!!settings.enabled}
             onChange={() => handleToggleMaster(!settings.enabled)}
           />
@@ -391,7 +392,7 @@ export default function NotificationSettings() {
               Re-send while the condition still applies
             </div>
           </div>
-          <Checkbox
+          <Toggle
             checked={!!settings.repeat_enabled}
             onChange={() => handleRepeatToggle(!settings.repeat_enabled)}
           />
