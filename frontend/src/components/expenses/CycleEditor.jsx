@@ -185,15 +185,22 @@ export default function CycleEditor() {
     }
   }
 
-  async function handleReopen() {
-    setError('');
-    try {
-      await api.updateCycle(dossierId, cycleId, { is_closed: false });
-      await load();
-      showToast('Cycle reopened');
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleReopen() {
+    setConfirmState({
+      title: 'Reopen cycle',
+      message: 'Reopening will make this cycle\'s expenses and distributions editable again, and clears the recorded final balance — you\'ll need to re-enter it when you close the cycle again.',
+      confirmLabel: 'Reopen',
+      onConfirm: async () => {
+        setError('');
+        try {
+          await api.updateCycle(dossierId, cycleId, { is_closed: false });
+          await load();
+          showToast('Cycle reopened');
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   }
 
   async function handleUpdateFinalBalance(bal) {
@@ -364,6 +371,7 @@ export default function CycleEditor() {
 
   if (!cycle) return <div className="loading">Loading…</div>;
 
+  const readOnly = !!cycle.is_closed;
   const expenses = sortExpenses(
     cycle.items.filter((i) => i.section === 'expense'),
     cycle.cycle_start_day
@@ -412,10 +420,12 @@ export default function CycleEditor() {
           <button className="cycle-toolbar-btn btn-secondary" onClick={() => setShowEditIncome(true)}>
             <FontAwesomeIcon icon={faMoneyBillWave} /><span className="cycle-toolbar-label">Income</span>
           </button>
-          <button className="cycle-toolbar-btn btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual}>
-            <FontAwesomeIcon icon={faFileArrowDown} /><span className="cycle-toolbar-label">{pullingAnnual ? 'Pulling…' : 'Pull annual'}</span>
-          </button>
-          {paperlessActive && (
+          {!readOnly && (
+            <button className="cycle-toolbar-btn btn-secondary" onClick={handlePullAnnualExpenses} disabled={pullingAnnual}>
+              <FontAwesomeIcon icon={faFileArrowDown} /><span className="cycle-toolbar-label">{pullingAnnual ? 'Pulling…' : 'Pull annual'}</span>
+            </button>
+          )}
+          {!readOnly && paperlessActive && (
             <button className="cycle-toolbar-btn btn-secondary" onClick={handleFetchPaperless} disabled={fetchingPaperless}>
               <FontAwesomeIcon icon={fetchingPaperless ? faSpinner : faLeaf} spin={fetchingPaperless} />
               <span className="cycle-toolbar-label">{fetchingPaperless ? 'Fetching…' : 'Paperless'}</span>
@@ -547,10 +557,13 @@ export default function CycleEditor() {
               onAnnualEdit={handleAnnualEdit}
               onAnnualDelete={handleAnnualDelete}
               onlyFixed
+              readOnly={readOnly}
             />
-            <button className="btn-ghost" onClick={() => { setActiveTab('expenses'); setShowAddModal(true); }} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
-              <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add expense
-            </button>
+            {!readOnly && (
+              <button className="btn-ghost" onClick={() => { setActiveTab('expenses'); setShowAddModal(true); }} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
+                <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add expense
+              </button>
+            )}
           </CollapsibleSection>
 
           {/* ── Budget Expenses section ── */}
@@ -568,6 +581,7 @@ export default function CycleEditor() {
                 onUpdateSpent={handleUpdateSpent}
                 onDelete={handleDeleteItem}
                 onEdit={handleEditItem}
+                readOnly={readOnly}
               />
             </CollapsibleSection>
           )}
@@ -591,6 +605,7 @@ export default function CycleEditor() {
               onToggleDone={handleToggleDone}
               onDelete={handleDeleteItem}
               onEdit={handleEditItem}
+              readOnly={readOnly}
             />
             {/* Distributions total footer */}
             {distributions.length > 0 && (
@@ -599,9 +614,11 @@ export default function CycleEditor() {
                 <span style={{ color: 'var(--color-brand)', fontWeight: 600 }}>Done: {fmt(summary.total_distributions_done)}</span>
               </div>
             )}
-            <button className="btn-ghost" onClick={() => { setActiveTab('distributions'); setShowAddModal(true); }} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
-              <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add distribution
-            </button>
+            {!readOnly && (
+              <button className="btn-ghost" onClick={() => { setActiveTab('distributions'); setShowAddModal(true); }} style={{ marginTop: '0.75rem', fontSize: '0.875rem' }}>
+                <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add distribution
+              </button>
+            )}
           </CollapsibleSection>
 
           <TransferPerAccountSection
@@ -935,10 +952,11 @@ function EditIncomeModal({ cycle, onSave, onClose }) {
 
 // ── Fixed Expenses list ───────────────────────────────────────────────────────
 
-function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit, onlyFixed }) {
+function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit, onlyFixed, readOnly }) {
   const [editingItem, setEditingItem] = useState(null);
 
   async function handleAnnualTogglePaid(p) {
+    if (readOnly) return;
     try {
       await api.updateAnnualPayment(dossierId, p.id, { paid: p.paid ? false : true });
       onAnnualPaymentUpdated();
@@ -997,6 +1015,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                 checked={!!p.paid}
                 onChange={() => handleAnnualTogglePaid(p)}
                 title={p.paid ? 'Mark as unpaid' : 'Mark as paid'}
+                disabled={readOnly}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={{
@@ -1019,20 +1038,24 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
               <span style={{ fontSize: '0.875rem', fontWeight: 500, color: p.paid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
                 {fmt(expectedValue)}
               </span>
-              <button
-                onClick={() => onAnnualEdit(p)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                title="Edit annual expense"
-              >
-                <FontAwesomeIcon icon={faPencil} />
-              </button>
-              <button
-                onClick={() => onAnnualDelete(p)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-                title="Delete annual expense"
-              >
-                <FontAwesomeIcon icon={faTrash} />
-              </button>
+              {!readOnly && (
+                <>
+                  <button
+                    onClick={() => onAnnualEdit(p)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                    title="Edit annual expense"
+                  >
+                    <FontAwesomeIcon icon={faPencil} />
+                  </button>
+                  <button
+                    onClick={() => onAnnualDelete(p)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                    title="Delete annual expense"
+                  >
+                    <FontAwesomeIcon icon={faTrash} />
+                  </button>
+                </>
+              )}
             </div>
           );
         }
@@ -1061,6 +1084,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                 checked={!!item.paid}
                 onChange={() => onTogglePaid(item)}
                 title={item.paid ? 'Mark as unpaid' : 'Mark as paid'}
+                disabled={readOnly}
               />
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1108,20 +1132,24 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
             <span style={{ fontSize: '0.875rem', fontWeight: 500, color: isPaid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
               {fmt(item.value)}
             </span>
-            <button
-              onClick={() => setEditingItem(item)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-              title="Edit"
-            >
-              <FontAwesomeIcon icon={faPencil} />
-            </button>
-            <button
-              onClick={() => onDelete(item)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-              title="Delete"
-            >
-              <FontAwesomeIcon icon={faTrash} />
-            </button>
+            {!readOnly && (
+              <>
+                <button
+                  onClick={() => setEditingItem(item)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  title="Edit"
+                >
+                  <FontAwesomeIcon icon={faPencil} />
+                </button>
+                <button
+                  onClick={() => onDelete(item)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                  title="Delete"
+                >
+                  <FontAwesomeIcon icon={faTrash} />
+                </button>
+              </>
+            )}
           </div>
         );
       })}
@@ -1139,7 +1167,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
 
 // ── Budget Expenses list ──────────────────────────────────────────────────────
 
-function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
+function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit, readOnly }) {
   const [editingItem, setEditingItem] = useState(null);
 
   if (expenses.length === 0) return null;
@@ -1189,20 +1217,24 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
                 <span style={{ fontSize: 11, fontWeight: 700, color: barColor, fontVariantNumeric: 'tabular-nums' }}>
                   {Math.round(pct)}%
                 </span>
-                <button
-                  onClick={() => setEditingItem(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
-                  title="Edit"
-                >
-                  <FontAwesomeIcon icon={faPencil} />
-                </button>
-                <button
-                  onClick={() => onDelete(item)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
-                  title="Delete"
-                >
-                  <FontAwesomeIcon icon={faTrash} />
-                </button>
+                {!readOnly && (
+                  <>
+                    <button
+                      onClick={() => setEditingItem(item)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
+                      title="Edit"
+                    >
+                      <FontAwesomeIcon icon={faPencil} />
+                    </button>
+                    <button
+                      onClick={() => onDelete(item)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.2rem' }}
+                      title="Delete"
+                    >
+                      <FontAwesomeIcon icon={faTrash} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <BudgetBar spent={spent} max={item.value} />
@@ -1225,7 +1257,7 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit }) {
 
 // ── Distributions list ────────────────────────────────────────────────────────
 
-function DistributionsList({ distributions, accounts, accountsById, onToggleDone, onDelete, onEdit }) {
+function DistributionsList({ distributions, accounts, accountsById, onToggleDone, onDelete, onEdit, readOnly }) {
   const [editingItem, setEditingItem] = useState(null);
 
   if (distributions.length === 0) {
@@ -1258,6 +1290,7 @@ function DistributionsList({ distributions, accounts, accountsById, onToggleDone
             onChange={() => onToggleDone(item)}
             title={item.done ? 'Mark as not done' : 'Mark as done'}
             style={{ '--checkbox-color': 'var(--color-brand)' }}
+            disabled={readOnly}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{
@@ -1295,20 +1328,24 @@ function DistributionsList({ distributions, accounts, accountsById, onToggleDone
             transition: 'color 0.25s ease',
             fontVariantNumeric: 'tabular-nums',
           }}>{fmt(item.value)}</span>
-          <button
-            onClick={() => setEditingItem(item)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-            title="Edit"
-          >
-            <FontAwesomeIcon icon={faPencil} />
-          </button>
-          <button
-            onClick={() => onDelete(item)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
-            title="Delete"
-          >
-            <FontAwesomeIcon icon={faTrash} />
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                onClick={() => setEditingItem(item)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                title="Edit"
+              >
+                <FontAwesomeIcon icon={faPencil} />
+              </button>
+              <button
+                onClick={() => onDelete(item)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0 0.25rem', flexShrink: 0 }}
+                title="Delete"
+              >
+                <FontAwesomeIcon icon={faTrash} />
+              </button>
+            </>
+          )}
         </div>
         );
       })}

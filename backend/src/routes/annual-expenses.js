@@ -659,6 +659,11 @@ router.patch('/annual-expense-payments/:paymentId', (req, res) => {
   `).get(req.params.paymentId, req.params.id);
   if (!payment) return res.status(404).json({ error: 'Payment not found' });
 
+  if (payment.cycle_id) {
+    const cycle = db.prepare('SELECT is_closed FROM expense_cycles WHERE id = ?').get(payment.cycle_id);
+    if (cycle?.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
+  }
+
   const { paid } = req.body;
   if (paid === undefined) return res.status(400).json({ error: 'paid is required' });
 

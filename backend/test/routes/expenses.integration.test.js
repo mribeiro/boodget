@@ -4,6 +4,7 @@ const {
   createUser,
   createDossier,
   createExpenseCycle,
+  createCycleItem,
   createAnnualExpenseYear,
   createAnnualExpenseYearItem,
   createAnnualExpensePayment,
@@ -84,6 +85,150 @@ describe('GET /cycles/:cycleId — annual_payments payload', () => {
     expect(payment.budgeted_value).toBe(240);
     expect(payment.real_value).toBe(0); // unpaid — real_value defaults to 0, not meaningful yet
     expect(payment.paid).toBe(0);
+  });
+});
+
+describe('Closed cycle read-only enforcement', () => {
+  it('rejects adding, editing, and deleting items on a closed cycle', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const cycle = createExpenseCycle(db, {
+      dossierId: dossier.id, year: 2026, month: 1,
+      is_closed: 1, final_real_balance: 500,
+    });
+    const item = createCycleItem(db, { cycleId: cycle.id, section: 'expense', type: 'Fixed', name: 'Rent', value: 500, day_of_payment: 1 });
+
+    const addRes = await agent
+      .post(`/api/dossiers/${dossier.id}/cycles/${cycle.id}/items`)
+      .send({ section: 'expense', name: 'Groceries', type: 'Budget', value: 100 });
+    expect(addRes.status).toBe(409);
+
+    const patchRes = await agent
+      .patch(`/api/dossiers/${dossier.id}/cycles/${cycle.id}/items/${item.id}`)
+      .send({ paid: true });
+    expect(patchRes.status).toBe(409);
+
+    const deleteRes = await agent.delete(`/api/dossiers/${dossier.id}/cycles/${cycle.id}/items/${item.id}`);
+    expect(deleteRes.status).toBe(409);
+
+    // Item is untouched
+    const stillThere = db.prepare('SELECT * FROM cycle_items WHERE id = ?').get(item.id);
+    expect(stillThere.paid).toBe(0);
+  });
+
+  it('allows the same operations once the cycle is open', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 1, is_closed: 0 });
+    const item = createCycleItem(db, { cycleId: cycle.id, section: 'expense', type: 'Fixed', name: 'Rent', value: 500, day_of_payment: 1 });
+
+    const patchRes = await agent
+      .patch(`/api/dossiers/${dossier.id}/cycles/${cycle.id}/items/${item.id}`)
+      .send({ paid: true });
+    expect(patchRes.status).toBe(200);
+  });
+
+  it('rejects pulling annual expenses and paperless-apply on a closed cycle', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const cycle = createExpenseCycle(db, {
+      dossierId: dossier.id, year: 2026, month: 1,
+      is_closed: 1, final_real_balance: 500,
+    });
+
+    const pullRes = await agent.post(`/api/dossiers/${dossier.id}/cycles/${cycle.id}/pull-annual-expenses`);
+    expect(pullRes.status).toBe(409);
+
+    const applyRes = await agent
+      .post(`/api/dossiers/${dossier.id}/cycles/${cycle.id}/paperless-apply`)
+      .send({ items: [{ cycle_item_id: 'x', value: 10, day_of_payment: 1 }] });
+    expect(applyRes.status).toBe(409);
+  });
+
+  it('rejects toggling an annual payment linked to a closed cycle', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const cycle = createExpenseCycle(db, {
+      dossierId: dossier.id, year: 2026, month: 6,
+      is_closed: 1, final_real_balance: 500,
+    });
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2026 });
+    const item = createAnnualExpenseYearItem(db, {
+      yearId: year.id, name: 'Car Insurance', budgeted_value: 240,
+      installments: [{ month: 6, day: 25 }],
+    });
+    const payment = createAnnualExpensePayment(db, { installmentId: item.installmentIds[0], cycleId: cycle.id, paid: false });
+
+    const res = await agent
+      .patch(`/api/dossiers/${dossier.id}/annual-expense-payments/${payment.id}`)
+      .send({ paid: true });
+    expect(res.status).toBe(409);
+  });
+});
+
+describe('PATCH /cycles/:cycleId — reopen clears final_real_balance', () => {
+  it('clears final_real_balance when reopening a closed cycle', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const cycle = createExpenseCycle(db, {
+      dossierId: dossier.id, year: 2026, month: 1,
+      is_closed: 1, final_real_balance: 500,
+    });
+
+    const res = await agent
+      .patch(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`)
+      .send({ is_closed: false });
+    expect(res.status).toBe(200);
+    expect(res.body.is_closed).toBeFalsy();
+    expect(res.body.final_real_balance).toBeNull();
+
+    // Re-closing still requires a fresh final_real_balance
+    const closeWithoutBalance = await agent
+      .patch(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`)
+      .send({ is_closed: true });
+    expect(closeWithoutBalance.status).toBe(400);
+
+    const closeRes = await agent
+      .patch(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`)
+      .send({ is_closed: true, final_real_balance: 480 });
+    expect(closeRes.status).toBe(200);
+    expect(closeRes.body.final_real_balance).toBe(480);
+  });
+
+  it('leaves final_real_balance untouched when closing or updating it while already closed', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 1, is_closed: 0 });
+
+    const closeRes = await agent
+      .patch(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`)
+      .send({ is_closed: true, final_real_balance: 500 });
+    expect(closeRes.body.final_real_balance).toBe(500);
+
+    // Correcting the balance of an already-closed cycle (no is_closed change) is unaffected
+    const correctionRes = await agent
+      .patch(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`)
+      .send({ final_real_balance: 510 });
+    expect(correctionRes.status).toBe(200);
+    expect(correctionRes.body.final_real_balance).toBe(510);
   });
 });
 
