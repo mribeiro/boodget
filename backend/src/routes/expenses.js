@@ -779,6 +779,13 @@ router.patch('/cycles/:cycleId', (req, res) => {
   const newIsClosed = is_closed !== undefined ? (is_closed ? 1 : 0) : cycle.is_closed;
   let newFinalRealBalance = final_real_balance !== undefined ? Number(final_real_balance) : cycle.final_real_balance;
 
+  // Reopening invalidates the previously-recorded final balance: clear it so a stale
+  // figure can't linger as if it still reflected a cycle whose items are editable again.
+  // The user re-enters it when re-closing.
+  if (cycle.is_closed && !newIsClosed) {
+    newFinalRealBalance = null;
+  }
+
   if (newIsClosed && newFinalRealBalance == null) {
     return res.status(400).json({ error: 'final_real_balance is required when closing a cycle' });
   }
@@ -832,6 +839,7 @@ router.post('/cycles/:cycleId/pull-annual-expenses', (req, res) => {
     .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
 
   const startDay = cycle.cycle_start_day ?? 25;
   const cycleStartDate = cycle.actual_start_date ? fromIsoDate(cycle.actual_start_date) : new Date(cycle.year, cycle.month - 1, startDay);
@@ -849,6 +857,7 @@ router.post('/cycles/:cycleId/items', (req, res) => {
     .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
 
   const { section, name, type, value, day_of_payment, paperless_tag_id, account_id } = req.body;
   if (!section || !['expense', 'distribution'].includes(section)) {
@@ -914,6 +923,7 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
     .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
 
   const item = db
     .prepare('SELECT * FROM cycle_items WHERE id = ? AND cycle_id = ?')
@@ -969,6 +979,7 @@ router.delete('/cycles/:cycleId/items/:itemId', (req, res) => {
     .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
 
   const item = db
     .prepare('SELECT * FROM cycle_items WHERE id = ? AND cycle_id = ?')
@@ -1119,6 +1130,7 @@ router.post('/cycles/:cycleId/paperless-apply', (req, res) => {
     .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
 
   const { items } = req.body;
   if (!Array.isArray(items) || items.length === 0) {

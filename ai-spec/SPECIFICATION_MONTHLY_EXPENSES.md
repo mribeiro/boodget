@@ -76,8 +76,9 @@ Both fields can be **updated at any time** after opening.
 - A cycle can be **closed** by the user at any time.
 - Closing a cycle requires entering a **final real balance** — the actual amount left in the account at the end of the cycle.
 - The system compares the final real balance against the **expected balance** (calculated — see Section 7).
-- A closed cycle **remains fully editable** — the user can correct values after closing.
-- The cycle's final real balance is what §3.3 suggests (as an editable default) when opening the *next* cycle.
+- **Once closed, the cycle's items become read-only.** Adding, editing, or deleting an expense or distribution, toggling `paid`/`spent`/`done`, pulling annual expenses, applying Paperless matches, and toggling a linked annual payment's paid flag are all blocked (409) while the cycle is closed; the cycle editor hides/disables the corresponding controls. The cycle's own salary, previous balance, and period remain editable while closed, as does the recorded final real balance itself (via the pencil icon next to it) — only the *items* are locked.
+- To edit items again, the user must explicitly **reopen** the cycle (confirmation dialog) — reopening clears the recorded final real balance (it no longer reflects a cycle whose items can still change), and re-closing requires entering a fresh one.
+- The cycle's final real balance is what §3.3 suggests (as an editable default) when opening the *next* cycle — a cycle that's been reopened and not yet re-closed has no final real balance to suggest.
 
 ### 3.5 Editing a Cycle's Period
 
@@ -226,14 +227,13 @@ The following values must be displayed in a summary section for each cycle:
 - The **Dossier Settings**, **Expense Template**, and **Cycles** should be clearly distinct areas in the UI.
 - Tabs for **Expenses** and **Distributions** must be visually clear and indicate they are two separate concepts within the same template.
 - The **cycle list** (`CycleList`) shows cycles newest-first, with placeholder rows above/below to open the next and previous months. Placeholder and cycle row labels both use the **end-month display name**.
-- The **cycle editor** (`CycleEditor`) header shows the cycle's display name (end month) and date range, plus five action buttons in this order: **Period** (edit start month/year), **Income** (edit salary and previous balance), **Close cycle** / **Reopen** (toggles cycle open/close state), **Pull annual expenses** (manually links annual expense installments that fall within this cycle's date range but were not linked at creation time — safe to run multiple times), and **Delete** (permanent deletion). When the cycle is already closed the third button reads "Reopen".
+- The **cycle editor** (`CycleEditor`) header shows the cycle's display name (end month) and date range, plus five action buttons in this order: **Period** (edit start month/year), **Income** (edit salary and previous balance), **Close cycle** / **Reopen** (toggles cycle open/close state), **Pull annual expenses** (manually links annual expense installments that fall within this cycle's date range but were not linked at creation time — safe to run multiple times, hidden while the cycle is closed), and **Delete** (permanent deletion). When the cycle is already closed the third button reads "Reopen" and clicking it opens a confirmation dialog warning that the recorded final balance will be cleared. While closed, item-level controls (add/edit/delete buttons, paid/spent/done checkboxes, the Paperless toolbar button) are hidden or disabled throughout the editor.
 - The **cycle summary** card shows Expenses and Distributions as stacked sections, each with a section label above and three data points (Total / Paid / Unpaid; Total / Done / Pending) in a `repeat(3, 1fr)` grid for even spacing. When closed, a Closing section is appended with Final real balance and Difference.
 
 ---
 
 ## 9. Out of Scope (this phase)
 
-- Closing/locking a cycle in a way that prevents editing
 - Automatic pre-fill of previous balance from prior cycle
 - Transaction history for budget expenses
 - Multi-currency support for expenses
