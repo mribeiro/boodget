@@ -14,6 +14,8 @@ const aiAdvisorRouter = require('./ai-advisor');
 const loansRouter = require('./loans');
 const subscriptionsRouter = require('./subscriptions');
 
+const ALLOWED_AI_MODELS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5'];
+
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
 
@@ -76,7 +78,9 @@ router.post('/import', (req, res) => {
       // Versions <= 9 have no ai_enabled/ai_model; default to enabled + the app's default model.
       // ai_api_key is a secret and is never exported/imported.
       (data.dossier.ai_enabled ?? true) ? 1 : 0,
-      data.dossier.ai_model ?? 'claude-opus-4-8',
+      // A hand-edited or stale export can carry an ai_model outside the current whitelist;
+      // coerce it to the default rather than storing a value the Settings dropdown can't display.
+      ALLOWED_AI_MODELS.includes(data.dossier.ai_model) ? data.dossier.ai_model : 'claude-opus-4-8',
       data.dossier.ai_user_context ?? null,
       data.dossier.reference_salary ?? null,
       data.dossier.loans_max_salary_pct ?? null

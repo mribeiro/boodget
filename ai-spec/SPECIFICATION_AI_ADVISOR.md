@@ -20,7 +20,7 @@ It lives in a dedicated **AI Advisor** tab in `DossierView` (`frontend/src/compo
 ## Model selection
 
 - Persisted per dossier in `dossiers.ai_model` (migration `033_add_ai_advisor`), default `claude-opus-4-8`.
-- Exposed through the existing `GET/PATCH /api/dossiers/:id/settings`; PATCH validates against the whitelist.
+- Exposed through the existing `GET/PATCH /api/dossiers/:id/settings`; PATCH validates against the whitelist. Dossier import (`POST /api/dossiers/import`) validates the same whitelist, coercing an out-of-whitelist `ai_model` (e.g. from a hand-edited export) to the default rather than storing it as-is — keeps the Settings dropdown and `resolveAiConfig`'s runtime fallback from silently diverging.
 - Editable from two places that write the same setting: the `<select>` in the AI Advisor tab header, and the "Default model" picker in **Settings → AI Settings** (`DossierSettingsTab.jsx`).
 - Whitelist and pricing (USD per million tokens; used for the cost estimate):
 
@@ -130,7 +130,7 @@ For users who'd rather use a Claude subscription than pay per API call, the "Use
 
 ## Export / import
 
-- Export format **version 10**: `dossier.ai_model`, `dossier.ai_enabled`, and `dossier.ai_user_context` round-trip. Imports of versions ≤ 9 default `ai_model` to `claude-opus-4-8`, `ai_enabled` to `true`, and `ai_user_context` to `null` (those versions predate the field).
+- Export format **version 10**: `dossier.ai_model`, `dossier.ai_enabled`, and `dossier.ai_user_context` round-trip. Imports of versions ≤ 9 default `ai_model` to `claude-opus-4-8`, `ai_enabled` to `true`, and `ai_user_context` to `null` (those versions predate the field). An imported `ai_model` outside the current whitelist (e.g. a hand-edited export, or one written by a future version with new model options) is likewise coerced to `claude-opus-4-8` rather than stored as-is.
 - `ai_api_key` is a secret, like `paperless_token` — it is **never exported or imported**. An imported dossier always falls back to the operator's `ANTHROPIC_API_KEY` env var (if set) until a new key is entered in its own Settings.
 - `ai_analyses` rows are deliberately **not** exported (point-in-time, cheap to regenerate).
 
