@@ -789,6 +789,44 @@ const migrations = [
       }
     },
   },
+  {
+    id: '039_add_cycle_weekend_adjustment',
+    up() {
+      const dossierCols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!dossierCols.find((c) => c.name === 'cycle_start_weekend_adjustment')) {
+        db.exec("ALTER TABLE dossiers ADD COLUMN cycle_start_weekend_adjustment TEXT DEFAULT 'none'");
+      }
+
+      const cycleCols = db.prepare('PRAGMA table_info(expense_cycles)').all();
+      if (!cycleCols.find((c) => c.name === 'cycle_start_weekend_adjustment')) {
+        db.exec('ALTER TABLE expense_cycles ADD COLUMN cycle_start_weekend_adjustment TEXT');
+      }
+      if (!cycleCols.find((c) => c.name === 'actual_start_date')) {
+        db.exec('ALTER TABLE expense_cycles ADD COLUMN actual_start_date TEXT');
+      }
+      if (!cycleCols.find((c) => c.name === 'actual_end_date')) {
+        db.exec('ALTER TABLE expense_cycles ADD COLUMN actual_end_date TEXT');
+      }
+
+      // Best-effort backfill: the weekend-adjustment feature didn't exist before
+      // this migration, so every pre-existing cycle is known (not guessed) to
+      // have used 'none' — its actual start/end are simply the unshifted
+      // formula from its own (year, month, cycle_start_day).
+      const { computeCycleStartDate, computeTheoreticalCycleEndDate, toIsoDate } = require('../utils/cycleDates');
+      const toBackfill = db
+        .prepare('SELECT id, year, month, cycle_start_day FROM expense_cycles WHERE actual_start_date IS NULL')
+        .all();
+      const update = db.prepare(
+        'UPDATE expense_cycles SET cycle_start_weekend_adjustment = ?, actual_start_date = ?, actual_end_date = ? WHERE id = ?'
+      );
+      for (const c of toBackfill) {
+        const startDay = c.cycle_start_day ?? 25;
+        const start = computeCycleStartDate(c.year, c.month, startDay, 'none');
+        const end = computeTheoreticalCycleEndDate(c.year, c.month, startDay, 'none');
+        update.run('none', toIsoDate(start), toIsoDate(end), c.id);
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

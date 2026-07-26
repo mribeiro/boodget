@@ -3,17 +3,13 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarDays } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 import { formatNumber } from '../../utils/numbers';
-
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+import {
+  cycleYearMonth, prevYearMonth, nextYearMonth,
+  computeTheoreticalCycleEndDate, formatCycleLabel, fromIsoDate,
+} from '../../utils/cycleDates';
 
 function formatEur(value) {
   return formatNumber(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
-}
-
-// Returns the display name for a cycle stored as (year, month), using the end month.
-function cycleDisplayName(year, month, startDay) {
-  const end = new Date(year, month, startDay - 1);
-  return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
 }
 
 // "Cycle of " is dropped on mobile (narrower two-column card grid) so the
@@ -27,31 +23,15 @@ function cycleTitle(name) {
   );
 }
 
-function cycleYearMonth(today, cycleStartDay) {
-  const d = today.getDate();
-  if (d >= cycleStartDay) {
-    return { year: today.getFullYear(), month: today.getMonth() + 1 };
-  }
-  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
-}
-
-function prevYearMonth(year, month) {
-  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
-}
-
-function nextYearMonth(year, month) {
-  return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
-}
-
 export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail, settings, today, onClick }) {
   const navigate = useNavigate();
   const cycleStartDay = settings.cycle_start_day ?? 25;
+  const weekendAdjustment = settings.cycle_start_weekend_adjustment ?? 'none';
   const nextCycleWarningDay = settings.next_cycle_warning_day ?? 22;
   const prevCloseWarningDay = settings.previous_cycle_close_warning_day ?? 25;
   const todayDay = today.getDate();
 
-  const current = cycleYearMonth(today, cycleStartDay);
+  const current = cycleYearMonth(today, cycleStartDay, weekendAdjustment);
   const prev = prevYearMonth(current.year, current.month);
   const next = nextYearMonth(current.year, current.month);
 
@@ -59,12 +39,15 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
   const prevCycle = cyclesList.find((c) => c.year === prev.year && c.month === prev.month);
   const nextCycle = cyclesList.find((c) => c.year === next.year && c.month === next.month);
 
-  // Red: previous cycle not closed. Named using the cycle's own stored cycle_start_day
+  // Red: previous cycle not closed. Named using the cycle's own stored actual_end_date
   // (not the dossier's current setting) so a later change to it doesn't relabel or
   // reshape an already-created cycle.
   if (prevCycle && !prevCycle.is_closed && todayDay >= prevCloseWarningDay) {
+    const prevEnd = prevCycle.actual_end_date
+      ? fromIsoDate(prevCycle.actual_end_date)
+      : computeTheoreticalCycleEndDate(prev.year, prev.month, cycleStartDay, weekendAdjustment);
     return (
-      <GlanceCard title={cycleTitle(cycleDisplayName(prev.year, prev.month, prevCycle.cycle_start_day ?? cycleStartDay))} icon={faCalendarDays} color="red" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${prevCycle.id}`)}>
+      <GlanceCard title={cycleTitle(formatCycleLabel(prevEnd))} icon={faCalendarDays} color="red" onClick={() => navigate(`/dossiers/${dossierId}/cycles/${prevCycle.id}`)}>
         <p style={msgStyle}>Previous cycle has not been closed yet</p>
       </GlanceCard>
     );
@@ -72,15 +55,18 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
 
   // Amber: next cycle not opened — only warn once we're in the same calendar month
   // as the current cycle's end date (i.e. not from day 1 of the start month). Uses the
-  // current cycle's own stored start day when it already exists; the live setting only
+  // current cycle's own stored end date when it already exists; the live setting only
   // when it doesn't (there's nothing stored yet to insulate).
-  const cycleEndDate = new Date(current.year, current.month, (currentCycleMeta?.cycle_start_day ?? cycleStartDay) - 1);
+  const cycleEndDate = currentCycleMeta?.actual_end_date
+    ? fromIsoDate(currentCycleMeta.actual_end_date)
+    : computeTheoreticalCycleEndDate(current.year, current.month, cycleStartDay, weekendAdjustment);
   const inCycleEndMonth =
     today.getFullYear() === cycleEndDate.getFullYear() &&
     today.getMonth() === cycleEndDate.getMonth();
   if (!nextCycle && inCycleEndMonth && todayDay >= nextCycleWarningDay) {
+    const nextEnd = computeTheoreticalCycleEndDate(next.year, next.month, cycleStartDay, weekendAdjustment);
     return (
-      <GlanceCard title={cycleTitle(cycleDisplayName(next.year, next.month, cycleStartDay))} icon={faCalendarDays} color="amber" onClick={onClick}>
+      <GlanceCard title={cycleTitle(formatCycleLabel(nextEnd))} icon={faCalendarDays} color="amber" onClick={onClick}>
         <p style={msgStyle}>Next cycle has not been opened yet</p>
       </GlanceCard>
     );
@@ -95,7 +81,10 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
     );
   }
 
-  const title = cycleTitle(cycleDisplayName(current.year, current.month, currentCycleMeta.cycle_start_day ?? cycleStartDay));
+  const currentEnd = currentCycleMeta.actual_end_date
+    ? fromIsoDate(currentCycleMeta.actual_end_date)
+    : computeTheoreticalCycleEndDate(current.year, current.month, cycleStartDay, weekendAdjustment);
+  const title = cycleTitle(formatCycleLabel(currentEnd));
 
   if (!currentCycleDetail) {
     return (
@@ -127,11 +116,15 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
   const balanceColor = currentBalance < 0 ? 'var(--color-value-negative)' : 'var(--text-primary)';
 
   // Days elapsed in the current cycle, for the progress bar below. Uses the cycle's own
-  // stored start day, not the dossier's current setting.
+  // stored actual dates, not the dossier's current setting.
   const activeCycleStartDay = currentCycleDetail.cycle_start_day ?? cycleStartDay;
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const cycleStart = new Date(current.year, current.month - 1, activeCycleStartDay);
-  const cycleEnd = new Date(current.year, current.month, activeCycleStartDay - 1);
+  const cycleStart = currentCycleDetail.actual_start_date
+    ? fromIsoDate(currentCycleDetail.actual_start_date)
+    : new Date(current.year, current.month - 1, activeCycleStartDay);
+  const cycleEnd = currentCycleDetail.actual_end_date
+    ? fromIsoDate(currentCycleDetail.actual_end_date)
+    : new Date(current.year, current.month, activeCycleStartDay - 1);
   const totalCycleDays = Math.round((cycleEnd - cycleStart) / (1000 * 60 * 60 * 24)) + 1;
   const elapsedDays = Math.min(totalCycleDays, Math.max(1, Math.round((todayMidnight - cycleStart) / (1000 * 60 * 60 * 24)) + 1));
   const cyclePercent = Math.min(100, Math.max(0, (elapsedDays / totalCycleDays) * 100));

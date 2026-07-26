@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
+const { computeCycleStartDate, computeTheoreticalCycleEndDate, toIsoDate } = require('../utils/cycleDates');
 
 const accountsRouter = require('./accounts');
 const monthsRouter = require('./months');
@@ -47,7 +48,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -62,9 +63,11 @@ router.post('/import', (req, res) => {
 
   const doImport = db.transaction(() => {
     db.prepare(
-      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25,
+      // Versions <= 12 predate this setting; 'none' is the correct historical default.
+      data.dossier.cycle_start_weekend_adjustment ?? 'none',
       data.dossier.emergency_fund_months_multiplier ?? 6,
       data.dossier.emergency_fund_cycles_to_average ?? 6,
       data.dossier.paperless_url ?? null,
@@ -153,7 +156,7 @@ router.post('/import', (req, res) => {
     }
 
     const insertCycle = db.prepare(
-      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertCycleItem = db.prepare(
       'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -165,7 +168,14 @@ router.post('/import', (req, res) => {
       // cycle_start_day is per-cycle since v12; older exports only had the dossier-wide
       // setting, so fall back to that (the same value the cycle would have used pre-fix).
       const cycleStartDay = c.cycle_start_day ?? data.dossier.cycle_start_day ?? 25;
-      insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null, cycleStartDay);
+      // cycle_start_weekend_adjustment/actual_start_date/actual_end_date are per-cycle
+      // since v13; older exports predate the feature, so recompute the unshifted
+      // ('none') formula from the cycle's own (year, month, cycleStartDay) — the same
+      // best-effort precedent already used for cycle_start_day above.
+      const cycleWeekendAdjustment = c.cycle_start_weekend_adjustment ?? 'none';
+      const actualStartDate = c.actual_start_date ?? toIsoDate(computeCycleStartDate(c.year, c.month, cycleStartDay, cycleWeekendAdjustment));
+      const actualEndDate = c.actual_end_date ?? toIsoDate(computeTheoreticalCycleEndDate(c.year, c.month, cycleStartDay, cycleWeekendAdjustment));
+      insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null, cycleStartDay, cycleWeekendAdjustment, actualStartDate, actualEndDate);
       for (const ci of (c.items || [])) {
         const templateItemId = ci.section === 'expense' ? (expenseTemplateNameToId[ci.name] || null) : (templateNameToId[ci.name] || null);
         const accountId = ci.account_name ? (accountNameToId[ci.account_name] ?? null) : null;
@@ -358,7 +368,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency, cycle_start_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, money_category, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -409,7 +419,7 @@ router.get('/:id/export', (req, res) => {
     .map((s) => ({ ...s, data: JSON.parse(s.data) }));
 
   const cycles = db
-    .prepare('SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
+    .prepare('SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
     .all(req.params.id);
 
   const cycleItemsByCycleId = {};
@@ -545,11 +555,12 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 12,
+    version: 13,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
       cycle_start_day: dossier.cycle_start_day,
+      cycle_start_weekend_adjustment: dossier.cycle_start_weekend_adjustment ?? 'none',
       emergency_fund_months_multiplier: dossier.emergency_fund_months_multiplier ?? 6,
       emergency_fund_cycles_to_average: dossier.emergency_fund_cycles_to_average ?? 6,
       paperless_url: dossier.paperless_url ?? null,
@@ -581,6 +592,9 @@ router.get('/:id/export', (req, res) => {
       is_closed: c.is_closed,
       final_real_balance: c.final_real_balance,
       cycle_start_day: c.cycle_start_day,
+      cycle_start_weekend_adjustment: c.cycle_start_weekend_adjustment,
+      actual_start_date: c.actual_start_date,
+      actual_end_date: c.actual_end_date,
       items: cycleItemsByCycleId[c.id] || [],
     })),
     goals: goalsExport,

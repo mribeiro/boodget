@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
+const { computeCycleStartDate, computeTheoreticalCycleEndDate, addDays, toIsoDate, fromIsoDate } = require('../utils/cycleDates');
+
+function adjacentPeriod(year, month, offset) {
+  const total = (year * 12 + (month - 1)) + offset;
+  return { year: Math.floor(total / 12), month: (total % 12) + 1 };
+}
 
 function daysInMonth(year, month) {
   return new Date(year, month, 0).getDate();
@@ -44,10 +50,9 @@ function createAnnualYearFromTemplate(dossierId, calYear) {
   return yearId;
 }
 
-// Create payment records for a cycle based on annual expense year installments
-function createAnnualPaymentsForCycle(dossierId, cycleId, cycleYear, cycleMonth, startDay) {
-  const cycleStartDate = new Date(cycleYear, cycleMonth - 1, startDay);
-  const cycleEndDate = new Date(cycleYear, cycleMonth, startDay - 1);
+// Create payment records for a cycle based on annual expense year installments.
+// cycleStartDate/cycleEndDate are the cycle's actual (possibly weekend-shifted) dates.
+function createAnnualPaymentsForCycle(dossierId, cycleId, cycleStartDate, cycleEndDate) {
   const startCalYear = cycleStartDate.getFullYear();
   const endCalYear = cycleEndDate.getFullYear();
   const calYears = startCalYear === endCalYear ? [startCalYear] : [startCalYear, endCalYear];
@@ -151,10 +156,11 @@ function computeSummary(cycle, items) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
+    cycle_start_weekend_adjustment: dossier.cycle_start_weekend_adjustment ?? 'none',
     capital_snapshot_warning_day: dossier.capital_snapshot_warning_day ?? 7,
     next_cycle_warning_day: dossier.next_cycle_warning_day ?? 22,
     previous_cycle_close_warning_day: dossier.previous_cycle_close_warning_day ?? 25,
@@ -175,6 +181,7 @@ router.get('/settings', (req, res) => {
 });
 
 const ALLOWED_AI_MODELS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5'];
+const ALLOWED_WEEKEND_ADJUSTMENTS = ['none', 'previous_friday', 'next_monday'];
 
 function isValidDay(v) {
   return v != null && Number.isInteger(v) && v >= 1 && v <= 28;
@@ -185,6 +192,7 @@ router.patch('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const {
     cycle_start_day,
+    cycle_start_weekend_adjustment,
     capital_snapshot_warning_day,
     next_cycle_warning_day,
     previous_cycle_close_warning_day,
@@ -205,6 +213,9 @@ router.patch('/settings', (req, res) => {
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
     return res.status(400).json({ error: 'cycle_start_day must be an integer between 1 and 28' });
+  }
+  if (cycle_start_weekend_adjustment !== undefined && !ALLOWED_WEEKEND_ADJUSTMENTS.includes(cycle_start_weekend_adjustment)) {
+    return res.status(400).json({ error: `cycle_start_weekend_adjustment must be one of: ${ALLOWED_WEEKEND_ADJUSTMENTS.join(', ')}` });
   }
   if (capital_snapshot_warning_day !== undefined && !isValidDay(capital_snapshot_warning_day)) {
     return res.status(400).json({ error: 'capital_snapshot_warning_day must be an integer between 1 and 28' });
@@ -266,6 +277,7 @@ router.patch('/settings', (req, res) => {
   const updates = [];
   const params = [];
   if (cycle_start_day !== undefined) { updates.push('cycle_start_day = ?'); params.push(cycle_start_day); }
+  if (cycle_start_weekend_adjustment !== undefined) { updates.push('cycle_start_weekend_adjustment = ?'); params.push(cycle_start_weekend_adjustment); }
   if (capital_snapshot_warning_day !== undefined) { updates.push('capital_snapshot_warning_day = ?'); params.push(capital_snapshot_warning_day); }
   if (next_cycle_warning_day !== undefined) { updates.push('next_cycle_warning_day = ?'); params.push(next_cycle_warning_day); }
   if (previous_cycle_close_warning_day !== undefined) { updates.push('previous_cycle_close_warning_day = ?'); params.push(previous_cycle_close_warning_day); }
@@ -290,10 +302,11 @@ router.patch('/settings', (req, res) => {
   console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
+    cycle_start_weekend_adjustment: updated.cycle_start_weekend_adjustment ?? 'none',
     capital_snapshot_warning_day: updated.capital_snapshot_warning_day ?? 7,
     next_cycle_warning_day: updated.next_cycle_warning_day ?? 22,
     previous_cycle_close_warning_day: updated.previous_cycle_close_warning_day ?? 25,
@@ -610,13 +623,33 @@ router.post('/cycles', (req, res) => {
 
   const id = uuidv4();
 
-  const dossierSettings = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossierSettings = db.prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment FROM dossiers WHERE id = ?').get(req.params.id);
   const startDay = dossierSettings?.cycle_start_day ?? 25;
+  const weekendAdjustment = dossierSettings?.cycle_start_weekend_adjustment ?? 'none';
+
+  const rawStartDate = new Date(year, month - 1, startDay);
+  const actualStartDate = computeCycleStartDate(year, month, startDay, weekendAdjustment);
+  const didShift = actualStartDate.getTime() !== rawStartDate.getTime();
+
+  const prevPeriod = adjacentPeriod(year, month, -1);
+  const actualEndDate = computeTheoreticalCycleEndDate(year, month, startDay, weekendAdjustment);
 
   const createCycle = db.transaction(() => {
     db.prepare(
-      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, cycle_start_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, req.params.id, year, month, Number(salary), Number(previous_balance), startDay);
+      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, req.params.id, year, month, Number(salary), Number(previous_balance), startDay, weekendAdjustment, toIsoDate(actualStartDate), toIsoDate(actualEndDate));
+
+    // If this cycle's start actually shifted off a weekend, the previous cycle's
+    // end must be adjusted so the two don't overlap or leave an unintended gap.
+    if (didShift) {
+      const prevCycle = db
+        .prepare('SELECT id FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ?')
+        .get(req.params.id, prevPeriod.year, prevPeriod.month);
+      if (prevCycle) {
+        db.prepare('UPDATE expense_cycles SET actual_end_date = ? WHERE id = ?')
+          .run(toIsoDate(addDays(actualStartDate, -1)), prevCycle.id);
+      }
+    }
 
     const templateItems = db
       .prepare('SELECT * FROM expense_template_items WHERE dossier_id = ? ORDER BY section, position')
@@ -637,7 +670,7 @@ router.post('/cycles', (req, res) => {
     }
 
     // Auto-create annual years and payment records for this cycle's date range
-    createAnnualPaymentsForCycle(req.params.id, id, year, month, startDay);
+    createAnnualPaymentsForCycle(req.params.id, id, actualStartDate, actualEndDate);
   });
 
   createCycle();
@@ -684,16 +717,61 @@ router.patch('/cycles/:cycleId', (req, res) => {
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
-  const { year, month, salary, previous_balance, is_closed, final_real_balance } = req.body;
+  const { year, month, salary, previous_balance, is_closed, final_real_balance, resolve_overlap } = req.body;
 
   // If year/month are being changed, enforce uniqueness
   const newYear = year !== undefined ? Number(year) : cycle.year;
   const newMonth = month !== undefined ? Number(month) : cycle.month;
-  if ((newYear !== cycle.year || newMonth !== cycle.month)) {
+  const periodChanged = newYear !== cycle.year || newMonth !== cycle.month;
+  if (periodChanged) {
     const conflict = db
       .prepare('SELECT id FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ? AND id != ?')
       .get(req.params.id, newYear, newMonth, req.params.cycleId);
     if (conflict) return res.status(409).json({ error: 'A cycle for that period already exists' });
+  }
+
+  // Moving a cycle recomputes its own actual dates from its own already-snapshotted
+  // start-day/weekend-adjustment (never the dossier's live setting — this endpoint
+  // has never re-snapshotted cycle_start_day either) and may overlap whichever
+  // cycles are now adjacent to it.
+  let newActualStartDate = cycle.actual_start_date;
+  let newActualEndDate = cycle.actual_end_date;
+  let prevCycle = null;
+  let nextCycle = null;
+  let overlaps = [];
+
+  if (periodChanged) {
+    const startDay = cycle.cycle_start_day ?? 25;
+    const weekendAdjustment = cycle.cycle_start_weekend_adjustment ?? 'none';
+    newActualStartDate = toIsoDate(computeCycleStartDate(newYear, newMonth, startDay, weekendAdjustment));
+    newActualEndDate = toIsoDate(computeTheoreticalCycleEndDate(newYear, newMonth, startDay, weekendAdjustment));
+
+    const prevPeriod = adjacentPeriod(newYear, newMonth, -1);
+    const nextPeriod = adjacentPeriod(newYear, newMonth, 1);
+    prevCycle = db
+      .prepare('SELECT id, year, month, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ? AND id != ?')
+      .get(req.params.id, prevPeriod.year, prevPeriod.month, req.params.cycleId);
+    nextCycle = db
+      .prepare('SELECT id, year, month, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ? AND id != ?')
+      .get(req.params.id, nextPeriod.year, nextPeriod.month, req.params.cycleId);
+
+    if (prevCycle && prevCycle.actual_end_date >= newActualStartDate) {
+      overlaps.push({ side: 'previous', cycle_id: prevCycle.id, year: prevCycle.year, month: prevCycle.month, actual_start_date: prevCycle.actual_start_date, actual_end_date: prevCycle.actual_end_date });
+    }
+    if (nextCycle && nextCycle.actual_start_date <= newActualEndDate) {
+      overlaps.push({ side: 'next', cycle_id: nextCycle.id, year: nextCycle.year, month: nextCycle.month, actual_start_date: nextCycle.actual_start_date, actual_end_date: nextCycle.actual_end_date });
+    }
+
+    if (overlaps.length > 0 && resolve_overlap === undefined) {
+      return res.status(409).json({
+        error: 'Moving this cycle would overlap an adjacent cycle\'s date range',
+        overlap: {
+          new_actual_start_date: newActualStartDate,
+          new_actual_end_date: newActualEndDate,
+          conflicts: overlaps,
+        },
+      });
+    }
   }
 
   const newSalary = salary !== undefined ? Number(salary) : cycle.salary;
@@ -705,9 +783,24 @@ router.patch('/cycles/:cycleId', (req, res) => {
     return res.status(400).json({ error: 'final_real_balance is required when closing a cycle' });
   }
 
-  db.prepare(
-    'UPDATE expense_cycles SET year = ?, month = ?, salary = ?, previous_balance = ?, is_closed = ?, final_real_balance = ? WHERE id = ?'
-  ).run(newYear, newMonth, newSalary, newPrevBalance, newIsClosed, newFinalRealBalance, req.params.cycleId);
+  const applyUpdate = db.transaction(() => {
+    db.prepare(
+      'UPDATE expense_cycles SET year = ?, month = ?, salary = ?, previous_balance = ?, is_closed = ?, final_real_balance = ?, actual_start_date = ?, actual_end_date = ? WHERE id = ?'
+    ).run(newYear, newMonth, newSalary, newPrevBalance, newIsClosed, newFinalRealBalance, newActualStartDate, newActualEndDate, req.params.cycleId);
+
+    if (periodChanged && resolve_overlap === 'recompute') {
+      for (const conflict of overlaps) {
+        if (conflict.side === 'previous') {
+          db.prepare('UPDATE expense_cycles SET actual_end_date = ? WHERE id = ?')
+            .run(toIsoDate(addDays(fromIsoDate(newActualStartDate), -1)), conflict.cycle_id);
+        } else {
+          db.prepare('UPDATE expense_cycles SET actual_start_date = ? WHERE id = ?')
+            .run(toIsoDate(addDays(fromIsoDate(newActualEndDate), 1)), conflict.cycle_id);
+        }
+      }
+    }
+  });
+  applyUpdate();
 
   if (is_closed !== undefined && newIsClosed !== cycle.is_closed) {
     const action = newIsClosed ? 'Closed' : 'Reopened';
@@ -741,8 +834,10 @@ router.post('/cycles/:cycleId/pull-annual-expenses', (req, res) => {
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
   const startDay = cycle.cycle_start_day ?? 25;
+  const cycleStartDate = cycle.actual_start_date ? fromIsoDate(cycle.actual_start_date) : new Date(cycle.year, cycle.month - 1, startDay);
+  const cycleEndDate = cycle.actual_end_date ? fromIsoDate(cycle.actual_end_date) : new Date(cycle.year, cycle.month, startDay - 1);
 
-  createAnnualPaymentsForCycle(req.params.id, req.params.cycleId, cycle.year, cycle.month, startDay);
+  createAnnualPaymentsForCycle(req.params.id, req.params.cycleId, cycleStartDate, cycleEndDate);
   console.log(`[cycles] Pulled annual expenses for cycle ${cycle.year}/${cycle.month} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();
 });
@@ -914,9 +1009,8 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
 
   const startDay = cycle.cycle_start_day ?? 25;
   const { year, month } = cycle;
-  const startDate = `${year}-${String(month).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
-  const endDateObj = new Date(year, month, startDay - 1);
-  const endDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+  const startDate = cycle.actual_start_date ?? `${year}-${String(month).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`;
+  const endDate = cycle.actual_end_date ?? toIsoDate(new Date(year, month, startDay - 1));
 
   const tagIds = [...new Set(linkedItems.map((i) => i.paperless_tag_id))].join(',');
   const query = JSON.stringify(['AND', [[dossier.paperless_date_field_id, 'gte', startDate], [dossier.paperless_date_field_id, 'lte', endDate]]]);

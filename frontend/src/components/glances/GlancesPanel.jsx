@@ -3,19 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { cycleYearMonth } from '../../utils/cycleDates';
 import CapitalGlance from './CapitalGlance';
 import CycleGlance from './CycleGlance';
 import NextExpenseGlance from './NextExpenseGlance';
 import GoalsGlance from './GoalsGlance';
-
-function cycleYearMonth(today, cycleStartDay) {
-  const d = today.getDate();
-  if (d >= cycleStartDay) {
-    return { year: today.getFullYear(), month: today.getMonth() + 1 };
-  }
-  const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  return { year: prev.getFullYear(), month: prev.getMonth() + 1 };
-}
 
 export default function GlancesPanel({ dossierId, months, onNavigate }) {
   const [settings, setSettings] = useState(null);
@@ -49,7 +41,7 @@ export default function GlancesPanel({ dossierId, months, onNavigate }) {
       setGoals(g);
       setEfStatus(ef);
 
-      const cur = cycleYearMonth(today, s.cycle_start_day ?? 25);
+      const cur = cycleYearMonth(today, s.cycle_start_day ?? 25, s.cycle_start_weekend_adjustment ?? 'none');
       const curCycle = c.find((cy) => cy.year === cur.year && cy.month === cur.month);
       if (curCycle) {
         api.getCycle(dossierId, curCycle.id).then(setCurrentCycleDetail).catch(() => {});

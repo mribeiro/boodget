@@ -3,16 +3,24 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faClock, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 import { formatNumber } from '../../utils/numbers';
+import { fromIsoDate } from '../../utils/cycleDates';
 
 function formatEur(value) {
   return formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay) {
-  if (dayOfPayment >= cycleStartDay) {
-    return new Date(cycleYear, cycleMonth - 1, dayOfPayment);
+// A payment day-of-month can fall in the cycle's start month or the following month —
+// pick whichever calendar date actually lands inside the cycle's (possibly
+// weekend-shifted) real window, falling back to the day-of-month threshold heuristic
+// when neither candidate lands inside it (e.g. no actual_start_date/end_date yet).
+function getExpenseDate(cycleYear, cycleMonth, dayOfPayment, cycleStartDay, cycleWindowStart, cycleWindowEnd) {
+  const candidateThisMonth = new Date(cycleYear, cycleMonth - 1, dayOfPayment);
+  const candidateNextMonth = new Date(cycleYear, cycleMonth, dayOfPayment);
+  if (cycleWindowStart && cycleWindowEnd) {
+    if (candidateThisMonth >= cycleWindowStart && candidateThisMonth <= cycleWindowEnd) return candidateThisMonth;
+    if (candidateNextMonth >= cycleWindowStart && candidateNextMonth <= cycleWindowEnd) return candidateNextMonth;
   }
-  return new Date(cycleYear, cycleMonth, dayOfPayment);
+  return dayOfPayment >= cycleStartDay ? candidateThisMonth : candidateNextMonth;
 }
 
 function getAnnualPaymentDate(payment) {
@@ -37,9 +45,11 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
     );
   }
 
-  // The cycle's own stored start day is used for its date math (not the dossier's
+  // The cycle's own stored dates are used for its date math (not the dossier's
   // current setting), so a later change to that setting doesn't reshape this cycle.
   const activeCycleStartDay = currentCycleDetail.cycle_start_day ?? cycleStartDay;
+  const cycleWindowStart = currentCycleDetail.actual_start_date ? fromIsoDate(currentCycleDetail.actual_start_date) : null;
+  const cycleWindowEnd = currentCycleDetail.actual_end_date ? fromIsoDate(currentCycleDetail.actual_end_date) : null;
   const current = { year: currentCycleDetail.year, month: currentCycleDetail.month };
   const items = currentCycleDetail.items ?? [];
   const annualPayments = currentCycleDetail.annual_payments ?? [];
@@ -68,7 +78,7 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
         type: 'monthly',
         name: exp.name,
         value: exp.value || 0,
-        date: getExpenseDate(current.year, current.month, exp.day_of_payment, activeCycleStartDay),
+        date: getExpenseDate(current.year, current.month, exp.day_of_payment, activeCycleStartDay, cycleWindowStart, cycleWindowEnd),
         day: exp.day_of_payment,
         item: exp,
       });

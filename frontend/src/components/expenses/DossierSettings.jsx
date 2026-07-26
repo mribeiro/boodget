@@ -6,6 +6,12 @@ import SettingRow from '../ui/SettingRow';
 
 const CYCLE_FIELD = { key: 'cycle_start_day', label: 'Cycle starts on day', suffix: null };
 
+const WEEKEND_ADJUSTMENT_OPTIONS = [
+  { value: 'none', label: 'No adjustment' },
+  { value: 'previous_friday', label: 'Shift to the Friday before' },
+  { value: 'next_monday', label: 'Shift to the Monday after' },
+];
+
 const WARNING_FIELDS = [
   { key: 'capital_snapshot_warning_day',      label: 'Warn about missing capital snapshot from day', suffix: 'of the month' },
   { key: 'next_cycle_warning_day',            label: 'Warn about next cycle not opened from day',    suffix: 'of the month' },
@@ -15,7 +21,23 @@ const WARNING_FIELDS = [
 export default function DossierSettings({ dossierId, settings, onChange, showToast }) {
   const [modal, setModal] = useState(null); // { key, label, suffix, draft }
   const [saving, setSaving] = useState(false);
+  const [savingWeekendAdjustment, setSavingWeekendAdjustment] = useState(false);
   const [error, setError] = useState('');
+
+  async function handleWeekendAdjustmentChange(e) {
+    const value = e.target.value;
+    setSavingWeekendAdjustment(true);
+    try {
+      const updated = await api.updateDossierSettings(dossierId, { cycle_start_weekend_adjustment: value });
+      onChange(updated);
+      const label = WEEKEND_ADJUSTMENT_OPTIONS.find((o) => o.value === value)?.label ?? value;
+      showToast(`Weekend adjustment set to "${label}"`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSavingWeekendAdjustment(false);
+    }
+  }
 
   function openModal(field) {
     setModal({ ...field, draft: String(settings[field.key] ?? '') });
@@ -60,6 +82,23 @@ export default function DossierSettings({ dossierId, settings, onChange, showToa
   return (
     <div style={{ marginBottom: 'var(--space-6)' }}>
       {renderRow(CYCLE_FIELD)}
+
+      <SettingRow label="If the start day falls on a weekend">
+        <select
+          value={settings.cycle_start_weekend_adjustment ?? 'none'}
+          onChange={handleWeekendAdjustmentChange}
+          disabled={savingWeekendAdjustment}
+        >
+          {WEEKEND_ADJUSTMENT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </SettingRow>
+      <p className="hint" style={{ marginTop: 0, marginBottom: 'var(--space-4)' }}>
+        This only affects cycles opened from now on. When a new cycle's start actually
+        shifts off a weekend, the previous cycle's end is adjusted to match so the two
+        don't overlap or leave a gap — existing cycles are otherwise left untouched.
+      </p>
 
       <div className="settings-subsection">
         <div className="settings-subsection__title">Glances warning thresholds</div>
