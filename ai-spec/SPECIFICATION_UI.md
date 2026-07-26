@@ -927,9 +927,17 @@ Collapsed header shows the section name + key summary values (total, Must, Want)
 
 ### 10.3 Unclassified highlight
 
-Entries without a Must/Want classification get a left border in `var(--color-warning)` and a `warning` badge “Unclassified”.
+An entry with no Must/Want classification is tinted rather than badged: `background: var(--color-warning-light)`, and — on the expense row, which draws its own border — `border-color: var(--color-warning-border)`. A classified entry falls back to `var(--color-surface)` / `var(--color-border)` (expense rows) or a transparent background (annual rows).
 
-### 10.4 Global Summary
+These **must** be the theme tokens, not literal amber hex. The rows originally hardcoded `#fffbeb` / `#fde68a`, which are the light-theme values of exactly those two tokens — so in dark mode the highlight rendered as a bright cream patch against the dark surface instead of the dark amber the tokens resolve to. Section 2's palette exists to make this impossible; nothing under `frontend/src/components` should carry a colour literal.
+
+### 10.4 Classification pills
+
+The Workbench uses the shared `<ClassificationPills>` (`ui/ClassificationPills.jsx`) — the same component as the Monthly and Annual expense templates (Sections 9.3 and 9.4), styled by `.class-toggle` / `.class-pill` / `.must-active` / `.want-active`.
+
+`WorkbenchTab.jsx` previously defined its **own** `ClassificationPills` with an identical name, prop signature (`value`, `onChange`) and toggle-off behaviour, but built on inline hex. Because the local definition shadowed the import, the same control rendered differently depending on which screen you were on. The rule in Section 9.3 — pills are not duplicated per file — applies app-wide, not only to the expense templates.
+
+### 10.5 Global Summary
 
 - Displayed as the last card (not collapsible, always visible).
 - Shows 4 stat blocks: Total Income | Total Must | Total Want | Total Save.
