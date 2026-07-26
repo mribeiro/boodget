@@ -540,6 +540,73 @@ router.delete('/annual-years/:yearId/items/:itemId', (req, res) => {
 
 // ── Sync Operations ──────────────────────────────────────────────────────────
 
+// Merges the current template into an existing annual expense year. A template-derived
+// item with at least one paid installment is "locked" and left completely untouched —
+// its payment history must never be silently discarded. An unlocked item (no paid
+// installments yet) is replaced with a fresh copy of the matching template item, and a
+// template item with no matching year item (by name) is added. Year items no longer
+// present in the template are left as-is rather than deleted, so removing something from
+// the template can't destroy a year's recorded data either. Ad-hoc items are untouched.
+function mergeYearFromTemplate(yearId, dossierId) {
+  const existingItems = db.prepare(`
+    SELECT ayi.id, ayi.name,
+           EXISTS(
+             SELECT 1 FROM annual_expense_year_installments ayii
+             JOIN annual_expense_payments aep ON aep.installment_id = ayii.id
+             WHERE ayii.year_item_id = ayi.id AND aep.paid = 1
+           ) as locked
+    FROM annual_expense_year_items ayi
+    WHERE ayi.year_id = ? AND ayi.from_template = 1
+  `).all(yearId);
+  const existingByName = new Map(existingItems.map((i) => [i.name, i]));
+
+  const templateItems = db
+    .prepare('SELECT * FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+    .all(dossierId);
+
+  const deleteItem = db.prepare('DELETE FROM annual_expense_year_items WHERE id = ?');
+  const insertItem = db.prepare(
+    'INSERT INTO annual_expense_year_items (id, year_id, name, budgeted_value, classification, num_installments, from_template, position) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
+  );
+  const insertInst = db.prepare(
+    'INSERT INTO annual_expense_year_installments (id, year_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
+  );
+
+  const summary = { added: [], refreshed: [], skipped_locked: [] };
+
+  for (const ti of templateItems) {
+    const existing = existingByName.get(ti.name);
+    if (existing?.locked) {
+      summary.skipped_locked.push(ti.name);
+      continue;
+    }
+    if (existing) {
+      // Cascade-deletes its installments and (unpaid, since it's unlocked) payments.
+      deleteItem.run(existing.id);
+      summary.refreshed.push(ti.name);
+    } else {
+      summary.added.push(ti.name);
+    }
+
+    const itemId = uuidv4();
+    const numInst = ti.num_installments ?? 1;
+    insertItem.run(itemId, yearId, ti.name, ti.value, ti.classification, numInst, ti.position ?? 0);
+
+    const tInsts = db
+      .prepare('SELECT * FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number')
+      .all(ti.id);
+    if (tInsts.length > 0) {
+      for (const inst of tInsts) {
+        insertInst.run(uuidv4(), itemId, inst.installment_number, inst.month, inst.day);
+      }
+    } else if (ti.day_of_payment != null && ti.month_of_payment != null) {
+      insertInst.run(uuidv4(), itemId, 1, ti.month_of_payment, ti.day_of_payment);
+    }
+  }
+
+  return summary;
+}
+
 // POST /annual-years/:yearId/sync-from-template
 router.post('/annual-years/:yearId/sync-from-template', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
@@ -548,41 +615,10 @@ router.post('/annual-years/:yearId/sync-from-template', (req, res) => {
     .get(req.params.yearId, req.params.id);
   if (!yearRow) return res.status(404).json({ error: 'Annual expense year not found' });
 
-  const doSync = db.transaction(() => {
-    // Delete template-derived items (cascade deletes installments and payments)
-    db.prepare("DELETE FROM annual_expense_year_items WHERE year_id = ? AND from_template = 1").run(req.params.yearId);
+  const doMerge = db.transaction(() => mergeYearFromTemplate(req.params.yearId, req.params.id));
+  const merge_summary = doMerge();
 
-    // Add all current template items
-    const templateItems = db
-      .prepare('SELECT * FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
-      .all(req.params.id);
-    const insertItem = db.prepare(
-      'INSERT INTO annual_expense_year_items (id, year_id, name, budgeted_value, classification, num_installments, from_template, position) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
-    );
-    const insertInst = db.prepare(
-      'INSERT INTO annual_expense_year_installments (id, year_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
-    );
-
-    for (const ti of templateItems) {
-      const itemId = uuidv4();
-      const numInst = ti.num_installments ?? 1;
-      insertItem.run(itemId, req.params.yearId, ti.name, ti.value, ti.classification, numInst, ti.position ?? 0);
-
-      const tInsts = db
-        .prepare('SELECT * FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number')
-        .all(ti.id);
-      if (tInsts.length > 0) {
-        for (const inst of tInsts) {
-          insertInst.run(uuidv4(), itemId, inst.installment_number, inst.month, inst.day);
-        }
-      } else if (ti.day_of_payment != null && ti.month_of_payment != null) {
-        insertInst.run(uuidv4(), itemId, 1, ti.month_of_payment, ti.day_of_payment);
-      }
-    }
-  });
-
-  doSync();
-  res.json(computeYearStatus(req.params.yearId, req.params.id));
+  res.json({ ...computeYearStatus(req.params.yearId, req.params.id), merge_summary });
 });
 
 // POST /annual-years/:yearId/sync-to-template
@@ -733,3 +769,4 @@ router.put('/annual-expenses/distributions', (req, res) => {
 module.exports = router;
 module.exports.remainingCycleMonthsInYear = remainingCycleMonthsInYear;
 module.exports.computeYearStatus = computeYearStatus;
+module.exports.mergeYearFromTemplate = mergeYearFromTemplate;

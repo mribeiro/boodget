@@ -1,5 +1,5 @@
 const { db } = require('../../src/db');
-const { computeYearStatus, remainingCycleMonthsInYear } = require('../../src/routes/annual-expenses');
+const { computeYearStatus, remainingCycleMonthsInYear, mergeYearFromTemplate } = require('../../src/routes/annual-expenses');
 const { createAnnualPaymentsForCycle } = require('../../src/routes/expenses');
 const {
   createUser,
@@ -8,6 +8,7 @@ const {
   createAnnualExpenseYear,
   createAnnualExpenseYearItem,
   createAnnualExpensePayment,
+  createAnnualExpenseTemplateItem,
   createAccount,
   createMonth,
   createExpenseTemplateItem,
@@ -170,5 +171,82 @@ describe('computeYearStatus', () => {
     });
     const status = computeYearStatus(year.id, dossier.id);
     expect(status.contributed_distributions).toBe(200);
+  });
+});
+
+describe('mergeYearFromTemplate', () => {
+  it('adds a template item that has no matching year item yet', () => {
+    const { dossier } = setup();
+    createAnnualExpenseTemplateItem(db, { dossierId: dossier.id, name: 'Car Insurance', value: 300 });
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2027 });
+
+    const summary = mergeYearFromTemplate(year.id, dossier.id);
+
+    expect(summary).toEqual({ added: ['Car Insurance'], refreshed: [], skipped_locked: [] });
+    const status = computeYearStatus(year.id, dossier.id);
+    expect(status.items.map((i) => i.name)).toEqual(['Car Insurance']);
+    expect(status.items[0].budgeted_value).toBe(300);
+  });
+
+  it('refreshes an unpaid template-derived item to match a changed template value', () => {
+    const { dossier } = setup();
+    createAnnualExpenseTemplateItem(db, { dossierId: dossier.id, name: 'Car Insurance', value: 350 });
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2027 });
+    createAnnualExpenseYearItem(db, { yearId: year.id, name: 'Car Insurance', budgeted_value: 300, from_template: true });
+
+    const summary = mergeYearFromTemplate(year.id, dossier.id);
+
+    expect(summary).toEqual({ added: [], refreshed: ['Car Insurance'], skipped_locked: [] });
+    const status = computeYearStatus(year.id, dossier.id);
+    expect(status.items).toHaveLength(1);
+    expect(status.items[0].budgeted_value).toBe(350);
+  });
+
+  it('leaves a template-derived item untouched, and reports it as skipped, once it has a paid installment', () => {
+    const { dossier } = setup();
+    createAnnualExpenseTemplateItem(db, { dossierId: dossier.id, name: 'Car Insurance', value: 350 });
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2027 });
+    const item = createAnnualExpenseYearItem(db, {
+      yearId: year.id, name: 'Car Insurance', budgeted_value: 300, from_template: true,
+    });
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2027, month: 1 });
+    createAnnualExpensePayment(db, { installmentId: item.installmentIds[0], cycleId: cycle.id, real_value: 300, paid: 1 });
+
+    const summary = mergeYearFromTemplate(year.id, dossier.id);
+
+    expect(summary).toEqual({ added: [], refreshed: [], skipped_locked: ['Car Insurance'] });
+    const status = computeYearStatus(year.id, dossier.id);
+    expect(status.items).toHaveLength(1);
+    expect(status.items[0].budgeted_value).toBe(300); // unchanged, still the stale value
+    expect(status.items[0].id).toBe(item.id); // same row, not replaced
+  });
+
+  it('leaves a year item no longer present in the template alone instead of deleting it', () => {
+    const { dossier } = setup();
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2027 });
+    createAnnualExpenseYearItem(db, { yearId: year.id, name: 'Discontinued Item', budgeted_value: 50, from_template: true });
+
+    const summary = mergeYearFromTemplate(year.id, dossier.id);
+
+    expect(summary).toEqual({ added: [], refreshed: [], skipped_locked: [] });
+    const status = computeYearStatus(year.id, dossier.id);
+    expect(status.items.map((i) => i.name)).toEqual(['Discontinued Item']);
+  });
+
+  it('never touches an ad-hoc item even if its name matches a template item', () => {
+    const { dossier } = setup();
+    createAnnualExpenseTemplateItem(db, { dossierId: dossier.id, name: 'Car Insurance', value: 350 });
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2027 });
+    const adhoc = createAnnualExpenseYearItem(db, {
+      yearId: year.id, name: 'Car Insurance', budgeted_value: 999, from_template: false,
+    });
+
+    mergeYearFromTemplate(year.id, dossier.id);
+
+    const status = computeYearStatus(year.id, dossier.id);
+    // Both the untouched ad-hoc item and the newly-added template item now exist side by side.
+    expect(status.items).toHaveLength(2);
+    const adhocStatus = status.items.find((i) => i.id === adhoc.id);
+    expect(adhocStatus.budgeted_value).toBe(999);
   });
 });

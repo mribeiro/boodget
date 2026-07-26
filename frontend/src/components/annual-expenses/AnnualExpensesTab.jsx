@@ -12,6 +12,8 @@ import { api } from '../../services/api';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
 import KpiStrip from '../ui/KpiStrip';
+import Toast from '../ui/Toast';
+import useToast from '../ui/useToast';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 
 const MONTH_NAMES = [
@@ -185,6 +187,7 @@ export default function AnnualExpensesTab({ dossierId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [confirmState, setConfirmState] = useState(null);
+  const { toast, showToast } = useToast();
 
   // UI state
   const [expandedItems, setExpandedItems] = useState({});
@@ -273,13 +276,18 @@ export default function AnnualExpensesTab({ dossierId }) {
 
   async function handleSyncFromTemplate() {
     setConfirmState({
-      title: 'Sync from template',
-      message: 'This will replace all template-derived items with current template values, and delete their payment records. Ad-hoc items are preserved. Continue?',
-      confirmLabel: 'Sync',
+      title: 'Merge from template',
+      message: 'Adds any new template items to this year and refreshes ones that have no paid installments yet. Items with at least one paid installment — and ad-hoc items — are left untouched. Continue?',
+      confirmLabel: 'Merge',
       danger: false,
       onConfirm: async () => {
-        const result = await api.syncAnnualYearFromTemplate(dossierId, selectedYearId);
+        const { merge_summary, ...result } = await api.syncAnnualYearFromTemplate(dossierId, selectedYearId);
         setYearData(result);
+        const parts = [];
+        if (merge_summary.added.length) parts.push(`${merge_summary.added.length} added`);
+        if (merge_summary.refreshed.length) parts.push(`${merge_summary.refreshed.length} refreshed`);
+        if (merge_summary.skipped_locked.length) parts.push(`${merge_summary.skipped_locked.length} kept unchanged (already paid)`);
+        showToast(parts.length ? `Merged from template: ${parts.join(', ')}.` : 'Already up to date with the template.');
       },
     });
   }
@@ -803,6 +811,7 @@ export default function AnnualExpensesTab({ dossierId }) {
       )}
 
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+      <Toast {...toast} />
 
       {showOtherYearModal && (
         <OtherYearModal
