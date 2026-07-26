@@ -45,6 +45,7 @@ Four new settings are added to the **Dossier Settings** tab, grouped under a ded
 - The **API Token** input must be of type `password` with a visibility toggle.
 - The **Paperless-ngx URL** input should include a placeholder: `https://paperless.example.com`.
 - All four fields must be filled for the integration to be considered **active**. If any field is missing, the integration is inactive and all Paperless-related UI elements are hidden throughout the dossier.
+- **"Inactive" and "we could not find out" must be distinguishable.** Hiding the UI is correct when the settings loaded and the integration is genuinely unconfigured; it is misleading when the settings request itself failed, since the result looks identical. `CycleEditor` therefore tracks the load failure separately and, in that case only, renders a `Settings unavailable` warning button in the cycle toolbar (amber `faTriangleExclamation`, reloads on click) in place of the hidden Paperless button. Do not swallow this rejection with `.catch(() => {})`.
 
 ### 2.4 API
 
