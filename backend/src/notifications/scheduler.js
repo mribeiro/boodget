@@ -1,12 +1,15 @@
 const { db } = require('../db');
 const { sendPush } = require('./push');
+const { computeCycleStartDate, computeTheoreticalCycleEndDate, fromIsoDate } = require('../utils/cycleDates');
 
-function getCurrentCycleStartYearMonth(cycleStartDay) {
+function getCurrentCycleStartYearMonth(cycleStartDay, weekendAdjustment) {
   const now = new Date();
   const todayDay = now.getUTCDate();
   const todayMonth = now.getUTCMonth() + 1;
   const todayYear = now.getUTCFullYear();
-  if (todayDay >= cycleStartDay) {
+  const today = new Date(todayYear, todayMonth - 1, todayDay);
+  const thisMonthStart = computeCycleStartDate(todayYear, todayMonth, cycleStartDay, weekendAdjustment);
+  if (today >= thisMonthStart) {
     return { year: todayYear, month: todayMonth };
   }
   let month = todayMonth - 1;
@@ -71,9 +74,10 @@ async function runNotificationScheduler() {
       if (!hasAccess) continue;
 
       const cycleStartDay = dossier.cycle_start_day || 25;
+      const weekendAdjustment = dossier.cycle_start_weekend_adjustment || 'none';
       const expenseNotifyDaysBefore = dossier.expense_notification_days_before ?? 1;
 
-      const { year: curYear, month: curMonth } = getCurrentCycleStartYearMonth(cycleStartDay);
+      const { year: curYear, month: curMonth } = getCurrentCycleStartYearMonth(cycleStartDay, weekendAdjustment);
       const currentCycle = db
         .prepare('SELECT * FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ?')
         .get(dossierId, curYear, curMonth);
@@ -110,9 +114,11 @@ async function runNotificationScheduler() {
           .prepare('SELECT * FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ?')
           .get(dossierId, prevYear, prevMonth);
         if (prevCycle && !prevCycle.is_closed) {
-          // Named using the cycle's own stored cycle_start_day, not the dossier's current
+          // Named using the cycle's own stored actual_end_date, not the dossier's current
           // setting, so a later change to it doesn't relabel this already-created cycle.
-          const endDate = new Date(prevYear, prevMonth, (prevCycle.cycle_start_day ?? cycleStartDay) - 1);
+          const endDate = prevCycle.actual_end_date
+            ? fromIsoDate(prevCycle.actual_end_date)
+            : new Date(prevYear, prevMonth, (prevCycle.cycle_start_day ?? cycleStartDay) - 1);
           const cycleName = endDate.toLocaleString('en', { month: 'long', year: 'numeric' });
           notifications.push({
             type: 'cycle_not_closed',
@@ -134,7 +140,7 @@ async function runNotificationScheduler() {
           .prepare('SELECT id FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ?')
           .get(dossierId, nextYear, nextMonth);
         if (!nextCycle) {
-          const endDate = new Date(nextYear, nextMonth, cycleStartDay - 1);
+          const endDate = computeTheoreticalCycleEndDate(nextYear, nextMonth, cycleStartDay, weekendAdjustment);
           const cycleName = endDate.toLocaleString('en', { month: 'long', year: 'numeric' });
           notifications.push({
             type: 'cycle_not_opened',
@@ -158,20 +164,33 @@ async function runNotificationScheduler() {
           )
           .all(currentCycle.id);
 
-        // The current cycle's own stored cycle_start_day drives its payment-day math,
-        // not the dossier's current setting, so it isn't reshaped by a later change to it.
+        // The current cycle's own stored dates drive its payment-day math, not the
+        // dossier's current setting, so it isn't reshaped by a later change to it.
         const activeCycleStartDay = currentCycle.cycle_start_day ?? cycleStartDay;
+        const cycleWindowStart = currentCycle.actual_start_date
+          ? fromIsoDate(currentCycle.actual_start_date)
+          : new Date(curYear, curMonth - 1, activeCycleStartDay);
+        const cycleWindowEnd = currentCycle.actual_end_date
+          ? fromIsoDate(currentCycle.actual_end_date)
+          : new Date(curYear, curMonth, activeCycleStartDay - 1);
 
         for (const item of unpaidItems) {
           const payDay = item.day_of_payment;
           if (payDay == null) continue;
+          // A payment day-of-month can fall in the cycle's start month or the
+          // following month — pick whichever calendar date actually lands inside
+          // the cycle's (possibly weekend-shifted) real window.
+          const candidateThisMonth = new Date(curYear, curMonth - 1, payDay);
+          let nextM = curMonth + 1; let nextY = curYear;
+          if (nextM === 13) { nextM = 1; nextY++; }
+          const candidateNextMonth = new Date(nextY, nextM - 1, payDay);
           let payDate;
-          if (payDay >= activeCycleStartDay) {
-            payDate = new Date(curYear, curMonth - 1, payDay);
+          if (candidateThisMonth >= cycleWindowStart && candidateThisMonth <= cycleWindowEnd) {
+            payDate = candidateThisMonth;
+          } else if (candidateNextMonth >= cycleWindowStart && candidateNextMonth <= cycleWindowEnd) {
+            payDate = candidateNextMonth;
           } else {
-            let nextM = curMonth + 1; let nextY = curYear;
-            if (nextM === 13) { nextM = 1; nextY++; }
-            payDate = new Date(nextY, nextM - 1, payDay);
+            payDate = payDay >= activeCycleStartDay ? candidateThisMonth : candidateNextMonth;
           }
           const diffDays = Math.floor((payDate - today) / (1000 * 60 * 60 * 24));
 

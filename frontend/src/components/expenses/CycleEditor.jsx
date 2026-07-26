@@ -10,7 +10,12 @@ import {
   faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import {
+  computeCycleStartDate, computeTheoreticalCycleEndDate,
+  formatCycleLabel, formatDateRange, fromIsoDate,
+} from '../../utils/cycleDates';
 import ConfirmModal from '../ConfirmModal';
+import Modal from '../ui/Modal';
 import Checkbox from '../ui/Checkbox';
 import Toast from '../ui/Toast';
 import useToast from '../ui/useToast';
@@ -45,27 +50,19 @@ function BudgetBar({ spent, max }) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
-function cycleLabel(year, month, startDay) {
-  const end = new Date(year, month, startDay - 1);
-  return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
-}
-
 function fmt(v) {
   if (v == null) return '—';
   const formatted = formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return formatted + ' €';
 }
 
-function cycleDateRange(year, month, startDay) {
-  const start = new Date(year, month - 1, startDay);
-  const end = new Date(year, month, startDay - 1);
-  const fmtDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${fmtDate(start)} – ${fmtDate(end)}`;
+// A cycle's actual start/end are stored on the cycle itself (weekend-adjusted at
+// creation time); fall back to the unshifted formula only for defensiveness.
+function cycleActualDates(cycle) {
+  const startDay = cycle.cycle_start_day ?? 25;
+  const start = cycle.actual_start_date ? fromIsoDate(cycle.actual_start_date) : new Date(cycle.year, cycle.month - 1, startDay);
+  const end = cycle.actual_end_date ? fromIsoDate(cycle.actual_end_date) : new Date(cycle.year, cycle.month, startDay - 1);
+  return { start, end };
 }
 
 function groupAccounts(accounts) {
@@ -254,8 +251,8 @@ export default function CycleEditor() {
   }
 
   function handleDeleteCycle() {
-    const startDay = cycle.cycle_start_day ?? 25;
-    const label = cycleLabel(cycle.year, cycle.month, startDay);
+    const { end } = cycleActualDates(cycle);
+    const label = formatCycleLabel(end);
     setConfirmState({
       title: 'Delete cycle',
       message: `Permanently delete the ${label} cycle and all its items? This cannot be undone.`,
@@ -333,9 +330,10 @@ export default function CycleEditor() {
   }
 
   function handlePullAnnualExpenses() {
+    const { start, end } = cycleActualDates(cycle);
     setConfirmState({
       title: 'Pull annual expenses',
-      message: `This will import any annual expense installments that fall within this cycle's date range (${cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}) into the Fixed Expenses list.\n\nItems already imported will not be duplicated. New items will appear as unpaid fixed expenses.`,
+      message: `This will import any annual expense installments that fall within this cycle's date range (${formatDateRange(start, end)}) into the Fixed Expenses list.\n\nItems already imported will not be duplicated. New items will appear as unpaid fixed expenses.`,
       confirmLabel: 'Pull',
       onConfirm: async () => {
         setError('');
@@ -392,7 +390,7 @@ export default function CycleEditor() {
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h1 style={{ margin: 0 }}>{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)} Cycle</h1>
+            <h1 style={{ margin: 0 }}>{formatCycleLabel(cycleActualDates(cycle).end)} Cycle</h1>
             <FontAwesomeIcon
               icon={!!cycle.is_closed ? faLock : faLockOpen}
               style={{ fontSize: 14, color: !!cycle.is_closed ? 'var(--text-primary)' : 'var(--color-success)' }}
@@ -400,7 +398,7 @@ export default function CycleEditor() {
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <FontAwesomeIcon icon={faClock} style={{ fontSize: 10 }} />
-            {cycleDateRange(cycle.year, cycle.month, cycle.cycle_start_day ?? 25)}
+            {formatDateRange(cycleActualDates(cycle).start, cycleActualDates(cycle).end)}
           </div>
         </div>
       </div>
@@ -647,8 +645,11 @@ export default function CycleEditor() {
         <EditPeriodModal
           cycle={cycle}
           dossierId={dossierId}
-          onSave={async (year, month) => {
-            await api.updateCycle(dossierId, cycleId, { year, month });
+          onSave={async (year, month, resolveOverlap) => {
+            await api.updateCycle(dossierId, cycleId, {
+              year, month,
+              ...(resolveOverlap ? { resolve_overlap: resolveOverlap } : {}),
+            });
             setShowEditPeriod(false);
             await load();
           }}
@@ -665,15 +666,17 @@ export default function CycleEditor() {
 
 // ── Period edit modal ─────────────────────────────────────────────────────────
 
-const MONTH_NAMES_MODAL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
 function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
+  // Moving a cycle recomputes its dates from its own already-snapshotted start-day/
+  // weekend-adjustment, never the dossier's live settings (matches the backend).
   const startDay = cycle.cycle_start_day ?? 25;
+  const weekendAdjustment = cycle.cycle_start_weekend_adjustment ?? 'none';
   const [year, setYear] = useState(cycle.year);
   const [month, setMonth] = useState(cycle.month);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [allCycles, setAllCycles] = useState([]);
+  const [overlapConfirm, setOverlapConfirm] = useState(null); // { overlap } from a 409 response
 
   useEffect(() => {
     api.getCycles(dossierId).then(setAllCycles).catch(() => {});
@@ -689,23 +692,29 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
     return allCycles.some((c) => c.year === y && c.month === m && c.id !== cycle.id);
   }
 
-  const endDate = new Date(year, month, startDay - 1);
-  const cycleDisplayLabel = `${MONTH_NAMES_MODAL[endDate.getMonth()]} ${endDate.getFullYear()}`;
+  const startDate = computeCycleStartDate(year, month, startDay, weekendAdjustment);
+  const endDate = computeTheoreticalCycleEndDate(year, month, startDay, weekendAdjustment);
+  const cycleDisplayLabel = formatCycleLabel(endDate);
 
-  const startFmt = new Date(year, month - 1, startDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const endFmt = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  async function submit(resolveOverlap) {
+    setError('');
+    setSaving(true);
+    try {
+      await onSave(year, month, resolveOverlap);
+    } catch (err) {
+      if (err.status === 409 && err.body?.overlap) {
+        setOverlapConfirm(err.body.overlap);
+      } else {
+        setError(err.message);
+      }
+      setSaving(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
     if (isTaken(year, month)) { setError('A cycle for that period already exists'); return; }
-    setSaving(true);
-    try {
-      await onSave(year, month);
-    } catch (err) {
-      setError(err.message);
-      setSaving(false);
-    }
+    await submit();
   }
 
   return (
@@ -723,8 +732,8 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
                 <label>Cycle</label>
                 <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-                    const end = new Date(year, m, startDay - 1);
-                    const label = `${MONTH_NAMES_MODAL[end.getMonth()]} ${end.getFullYear()}`;
+                    const mEnd = computeTheoreticalCycleEndDate(year, m, startDay, weekendAdjustment);
+                    const label = formatCycleLabel(mEnd);
                     return (
                       <option key={m} value={m} disabled={isTaken(year, m)}>
                         {label}{isTaken(year, m) ? ' (exists)' : ''}
@@ -741,7 +750,7 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
               </div>
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '-0.25rem' }}>
-              {startFmt} – {endFmt}
+              {formatDateRange(startDate, endDate)}
             </div>
             {isTaken(year, month) && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>This period already has a cycle.</div>}
           </div>
@@ -753,7 +762,45 @@ function EditPeriodModal({ cycle, dossierId, onSave, onClose }) {
           </div>
         </form>
       </div>
+      {overlapConfirm && (
+        <OverlapConfirmModal
+          overlap={overlapConfirm}
+          onIgnore={() => { setOverlapConfirm(null); submit('ignore'); }}
+          onRecompute={() => { setOverlapConfirm(null); submit('recompute'); }}
+          onCancel={() => setOverlapConfirm(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Shown when moving a cycle's period would overlap an already-adjacent cycle's
+// stored date range — lets the user resolve it instead of silently applying either
+// outcome. See CLAUDE.md's Expense Cycle section for the sync rules this mirrors.
+function OverlapConfirmModal({ overlap, onIgnore, onRecompute, onCancel }) {
+  const conflictLines = overlap.conflicts.map((c) => {
+    const side = c.side === 'previous' ? 'The previous cycle' : 'The next cycle';
+    return `${side} (${formatDateRange(fromIsoDate(c.actual_start_date), fromIsoDate(c.actual_end_date))}) would overlap this cycle's new dates.`;
+  });
+
+  return (
+    <Modal
+      title="Overlapping cycle"
+      onClose={onCancel}
+      style={{ maxWidth: 440 }}
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn-secondary" onClick={onIgnore}>Leave as is</button>
+          <button type="button" className="btn-primary" onClick={onRecompute}>Recompute adjacent cycle</button>
+        </>
+      }
+    >
+      <p style={{ margin: '0 0 0.75rem' }}>{conflictLines.join(' ')}</p>
+      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+        Recomputing adjusts the adjacent cycle's date to butt up against this cycle's new dates, so the two no longer overlap. Leaving as is applies the move and keeps the adjacent cycle's dates unchanged.
+      </p>
+    </Modal>
   );
 }
 

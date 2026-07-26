@@ -12,6 +12,8 @@ function uid(prefix) {
   return `${prefix}-${Date.now()}-${counter}-${crypto.randomUUID()}`;
 }
 
+const { computeCycleStartDate, computeTheoreticalCycleEndDate, toIsoDate } = require('../../src/utils/cycleDates');
+
 function createUser(db, overrides = {}) {
   const id = overrides.id || uid('user');
   const username = overrides.username || uid('user');
@@ -40,6 +42,7 @@ function createDossier(db, overrides = {}) {
   );
   const fields = [
     'cycle_start_day',
+    'cycle_start_weekend_adjustment',
     'emergency_fund_months_multiplier',
     'emergency_fund_cycles_to_average',
     'reference_salary',
@@ -157,10 +160,16 @@ function createExpenseCycle(db, overrides = {}) {
   const id = overrides.id || uid('cycle');
   const dossierId = overrides.dossierId || overrides.dossier_id;
   if (!dossierId) throw new Error('createExpenseCycle requires dossierId');
+  const cycleStartDay = overrides.cycle_start_day ?? 25;
+  const weekendAdjustment = overrides.cycle_start_weekend_adjustment ?? 'none';
+  const actualStartDate = overrides.actual_start_date
+    ?? toIsoDate(computeCycleStartDate(overrides.year, overrides.month, cycleStartDay, weekendAdjustment));
+  const actualEndDate = overrides.actual_end_date
+    ?? toIsoDate(computeTheoreticalCycleEndDate(overrides.year, overrides.month, cycleStartDay, weekendAdjustment));
   db.prepare(
     `INSERT INTO expense_cycles
-       (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     dossierId,
@@ -170,7 +179,10 @@ function createExpenseCycle(db, overrides = {}) {
     overrides.previous_balance ?? 0,
     overrides.is_closed ? 1 : 0,
     overrides.final_real_balance ?? null,
-    overrides.cycle_start_day ?? 25
+    cycleStartDay,
+    weekendAdjustment,
+    actualStartDate,
+    actualEndDate
   );
   return db.prepare('SELECT * FROM expense_cycles WHERE id = ?').get(id);
 }

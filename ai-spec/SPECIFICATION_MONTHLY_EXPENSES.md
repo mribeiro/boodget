@@ -20,11 +20,12 @@ The Monthly Expenses section allows users to track recurring and occasional expe
 
 A new **Settings** section must be added to each dossier. It is designed to accommodate future configuration options.
 
-For this phase, the only setting is:
+Settings:
 
 | Setting | Description | Default |
 |---|---|---|
 | **Cycle start day** | Day of the month on which the cycle begins (i.e. the day the salary is received) | 25 |
+| **Weekend start-day adjustment** | Since a salary can't be paid on a weekend: if the cycle start day falls on a Saturday/Sunday, whether to leave it as-is, shift it to the Friday before, or the Monday after | No adjustment |
 
 Settings are accessible to all users with access to the dossier (same permission model as the rest of the dossier).
 
@@ -46,6 +47,8 @@ The date range always shows the full span (e.g. "Mar 25, 2025 – Apr 24, 2025")
 
 **Cycle start day is snapshotted, not live.** `cycle_start_day` is a dossier-wide *setting* (Section 2), but each cycle stores its own copy of the value in effect at the moment it was opened (`expense_cycles.cycle_start_day`). Every computation scoped to a specific, already-created cycle — its display name, date range, Fixed-expense sort order (§5), day-of-payment clamping, and annual-expense installment-to-cycle matching — uses that cycle's own stored value, never the dossier's current setting. Changing the setting in Dossier Settings therefore only affects cycles opened **after** the change; it never retroactively reshapes an existing cycle, open or closed. Only genuinely forward-looking computations (e.g. determining which `(year, month)` period is "now", for a cycle that may not exist yet) use the live dossier setting.
 
+**Weekend start-day adjustment.** The dossier-wide `cycle_start_weekend_adjustment` setting (Section 2) is snapshotted onto the cycle the same way, as `expense_cycles.cycle_start_weekend_adjustment`. If the raw start date (`cycle_start_day` of the calendar month) falls on a Saturday or Sunday and the setting isn't "No adjustment", the real start shifts to the configured weekday. The resulting dates are stored directly as `expense_cycles.actual_start_date`/`actual_end_date` (not recomputed on every read) — these two fields are what every part of the app actually uses for a cycle's display name, date range, Fixed-expense date bucketing, annual-expense installment matching, and notification timing. `actual_end_date` isn't purely a function of the cycle's own fields, though: **when a newly-opened cycle's start actually shifts off a weekend, the immediately preceding cycle's `actual_end_date` (if that cycle exists) is updated in the same request**, so the two don't overlap or leave a gap. This is the one case where opening a cycle mutates a different cycle's row. If no shift occurs, the previous cycle is left untouched. Deleting a cycle never reverts this adjustment on its former neighbor — it's a one-way, one-time sync, not a maintained invariant.
+
 ### 3.2 Rules
 
 - A dossier can have **multiple open cycles simultaneously** — there is no restriction on how many cycles are open at once.
@@ -64,6 +67,8 @@ When a cycle is opened, the user must provide:
 | **Salary received** | The salary amount received this cycle |
 | **Previous balance** | The leftover balance from the previous cycle (entered manually) |
 
+If the immediately preceding cycle exists and is closed, the **Previous balance** field is prefilled with that cycle's final real balance as an editable suggestion — the user can accept it or type over it; nothing is enforced. No suggestion is offered if the previous cycle doesn't exist, is still open, or hasn't had a final real balance recorded.
+
 Both fields can be **updated at any time** after opening.
 
 ### 3.4 Closing a Cycle
@@ -72,13 +77,14 @@ Both fields can be **updated at any time** after opening.
 - Closing a cycle requires entering a **final real balance** — the actual amount left in the account at the end of the cycle.
 - The system compares the final real balance against the **expected balance** (calculated — see Section 7).
 - A closed cycle **remains fully editable** — the user can correct values after closing.
-- There is no automatic suggestion of the previous cycle's final balance as the next cycle's previous balance — this is always entered manually.
+- The cycle's final real balance is what §3.3 suggests (as an editable default) when opening the *next* cycle.
 
 ### 3.5 Editing a Cycle's Period
 
 - The `(year, month)` stored for a cycle (the **start** month) can be changed at any time via the cycle editor.
 - If another cycle in the same dossier already occupies the target period, the change is rejected (409 conflict).
 - The display name automatically updates to reflect the new end month.
+- Moving a cycle recomputes its `actual_start_date`/`actual_end_date` from its own already-snapshotted `cycle_start_day`/`cycle_start_weekend_adjustment` (never the dossier's live settings — this endpoint has never re-snapshotted `cycle_start_day` on a period edit either). If the recomputed range would overlap whichever cycle is now adjacent to it (by stored `actual_start_date`/`actual_end_date`), the change is rejected with a `409` describing the conflict, and the UI offers two resolutions: **recompute the adjacent cycle** (shrinks/extends it to butt up against the new boundary, same mechanism as the previous-cycle-end sync in §3.1) or **leave it as is** (applies the move and accepts the overlap). No overlap → the move just applies, no prompt.
 
 ### 3.6 Deleting a Cycle
 

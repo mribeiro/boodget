@@ -9,7 +9,12 @@ async function request(method, path, body) {
   const res = await fetch(`${BASE}${path}`, options);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({ error: res.statusText }));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) {
+    const err = new Error(data.error || res.statusText);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
   return data;
 }
 

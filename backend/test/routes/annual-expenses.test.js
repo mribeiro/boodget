@@ -78,7 +78,7 @@ describe('computeYearStatus', () => {
     });
     // Cycle stored as (year=2026, month=3) with start_day=25 runs Mar 25 - Apr 24.
     const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 3, cycle_start_day: 25 });
-    createAnnualPaymentsForCycle(dossier.id, cycle.id, 2026, 3, 25);
+    createAnnualPaymentsForCycle(dossier.id, cycle.id, new Date(2026, 2, 25), new Date(2026, 3, 24));
     const payments = db
       .prepare('SELECT * FROM annual_expense_payments WHERE installment_id = ?')
       .all(item.installmentIds[0]);
@@ -95,7 +95,7 @@ describe('computeYearStatus', () => {
       installments: [{ month: 3, day: 24 }], // one day before cycle_start_day
     });
     const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 3, cycle_start_day: 25 });
-    createAnnualPaymentsForCycle(dossier.id, cycle.id, 2026, 3, 25);
+    createAnnualPaymentsForCycle(dossier.id, cycle.id, new Date(2026, 2, 25), new Date(2026, 3, 24));
     const payments = db
       .prepare('SELECT * FROM annual_expense_payments WHERE installment_id = ?')
       .all(item.installmentIds[0]);
@@ -107,8 +107,8 @@ describe('computeYearStatus', () => {
     const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2026 });
     createAnnualExpenseYearItem(db, { yearId: year.id, budgeted_value: 120, installments: [{ month: 3, day: 25 }] });
     const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 3, cycle_start_day: 25 });
-    createAnnualPaymentsForCycle(dossier.id, cycle.id, 2026, 3, 25);
-    createAnnualPaymentsForCycle(dossier.id, cycle.id, 2026, 3, 25);
+    createAnnualPaymentsForCycle(dossier.id, cycle.id, new Date(2026, 2, 25), new Date(2026, 3, 24));
+    createAnnualPaymentsForCycle(dossier.id, cycle.id, new Date(2026, 2, 25), new Date(2026, 3, 24));
     const payments = db.prepare('SELECT * FROM annual_expense_payments WHERE cycle_id = ?').all(cycle.id);
     expect(payments).toHaveLength(1);
   });

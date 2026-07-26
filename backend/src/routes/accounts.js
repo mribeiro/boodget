@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
+const { fromIsoDate } = require('../utils/cycleDates');
 
 const VALID_TYPES = ['Risk Investment', 'Guaranteed Investment', 'Current Account'];
 const VALID_MONEY_CATEGORIES = ['idle', 'active', 'stocks'];
@@ -120,7 +121,7 @@ router.delete('/:accountId', (req, res) => {
     .all(req.params.id, req.params.accountId);
   const cycleLinks = db
     .prepare(
-      `SELECT ci.name, ec.year, ec.month, ec.cycle_start_day
+      `SELECT ci.name, ec.year, ec.month, ec.cycle_start_day, ec.actual_end_date
        FROM cycle_items ci
        JOIN expense_cycles ec ON ec.id = ci.cycle_id
        WHERE ec.dossier_id = ? AND ci.section = 'distribution' AND ci.account_id = ?`
@@ -135,9 +136,12 @@ router.delete('/:accountId', (req, res) => {
     if (cycleLinks.length > 0) {
       const byCycle = new Map();
       for (const link of cycleLinks) {
-        // Each cycle's own stored cycle_start_day names it, not the dossier's current
+        // Each cycle's own stored actual_end_date names it, not the dossier's current
         // setting, so a later setting change doesn't relabel an already-created cycle.
-        const cycleName = new Date(link.year, link.month, (link.cycle_start_day ?? 25) - 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+        const endDate = link.actual_end_date
+          ? fromIsoDate(link.actual_end_date)
+          : new Date(link.year, link.month, (link.cycle_start_day ?? 25) - 1);
+        const cycleName = endDate.toLocaleString('en', { month: 'long', year: 'numeric' });
         if (!byCycle.has(cycleName)) byCycle.set(cycleName, []);
         byCycle.get(cycleName).push(link.name);
       }

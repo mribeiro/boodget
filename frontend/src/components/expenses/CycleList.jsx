@@ -4,38 +4,17 @@ import { parseDecimalInput } from '../../utils/numbers';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
-// A cycle stored as (year, month) runs from startDay of that month to
-// startDay-1 of the following month. The conventional name is the END month.
-function cycleLabel(year, month, startDay) {
-  const end = new Date(year, month, startDay - 1);
-  return `${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
-}
-
-function cycleDateRange(year, month, startDay) {
-  const start = new Date(year, month - 1, startDay);
-  const end = new Date(year, month, startDay - 1);
-  const fmtDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${fmtDate(start)} – ${fmtDate(end)}`;
-}
-
-function nextMonth(year, month) {
-  return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
-}
-
-function prevMonth(year, month) {
-  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
-}
+import {
+  computeCycleStartDate, computeTheoreticalCycleEndDate,
+  formatCycleLabel, formatDateRange, fromIsoDate,
+  nextYearMonth, prevYearMonth,
+} from '../../utils/cycleDates';
 
 export default function CycleList({ dossierId }) {
   const navigate = useNavigate();
   const [cycles, setCycles] = useState([]);
   const [cycleStartDay, setCycleStartDay] = useState(25);
+  const [weekendAdjustment, setWeekendAdjustment] = useState('none');
   // null = no modal; { year, month } = modal open with pre-filled values
   const [modalPreset, setModalPreset] = useState(null);
   const [error, setError] = useState('');
@@ -54,6 +33,7 @@ export default function CycleList({ dossierId }) {
       data.sort((a, b) => b.year - a.year || b.month - a.month);
       setCycles(data);
       setCycleStartDay(settings.cycle_start_day ?? 25);
+      setWeekendAdjustment(settings.cycle_start_weekend_adjustment ?? 'none');
     } catch (err) {
       setError(err.message);
     }
@@ -90,46 +70,54 @@ export default function CycleList({ dossierId }) {
 
       {cycles.length === 0 ? null : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-          {/* Top placeholder: next month after the newest cycle */}
+          {/* Top placeholder: next month after the newest cycle. Forward-looking (no cycle
+              exists yet), so it uses the dossier's live settings. */}
           {(() => {
-            const next = nextMonth(newest.year, newest.month);
+            const next = nextYearMonth(newest.year, newest.month);
+            const endDate = computeTheoreticalCycleEndDate(next.year, next.month, cycleStartDay, weekendAdjustment);
             return (
               <div
                 className="month-row month-row-placeholder"
                 onClick={() => setModalPreset(next)}
                 style={{ marginBottom: '0.25rem' }}
               >
-                <span className="month-row-name">Open {cycleLabel(next.year, next.month, cycleStartDay)}</span>
+                <span className="month-row-name">Open {formatCycleLabel(endDate)}</span>
               </div>
             );
           })()}
 
-          {cycles.map((cycle) => (
-            <div
-              key={cycle.id}
-              className="month-row"
-              onClick={() => navigate(`/dossiers/${dossierId}/cycles/${cycle.id}`)}
-              style={{ cursor: 'pointer', marginBottom: '0.25rem' }}
-            >
-              <span className="month-row-name">{cycleLabel(cycle.year, cycle.month, cycle.cycle_start_day ?? cycleStartDay)}</span>
-              <span
-                className={`badge ${cycle.is_closed ? 'badge-filled' : 'badge-empty'}`}
-                style={{ marginLeft: 'auto' }}
+          {cycles.map((cycle) => {
+            const endDate = cycle.actual_end_date
+              ? fromIsoDate(cycle.actual_end_date)
+              : new Date(cycle.year, cycle.month, (cycle.cycle_start_day ?? cycleStartDay) - 1);
+            return (
+              <div
+                key={cycle.id}
+                className="month-row"
+                onClick={() => navigate(`/dossiers/${dossierId}/cycles/${cycle.id}`)}
+                style={{ cursor: 'pointer', marginBottom: '0.25rem' }}
               >
-                {cycle.is_closed ? 'Closed' : 'Open'}
-              </span>
-            </div>
-          ))}
+                <span className="month-row-name">{formatCycleLabel(endDate)}</span>
+                <span
+                  className={`badge ${cycle.is_closed ? 'badge-filled' : 'badge-empty'}`}
+                  style={{ marginLeft: 'auto' }}
+                >
+                  {cycle.is_closed ? 'Closed' : 'Open'}
+                </span>
+              </div>
+            );
+          })}
 
-          {/* Bottom placeholder: previous month before the oldest cycle */}
+          {/* Bottom placeholder: previous month before the oldest cycle. Forward-looking. */}
           {(() => {
-            const prev = prevMonth(oldest.year, oldest.month);
+            const prev = prevYearMonth(oldest.year, oldest.month);
+            const endDate = computeTheoreticalCycleEndDate(prev.year, prev.month, cycleStartDay, weekendAdjustment);
             return (
               <div
                 className="month-row month-row-placeholder"
                 onClick={() => setModalPreset(prev)}
               >
-                <span className="month-row-name">Open {cycleLabel(prev.year, prev.month, cycleStartDay)}</span>
+                <span className="month-row-name">Open {formatCycleLabel(endDate)}</span>
               </div>
             );
           })()}
@@ -140,6 +128,7 @@ export default function CycleList({ dossierId }) {
         <OpenCycleModal
           existingCycles={cycles}
           cycleStartDay={cycleStartDay}
+          weekendAdjustment={weekendAdjustment}
           initialYear={modalPreset.year}
           initialMonth={modalPreset.month}
           onCreate={handleCreate}
@@ -150,7 +139,7 @@ export default function CycleList({ dossierId }) {
   );
 }
 
-function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMonth, onCreate, onClose }) {
+function OpenCycleModal({ existingCycles, cycleStartDay, weekendAdjustment, initialYear, initialMonth, onCreate, onClose }) {
   const now = new Date();
   const defaultYear = initialYear ?? now.getFullYear();
   const defaultMonth = initialMonth ?? (now.getMonth() + 1);
@@ -158,6 +147,7 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
   const [month, setMonth] = useState(defaultMonth);
   const [salary, setSalary] = useState('');
   const [previousBalance, setPreviousBalance] = useState('');
+  const [previousBalanceTouched, setPreviousBalanceTouched] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -169,6 +159,21 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
   function isTaken(y, m) {
     return existingCycles.some((c) => c.year === y && c.month === m);
   }
+
+  // Suggest the previous cycle's closing balance as an editable starting point,
+  // whenever that previous cycle exists, is closed, and has a final real balance.
+  useEffect(() => {
+    if (previousBalanceTouched) return;
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const prevCycle = existingCycles.find((c) => c.year === prevYear && c.month === prevMonth);
+    if (prevCycle && prevCycle.is_closed && prevCycle.final_real_balance != null) {
+      setPreviousBalance(String(prevCycle.final_real_balance));
+    } else {
+      setPreviousBalance('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, month]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -186,6 +191,8 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
   }
 
   const taken = isTaken(year, month);
+  const startDate = computeCycleStartDate(year, month, cycleStartDay, weekendAdjustment);
+  const endDate = computeTheoreticalCycleEndDate(year, month, cycleStartDay, weekendAdjustment);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -202,8 +209,8 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
                 <label>Cycle</label>
                 <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-                    const endDate = new Date(year, m, cycleStartDay - 1);
-                    const endLabel = endDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                    const mEndDate = computeTheoreticalCycleEndDate(year, m, cycleStartDay, weekendAdjustment);
+                    const endLabel = mEndDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
                     return (
                       <option key={m} value={m} disabled={isTaken(year, m)}>
                         {endLabel}{isTaken(year, m) ? ' (exists)' : ''}
@@ -220,7 +227,7 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
               </div>
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '-0.25rem', marginBottom: '0.75rem' }}>
-              {cycleDateRange(year, month, cycleStartDay)}
+              {formatDateRange(startDate, endDate)}
             </div>
             {taken && <div className="alert alert-error">This month already has a cycle.</div>}
             <div className="form-group">
@@ -229,7 +236,11 @@ function OpenCycleModal({ existingCycles, cycleStartDay, initialYear, initialMon
             </div>
             <div className="form-group">
               <label>Previous balance (€)</label>
-              <input type="text" inputMode="decimal" value={previousBalance} onChange={(e) => setPreviousBalance(e.target.value)} placeholder="0.00" />
+              <input
+                type="text" inputMode="decimal" value={previousBalance}
+                onChange={(e) => { setPreviousBalanceTouched(true); setPreviousBalance(e.target.value); }}
+                placeholder="0.00"
+              />
             </div>
           </div>
           <div className="modal-footer">

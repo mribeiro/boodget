@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
+const { computeCycleStartDate, fromIsoDate } = require('../utils/cycleDates');
 
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
@@ -13,13 +14,15 @@ function canAccess(dossierId, userId) {
 }
 
 // Returns the 1-based display months (1–12) of `calendarYear` whose cycle start date
-// (cycleStartDay of the *previous* calendar month) is still in the future. Mirrors the
-// frontend's cyclesRemainingInYear helper in AnnualExpensesTab.jsx.
-function remainingCycleMonthsInYear(calendarYear, cycleStartDay) {
+// (cycleStartDay of the *previous* calendar month, weekend-adjusted per the dossier's
+// live setting) is still in the future. Mirrors the frontend's cyclesRemainingInYear
+// helper in AnnualExpensesTab.jsx. This is a genuinely forward-looking prediction (the
+// cycle may not exist yet), so it uses the dossier's *live* settings, not a stored cycle.
+function remainingCycleMonthsInYear(calendarYear, cycleStartDay, weekendAdjustment) {
   const today = new Date();
   const months = [];
   for (let displayMonth = 0; displayMonth < 12; displayMonth++) {
-    const cycleStart = new Date(calendarYear, displayMonth - 1, cycleStartDay);
+    const cycleStart = computeCycleStartDate(calendarYear, displayMonth, cycleStartDay, weekendAdjustment);
     if (cycleStart > today) months.push(displayMonth + 1);
   }
   return months;
@@ -30,8 +33,9 @@ function computeYearStatus(yearId, dossierId) {
   const year = db.prepare('SELECT * FROM annual_expense_years WHERE id = ?').get(yearId);
   if (!year) return null;
 
-  const dossierRow = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(dossierId);
+  const dossierRow = db.prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment FROM dossiers WHERE id = ?').get(dossierId);
   const startDay = dossierRow?.cycle_start_day ?? 25;
+  const weekendAdjustment = dossierRow?.cycle_start_weekend_adjustment ?? 'none';
 
   const items = db.prepare(`
     SELECT ayi.*,
@@ -119,7 +123,7 @@ function computeYearStatus(yearId, dossierId) {
     .all(dossierId).map((r) => r.distribution_template_id);
 
   const totalRaiseNeeded = Math.max(0, totalBudgeted - (year.carryover || 0));
-  const cyclesLeftInYear = remainingCycleMonthsInYear(year.year, startDay).length;
+  const cyclesLeftInYear = remainingCycleMonthsInYear(year.year, startDay, weekendAdjustment).length;
 
   let contributedDistributions = 0;
   let monthlyDistProjected = 0;
@@ -133,14 +137,14 @@ function computeYearStatus(yearId, dossierId) {
     monthlyDistProjected = projRow.total || 0;
 
     // Find cycles whose end date falls within this calendar year. Each cycle's own
-    // stored cycle_start_day is used (not the dossier's current setting) so a later
+    // stored actual_end_date is used (not the dossier's current setting) so a later
     // change to the setting doesn't retroactively reshape an already-created cycle.
     const cycles = db
-      .prepare('SELECT id, year, month, cycle_start_day FROM expense_cycles WHERE dossier_id = ? ORDER BY year ASC, month ASC')
+      .prepare('SELECT id, year, month, cycle_start_day, actual_end_date FROM expense_cycles WHERE dossier_id = ? ORDER BY year ASC, month ASC')
       .all(dossierId);
 
     const cyclesInYear = cycles.filter((c) => {
-      const endDate = new Date(c.year, c.month, (c.cycle_start_day ?? startDay) - 1);
+      const endDate = c.actual_end_date ? fromIsoDate(c.actual_end_date) : new Date(c.year, c.month, (c.cycle_start_day ?? startDay) - 1);
       return endDate.getFullYear() === year.year;
     });
 
@@ -187,7 +191,7 @@ function computeYearStatus(yearId, dossierId) {
       // (unlike goals.js) — real_cumulative already IS the running total of done
       // distributions, with no separate live snapshot to reconcile it against.
       const existingMonths = new Set(cyclesInYear.map((c) => c.month));
-      const futureMonths = remainingCycleMonthsInYear(year.year, startDay).filter((m) => !existingMonths.has(m));
+      const futureMonths = remainingCycleMonthsInYear(year.year, startDay, weekendAdjustment).filter((m) => !existingMonths.has(m));
       if (monthlyDistProjected > 0 && futureMonths.length > 0) {
         let projectedCumulative = realCumulative;
         distributionsChartData[distributionsChartData.length - 1].projected_cumulative = projectedCumulative;
@@ -217,13 +221,13 @@ function computeYearStatus(yearId, dossierId) {
   }
 
   // Compute "needed this cycle": unpaid installments assigned to the currently active cycle
-  const allCycles = db.prepare('SELECT id, year, month, cycle_start_day FROM expense_cycles WHERE dossier_id = ?').all(dossierId);
+  const allCycles = db.prepare('SELECT id, year, month, cycle_start_day, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ?').all(dossierId);
   const today = new Date();
   let currentCycleId = null;
   for (const cycle of allCycles) {
     const cStartDay = cycle.cycle_start_day ?? startDay;
-    const cycleStart = new Date(cycle.year, cycle.month - 1, cStartDay);
-    const cycleEnd = new Date(cycle.year, cycle.month, cStartDay - 1);
+    const cycleStart = cycle.actual_start_date ? fromIsoDate(cycle.actual_start_date) : new Date(cycle.year, cycle.month - 1, cStartDay);
+    const cycleEnd = cycle.actual_end_date ? fromIsoDate(cycle.actual_end_date) : new Date(cycle.year, cycle.month, cStartDay - 1);
     if (today >= cycleStart && today <= cycleEnd) {
       currentCycleId = cycle.id;
       break;
@@ -482,12 +486,12 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
       });
 
       // Re-assign payments to the correct cycle after date changes. Each cycle's own
-      // stored cycle_start_day is used, not the dossier's current setting, so existing
-      // cycles aren't reshaped by a later change to that setting.
+      // stored actual_start_date/actual_end_date is used, not the dossier's current
+      // setting, so existing cycles aren't reshaped by a later change to that setting.
       const yearRow = db.prepare('SELECT year FROM annual_expense_years WHERE id = ?').get(req.params.yearId);
       const dossierRow = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
       const startDay = dossierRow?.cycle_start_day ?? 25;
-      const allCycles = db.prepare('SELECT id, year, month, cycle_start_day FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
+      const allCycles = db.prepare('SELECT id, year, month, cycle_start_day, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
 
       const updatedInsts = db.prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ?').all(req.params.itemId);
       for (const inst of updatedInsts) {
@@ -498,8 +502,8 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
         let targetCycle = null;
         for (const cycle of allCycles) {
           const cStartDay = cycle.cycle_start_day ?? startDay;
-          const cycleStart = new Date(cycle.year, cycle.month - 1, cStartDay);
-          const cycleEnd = new Date(cycle.year, cycle.month, cStartDay - 1);
+          const cycleStart = cycle.actual_start_date ? fromIsoDate(cycle.actual_start_date) : new Date(cycle.year, cycle.month - 1, cStartDay);
+          const cycleEnd = cycle.actual_end_date ? fromIsoDate(cycle.actual_end_date) : new Date(cycle.year, cycle.month, cStartDay - 1);
           if (instDate >= cycleStart && instDate <= cycleEnd) {
             targetCycle = cycle;
             break;
