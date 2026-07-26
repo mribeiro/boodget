@@ -531,7 +531,7 @@ POST   /api/dossiers/:id/annual-years/:yearId/sync-from-template
 POST   /api/dossiers/:id/annual-years/:yearId/sync-to-template
 ```
 
-- `sync-from-template`: resets template-derived items, adds new template items, preserves ad-hoc items. Deletes payment records for template-derived items. Returns the updated year.
+- `sync-from-template`: a non-destructive **merge**, not a full reset. For each current template item, matched to a year item by name: if no template-derived (`from_template = 1`) year item with that name exists, it's added; if one exists and has no installment with a *paid* payment yet, it's replaced with a fresh copy of the template item (its unpaid payment records, if any, are dropped along with it — same as before this item was touched); if one exists and has at least one paid installment, it's a "locked" item and is left completely untouched, protecting its recorded history. Year items no longer present in the template, and ad-hoc items, are never touched or deleted by this endpoint. Returns the updated year plus a `merge_summary: { added, refreshed, skipped_locked }` (arrays of item names) describing what happened. This is what fixes the December-cycle-auto-creates-next-year's-instance-from-a-stale-template problem: once the template is finished, re-running this merges in the missed changes instead of requiring a destructive full reset.
 - `sync-to-template`: replaces the entire annual expense template with the year's items. Returns the updated template.
 
 ### 12.4 Payments
