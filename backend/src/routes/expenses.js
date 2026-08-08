@@ -99,7 +99,7 @@ function canAccess(dossierId, userId) {
     .get(dossierId, userId);
 }
 
-function computeSummary(cycle, items) {
+function computeSummary(cycle, items, incomeTotal = 0) {
   const expenses = items.filter((i) => i.section === 'expense');
   const distributions = items.filter((i) => i.section === 'distribution');
 
@@ -129,7 +129,7 @@ function computeSummary(cycle, items) {
     total,
   }));
 
-  const totalAvailable = (cycle.salary || 0) + (cycle.previous_balance || 0);
+  const totalAvailable = (incomeTotal || 0) + (cycle.previous_balance || 0);
   const expectedBalance = totalAvailable - totalExpenses - totalDistributions;
 
   const summary = {
@@ -596,6 +596,68 @@ router.delete('/expense-template/:itemId', (req, res) => {
   res.status(204).end();
 });
 
+// GET /income-template
+router.get('/income-template', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const items = db
+    .prepare('SELECT * FROM income_template_items WHERE dossier_id = ? ORDER BY position, created_at')
+    .all(req.params.id);
+  res.json(items);
+});
+
+// POST /income-template
+router.post('/income-template', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const { name, default_value } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  if (default_value == null || isNaN(Number(default_value)) || Number(default_value) < 0) {
+    return res.status(400).json({ error: 'default_value must be a non-negative number' });
+  }
+
+  const maxPos = db
+    .prepare('SELECT COALESCE(MAX(position), -1) as maxp FROM income_template_items WHERE dossier_id = ?')
+    .get(req.params.id);
+  const id = uuidv4();
+  db.prepare(
+    'INSERT INTO income_template_items (id, dossier_id, name, default_value, position) VALUES (?, ?, ?, ?, ?)'
+  ).run(id, req.params.id, String(name).trim(), Number(default_value), maxPos.maxp + 1);
+
+  res.status(201).json(db.prepare('SELECT * FROM income_template_items WHERE id = ?').get(id));
+});
+
+// PATCH /income-template/:itemId
+router.patch('/income-template/:itemId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const item = db
+    .prepare('SELECT * FROM income_template_items WHERE id = ? AND dossier_id = ?')
+    .get(req.params.itemId, req.params.id);
+  if (!item) return res.status(404).json({ error: 'Income line not found' });
+
+  const { name, default_value } = req.body;
+  const newName = name !== undefined ? String(name).trim() : item.name;
+  if (!newName) return res.status(400).json({ error: 'name cannot be empty' });
+  const newDefaultValue = default_value !== undefined ? Number(default_value) : item.default_value;
+  if (isNaN(newDefaultValue) || newDefaultValue < 0) {
+    return res.status(400).json({ error: 'default_value must be a non-negative number' });
+  }
+
+  db.prepare('UPDATE income_template_items SET name = ?, default_value = ? WHERE id = ?').run(
+    newName, newDefaultValue, item.id
+  );
+  res.json(db.prepare('SELECT * FROM income_template_items WHERE id = ?').get(item.id));
+});
+
+// DELETE /income-template/:itemId
+router.delete('/income-template/:itemId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const item = db
+    .prepare('SELECT id FROM income_template_items WHERE id = ? AND dossier_id = ?')
+    .get(req.params.itemId, req.params.id);
+  if (!item) return res.status(404).json({ error: 'Income line not found' });
+  db.prepare('DELETE FROM income_template_items WHERE id = ?').run(item.id);
+  res.status(204).end();
+});
+
 // GET /cycles
 router.get('/cycles', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
@@ -608,10 +670,24 @@ router.get('/cycles', (req, res) => {
 // POST /cycles
 router.post('/cycles', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { year, month, salary, previous_balance } = req.body;
+  const { year, month, income_lines, previous_balance } = req.body;
 
   if (!year || !month) return res.status(400).json({ error: 'year and month are required' });
-  if (salary == null || isNaN(Number(salary))) return res.status(400).json({ error: 'salary is required' });
+  if (!Array.isArray(income_lines)) return res.status(400).json({ error: 'income_lines must be an array' });
+  for (const line of income_lines) {
+    if (!line || !String(line.name || '').trim()) {
+      return res.status(400).json({ error: 'Each income line requires a name' });
+    }
+    if (line.value == null || isNaN(Number(line.value)) || Number(line.value) < 0) {
+      return res.status(400).json({ error: 'Each income line value must be a non-negative number' });
+    }
+    if (line.template_item_id != null) {
+      const templateItem = db
+        .prepare('SELECT id FROM income_template_items WHERE id = ? AND dossier_id = ?')
+        .get(line.template_item_id, req.params.id);
+      if (!templateItem) return res.status(400).json({ error: 'template_item_id does not belong to this dossier' });
+    }
+  }
   if (previous_balance == null || isNaN(Number(previous_balance))) {
     return res.status(400).json({ error: 'previous_balance is required' });
   }
@@ -636,8 +712,15 @@ router.post('/cycles', (req, res) => {
 
   const createCycle = db.transaction(() => {
     db.prepare(
-      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, req.params.id, year, month, Number(salary), Number(previous_balance), startDay, weekendAdjustment, toIsoDate(actualStartDate), toIsoDate(actualEndDate));
+      'INSERT INTO expense_cycles (id, dossier_id, year, month, previous_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, req.params.id, year, month, Number(previous_balance), startDay, weekendAdjustment, toIsoDate(actualStartDate), toIsoDate(actualEndDate));
+
+    const insertIncomeItem = db.prepare(
+      'INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position) VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    income_lines.forEach((line, idx) => {
+      insertIncomeItem.run(uuidv4(), id, line.template_item_id ?? null, String(line.name).trim(), Number(line.value), idx);
+    });
 
     // If this cycle's start actually shifted off a weekend, the previous cycle's
     // end must be adjusted so the two don't overlap or leave an unintended gap.
@@ -691,6 +774,11 @@ router.get('/cycles/:cycleId', (req, res) => {
     .prepare('SELECT * FROM cycle_items WHERE cycle_id = ? ORDER BY section, position, created_at')
     .all(req.params.cycleId);
 
+  const incomeItems = db
+    .prepare('SELECT * FROM cycle_income_items WHERE cycle_id = ? ORDER BY position, created_at')
+    .all(req.params.cycleId);
+  const incomeTotal = incomeItems.reduce((s, i) => s + (i.value || 0), 0);
+
   const annualPayments = db.prepare(`
     SELECT p.id, p.paid, p.real_value,
            ayi.id as year_item_id, ayi.name, ayi.num_installments, ayi.budgeted_value,
@@ -705,8 +793,8 @@ router.get('/cycles/:cycleId', (req, res) => {
     ORDER BY ayi.position, ayii.installment_number
   `).all(req.params.cycleId);
 
-  const summary = computeSummary(cycle, items);
-  res.json({ ...cycle, items, annual_payments: annualPayments, summary });
+  const summary = computeSummary(cycle, items, incomeTotal);
+  res.json({ ...cycle, items, income_items: incomeItems, income_total: incomeTotal, annual_payments: annualPayments, summary });
 });
 
 // PATCH /cycles/:cycleId
@@ -717,7 +805,7 @@ router.patch('/cycles/:cycleId', (req, res) => {
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
-  const { year, month, salary, previous_balance, is_closed, final_real_balance, resolve_overlap } = req.body;
+  const { year, month, previous_balance, is_closed, final_real_balance, resolve_overlap } = req.body;
 
   // If year/month are being changed, enforce uniqueness
   const newYear = year !== undefined ? Number(year) : cycle.year;
@@ -774,7 +862,6 @@ router.patch('/cycles/:cycleId', (req, res) => {
     }
   }
 
-  const newSalary = salary !== undefined ? Number(salary) : cycle.salary;
   const newPrevBalance = previous_balance !== undefined ? Number(previous_balance) : cycle.previous_balance;
   const newIsClosed = is_closed !== undefined ? (is_closed ? 1 : 0) : cycle.is_closed;
   let newFinalRealBalance = final_real_balance !== undefined ? Number(final_real_balance) : cycle.final_real_balance;
@@ -792,8 +879,8 @@ router.patch('/cycles/:cycleId', (req, res) => {
 
   const applyUpdate = db.transaction(() => {
     db.prepare(
-      'UPDATE expense_cycles SET year = ?, month = ?, salary = ?, previous_balance = ?, is_closed = ?, final_real_balance = ?, actual_start_date = ?, actual_end_date = ? WHERE id = ?'
-    ).run(newYear, newMonth, newSalary, newPrevBalance, newIsClosed, newFinalRealBalance, newActualStartDate, newActualEndDate, req.params.cycleId);
+      'UPDATE expense_cycles SET year = ?, month = ?, previous_balance = ?, is_closed = ?, final_real_balance = ?, actual_start_date = ?, actual_end_date = ? WHERE id = ?'
+    ).run(newYear, newMonth, newPrevBalance, newIsClosed, newFinalRealBalance, newActualStartDate, newActualEndDate, req.params.cycleId);
 
     if (periodChanged && resolve_overlap === 'recompute') {
       for (const conflict of overlaps) {
@@ -827,6 +914,7 @@ router.delete('/cycles/:cycleId', (req, res) => {
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
   db.prepare('DELETE FROM cycle_items WHERE cycle_id = ?').run(req.params.cycleId);
+  db.prepare('DELETE FROM cycle_income_items WHERE cycle_id = ?').run(req.params.cycleId);
   db.prepare('DELETE FROM expense_cycles WHERE id = ?').run(req.params.cycleId);
   console.log(`[cycles] Deleted cycle ${cycle.year}/${cycle.month} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();
@@ -987,6 +1075,79 @@ router.delete('/cycles/:cycleId/items/:itemId', (req, res) => {
   if (!item) return res.status(404).json({ error: 'Item not found' });
 
   db.prepare('DELETE FROM cycle_items WHERE id = ?').run(req.params.itemId);
+  res.status(204).end();
+});
+
+// POST /cycles/:cycleId/income-items
+router.post('/cycles/:cycleId/income-items', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
+
+  const { name, value } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  if (value == null || isNaN(Number(value)) || Number(value) < 0) {
+    return res.status(400).json({ error: 'value must be a non-negative number' });
+  }
+
+  const maxPos = db
+    .prepare('SELECT MAX(position) as mp FROM cycle_income_items WHERE cycle_id = ?')
+    .get(req.params.cycleId);
+  const position = (maxPos.mp ?? -1) + 1;
+
+  const id = uuidv4();
+  db.prepare(
+    'INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, req.params.cycleId, null, String(name).trim(), Number(value), position);
+
+  const item = db.prepare('SELECT * FROM cycle_income_items WHERE id = ?').get(id);
+  res.status(201).json(item);
+});
+
+// PATCH /cycles/:cycleId/income-items/:itemId
+router.patch('/cycles/:cycleId/income-items/:itemId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
+
+  const item = db
+    .prepare('SELECT * FROM cycle_income_items WHERE id = ? AND cycle_id = ?')
+    .get(req.params.itemId, req.params.cycleId);
+  if (!item) return res.status(404).json({ error: 'Income line not found' });
+
+  const { name, value } = req.body;
+  const newName = name !== undefined ? String(name).trim() : item.name;
+  if (!newName) return res.status(400).json({ error: 'name cannot be empty' });
+  const newValue = value !== undefined ? Number(value) : item.value;
+  if (isNaN(newValue) || newValue < 0) {
+    return res.status(400).json({ error: 'value must be a non-negative number' });
+  }
+
+  db.prepare('UPDATE cycle_income_items SET name = ?, value = ? WHERE id = ?').run(newName, newValue, item.id);
+  res.json(db.prepare('SELECT * FROM cycle_income_items WHERE id = ?').get(item.id));
+});
+
+// DELETE /cycles/:cycleId/income-items/:itemId
+router.delete('/cycles/:cycleId/income-items/:itemId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
+
+  const item = db
+    .prepare('SELECT id FROM cycle_income_items WHERE id = ? AND cycle_id = ?')
+    .get(req.params.itemId, req.params.cycleId);
+  if (!item) return res.status(404).json({ error: 'Income line not found' });
+
+  db.prepare('DELETE FROM cycle_income_items WHERE id = ?').run(item.id);
   res.status(204).end();
 });
 

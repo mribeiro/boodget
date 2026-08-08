@@ -458,9 +458,10 @@ export default function CycleEditor() {
 
       {showEditIncome && (
         <EditIncomeModal
+          dossierId={dossierId}
+          cycleId={cycleId}
           cycle={cycle}
-          onSave={async (salary, prevBalance) => {
-            await api.updateCycle(dossierId, cycleId, { salary, previous_balance: prevBalance });
+          onSaved={async () => {
             await load();
             setShowEditIncome(false);
           }}
@@ -485,7 +486,7 @@ export default function CycleEditor() {
       {/* ── Summary KPIs ── */}
       <div className="cycle-editor-summary" style={{ marginBottom: '1rem' }}>
         <KpiStrip style={{ marginBottom: cycle.is_closed ? '0.75rem' : 0 }} items={[
-          { label: 'Salary', value: fmt(cycle.salary), icon: faMoneyBillWave },
+          { label: 'Income', value: fmt(cycle.income_total), icon: faMoneyBillWave },
           { label: 'Prev. bal.', value: fmt(cycle.previous_balance), icon: faWallet },
           { label: 'Available', value: fmt(summary.total_available), icon: faSackDollar },
           { label: 'Expenses', value: fmt(summary.total_expenses), icon: faReceipt, highlight: 'danger' },
@@ -901,18 +902,75 @@ function CloseCycleModal({ expectedBalance, initialBalance, onConfirm, onClose }
 
 // ── Income edit modal ─────────────────────────────────────────────────────────
 
-function EditIncomeModal({ cycle, onSave, onClose }) {
-  const [salary, setSalary] = useState(String(cycle.salary));
+let _incomeLineIdCounter = 0;
+function newIncomeLineId() {
+  return `new-${++_incomeLineIdCounter}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function EditIncomeModal({ dossierId, cycleId, cycle, onSaved, onClose }) {
+  const readOnly = !!cycle.is_closed;
+  const [lines, setLines] = useState(() =>
+    (cycle.income_items || []).map((i) => ({
+      id: i.id,
+      template_item_id: i.template_item_id,
+      name: i.name,
+      value: String(i.value),
+    }))
+  );
   const [prevBalance, setPrevBalance] = useState(String(cycle.previous_balance));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  function updateLineValue(id, value) {
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, value } : l)));
+  }
+  function updateAdhocName(id, name) {
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, name } : l)));
+  }
+  function removeLine(id) {
+    setLines((prev) => prev.filter((l) => l.id !== id));
+  }
+  function addAdhocLine() {
+    setLines((prev) => [...prev, { id: newIncomeLineId(), template_item_id: null, name: '', value: '' }]);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!readOnly) {
+      for (const line of lines) {
+        if (!line.name.trim()) { setError('Each income line requires a name'); return; }
+        if (line.value === '' || isNaN(parseDecimalInput(line.value)) || parseDecimalInput(line.value) < 0) {
+          setError('Each income line value must be a non-negative number');
+          return;
+        }
+      }
+    }
     setSaving(true);
     try {
-      await onSave(parseDecimalInput(salary), parseDecimalInput(prevBalance));
+      if (!readOnly) {
+        const originalById = new Map((cycle.income_items || []).map((i) => [i.id, i]));
+        const currentIds = new Set(lines.map((l) => l.id));
+        for (const original of (cycle.income_items || [])) {
+          if (!currentIds.has(original.id)) {
+            await api.deleteCycleIncomeItem(dossierId, cycleId, original.id);
+          }
+        }
+        for (const line of lines) {
+          const name = line.name.trim();
+          const value = parseDecimalInput(line.value);
+          if (line.id.startsWith('new-')) {
+            await api.createCycleIncomeItem(dossierId, cycleId, { name, value });
+          } else {
+            const original = originalById.get(line.id);
+            if (original && (original.name !== name || original.value !== value)) {
+              await api.updateCycleIncomeItem(dossierId, cycleId, line.id, { name, value });
+            }
+          }
+        }
+      }
+      await api.updateCycle(dossierId, cycleId, { previous_balance: parseDecimalInput(prevBalance) });
+      await onSaved();
     } catch (err) {
       setError(err.message);
       setSaving(false);
@@ -921,7 +979,7 @@ function EditIncomeModal({ cycle, onSave, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Edit Income</h2>
           <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
@@ -930,8 +988,41 @@ function EditIncomeModal({ cycle, onSave, onClose }) {
           <div className="modal-body">
             {error && <div className="alert alert-error">{error}</div>}
             <div className="form-group">
-              <label>Salary received (€)</label>
-              <input type="text" inputMode="decimal" value={salary} onChange={(e) => setSalary(e.target.value)} autoFocus />
+              <label>Income lines{readOnly ? ' (read-only — cycle is closed)' : ''}</label>
+              {lines.map((line) => (
+                <div key={line.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  {line.template_item_id || readOnly ? (
+                    <span style={{ flex: 1, fontSize: '0.875rem' }}>{line.name}</span>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Line name"
+                      value={line.name}
+                      onChange={(e) => updateAdhocName(line.id, e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                  )}
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={line.value}
+                    disabled={readOnly}
+                    onChange={(e) => updateLineValue(line.id, e.target.value)}
+                    style={{ width: '7rem' }}
+                  />
+                  {!readOnly && (
+                    <button type="button" className="close-btn" onClick={() => removeLine(line.id)} title="Remove line">
+                      <FontAwesomeIcon icon={faXmark} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {!readOnly && (
+                <button type="button" className="btn-secondary" style={{ fontSize: '0.8rem' }} onClick={addAdhocLine}>
+                  <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.3rem' }} />Add ad-hoc line
+                </button>
+              )}
             </div>
             <div className="form-group">
               <label>Previous balance (€)</label>

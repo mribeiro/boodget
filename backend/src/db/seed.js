@@ -144,9 +144,13 @@ function mkMonth(dossierId, accIds, year, month, values) {
 function mkCycle(dossierId, year, month, salary, prevBal, isClosed, items = []) {
   const cycleId = uuidv4();
   db.prepare(
-    `INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(cycleId, dossierId, year, month, salary, prevBal, isClosed ? 1 : 0);
+    `INSERT INTO expense_cycles (id, dossier_id, year, month, previous_balance, is_closed)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(cycleId, dossierId, year, month, prevBal, isClosed ? 1 : 0);
+  db.prepare(
+    `INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position)
+     VALUES (?, ?, NULL, 'Salary', ?, 0)`
+  ).run(uuidv4(), cycleId, salary);
   const stmt = db.prepare(
     `INSERT INTO cycle_items
        (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done)

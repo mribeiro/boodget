@@ -50,7 +50,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -135,6 +135,17 @@ router.post('/import', (req, res) => {
       insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0, accountId);
     }
 
+    // income_template is version 14+; absent/empty on older exports.
+    const insertIncomeTemplateItem = db.prepare(
+      'INSERT INTO income_template_items (id, dossier_id, name, default_value, position) VALUES (?, ?, ?, ?, ?)'
+    );
+    const incomeTemplateNameToId = {};
+    (data.income_template || []).forEach((iti, idx) => {
+      const itiId = uuidv4();
+      incomeTemplateNameToId[iti.name] = itiId;
+      insertIncomeTemplateItem.run(itiId, dossierId, iti.name, iti.default_value ?? 0, iti.position ?? idx);
+    });
+
     const insertAnnualTemplateItem = db.prepare(
       'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
@@ -160,10 +171,13 @@ router.post('/import', (req, res) => {
     }
 
     const insertCycle = db.prepare(
-      'INSERT INTO expense_cycles (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_cycles (id, dossier_id, year, month, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertCycleItem = db.prepare(
       'INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    const insertCycleIncomeItem = db.prepare(
+      'INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position) VALUES (?, ?, ?, ?, ?, ?)'
     );
     const cycleYMToId = {};
     for (const c of (data.cycles || [])) {
@@ -179,11 +193,22 @@ router.post('/import', (req, res) => {
       const cycleWeekendAdjustment = c.cycle_start_weekend_adjustment ?? 'none';
       const actualStartDate = c.actual_start_date ?? toIsoDate(computeCycleStartDate(c.year, c.month, cycleStartDay, cycleWeekendAdjustment));
       const actualEndDate = c.actual_end_date ?? toIsoDate(computeTheoreticalCycleEndDate(c.year, c.month, cycleStartDay, cycleWeekendAdjustment));
-      insertCycle.run(cycleId, dossierId, c.year, c.month, c.salary ?? 0, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null, cycleStartDay, cycleWeekendAdjustment, actualStartDate, actualEndDate);
+      insertCycle.run(cycleId, dossierId, c.year, c.month, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null, cycleStartDay, cycleWeekendAdjustment, actualStartDate, actualEndDate);
       for (const ci of (c.items || [])) {
         const templateItemId = ci.section === 'expense' ? (expenseTemplateNameToId[ci.name] || null) : (templateNameToId[ci.name] || null);
         const accountId = ci.account_name ? (accountNameToId[ci.account_name] ?? null) : null;
         insertCycleItem.run(uuidv4(), cycleId, templateItemId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0, ci.paperless_tag_id ?? null, ci.exclude_from_emergency_fund ? 1 : 0, accountId);
+      }
+      // income_items is version 14+. Versions <= 13 only carried a flat c.salary — synthesize
+      // a single ad-hoc "Salary" line from it so the historical total isn't lost on import.
+      const incomeItems = c.income_items || [];
+      if (incomeItems.length === 0 && c.salary != null) {
+        insertCycleIncomeItem.run(uuidv4(), cycleId, null, 'Salary', c.salary, 0);
+      } else {
+        incomeItems.forEach((ii, idx) => {
+          const templateItemId = incomeTemplateNameToId[ii.name] || null;
+          insertCycleIncomeItem.run(uuidv4(), cycleId, templateItemId, ii.name, ii.value ?? 0, ii.position ?? idx);
+        });
       }
     }
 
@@ -403,6 +428,10 @@ router.get('/:id/export', (req, res) => {
     )
     .all(req.params.id);
 
+  const incomeTemplate = db
+    .prepare('SELECT name, default_value, position FROM income_template_items WHERE dossier_id = ? ORDER BY position')
+    .all(req.params.id);
+
   const annualExpenseTemplateRaw = db
     .prepare('SELECT id, name, value, day_of_payment, month_of_payment, classification, position, num_installments FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
     .all(req.params.id);
@@ -423,10 +452,11 @@ router.get('/:id/export', (req, res) => {
     .map((s) => ({ ...s, data: JSON.parse(s.data) }));
 
   const cycles = db
-    .prepare('SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
+    .prepare('SELECT id, year, month, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month')
     .all(req.params.id);
 
   const cycleItemsByCycleId = {};
+  const incomeItemsByCycleId = {};
   if (cycles.length > 0) {
     const ph = cycles.map(() => '?').join(',');
     const cycleItems = db
@@ -441,6 +471,16 @@ router.get('/:id/export', (req, res) => {
     for (const ci of cycleItems) {
       if (!cycleItemsByCycleId[ci.cycle_id]) cycleItemsByCycleId[ci.cycle_id] = [];
       cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position, paperless_tag_id: ci.paperless_tag_id, exclude_from_emergency_fund: ci.exclude_from_emergency_fund, account_name: ci.account_name });
+    }
+
+    const incomeItems = db
+      .prepare(
+        `SELECT cycle_id, name, value, position FROM cycle_income_items WHERE cycle_id IN (${ph}) ORDER BY position, created_at`
+      )
+      .all(...cycles.map((c) => c.id));
+    for (const ii of incomeItems) {
+      if (!incomeItemsByCycleId[ii.cycle_id]) incomeItemsByCycleId[ii.cycle_id] = [];
+      incomeItemsByCycleId[ii.cycle_id].push({ name: ii.name, value: ii.value, position: ii.position });
     }
   }
 
@@ -559,7 +599,7 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 13,
+    version: 14,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
@@ -586,12 +626,12 @@ router.get('/:id/export', (req, res) => {
       entries: entriesByMonth[m.id] || [],
     })),
     expense_template: expenseTemplate,
+    income_template: incomeTemplate,
     annual_expense_template: annualExpenseTemplate,
     workbench_snapshots: workbenchSnapshots,
     cycles: cycles.map((c) => ({
       year: c.year,
       month: c.month,
-      salary: c.salary,
       previous_balance: c.previous_balance,
       is_closed: c.is_closed,
       final_real_balance: c.final_real_balance,
@@ -600,6 +640,7 @@ router.get('/:id/export', (req, res) => {
       actual_start_date: c.actual_start_date,
       actual_end_date: c.actual_end_date,
       items: cycleItemsByCycleId[c.id] || [],
+      income_items: incomeItemsByCycleId[c.id] || [],
     })),
     goals: goalsExport,
     emergency_fund_accounts: efAccountNames,

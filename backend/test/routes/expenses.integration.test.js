@@ -24,10 +24,10 @@ describe('PATCH /cycles/:cycleId (year/month conflict)', () => {
     const app = buildTestApp();
     const agent = await loggedInAgent(app, user);
 
-    await agent.post(`/api/dossiers/${dossier.id}/cycles`).send({ year: 2026, month: 1, salary: 1000, previous_balance: 0 });
+    await agent.post(`/api/dossiers/${dossier.id}/cycles`).send({ year: 2026, month: 1, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
     const secondRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 2, salary: 1000, previous_balance: 0 });
+      .send({ year: 2026, month: 2, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
 
     const conflictRes = await agent
       .patch(`/api/dossiers/${dossier.id}/cycles/${secondRes.body.id}`)
@@ -45,7 +45,7 @@ describe('cycle_start_day snapshotting', () => {
 
     const cycleRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 3, salary: 1000, previous_balance: 0 });
+      .send({ year: 2026, month: 3, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
     expect(cycleRes.body.cycle_start_day).toBe(25);
 
     await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ cycle_start_day: 1 });
@@ -56,7 +56,7 @@ describe('cycle_start_day snapshotting', () => {
     // A newly-created cycle, however, should pick up the new setting.
     const newCycleRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 4, salary: 1000, previous_balance: 0 });
+      .send({ year: 2026, month: 4, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
     expect(newCycleRes.body.cycle_start_day).toBe(1);
   });
 });

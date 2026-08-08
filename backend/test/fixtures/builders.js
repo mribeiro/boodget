@@ -168,14 +168,13 @@ function createExpenseCycle(db, overrides = {}) {
     ?? toIsoDate(computeTheoreticalCycleEndDate(overrides.year, overrides.month, cycleStartDay, weekendAdjustment));
   db.prepare(
     `INSERT INTO expense_cycles
-       (id, dossier_id, year, month, salary, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, dossier_id, year, month, previous_balance, is_closed, final_real_balance, cycle_start_day, cycle_start_weekend_adjustment, actual_start_date, actual_end_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     dossierId,
     overrides.year,
     overrides.month,
-    overrides.salary ?? 0,
     overrides.previous_balance ?? 0,
     overrides.is_closed ? 1 : 0,
     overrides.final_real_balance ?? null,
@@ -185,6 +184,26 @@ function createExpenseCycle(db, overrides = {}) {
     actualEndDate
   );
   return db.prepare('SELECT * FROM expense_cycles WHERE id = ?').get(id);
+}
+
+function createIncomeTemplateItem(db, overrides = {}) {
+  const id = overrides.id || uid('income-tmpl-item');
+  const dossierId = overrides.dossierId || overrides.dossier_id;
+  if (!dossierId) throw new Error('createIncomeTemplateItem requires dossierId');
+  db.prepare(
+    'INSERT INTO income_template_items (id, dossier_id, name, default_value, position) VALUES (?, ?, ?, ?, ?)'
+  ).run(id, dossierId, overrides.name || 'Income Item', overrides.default_value ?? 0, overrides.position ?? 0);
+  return db.prepare('SELECT * FROM income_template_items WHERE id = ?').get(id);
+}
+
+function createCycleIncomeItem(db, overrides = {}) {
+  const id = overrides.id || uid('cycle-income-item');
+  const cycleId = overrides.cycleId || overrides.cycle_id;
+  if (!cycleId) throw new Error('createCycleIncomeItem requires cycleId');
+  db.prepare(
+    'INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, cycleId, overrides.template_item_id ?? null, overrides.name || 'Income Item', overrides.value ?? 0, overrides.position ?? 0);
+  return db.prepare('SELECT * FROM cycle_income_items WHERE id = ?').get(id);
 }
 
 function createCycleItem(db, overrides = {}) {
@@ -395,6 +414,8 @@ module.exports = {
   createExpenseTemplateItem,
   createExpenseCycle,
   createCycleItem,
+  createIncomeTemplateItem,
+  createCycleIncomeItem,
   createGoal,
   createLoan,
   createSubscription,
