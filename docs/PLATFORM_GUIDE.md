@@ -97,9 +97,11 @@ these five makes the rest of the app self-explanatory.
   of the month. Enough of these, charted, is your net-worth curve.
 - **Expense Cycle** — a budget period that runs from your chosen start day
   (e.g. the 25th) to the day before that, next month — matching a typical
-  payday, not the calendar. A cycle has a salary, a starting balance, a list
-  of fixed/budget expenses, and a list of distributions (money you route
-  out to savings, goals, or discretionary spending).
+  payday, not the calendar. A cycle has one or more income lines (company
+  salary, stock savings, extras — whatever your income is actually split
+  into), a starting balance, a list of fixed/budget expenses, and a list
+  of distributions (money you route out to savings, goals, or
+  discretionary spending).
 - **Distribution** — a planned outflow from a cycle that isn't a bill: "into
   savings," "into the emergency fund," "spending money." Distributions are
   the connective tissue between the Monthly Expenses module and Goals,
@@ -120,11 +122,14 @@ transaction feed.
 
 ### Monthly Expenses (budget cycles)
 Define a reusable **expense template** (your recurring fixed bills and
-planned distributions) once; each new cycle copies it in a click. During
-the cycle, tick fixed expenses as paid, update budget items' spent amounts,
-and mark distributions done. The cycle math (`salary + previous balance −
-expenses − distributions`) gives you a running "expected leftover" without
-you ever entering a single line-item purchase.
+planned distributions) once; each new cycle copies it in a click. A
+dossier-level **income template** does the same for the income side —
+configure your income lines (salary, stock savings, extras) once, and each
+new cycle starts pre-filled, still editable, with room for one-off ad-hoc
+lines. During the cycle, tick fixed expenses as paid, update budget items'
+spent amounts, and mark distributions done. The cycle math (`total income +
+previous balance − expenses − distributions`) gives you a running "expected
+leftover" without you ever entering a single line-item purchase.
 
 ### Annual Expenses
 Big, infrequent bills (insurance, car tax, gifts) don't fit a monthly
