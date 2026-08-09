@@ -154,10 +154,11 @@ function buildDossierContext(dossierId) {
   // Last 6 cycles with items
   const cycles = db
     .prepare(
-      'SELECT id, year, month, salary, previous_balance, is_closed, final_real_balance FROM expense_cycles WHERE dossier_id = ? ORDER BY year DESC, month DESC LIMIT 6'
+      'SELECT id, year, month, previous_balance, is_closed, final_real_balance FROM expense_cycles WHERE dossier_id = ? ORDER BY year DESC, month DESC LIMIT 6'
     )
     .all(dossierId);
   let cycleItemsByCycle = {};
+  let incomeItemsByCycle = {};
   if (cycles.length > 0) {
     const ph = cycles.map(() => '?').join(',');
     const items = db
@@ -168,10 +169,19 @@ function buildDossierContext(dossierId) {
     for (const item of items) {
       (cycleItemsByCycle[item.cycle_id] = cycleItemsByCycle[item.cycle_id] || []).push(item);
     }
+    const incomeItems = db
+      .prepare(
+        `SELECT cycle_id, name, value FROM cycle_income_items WHERE cycle_id IN (${ph}) ORDER BY position, rowid`
+      )
+      .all(...cycles.map((c) => c.id));
+    for (const item of incomeItems) {
+      (incomeItemsByCycle[item.cycle_id] = incomeItemsByCycle[item.cycle_id] || []).push(item);
+    }
   }
   const recent_cycles = cycles.reverse().map((c) => ({
     label: cycleLabel(c.year, c.month),
-    salary: c.salary,
+    income_total: (incomeItemsByCycle[c.id] || []).reduce((s, i) => s + (i.value || 0), 0),
+    income_lines: (incomeItemsByCycle[c.id] || []).map((i) => ({ name: i.name, value: i.value })),
     previous_balance: c.previous_balance,
     is_closed: !!c.is_closed,
     final_real_balance: c.final_real_balance,

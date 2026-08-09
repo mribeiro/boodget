@@ -17,7 +17,7 @@ function setup() {
 
 describe('computeSummary', () => {
   it('sums Fixed (paid) and Budget (spent) toward total_expenses_paid, and totals value for total_expenses', () => {
-    const cycle = { salary: 2000, previous_balance: 100, is_closed: 0 };
+    const cycle = { previous_balance: 100, is_closed: 0 };
     const items = [
       { section: 'expense', type: 'Fixed', value: 500, paid: 1 },
       { section: 'expense', type: 'Fixed', value: 200, paid: 0 },
@@ -25,7 +25,7 @@ describe('computeSummary', () => {
       { section: 'distribution', value: 400, done: 1, account_id: 'acc-1' },
       { section: 'distribution', value: 100, done: 0, account_id: null },
     ];
-    const summary = computeSummary(cycle, items);
+    const summary = computeSummary(cycle, items, 2000);
     expect(summary.total_expenses).toBe(500 + 200 + 300);
     expect(summary.total_expenses_paid).toBe(500 + 250);
     expect(summary.total_expenses_unpaid).toBe(500 + 200 + 300 - (500 + 250));
@@ -35,13 +35,13 @@ describe('computeSummary', () => {
   });
 
   it('groups distributions_by_account, using null for unassigned', () => {
-    const cycle = { salary: 0, previous_balance: 0, is_closed: 0 };
+    const cycle = { previous_balance: 0, is_closed: 0 };
     const items = [
       { section: 'distribution', value: 100, account_id: 'acc-1' },
       { section: 'distribution', value: 50, account_id: 'acc-1' },
       { section: 'distribution', value: 30, account_id: null },
     ];
-    const summary = computeSummary(cycle, items);
+    const summary = computeSummary(cycle, items, 0);
     const unassigned = summary.distributions_by_account.find((d) => d.account_id === null);
     const assigned = summary.distributions_by_account.find((d) => d.account_id === 'acc-1');
     expect(assigned.total).toBe(150);
@@ -49,12 +49,12 @@ describe('computeSummary', () => {
   });
 
   it('only includes balance_difference/final_real_balance on a closed cycle', () => {
-    const openCycle = { salary: 1000, previous_balance: 0, is_closed: 0 };
-    const summaryOpen = computeSummary(openCycle, []);
+    const openCycle = { previous_balance: 0, is_closed: 0 };
+    const summaryOpen = computeSummary(openCycle, [], 1000);
     expect(summaryOpen.balance_difference).toBeUndefined();
 
-    const closedCycle = { salary: 1000, previous_balance: 0, is_closed: 1, final_real_balance: 950 };
-    const summaryClosed = computeSummary(closedCycle, []);
+    const closedCycle = { previous_balance: 0, is_closed: 1, final_real_balance: 950 };
+    const summaryClosed = computeSummary(closedCycle, [], 1000);
     expect(summaryClosed.balance_difference).toBe(950 - 1000);
   });
 });
@@ -70,7 +70,7 @@ describe('POST /cycles — template copy behavior', () => {
 
     const res = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 2, salary: 2000, previous_balance: 0 }); // February 2026 (28 days)
+      .send({ year: 2026, month: 2, income_lines: [{ name: 'Salary', value: 2000 }], previous_balance: 0 }); // February 2026 (28 days)
     expect(res.status).toBe(201);
 
     const detail = await agent.get(`/api/dossiers/${dossier.id}/cycles/${res.body.id}`);
@@ -96,7 +96,7 @@ describe('POST /cycles — template copy behavior', () => {
     await agent.post('/api/auth/login').send({ username: user.username, password: user.password });
     const res = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 3, salary: 2000, previous_balance: 0 });
+      .send({ year: 2026, month: 3, income_lines: [{ name: 'Salary', value: 2000 }], previous_balance: 0 });
 
     const detail = await agent.get(`/api/dossiers/${dossier.id}/cycles/${res.body.id}`);
     const savingsItem = detail.body.items.find((i) => i.name === 'Savings');
@@ -113,7 +113,7 @@ describe('POST /cycles — template copy behavior', () => {
     await agent.post('/api/auth/login').send({ username: user.username, password: user.password });
     const cycleRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 4, salary: 2000, previous_balance: 0 });
+      .send({ year: 2026, month: 4, income_lines: [{ name: 'Salary', value: 2000 }], previous_balance: 0 });
 
     // Change the template value after the cycle exists.
     await agent.put(`/api/dossiers/${dossier.id}/expense-template/${templateItem.id}`).send({ value: 999 });
@@ -139,7 +139,7 @@ describe('POST /cycles — template copy behavior', () => {
     await agent.post('/api/auth/login').send({ username: user.username, password: user.password });
     const cycleRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 5, salary: 2000, previous_balance: 0 });
+      .send({ year: 2026, month: 5, income_lines: [{ name: 'Salary', value: 2000 }], previous_balance: 0 });
 
     await agent.put(`/api/dossiers/${dossier.id}/expense-template/${templateItem.id}`).send({ exclude_from_emergency_fund: true });
 

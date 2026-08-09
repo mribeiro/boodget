@@ -6,6 +6,9 @@ import {
   faTrash,
   faEye,
   faEyeSlash,
+  faPlus,
+  faPencil,
+  faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import DossierSettings from './expenses/DossierSettings';
 import ExpenseTemplate from './expenses/ExpenseTemplate';
@@ -529,6 +532,147 @@ function NotificationDossierSettings({ dossierId, settings, onChange, showToast 
   );
 }
 
+function IncomeSettings({ dossierId, showToast }) {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+  const [confirmState, setConfirmState] = useState(null);
+  const [formState, setFormState] = useState(null); // null = closed; { editing, name, value } = open
+
+  useEffect(() => {
+    api.getIncomeTemplate(dossierId).then(setItems).catch((e) => setError(e.message));
+  }, [dossierId]);
+
+  function openAdd() {
+    setFormState({ editing: null, name: '', value: '' });
+    setError('');
+  }
+
+  function openEdit(item) {
+    setFormState({ editing: item, name: item.name, value: String(item.default_value) });
+    setError('');
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    const v = parseDecimalInput(formState.value);
+    if (!formState.name.trim() || isNaN(v) || v < 0) return;
+    try {
+      if (formState.editing) {
+        const updated = await api.updateIncomeTemplateItem(dossierId, formState.editing.id, { name: formState.name.trim(), default_value: v });
+        setItems((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      } else {
+        const created = await api.createIncomeTemplateItem(dossierId, { name: formState.name.trim(), default_value: v });
+        setItems((prev) => [...prev, created]);
+      }
+      setFormState(null);
+      showToast(formState.editing ? 'Income line updated' : 'Income line added');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function handleDelete(item) {
+    setConfirmState({
+      title: 'Delete income line',
+      message: `Delete "${item.name}"? This won't affect any cycle already opened.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteIncomeTemplateItem(dossierId, item.id);
+          setItems((prev) => prev.filter((x) => x.id !== item.id));
+          showToast('Income line deleted');
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setConfirmState(null);
+        }
+      },
+    });
+  }
+
+  if (!items) return <SettingsSkeleton rows={2} />;
+
+  return (
+    <div>
+      {error && <div className="alert alert-error" style={{ marginBottom: 'var(--space-3)' }}>{error}</div>}
+
+      {items.length === 0 ? (
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No income lines defined yet.</p>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th style={{ textAlign: 'right' }}>Default value</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                <td>{item.name}</td>
+                <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatEur(item.default_value)}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button className="btn-ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => openEdit(item)}><FontAwesomeIcon icon={faPencil} style={{ marginRight: '0.3rem' }} />Edit</button>
+                  <button className="btn-ghost" style={{ fontSize: 12, padding: '2px 8px', color: 'var(--color-danger)' }} onClick={() => handleDelete(item)}><FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.3rem' }} />Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <button className="btn-primary" style={{ fontSize: 13, marginTop: 'var(--space-3)' }} onClick={openAdd}>
+        <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add income line
+      </button>
+
+      {formState && (
+        <div className="modal-overlay" onClick={() => setFormState(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{formState.editing ? 'Edit Income Line' : 'Add Income Line'}</h2>
+              <button className="close-btn" onClick={() => setFormState(null)}><FontAwesomeIcon icon={faXmark} /></button>
+            </div>
+            <form onSubmit={handleSave}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Name</label>
+                  <input
+                    type="text"
+                    value={formState.name}
+                    onChange={(e) => setFormState((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Company salary, Stock savings, Extras"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Default value (€)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={formState.value}
+                    onChange={(e) => setFormState((f) => ({ ...f, value: e.target.value }))}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setFormState(null)}>Cancel</button>
+                <button type="submit" className="btn-primary">{formState.editing ? 'Save' : 'Add'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}
+    </div>
+  );
+}
+
 export default function DossierSettingsTab({ dossierId, dossier }) {
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
@@ -606,6 +750,13 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
         defaultOpen
       >
         <DossierSettings {...settingsProps} />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Income Settings"
+        description="Configure the income lines (e.g. company salary, stock savings, extras) copied into every new cycle as a pre-filled, editable starting point. A cycle's total income is the sum of its own income lines."
+      >
+        <IncomeSettings dossierId={dossierId} showToast={showToast} />
       </SettingsCard>
 
       <SettingsCard

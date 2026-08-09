@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { parseDecimalInput } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
@@ -15,6 +15,7 @@ export default function CycleList({ dossierId }) {
   const [cycles, setCycles] = useState([]);
   const [cycleStartDay, setCycleStartDay] = useState(25);
   const [weekendAdjustment, setWeekendAdjustment] = useState('none');
+  const [incomeTemplate, setIncomeTemplate] = useState([]);
   // null = no modal; { year, month } = modal open with pre-filled values
   const [modalPreset, setModalPreset] = useState(null);
   const [error, setError] = useState('');
@@ -25,15 +26,17 @@ export default function CycleList({ dossierId }) {
 
   async function load() {
     try {
-      const [data, settings] = await Promise.all([
+      const [data, settings, template] = await Promise.all([
         api.getCycles(dossierId),
         api.getDossierSettings(dossierId),
+        api.getIncomeTemplate(dossierId),
       ]);
       // Sort newest-first
       data.sort((a, b) => b.year - a.year || b.month - a.month);
       setCycles(data);
       setCycleStartDay(settings.cycle_start_day ?? 25);
       setWeekendAdjustment(settings.cycle_start_weekend_adjustment ?? 'none');
+      setIncomeTemplate(template);
     } catch (err) {
       setError(err.message);
     }
@@ -129,6 +132,7 @@ export default function CycleList({ dossierId }) {
           existingCycles={cycles}
           cycleStartDay={cycleStartDay}
           weekendAdjustment={weekendAdjustment}
+          incomeTemplate={incomeTemplate}
           initialYear={modalPreset.year}
           initialMonth={modalPreset.month}
           onCreate={handleCreate}
@@ -139,13 +143,15 @@ export default function CycleList({ dossierId }) {
   );
 }
 
-function OpenCycleModal({ existingCycles, cycleStartDay, weekendAdjustment, initialYear, initialMonth, onCreate, onClose }) {
+function OpenCycleModal({ existingCycles, cycleStartDay, weekendAdjustment, incomeTemplate, initialYear, initialMonth, onCreate, onClose }) {
   const now = new Date();
   const defaultYear = initialYear ?? now.getFullYear();
   const defaultMonth = initialMonth ?? (now.getMonth() + 1);
   const [year, setYear] = useState(defaultYear);
   const [month, setMonth] = useState(defaultMonth);
-  const [salary, setSalary] = useState('');
+  const [lines, setLines] = useState(() =>
+    incomeTemplate.map((ti) => ({ template_item_id: ti.id, name: ti.name, value: String(ti.default_value ?? 0) }))
+  );
   const [previousBalance, setPreviousBalance] = useState('');
   const [previousBalanceTouched, setPreviousBalanceTouched] = useState(false);
   const [error, setError] = useState('');
@@ -159,6 +165,21 @@ function OpenCycleModal({ existingCycles, cycleStartDay, weekendAdjustment, init
   function isTaken(y, m) {
     return existingCycles.some((c) => c.year === y && c.month === m);
   }
+
+  function updateLineValue(idx, value) {
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, value } : l)));
+  }
+  function updateAdhocName(idx, name) {
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, name } : l)));
+  }
+  function removeLine(idx) {
+    setLines((prev) => prev.filter((_, i) => i !== idx));
+  }
+  function addAdhocLine() {
+    setLines((prev) => [...prev, { template_item_id: null, name: '', value: '' }]);
+  }
+
+  const totalIncome = lines.reduce((s, l) => s + (parseDecimalInput(l.value) || 0), 0);
 
   // Suggest the previous cycle's closing balance as an editable starting point,
   // whenever that previous cycle exists, is closed, and has a final real balance.
@@ -179,11 +200,26 @@ function OpenCycleModal({ existingCycles, cycleStartDay, weekendAdjustment, init
     e.preventDefault();
     setError('');
     if (isTaken(year, month)) { setError('A cycle for this month already exists'); return; }
-    if (!salary || isNaN(parseDecimalInput(salary))) { setError('Salary is required'); return; }
+    for (const line of lines) {
+      if (!line.name.trim()) { setError('Each income line requires a name'); return; }
+      if (line.value === '' || isNaN(parseDecimalInput(line.value)) || parseDecimalInput(line.value) < 0) {
+        setError('Each income line value must be a non-negative number');
+        return;
+      }
+    }
     if (previousBalance === '' || isNaN(parseDecimalInput(previousBalance))) { setError('Previous balance is required'); return; }
     setSaving(true);
     try {
-      await onCreate({ year, month, salary: parseDecimalInput(salary), previous_balance: parseDecimalInput(previousBalance) });
+      await onCreate({
+        year,
+        month,
+        income_lines: lines.map((l) => ({
+          template_item_id: l.template_item_id,
+          name: l.name.trim(),
+          value: parseDecimalInput(l.value),
+        })),
+        previous_balance: parseDecimalInput(previousBalance),
+      });
     } catch (err) {
       setError(err.message);
       setSaving(false);
@@ -231,8 +267,39 @@ function OpenCycleModal({ existingCycles, cycleStartDay, weekendAdjustment, init
             </div>
             {taken && <div className="alert alert-error">This month already has a cycle.</div>}
             <div className="form-group">
-              <label>Salary received (€)</label>
-              <input type="text" inputMode="decimal" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="0.00" />
+              <label>Income</label>
+              {lines.map((line, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  {line.template_item_id ? (
+                    <span style={{ flex: 1, fontSize: '0.875rem' }}>{line.name}</span>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Line name"
+                      value={line.name}
+                      onChange={(e) => updateAdhocName(idx, e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                  )}
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={line.value}
+                    onChange={(e) => updateLineValue(idx, e.target.value)}
+                    style={{ width: '7rem' }}
+                  />
+                  <button type="button" className="close-btn" onClick={() => removeLine(idx)} title="Remove line">
+                    <FontAwesomeIcon icon={faXmark} />
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="btn-secondary" style={{ fontSize: '0.8rem' }} onClick={addAdhocLine}>
+                <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.3rem' }} />Add ad-hoc line
+              </button>
+              <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                Total income: {formatNumber(totalIncome, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+              </div>
             </div>
             <div className="form-group">
               <label>Previous balance (€)</label>

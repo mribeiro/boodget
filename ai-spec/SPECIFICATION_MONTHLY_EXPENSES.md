@@ -31,6 +31,12 @@ Settings are accessible to all users with access to the dossier (same permission
 
 ---
 
+## 2A. Income Template
+
+A per-dossier, reusable list of **income lines** — e.g. company salary, stock savings value, extras — replacing a single flat "salary" figure. Each line has a `name` and a `default_value`. Managed in Dossier Settings → **Income Settings** (add/edit/delete, no reordering/bulk-replace). Opening a new cycle (§3.3) copies these lines in as the starting point for that cycle's own income lines, pre-filled with each line's `default_value` and editable before the cycle is created. Changing the template afterward never retroactively affects already-created cycles, same convention as the Expense Template (§4).
+
+---
+
 ## 3. Cycles
 
 ### 3.1 Definition
@@ -64,19 +70,19 @@ When a cycle is opened, the user must provide:
 
 | Field | Description |
 |---|---|
-| **Salary received** | The salary amount received this cycle |
+| **Income lines** | One or more named income amounts (e.g. company salary, stock savings value, extras) summing to the cycle's total income. Pre-filled from the dossier's configurable **income template** (Section 2A) with each line's default value, still editable before creating the cycle; extra **ad-hoc lines** (not part of the template) can be added for a one-off amount specific to this cycle. |
 | **Previous balance** | The leftover balance from the previous cycle (entered manually) |
 
 If the immediately preceding cycle exists and is closed, the **Previous balance** field is prefilled with that cycle's final real balance as an editable suggestion — the user can accept it or type over it; nothing is enforced. No suggestion is offered if the previous cycle doesn't exist, is still open, or hasn't had a final real balance recorded.
 
-Both fields can be **updated at any time** after opening.
+Both the income lines and the previous balance can be **updated at any time** while the cycle is open (see §3.4 for what stays editable once closed).
 
 ### 3.4 Closing a Cycle
 
 - A cycle can be **closed** by the user at any time.
 - Closing a cycle requires entering a **final real balance** — the actual amount left in the account at the end of the cycle.
 - The system compares the final real balance against the **expected balance** (calculated — see Section 7).
-- **Once closed, the cycle's items become read-only.** Adding, editing, or deleting an expense or distribution, toggling `paid`/`spent`/`done`, pulling annual expenses, applying Paperless matches, and toggling a linked annual payment's paid flag are all blocked (409) while the cycle is closed; the cycle editor hides/disables the corresponding controls. The cycle's own salary, previous balance, and period remain editable while closed, as does the recorded final real balance itself (via the pencil icon next to it) — only the *items* are locked.
+- **Once closed, the cycle's items become read-only.** Adding, editing, or deleting an expense, distribution, or income line, toggling `paid`/`spent`/`done`, pulling annual expenses, applying Paperless matches, and toggling a linked annual payment's paid flag are all blocked (409) while the cycle is closed; the cycle editor hides/disables the corresponding controls. Income lines are items in every operational sense, so they lock the same way. The cycle's own previous balance and period remain editable while closed, as does the recorded final real balance itself (via the pencil icon next to it) — only the *items* (including income lines) are locked.
 - To edit items again, the user must explicitly **reopen** the cycle (confirmation dialog) — reopening clears the recorded final real balance (it no longer reflects a cycle whose items can still change), and re-closing requires entering a fresh one.
 - The cycle's final real balance is what §3.3 suggests (as an editable default) when opening the *next* cycle — a cycle that's been reopened and not yet re-closed has no final real balance to suggest.
 
@@ -203,7 +209,7 @@ The following values must be displayed in a summary section for each cycle:
 
 | Field | Calculation |
 |---|---|
-| **Total available** | Salary received + Previous balance |
+| **Total available** | Total income (sum of the cycle's income lines) + Previous balance |
 | **Total expenses** | Sum of all fixed expense values + Sum of all budget maximums |
 | **Total expenses paid** | Sum of paid fixed expenses + Sum of budget spent values |
 | **Total expenses unpaid** | Total expenses − Total expenses paid |
@@ -227,7 +233,7 @@ The following values must be displayed in a summary section for each cycle:
 - The **Dossier Settings**, **Expense Template**, and **Cycles** should be clearly distinct areas in the UI.
 - Tabs for **Expenses** and **Distributions** must be visually clear and indicate they are two separate concepts within the same template.
 - The **cycle list** (`CycleList`) shows cycles newest-first, with placeholder rows above/below to open the next and previous months. Placeholder and cycle row labels both use the **end-month display name**.
-- The **cycle editor** (`CycleEditor`) header shows the cycle's display name (end month) and date range, plus five action buttons in this order: **Period** (edit start month/year), **Income** (edit salary and previous balance), **Close cycle** / **Reopen** (toggles cycle open/close state), **Pull annual expenses** (manually links annual expense installments that fall within this cycle's date range but were not linked at creation time — safe to run multiple times, hidden while the cycle is closed), and **Delete** (permanent deletion). When the cycle is already closed the third button reads "Reopen" and clicking it opens a confirmation dialog warning that the recorded final balance will be cleared. While closed, item-level controls (add/edit/delete buttons, paid/spent/done checkboxes, the Paperless toolbar button) are hidden or disabled throughout the editor.
+- The **cycle editor** (`CycleEditor`) header shows the cycle's display name (end month) and date range, plus five action buttons in this order: **Period** (edit start month/year), **Income** (edit the cycle's income lines — add/remove/edit values, locked once closed — and the previous balance, which stays editable regardless), **Close cycle** / **Reopen** (toggles cycle open/close state), **Pull annual expenses** (manually links annual expense installments that fall within this cycle's date range but were not linked at creation time — safe to run multiple times, hidden while the cycle is closed), and **Delete** (permanent deletion). When the cycle is already closed the third button reads "Reopen" and clicking it opens a confirmation dialog warning that the recorded final balance will be cleared. While closed, item-level controls (add/edit/delete buttons, paid/spent/done checkboxes, the Paperless toolbar button) are hidden or disabled throughout the editor.
 - The **cycle summary** card shows Expenses and Distributions as stacked sections, each with a section label above and three data points (Total / Paid / Unpaid; Total / Done / Pending) in a `repeat(3, 1fr)` grid for even spacing. When closed, a Closing section is appended with Final real balance and Difference.
 
 ---

@@ -277,7 +277,7 @@ No new endpoints are required. The Glances panel is computed entirely on the **f
 |---|---|
 | Most recent filled snapshot + variation | `GET /api/dossiers/:id/months` |
 | Dossier settings (warning days, cycle_start_day) | `GET /api/dossiers/:id/settings` |
-| Current cycle data (salary, balance, items) | `GET /api/dossiers/:id/cycles` |
+| Current cycle data (income lines/total, balance, items) | `GET /api/dossiers/:id/cycles` (list, to find the current cycle) + `GET /api/dossiers/:id/cycles/:cycleId` (detail, for `income_total`/items) |
 | Goals list and states | `GET /api/dossiers/:id/goals` |
 
 The frontend determines "today" using the client's local date (`new Date()`).

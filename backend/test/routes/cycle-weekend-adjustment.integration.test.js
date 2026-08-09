@@ -20,7 +20,7 @@ describe('POST /cycles — weekend start-day adjustment', () => {
     // so its theoretical end (Jul 31) is computed with no adjustment in effect.
     const julyRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 7, salary: 1000, previous_balance: 0 });
+      .send({ year: 2026, month: 7, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
     expect(julyRes.body.actual_start_date).toBe('2026-07-01');
     expect(julyRes.body.actual_end_date).toBe('2026-07-31');
 
@@ -30,7 +30,7 @@ describe('POST /cycles — weekend start-day adjustment', () => {
     // August 2026: day 1 is a Saturday — shifts back to Jul 31.
     const augustRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 8, salary: 1000, previous_balance: 0 });
+      .send({ year: 2026, month: 8, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
     expect(augustRes.body.actual_start_date).toBe('2026-07-31');
     expect(augustRes.body.cycle_start_weekend_adjustment).toBe('previous_friday');
 
@@ -48,13 +48,13 @@ describe('POST /cycles — weekend start-day adjustment', () => {
     // March 2026: day 15 is a Sunday -> shifts to Mar 13.
     const marchRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 3, salary: 1000, previous_balance: 0 });
+      .send({ year: 2026, month: 3, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
     const marchEndBefore = marchRes.body.actual_end_date;
 
     // April 2026: day 15 is a Wednesday -> no shift.
     const aprilRes = await agent
       .post(`/api/dossiers/${dossier.id}/cycles`)
-      .send({ year: 2026, month: 4, salary: 1000, previous_balance: 0 });
+      .send({ year: 2026, month: 4, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
     expect(aprilRes.body.actual_start_date).toBe('2026-04-15');
 
     const marchAfter = await agent.get(`/api/dossiers/${dossier.id}/cycles/${marchRes.body.id}`);
@@ -138,11 +138,11 @@ describe('export/import — weekend adjustment round-trip', () => {
     const agent = await loggedInAgent(app, user);
 
     // November 2026: day 1 is a Sunday -> shifts to Nov 2.
-    await agent.post(`/api/dossiers/${dossier.id}/cycles`).send({ year: 2026, month: 11, salary: 1000, previous_balance: 0 });
+    await agent.post(`/api/dossiers/${dossier.id}/cycles`).send({ year: 2026, month: 11, income_lines: [{ name: 'Salary', value: 1000 }], previous_balance: 0 });
 
     const exportRes = await agent.get(`/api/dossiers/${dossier.id}/export`);
     expect(exportRes.status).toBe(200);
-    expect(exportRes.body.version).toBe(13);
+    expect(exportRes.body.version).toBe(14);
     expect(exportRes.body.dossier.cycle_start_weekend_adjustment).toBe('next_monday');
     expect(exportRes.body.cycles[0].actual_start_date).toBe('2026-11-02');
 

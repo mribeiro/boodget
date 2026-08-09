@@ -100,7 +100,7 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
   const fixedExpenses = expenses.filter((i) => i.type === 'Fixed');
   const budgetExpenses = expenses.filter((i) => i.type === 'Budget');
 
-  const totalAvailable = (currentCycleDetail.salary || 0) + (currentCycleDetail.previous_balance || 0);
+  const totalAvailable = (currentCycleDetail.income_total || 0) + (currentCycleDetail.previous_balance || 0);
   const totalExpenses =
     fixedExpenses.reduce((s, i) => s + (i.value || 0), 0) +
     budgetExpenses.reduce((s, i) => s + (i.value || 0), 0);

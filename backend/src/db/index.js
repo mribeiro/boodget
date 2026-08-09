@@ -827,6 +827,72 @@ const migrations = [
       }
     },
   },
+  {
+    id: '040_income_lines',
+    up() {
+      // Dossier-level income-line configuration (peer to expense_template_items).
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS income_template_items (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          default_value REAL NOT NULL DEFAULT 0,
+          position INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+
+      // Per-cycle income-line instances (peer to cycle_items). template_item_id is a
+      // soft/unenforced reference, same convention as cycle_items.template_item_id —
+      // NULL means ad-hoc (added only to this cycle, never written back to the template).
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS cycle_income_items (
+          id TEXT PRIMARY KEY,
+          cycle_id TEXT NOT NULL REFERENCES expense_cycles(id) ON DELETE CASCADE,
+          template_item_id TEXT,
+          name TEXT NOT NULL,
+          value REAL NOT NULL DEFAULT 0,
+          position INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+
+      // Backfill existing cycles' flat salary into a single "Salary" income line each,
+      // then drop the now-superseded column. Guarded so this is a safe no-op if this
+      // migration ever runs again against an already-migrated DB.
+      const cycleCols = db.prepare('PRAGMA table_info(expense_cycles)').all();
+      if (cycleCols.find((c) => c.name === 'salary')) {
+        const dossierIds = db
+          .prepare('SELECT DISTINCT dossier_id FROM expense_cycles')
+          .all()
+          .map((r) => r.dossier_id);
+        const insertTemplate = db.prepare(
+          'INSERT INTO income_template_items (id, dossier_id, name, default_value, position) VALUES (?, ?, ?, ?, 0)'
+        );
+        const insertCycleIncome = db.prepare(
+          'INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position) VALUES (?, ?, ?, ?, ?, 0)'
+        );
+
+        for (const dossierId of dossierIds) {
+          // One "Salary" template line per dossier, defaulted from that dossier's most
+          // recently created cycle's salary, so the next cycle opened after this
+          // migration isn't a blank income-lines slate.
+          const latest = db
+            .prepare('SELECT salary FROM expense_cycles WHERE dossier_id = ? ORDER BY year DESC, month DESC LIMIT 1')
+            .get(dossierId);
+          const templateId = uuidv4();
+          insertTemplate.run(templateId, dossierId, 'Salary', latest?.salary ?? 0);
+
+          const cycles = db.prepare('SELECT id, salary FROM expense_cycles WHERE dossier_id = ?').all(dossierId);
+          for (const c of cycles) {
+            insertCycleIncome.run(uuidv4(), c.id, templateId, 'Salary', c.salary ?? 0);
+          }
+        }
+
+        db.exec('ALTER TABLE expense_cycles DROP COLUMN salary');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
