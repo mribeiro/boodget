@@ -16,7 +16,7 @@ function getInitials(username) {
 }
 
 function getDossierIdFromPath(pathname) {
-  const m = pathname.match(/^\/dossiers\/(\d+)/);
+  const m = pathname.match(/^\/dossiers\/([^/]+)/);
   return m ? m[1] : null;
 }
 

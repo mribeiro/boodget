@@ -307,22 +307,20 @@ The main column has `margin-left` equal to the current sidebar width (toggled vi
 
 ```
 ┌──────────────────────────┐
-│  Logo + "boodget" │  ← always visible (icon-only when collapsed)
+│  Logo + "boodget"        │  ← always visible (icon-only when collapsed)
 ├──────────────────────────┤
-│  Dossier selector area   │  ← hidden when collapsed
+│  Dossier switcher         │  ← only when inside a dossier; hidden when collapsed
 ├──────────────────────────┤
-│  Nav items               │
-│    € Capital             │
-│    ☰ Monthly Expenses    │
-│    ⚙ Workbench           │
-│    ◎ Goals               │
-│  ───────────────         │
-│    ⚙ Settings            │
-│    👤 Users              │
+│  Nav items (scrollable)  │  ← only when inside a dossier; all 10 dossier tabs
+├──────────────────────────┤
+│  Notifications            │  ← always visible, bottom-pinned
+│  Users                    │
 ├──────────────────────────┤
 │  Collapse toggle (bottom)│
 └──────────────────────────┘
 ```
+
+**Superseded from the original migration plan below**: the sidebar is now the single source of dossier navigation (see `## Frontend Conventions → Routing`/`Layout` in `CLAUDE.md` for the current, authoritative behavior). The dossier selector is a working dropdown (not a static label), the nav item list carries all 10 current dossier tabs (not just the original four), and Notifications/Users are pinned to the bottom in their own block rather than separated by an `<hr>` inside the scrollable nav. The rest of this section's visual specs (colors, spacing, hover/active states) still apply as written.
 
 #### Visual specs
 
@@ -335,16 +333,16 @@ The main column has `margin-left` equal to the current sidebar width (toggled vi
 #### Logo area
 
 - Height: 56 px.
-- Icon: a circular gradient element (`background: linear-gradient(135deg, #38bdf8, #6366f1)`, 28 px × 28 px, `border-radius: 50%`) with a capital “C” in white, 16 px, weight 700.
+- Icon: the real app logo (`/icon.svg`), 32 px × 32 px, `border-radius: var(--radius-sm)` — not the gradient-circle placeholder this section originally specified.
 - Text “boodget”: 15 px, weight 700, `var(--sidebar-logo-text)`. Hidden when collapsed (use `opacity: 0; width: 0; overflow: hidden` with transition).
 - A thin bottom border: `1px solid var(--sidebar-border)`.
 
-#### Dossier selector area
+#### Dossier switcher area
 
-- Only visible when sidebar is expanded.
-- Label “Dossier:” in `var(--sidebar-text-muted)`, 11 px, uppercase, letter-spacing 0.05em.
-- Below it: the current dossier name in `var(--sidebar-text-active)`, 13 px, weight 500, with a folder icon (📁 or SVG) to the left.
-- The whole area is a button that opens the dossier picker (existing behaviour).
+- Only rendered when the current route is under `/dossiers/:id` (any sub-route) and a current dossier is loaded; hidden entirely outside a dossier (Dossier List, Users, Notifications) and when the sidebar is collapsed.
+- Label “Dossier” in `var(--sidebar-text-muted)`, 11 px, uppercase, letter-spacing 0.05em.
+- Below it: `.sidebar-dossier-btn`, a bordered button (`var(--sidebar-bg-hover)` background, `1px solid var(--sidebar-border)`, `var(--radius-sm)`) showing the current dossier name + a trailing chevron-down.
+- Clicking it opens `.sidebar-dossier-menu` (absolutely positioned, `var(--bg-card)`/`var(--border-default)`/`var(--shadow-lg)`, same open/close/outside-click pattern as `Navbar`'s `.user-dropdown`): one `.sidebar-dossier-option` per dossier (active one brand-colored with a trailing checkmark), a divider, then a brand-colored "+ New dossier" option that navigates to `/` and opens its existing inline create form.
 - Padding: `var(--space-2) var(--space-4)`.
 - Bottom border: `1px solid var(--sidebar-border)`.
 
@@ -365,19 +363,22 @@ Each nav item:
 
 When collapsed, show a **tooltip** on hover (the nav item label) using CSS `::after` positioned to the right of the icon.
 
-Nav items list (icon suggestions use Lucide React or Unicode — implement with SVG):
+Nav items list (Font Awesome 6 solid icons; all live inside `.sidebar-nav`, scrollable, and only render while inside a dossier — clicking one sets `activeTab` in `AppContext` and navigates to that dossier's `/dossiers/:id` if not already there):
 
-|Route                          |Icon            |Label           |
-|-------------------------------|----------------|----------------|
-|`/dossiers/:id` → Capital tab  |`€` (EuroIcon)  |Capital         |
-|`/dossiers/:id` → Expenses tab |calendar/receipt|Monthly Expenses|
-|`/dossiers/:id` → Workbench tab|wrench/sliders  |Workbench       |
-|`/dossiers/:id` → Goals tab    |target circle   |Goals           |
-|— separator —                  |                |                |
-|Settings                       |gear            |Settings        |
-|Users                          |user/person     |Users           |
+|Tab              |Icon                     |
+|------------------|--------------------------|
+|Capital           |`fa-vault`                |
+|Monthly Expenses  |`fa-calendar-days`        |
+|Annual Expenses   |`fa-calendar`             |
+|Workbench         |`fa-table-cells`          |
+|Goals             |`fa-bullseye`             |
+|Loans             |`fa-hand-holding-dollar`  |
+|Subscriptions     |`fa-rotate`               |
+|Emergency Fund    |`fa-shield-heart`         |
+|AI Advisor        |`fa-wand-magic-sparkles` (hidden when the dossier has AI disabled) |
+|Settings          |`fa-gear`                 |
 
-A thin horizontal `<hr>` with `border-color: var(--sidebar-border)` separates the main nav from Settings/Users.
+Notifications and Users are **not** part of this scrollable list — they live in `.sidebar-nav-bottom`, a sibling block (`flex-shrink: 0`, top border) pinned to the bottom of the sidebar regardless of the nav list's length, and are always visible (not gated on being inside a dossier).
 
 ### 5.3 Navbar
 

@@ -485,15 +485,15 @@ All calls go through `frontend/src/services/api.js` (wraps fetch: base URL `/api
 ### Routing
 
 React Router v6. Routes in `App.jsx`. Key routes:
-- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Loans, Emergency Fund, AI Advisor, Settings)
+- `/dossiers/:id` → `DossierView` (tabs: Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Loans, Subscriptions, Emergency Fund, AI Advisor, Settings)
 - `/dossiers/:id/months/:monthId`, `/dossiers/:id/cycles/:cycleId`, `/dossiers/:id/goals/:goalId`, `/dossiers/:id/loans/:loanId`
 - `/notifications` → `NotificationSettings`
 
-Tab state restorable via location state: `navigate('/dossiers/:id', { state: { tab: 'expenses' } })`.
+Dossier tabs aren't routes — `activeTab` lives in the shared `AppContext` (`{ currentDossier, setCurrentDossier, activeTab, setActiveTab }`) so `Sidebar` and `DossierView` stay in sync. Navigating into a tab from outside `DossierView` (Glances cards, a sub-page's back button, the sidebar itself) sets `activeTab` directly when already on `/dossiers/:id`, or passes `state: { tab }` when navigating there: `navigate('/dossiers/:id', { state: { tab: 'expenses' } })` — `DossierView` re-reads `location.state?.tab` (defaulting to `'capital'`) each time the `:id` param changes. `currentDossier`/`activeTab` are only ever populated by `DossierView` on mount — a page reached by deep-link without first passing through it (e.g. reloading `/dossiers/:id/goals/:goalId` directly) sees `currentDossier: null` until the user navigates through a `DossierView` load, which also blanks the sidebar's dossier switcher/tabs and the navbar breadcrumb for that same reason (see Layout below).
 
 ### Layout
 
-`AppShell`: collapsible sidebar (Users link only) + top navbar + main content. All dossier navigation is via the tab bar in `DossierView`.
+`AppShell`: `Sidebar` (logo, a dossier-switcher dropdown, all 10 dossier tabs, and a bottom-pinned block for Notifications/Users) + top navbar + main content. The sidebar is the single source of dossier navigation — `DossierView` has no in-page tab bar. The dossier switcher and the 10 tabs only render while `currentDossier` is set *and* the route is under `/dossiers/:id` (any sub-route); outside a dossier (Dossier List, Users, Notifications) the sidebar shows just the logo header and the bottom-pinned block. Clicking a tab sets `AppContext`'s `activeTab` and, if not already on that dossier's `/dossiers/:id`, navigates there with `state: { tab }`. The dossier-switcher dropdown (`.sidebar-dossier-btn`/`.sidebar-dossier-menu`, same open/close/outside-click pattern as `Navbar`'s `.user-dropdown`) fetches the dossier list on open, checkmarks the active one, and offers "+ New dossier" (divider above it) which navigates to `/` with `state: { openCreate: true }` — `DossierList` reads that to auto-open its existing inline create form.
 
 ### Component Patterns
 
