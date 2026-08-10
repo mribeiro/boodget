@@ -1,6 +1,11 @@
-// Loan amortization math — small deliberate duplication of the backend helper in
-// backend/src/routes/loans.js. Scenarios need per-keystroke recompute in the UI;
-// the server remains the source of truth for the persisted monthly_payment.
+// Loan amortization math — a small deliberate duplication of the backend helpers in
+// backend/src/routes/loans.js: computeMonthlyPayment, effectiveCurrentPeriod /
+// computeMonthsLeft, and computeTermFromAnchor. The scenario calculators recompute on
+// every keystroke and can't round-trip to the server, and the payment plan is a
+// deterministic projection of fields the loan response already carries — so the client
+// rebuilds it locally, while the server stays the source of truth for anything persisted.
+// The two test suites deliberately mirror each other case for case, so drift shows up as
+// a test failure rather than as a wrong number on screen.
 
 // Annuity formula: payment = P·r / (1 − (1+r)^−n), r = annual_pct/100/12; r = 0 → P/n
 export function computeMonthlyPayment(principal, ratePct, months) {
@@ -18,7 +23,7 @@ function daysInMonth(year, month) {
 // dayOfPayment is known and has already passed, in which case this month's payment is
 // treated as already made and counting starts from next month instead (dayOfPayment
 // clamped to the current month's length, so e.g. 31 means "last day" in a 30-day month).
-function effectiveCurrentPeriod(dayOfPayment) {
+export function effectiveCurrentPeriod(dayOfPayment) {
   const now = new Date();
   let year = now.getFullYear();
   let month = now.getMonth() + 1;
@@ -40,6 +45,16 @@ export function computeMonthsLeft(endDate, dayOfPayment) {
   const { year: curYear, month: curMonth } = effectiveCurrentPeriod(dayOfPayment);
   const months = (endYear * 12 + endMonth) - (curYear * 12 + curMonth) + 1;
   return Math.max(0, months);
+}
+
+// Scheduled payments from balanceAsOf through endDate ('YYYY-MM'), both months inclusive.
+// Mirrors computeTermFromAnchor in backend/src/routes/loans.js — the span a loan's stable
+// monthly payment is computed over, so the form's live preview matches what gets saved.
+export function computeTermFromAnchor(balanceAsOf, endDate) {
+  if (!balanceAsOf || !endDate) return null;
+  const [anchorYear, anchorMonth] = balanceAsOf.split('-').map(Number);
+  const [endYear, endMonth] = endDate.split('-').map(Number);
+  return (endYear * 12 + endMonth) - (anchorYear * 12 + anchorMonth) + 1;
 }
 
 // Inverse of computeMonthsLeft: the YYYY-MM end date that a given number of months-left
@@ -128,45 +143,66 @@ export function scenarioRateChange(balance, currentRatePct, monthsLeft, newRateP
   };
 }
 
-// Full month-by-month amortization schedule from the first still-owed calendar month until
-// payoff, splitting each fixed payment into its interest and principal portions. Starts
-// from next month rather than this one when dayOfPayment shows this month is already paid
-// (see effectiveCurrentPeriod), keeping the schedule's dates aligned with monthsLeft's own
-// count. The last payment (or any payment that would overshoot) has its principal clamped
-// to exactly clear the balance, absorbing the floating-point drift a fixed annuity payment
-// accumulates over time.
-export function computeAmortizationSchedule(balance, ratePct, monthsLeft, payment, dayOfPayment) {
+// Full month-by-month payment plan, splitting each fixed payment into its interest and
+// principal portions. `startPeriod` is an explicit { year, month } — for an anchored loan
+// that's balance_as_of (so the plan includes the months already paid, not just what's
+// still owed), and for an unanchored one the caller passes effectiveCurrentPeriod().
+// Taking it as a parameter rather than deriving it from dayOfPayment internally keeps this
+// function pure: the same inputs always produce the same plan, whatever today's date is.
+//
+// The final payment (and any payment that would overshoot) has its principal clamped to
+// exactly clear the balance, absorbing the floating-point drift a fixed annuity payment
+// accumulates over a long term. Each row's `payment` is its own interest + principal, so
+// that clamped last row reports the real short final payment rather than the nominal one.
+export function computeAmortizationSchedule(balance, ratePct, months, payment, startPeriod) {
   const r = (ratePct || 0) / 100 / 12;
-  const { year: startYear, month: startMonth } = effectiveCurrentPeriod(dayOfPayment);
+  const { year: startYear, month: startMonth } = startPeriod;
   let bal = balance;
   const schedule = [];
-  for (let i = 0; i < monthsLeft; i++) {
+  for (let i = 0; i < months; i++) {
     const interest = r > 0 ? bal * r : 0;
     let principal = payment - interest;
-    if (i === monthsLeft - 1 || principal >= bal) principal = bal;
+    if (i === months - 1 || principal >= bal) principal = bal;
     bal = Math.max(0, bal - principal);
     const d = new Date(startYear, startMonth - 1 + i, 1);
-    schedule.push({ year: d.getFullYear(), month: d.getMonth() + 1, interest, principal, balance: bal });
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    schedule.push({
+      period: `${year}-${String(month).padStart(2, '0')}`,
+      year,
+      month,
+      interest,
+      principal,
+      payment: interest + principal,
+      balance: bal,
+    });
   }
   return schedule;
 }
 
-// Groups an amortization schedule into per-calendar-year rollups (total interest, total
-// principal, and the balance remaining at year end), each carrying its own month rows for
-// on-demand expansion in the UI rather than rendering every payment up front.
+// Groups a payment plan into per-calendar-year rollups (total interest, total principal,
+// and the balance remaining at year end), each carrying its own month rows for on-demand
+// expansion in the UI rather than rendering every payment up front. `paidCount`/
+// `trackedCount` summarize each year's tracking state for the year row's badge — a row
+// counts as tracked only when its paid state is actually known (`true`/`false`), since a
+// null means "no cycle, or no matching expense item" and must never read as unpaid.
 export function groupScheduleByYear(schedule) {
   const years = [];
   const byYear = new Map();
   for (const row of schedule) {
     let bucket = byYear.get(row.year);
     if (!bucket) {
-      bucket = { year: row.year, interest: 0, principal: 0, endBalance: 0, months: [] };
+      bucket = { year: row.year, interest: 0, principal: 0, endBalance: 0, paidCount: 0, trackedCount: 0, months: [] };
       byYear.set(row.year, bucket);
       years.push(bucket);
     }
     bucket.interest += row.interest;
     bucket.principal += row.principal;
     bucket.endBalance = row.balance;
+    if (row.paid === true || row.paid === false) {
+      bucket.trackedCount += 1;
+      if (row.paid) bucket.paidCount += 1;
+    }
     bucket.months.push(row);
   }
   return years;

@@ -3,7 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput } from '../../utils/numbers';
-import { computeMonthsLeft, endDateFromMonthsLeft } from '../../utils/loanMath';
+import { computeMonthsLeft, endDateFromMonthsLeft, computeTermFromAnchor, effectiveCurrentPeriod } from '../../utils/loanMath';
+import Checkbox from '../ui/Checkbox';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -28,12 +29,17 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
   const [endYear, setEndYear] = useState(initialEndYM.year);
   const [endMonth, setEndMonth] = useState(initialEndYM.month);
   const [dayOfPayment, setDayOfPayment] = useState('');
+  const [createExpense, setCreateExpense] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}`;
   const parsedDayOfPayment = dayOfPayment === '' ? null : Number(dayOfPayment);
   const previewMonthsLeft = computeMonthsLeft(endDate, parsedDayOfPayment);
+  // Promotion always anchors at the current period: a draft becoming real means "this is
+  // what I owe now". Adjusting the anchor to some earlier month is an edit-form concern.
+  const anchor = effectiveCurrentPeriod(parsedDayOfPayment);
+  const balanceAsOf = `${anchor.year}-${String(anchor.month).padStart(2, '0')}`;
 
   async function handleConfirm() {
     setError('');
@@ -44,6 +50,7 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
       return;
     }
     if (computeMonthsLeft(endDate, parsedDayOfPayment) < 1) { setError('End date must be the current month or later'); return; }
+    if (computeTermFromAnchor(balanceAsOf, endDate) < 1) { setError('End date must be the current month or later'); return; }
 
     setSaving(true);
     try {
@@ -52,6 +59,8 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
         remaining_balance: balance,
         end_date: endDate,
         day_of_payment: parsedDayOfPayment,
+        balance_as_of: balanceAsOf,
+        ...(createExpense ? { create_expense_template_item: true } : {}),
       });
       onSave(result);
     } catch (err) {
@@ -77,7 +86,8 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
             <label>Remaining balance (€)</label>
             <input type="text" inputMode="decimal" value={remainingBalance} onChange={(e) => setRemainingBalance(e.target.value)} placeholder="0.00" />
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-              Prefilled from the draft's principal — adjust if anything has already been paid down.
+              Prefilled from the draft's principal — adjust if anything has already been paid down. Recorded as the
+              balance owed this month; the monthly payment is worked out from it once and then stays fixed.
             </div>
           </div>
           <div className="form-group">
@@ -113,6 +123,17 @@ export default function PromoteLoanModal({ dossierId, loan, onSave, onClose }) {
               {previewMonthsLeft != null && previewMonthsLeft >= 1
                 ? `${previewMonthsLeft} month${previewMonthsLeft === 1 ? '' : 's'} left — suggested from the draft's term, adjust if needed.`
                 : 'Must be the current month or later.'}
+            </div>
+          </div>
+          <div className="form-group">
+            <Checkbox
+              checked={createExpense}
+              onChange={() => setCreateExpense((v) => !v)}
+              label="Create a matching Fixed monthly expense"
+            />
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              Adds "{loan.name}" to the monthly template as a must-pay Fixed expense and links it, so you can tick each
+              payment off. It appears in cycles you open from now on, not in ones already open.
             </div>
           </div>
         </div>

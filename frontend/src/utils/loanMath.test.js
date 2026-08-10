@@ -7,6 +7,8 @@ import {
   scenarioRateChange,
   computeAmortizationSchedule,
   groupScheduleByYear,
+  computeTermFromAnchor,
+  effectiveCurrentPeriod,
 } from './loanMath';
 
 describe('computeMonthlyPayment', () => {
@@ -171,18 +173,31 @@ describe('scenarioRateChange', () => {
 });
 
 describe('computeAmortizationSchedule', () => {
+  const anchor = { year: 2026, month: 3 };
+
   it('clamps the final row so the balance ends at exactly 0 (absorbs float drift)', () => {
     const payment = computeMonthlyPayment(10000, 7, 36);
-    const schedule = computeAmortizationSchedule(10000, 7, 36, payment, null);
+    const schedule = computeAmortizationSchedule(10000, 7, 36, payment, anchor);
     expect(schedule).toHaveLength(36);
     expect(schedule[schedule.length - 1].balance).toBe(0);
   });
 
   it('produces a single-row schedule when only one month is left', () => {
     const payment = computeMonthlyPayment(500, 5, 1);
-    const schedule = computeAmortizationSchedule(500, 5, 1, payment, null);
+    const schedule = computeAmortizationSchedule(500, 5, 1, payment, anchor);
     expect(schedule).toHaveLength(1);
     expect(schedule[0].balance).toBe(0);
+  });
+
+  it('dates rows from the given start period, independently of today', () => {
+    const schedule = computeAmortizationSchedule(1200, 0, 3, 100, { year: 2026, month: 11 });
+    expect(schedule.map((r) => r.period)).toEqual(['2026-11', '2026-12', '2027-01']);
+  });
+
+  it('reports each row\'s own payment, so the clamped final row shows the real short one', () => {
+    const schedule = computeAmortizationSchedule(250, 0, 3, 100, anchor);
+    expect(schedule.map((r) => r.payment)).toEqual([100, 100, 50]);
+    expect(schedule[2].balance).toBe(0);
   });
 });
 
@@ -201,5 +216,53 @@ describe('groupScheduleByYear', () => {
     expect(grouped[0].endBalance).toBe(819); // last month of 2026, not interest+principal sum
     expect(grouped[1].year).toBe(2027);
     expect(grouped[1].endBalance).toBe(727);
+  });
+
+  it('counts paid/tracked months per year, ignoring rows whose paid state is unknown', () => {
+    const schedule = [
+      { year: 2026, month: 11, interest: 10, principal: 90, balance: 910, paid: true },
+      { year: 2026, month: 12, interest: 9, principal: 91, balance: 819, paid: false },
+      // null = no cycle covers it, or no matching expense item — not "unpaid".
+      { year: 2026, month: 12, interest: 9, principal: 91, balance: 728, paid: null },
+      { year: 2027, month: 1, interest: 8, principal: 92, balance: 636, paid: true },
+    ];
+    const grouped = groupScheduleByYear(schedule);
+    expect(grouped[0]).toMatchObject({ paidCount: 1, trackedCount: 2 });
+    expect(grouped[1]).toMatchObject({ paidCount: 1, trackedCount: 1 });
+  });
+});
+
+describe('computeTermFromAnchor', () => {
+  it('counts both the anchor and the end month', () => {
+    expect(computeTermFromAnchor('2026-03', '2026-03')).toBe(1);
+    expect(computeTermFromAnchor('2026-01', '2026-12')).toBe(12);
+    expect(computeTermFromAnchor('2025-11', '2026-02')).toBe(4);
+  });
+
+  it('is null when either side is missing', () => {
+    expect(computeTermFromAnchor(null, '2026-03')).toBeNull();
+    expect(computeTermFromAnchor('2026-03', null)).toBeNull();
+  });
+});
+
+describe('effectiveCurrentPeriod (local-time clock source)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('stays on this month while day_of_payment has not passed', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 2, 3, 12)); // 3 March, local
+    expect(effectiveCurrentPeriod(8)).toEqual({ year: 2026, month: 3 });
+  });
+
+  it('rolls to next month once day_of_payment has passed', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 2, 20, 12));
+    expect(effectiveCurrentPeriod(8)).toEqual({ year: 2026, month: 4 });
+  });
+
+  it('rolls across the year boundary', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 11, 20, 12)); // 20 December
+    expect(effectiveCurrentPeriod(8)).toEqual({ year: 2027, month: 1 });
   });
 });

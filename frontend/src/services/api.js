@@ -218,6 +218,11 @@ export const api = {
     request('PUT', `/dossiers/${dossierId}/loans/${loanId}`, data),
   deleteLoan: (dossierId, loanId) =>
     request('DELETE', `/dossiers/${dossierId}/loans/${loanId}`),
+  // Per-period paid state for the payment plan. The plan's own rows are computed
+  // client-side (loanMath.js); this supplies only what the client can't derive — which
+  // cycle covers each period and whether its expense item is ticked.
+  getLoanPaymentStatus: (dossierId, loanId) =>
+    request('GET', `/dossiers/${dossierId}/loans/${loanId}/payment-status`),
 
   // Subscriptions
   getSubscriptions: (dossierId, includeCancelled = false) =>

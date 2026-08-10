@@ -274,8 +274,8 @@ function createLoan(db, overrides = {}) {
   db.prepare(
     `INSERT INTO loans
        (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance,
-        end_date, day_of_payment, expense_template_item_id, down_payment, taeg, opening_fee)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        end_date, day_of_payment, balance_as_of, expense_template_item_id, down_payment, taeg, opening_fee)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     dossierId,
@@ -288,6 +288,7 @@ function createLoan(db, overrides = {}) {
     overrides.remaining_balance ?? (status === 'active' ? 10000 : null),
     overrides.end_date ?? null,
     overrides.day_of_payment ?? null,
+    overrides.balance_as_of ?? null,
     overrides.expense_template_item_id ?? null,
     overrides.down_payment ?? null,
     overrides.taeg ?? null,

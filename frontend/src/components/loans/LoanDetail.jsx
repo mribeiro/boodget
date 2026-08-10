@@ -4,14 +4,15 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faCheck, faTriangleExclamation,
   faWallet, faCoins, faBullseye, faPercent, faReceipt, faArrowUp,
-  faTable, faChevronDown, faChevronRight,
+  faTable, faChevronDown, faChevronRight, faLinkSlash,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import {
   scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft,
-  computeAmortizationSchedule, groupScheduleByYear,
+  computeAmortizationSchedule, groupScheduleByYear, effectiveCurrentPeriod,
 } from '../../utils/loanMath';
+import Checkbox from '../ui/Checkbox';
 import LoanFormModal from './LoanFormModal';
 import PromoteLoanModal from './PromoteLoanModal';
 import ConfirmModal from '../ConfirmModal';
@@ -95,6 +96,10 @@ export default function LoanDetail() {
   const [rateCollapsed, setRateCollapsed] = useState(false);
   const [scheduleCollapsed, setScheduleCollapsed] = useState(true);
   const [expandedYears, setExpandedYears] = useState(new Set());
+  const [autoExpandedYear, setAutoExpandedYear] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState(null);
+  const [planError, setPlanError] = useState('');
+  const [togglingPeriod, setTogglingPeriod] = useState(null);
 
   function toggleYear(year) {
     setExpandedYears((prev) => {
@@ -114,10 +119,58 @@ export default function LoanDetail() {
     try {
       const l = await api.getLoan(dossierId, loanId);
       setLoan(l);
+      // Open the year the loan is currently in, so the plan lands on "now" rather than on
+      // its first year — which for a 30-year mortgage could be a decade of scrolling away.
+      if (!autoExpandedYear && l.status === 'active') {
+        const start = l.balance_as_of
+          ? { year: Number(l.balance_as_of.split('-')[0]), month: Number(l.balance_as_of.split('-')[1]) }
+          : effectiveCurrentPeriod(l.day_of_payment);
+        const offset = start.month - 1 + (l.payments_made ?? 0);
+        setExpandedYears(new Set([start.year + Math.floor(offset / 12)]));
+        setAutoExpandedYear(true);
+      }
+      await loadPaymentStatus();
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPaymentStatus() {
+    try {
+      setPaymentStatus(await api.getLoanPaymentStatus(dossierId, loanId));
+    } catch {
+      // The plan itself still renders without tracking — don't fail the whole page over it.
+      setPaymentStatus(null);
+    }
+  }
+
+  // Ticking a month off the plan writes through to the underlying cycle item: the loan's
+  // payment *is* that Fixed expense, so there is one paid flag, editable from either side.
+  async function handleTogglePaid(row) {
+    if (!row.cycle_id || !row.item_id || row.cycle_is_closed) return;
+    setPlanError('');
+    setTogglingPeriod(row.period);
+    try {
+      await api.updateCycleItem(dossierId, row.cycle_id, row.item_id, { paid: !row.paid });
+      await loadPaymentStatus();
+    } catch (err) {
+      setPlanError(err.message);
+    } finally {
+      setTogglingPeriod(null);
+    }
+  }
+
+  // Realign the budgeted expense with the loan's payment — the one-click fix for the
+  // coverage panel's red state (a rate change, or a re-anchor that moved the payment).
+  async function handleSyncBudget() {
+    setPlanError('');
+    try {
+      await api.updateTemplateItem(dossierId, loan.linked_item.id, { value: loan.monthly_payment });
+      await load();
+    } catch (err) {
+      setPlanError(err.message);
     }
   }
 
@@ -146,7 +199,9 @@ export default function LoanDetail() {
   // Scenarios work identically for a draft's (principal, term_months) as for an active
   // loan's (remaining_balance, months_left) — a study you haven't signed yet is just as
   // worth fine-tuning as a real one, so both statuses get the same what-if tools.
-  const simBalance = isActive ? loan.remaining_balance : loan.principal;
+  // The live balance, not the dated anchor the user typed — otherwise every what-if below
+  // would run against a figure that could be many months stale.
+  const simBalance = isActive ? (loan.current_balance ?? loan.remaining_balance) : loan.principal;
   const simMonthsLeft = isActive ? loan.months_left : loan.term_months;
 
   const downpaymentValue = parseDecimalInput(downpayment);
@@ -175,12 +230,35 @@ export default function LoanDetail() {
       ? scenarioRateChange(simBalance, loan.interest_rate, simMonthsLeft, newInterestRateValue)
       : null;
 
-  // Amortization schedule — how each future payment splits into interest vs. principal —
-  // only makes sense for active loans, since it walks forward from a real remaining_balance.
-  const amortizationYears =
-    isActive && loan.remaining_balance > 0 && loan.months_left > 0
-      ? groupScheduleByYear(computeAmortizationSchedule(loan.remaining_balance, loan.interest_rate, loan.months_left, loan.monthly_payment, loan.day_of_payment))
+  // Payment plan — every scheduled payment from the anchor month through payoff, split
+  // into interest vs. principal. Active loans only: a draft has no real balance to walk
+  // forward from. An anchored loan's plan starts at balance_as_of, so it covers the months
+  // already paid too; an unanchored one starts at the first still-owed month, as before.
+  const planStart = isActive
+    ? (loan.balance_as_of
+        ? { year: Number(loan.balance_as_of.split('-')[0]), month: Number(loan.balance_as_of.split('-')[1]) }
+        : effectiveCurrentPeriod(loan.day_of_payment))
+    : null;
+  const planLength = isActive ? (loan.term_from_anchor ?? loan.months_left) : 0;
+  const paymentsMade = loan.payments_made ?? 0;
+
+  const statusByPeriod = {};
+  for (const p of paymentStatus?.periods ?? []) statusByPeriod[p.period] = p;
+
+  const planRows =
+    isActive && loan.remaining_balance > 0 && planLength > 0
+      ? computeAmortizationSchedule(
+          loan.remaining_balance, loan.interest_rate, planLength, loan.monthly_payment, planStart
+        ).map((row, i) => ({
+          ...row,
+          ...(statusByPeriod[row.period] ?? { paid: null, cycle_id: null, item_id: null, cycle_is_closed: null }),
+          isPast: i < paymentsMade,
+          isCurrent: i === paymentsMade,
+        }))
       : null;
+  const planYears = planRows ? groupScheduleByYear(planRows) : null;
+  const currentPeriod = planRows?.find((r) => r.isCurrent)?.period ?? null;
+  const isTracked = paymentStatus?.tracking === 'linked';
 
   return (
     <div>
@@ -209,7 +287,21 @@ export default function LoanDetail() {
       {loan.is_matured && (
         <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
           <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.4rem' }} />
-          This loan's end date has passed with no payments left, but it's still marked active. Edit it to update the remaining balance and end date, or demote/delete it if it's been paid off.
+          This loan's end date has passed with no payments left, but it's still marked active. If it's been paid
+          off, delete it or demote it to a draft; if it hasn't, edit it to enter the balance still owed and a new end date.
+        </div>
+      )}
+
+      {/* An active loan with no monthly expense assigned still computes correctly — it just
+          has nowhere to record payments against, and isn't budgeted anywhere either. */}
+      {isActive && !loan.linked_item && (
+        <div className="alert alert-warning" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, minWidth: 220 }}>
+            <FontAwesomeIcon icon={faLinkSlash} style={{ marginRight: '0.4rem' }} />
+            No monthly expense is assigned to this loan, so its payments aren't being tracked and it isn't budgeted
+            in your monthly template.
+          </span>
+          <button className="btn-secondary" onClick={() => setShowEdit(true)}>Assign an expense</button>
         </div>
       )}
 
@@ -241,6 +333,12 @@ export default function LoanDetail() {
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-danger-text)' }}>{formatEur(loan.remaining_interest)}</div>
             </div>
           )}
+          {isActive && loan.current_balance != null && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Balance left</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{formatEur(loan.current_balance)}</div>
+            </div>
+          )}
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Monthly payment</div>
             <div style={{ fontSize: 26, fontWeight: 700 }}>{formatEur(loan.monthly_payment)}</div>
@@ -266,7 +364,31 @@ export default function LoanDetail() {
             {isActive && loan.principal != null && (
               <StatRow label="Original principal" value={formatEur(loan.principal)} />
             )}
-            <StatRow label={isActive ? 'Remaining balance' : 'Principal'} value={formatEur(isActive ? loan.remaining_balance : loan.principal)} />
+            {!isActive && <StatRow label="Principal" value={formatEur(loan.principal)} />}
+            {isActive && (
+              <>
+                {/* The projected figure is the one that answers "what do I owe?"; the dated
+                    anchor underneath is what it was projected from, and how stale that is. */}
+                <StatRow label="Remaining balance" value={formatEur(loan.current_balance)} />
+                {loan.balance_as_of && (
+                  <StatRow
+                    label="Balance entered"
+                    value={`${formatEur(loan.remaining_balance)} as of ${formatEndDate(loan.balance_as_of)}`}
+                    valueStyle={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: 12.5 }}
+                  />
+                )}
+                {loan.term_from_anchor != null && (
+                  <StatRow label="Payments made" value={`${loan.payments_made} of ${loan.term_from_anchor}`} />
+                )}
+                {!loan.balance_as_of && (
+                  <StatRow
+                    label="Balance date"
+                    value="Not anchored — edit to set one"
+                    valueStyle={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: 12.5 }}
+                  />
+                )}
+              </>
+            )}
             {isActive && <StatRow label="End date" value={formatEndDate(loan.end_date)} />}
             {isActive && <StatRow label="Day of payment" value={loan.day_of_payment != null ? String(loan.day_of_payment) : '—'} />}
             <StatRow label={isActive ? 'Months left' : 'Term (months)'} value={formatMonthsWithYears(isActive ? loan.months_left : loan.term_months)} />
@@ -435,11 +557,22 @@ export default function LoanDetail() {
                       <StatRow label="Loan payment" value={formatEur(loan.monthly_payment)} />
                       <StatRow label={`Budgeted (${loan.linked_item.name})`} value={formatEur(loan.linked_item.value)} />
                       {!loan.covered && (
-                        <StatRow
-                          label="Difference"
-                          value={formatEur(loan.coverage_difference)}
-                          valueStyle={{ color: 'var(--color-danger-text)' }}
-                        />
+                        <>
+                          <StatRow
+                            label="Difference"
+                            value={formatEur(loan.coverage_difference)}
+                            valueStyle={{ color: 'var(--color-danger-text)' }}
+                          />
+                          {/* One-click realignment: the budgeted amount most often falls
+                              behind after a rate change or a re-anchor moved the payment. */}
+                          <button
+                            className="btn-secondary"
+                            style={{ marginTop: 'var(--space-3)', width: '100%' }}
+                            onClick={handleSyncBudget}
+                          >
+                            Update budgeted amount to {formatEur(loan.monthly_payment)}
+                          </button>
+                        </>
                       )}
                     </>
                   )}
@@ -450,17 +583,36 @@ export default function LoanDetail() {
         );
       })()}
 
-      {amortizationYears && amortizationYears.length > 0 && (
+      {planYears && planYears.length > 0 && (
         <CollapsibleSection
-          title="Amortization schedule"
+          title="Payment plan"
           icon={faTable}
           accent="var(--text-muted)"
           collapsed={scheduleCollapsed}
           onToggle={() => setScheduleCollapsed((v) => !v)}
         >
           <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-            How each future payment splits between interest and principal, grouped by year — click a year to see its individual months.
+            Every payment from {formatEndDate(loan.balance_as_of)} to payoff, split between interest and principal
+            and grouped by year — click a year to see its individual months.
+            {isTracked
+              ? ' Tick a month to mark it paid; that ticks the same box on the linked expense inside its cycle.'
+              : ' Link a monthly expense to this loan to tick payments off here.'}
           </p>
+
+          {planError && <div className="alert alert-warning" style={{ marginBottom: '0.5rem' }}>{planError}</div>}
+          {paymentStatus?.shared_with?.length > 0 && (
+            <div className="alert alert-warning" style={{ marginBottom: '0.5rem', fontSize: 12.5 }}>
+              <FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: '0.4rem' }} />
+              {paymentStatus.linked_item.name} also funds {paymentStatus.shared_with.join(', ')}, so its paid flag is
+              shared between those loans.
+            </div>
+          )}
+
+          {/* Five columns (six with the Paid box) don't fit a phone: scroll the whole plan
+              as one block so the year rows and their month tables stay column-aligned,
+              rather than letting either clip at the card edge. */}
+          <div style={{ overflowX: 'auto' }}>
+          <div style={{ minWidth: 460 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.35rem 0', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', borderBottom: '1px solid var(--border-default)' }}>
             <span style={{ width: 14 }} />
             <span style={{ flex: 1 }}>Year</span>
@@ -468,7 +620,7 @@ export default function LoanDetail() {
             <span style={{ flex: 1, textAlign: 'right' }}>Principal</span>
             <span style={{ flex: 1, textAlign: 'right' }}>Balance</span>
           </div>
-          {amortizationYears.map((y) => {
+          {planYears.map((y) => {
             const expanded = expandedYears.has(y.year);
             return (
               <div key={y.year} style={{ borderBottom: '1px solid var(--border-default)' }}>
@@ -477,7 +629,14 @@ export default function LoanDetail() {
                   onClick={() => toggleYear(y.year)}
                 >
                   <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} style={{ fontSize: 11, color: 'var(--text-muted)', width: 14 }} />
-                  <span style={{ flex: 1, fontWeight: 600 }}>{y.year}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    {y.year}
+                    {y.trackedCount > 0 && (
+                      <span className={`badge badge-${y.paidCount === y.trackedCount ? 'success' : 'neutral'}`} style={{ fontSize: 10, whiteSpace: 'nowrap' }}>
+                        {y.paidCount}/{y.trackedCount} paid
+                      </span>
+                    )}
+                  </span>
                   <span style={{ flex: 1, textAlign: 'right', color: 'var(--color-danger-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(y.interest)}</span>
                   <span style={{ flex: 1, textAlign: 'right', color: 'var(--color-success-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(y.principal)}</span>
                   <span style={{ flex: 1, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatEur(y.endBalance)}</span>
@@ -488,6 +647,7 @@ export default function LoanDetail() {
                       <thead>
                         <tr style={{ color: 'var(--text-muted)' }}>
                           <th style={{ textAlign: 'left', fontWeight: 500, padding: '2px 6px' }}>Month</th>
+                          {isTracked && <th style={{ textAlign: 'left', fontWeight: 500, padding: '2px 6px', width: 34 }}>Paid</th>}
                           <th style={{ textAlign: 'right', fontWeight: 500, padding: '2px 6px' }}>Interest</th>
                           <th style={{ textAlign: 'right', fontWeight: 500, padding: '2px 6px' }}>Principal</th>
                           <th style={{ textAlign: 'right', fontWeight: 500, padding: '2px 6px' }}>Balance</th>
@@ -495,8 +655,40 @@ export default function LoanDetail() {
                       </thead>
                       <tbody>
                         {y.months.map((m) => (
-                          <tr key={`${m.year}-${m.month}`}>
-                            <td style={{ padding: '2px 6px' }}>{MONTH_NAMES[m.month - 1]}</td>
+                          <tr
+                            key={m.period}
+                            style={{
+                              // The current period is the one row worth finding at a glance.
+                              background: m.isCurrent ? 'var(--color-brand-light)' : undefined,
+                              opacity: m.paid ? 0.55 : 1,
+                            }}
+                          >
+                            <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                              {MONTH_NAMES[m.month - 1]}
+                              {m.isCurrent && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--color-brand)', fontWeight: 700 }}>NOW</span>}
+                            </td>
+                            {isTracked && (
+                              <td style={{ padding: '2px 6px' }}>
+                                {m.item_id ? (
+                                  <Checkbox
+                                    checked={!!m.paid}
+                                    disabled={m.cycle_is_closed || togglingPeriod === m.period}
+                                    onChange={() => handleTogglePaid(m)}
+                                    title={m.cycle_is_closed ? 'That cycle is closed — reopen it in Monthly Expenses to change this' : undefined}
+                                  />
+                                ) : (
+                                  // paid === null: no cycle covers this month, or that cycle
+                                  // has no matching expense item. Unknown, not unpaid — so it
+                                  // must not render as an empty (red-adjacent) checkbox.
+                                  <span
+                                    style={{ color: 'var(--text-muted)' }}
+                                    title={m.isPast || m.isCurrent ? 'No cycle covers this month, so it can\'t be ticked here' : 'Not due yet'}
+                                  >
+                                    —
+                                  </span>
+                                )}
+                              </td>
+                            )}
                             <td style={{ padding: '2px 6px', textAlign: 'right', color: 'var(--color-danger-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.interest)}</td>
                             <td style={{ padding: '2px 6px', textAlign: 'right', color: 'var(--color-success-text)', fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.principal)}</td>
                             <td style={{ padding: '2px 6px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.balance)}</td>
@@ -509,6 +701,8 @@ export default function LoanDetail() {
               </div>
             );
           })}
+          </div>
+          </div>
         </CollapsibleSection>
       )}
 

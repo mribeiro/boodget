@@ -16,6 +16,17 @@ const subscriptionsRouter = require('./subscriptions');
 
 const ALLOWED_AI_MODELS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5'];
 
+// Anchor month for an active loan imported from a pre-v15 export (which carried no
+// balance_as_of). Mirrors migration 041's backfill: the effective current period, unless
+// that lands past the end date, in which case there's no plan to anchor.
+function defaultLoanAnchor(endDate, dayOfPayment) {
+  if (!endDate) return null;
+  const { year, month } = loansRouter.effectiveCurrentPeriod(dayOfPayment ?? null);
+  const [endYear, endMonth] = String(endDate).split('-').map(Number);
+  if ((endYear * 12 + endMonth) - (year * 12 + month) + 1 < 1) return null;
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
 
@@ -50,7 +61,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -320,12 +331,17 @@ router.post('/import', (req, res) => {
 
     // Loans (v10+) — re-linked to the new Fixed expense template item by name, active only
     const insertLoan = db.prepare(
-      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, day_of_payment, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO loans (id, dossier_id, name, status, interest_rate, salary, principal, term_months, remaining_balance, end_date, day_of_payment, balance_as_of, expense_template_item_id, created_at, down_payment, taeg, opening_fee)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const l of (data.loans || [])) {
       const linkedItemId = l.status === 'active' && l.linked_expense_name ? (expenseTemplateNameToId[l.linked_expense_name] ?? null) : null;
       const isDraft = l.status !== 'active';
+      // balance_as_of (v15+). Older exports carry an undated balance, which under the
+      // pre-anchor rules meant "what's owed right now" — so anchor it at the effective
+      // current period, exactly as migration 041 does for a pre-anchor database. An old
+      // export and an old DB therefore land in the same state instead of diverging.
+      const balanceAsOf = isDraft ? null : (l.balance_as_of ?? defaultLoanAnchor(l.end_date, l.day_of_payment));
       insertLoan.run(
         uuidv4(),
         dossierId,
@@ -338,6 +354,7 @@ router.post('/import', (req, res) => {
         l.remaining_balance ?? null,
         isDraft ? null : (l.end_date ?? null),
         isDraft ? null : (l.day_of_payment ?? null),
+        balanceAsOf,
         linkedItemId,
         l.created_at || null,
         l.down_payment ?? null,
@@ -578,7 +595,7 @@ router.get('/:id/export', (req, res) => {
 
   const loansExport = db
     .prepare(
-      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.day_of_payment, l.created_at, l.down_payment, l.taeg, l.opening_fee,
+      `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.day_of_payment, l.balance_as_of, l.created_at, l.down_payment, l.taeg, l.opening_fee,
               eti.name as linked_expense_name
        FROM loans l
        LEFT JOIN expense_template_items eti ON eti.id = l.expense_template_item_id
@@ -599,7 +616,7 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 14,
+    version: 15,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
