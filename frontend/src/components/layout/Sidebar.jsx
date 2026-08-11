@@ -40,6 +40,11 @@ function isInDossierPath(pathname) {
   return /^\/dossiers\/[^/]+/.test(pathname);
 }
 
+// Swipe-to-close starts on the open drawer itself, not the screen edge, so
+// it never competes with the browser's native edge-swipe-back gesture.
+const SWIPE_CLOSE_THRESHOLD_PX = 60;
+const MAX_VERTICAL_DRIFT_PX = 50;
+
 export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChange }) {
   const { user } = useContext(AuthContext);
   const { currentDossier, activeTab, setActiveTab } = useContext(AppContext);
@@ -49,6 +54,7 @@ export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChan
   const [dossiers, setDossiers] = useState([]);
   const [dossierMenuOpen, setDossierMenuOpen] = useState(false);
   const dossierMenuRef = useRef(null);
+  const swipeCloseRef = useRef(null);
 
   const inDossier = isInDossierPath(location.pathname) && !!currentDossier;
   const aiEnabled = currentDossier ? currentDossier.ai_enabled !== 0 : true;
@@ -100,6 +106,31 @@ export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChan
     if (mobileOpen) onClose();
   }
 
+  function handleSwipeCloseStart(e) {
+    if (!mobileOpen) return;
+    const touch = e.touches[0];
+    swipeCloseRef.current = { startX: touch.clientX, startY: touch.clientY };
+  }
+
+  function handleSwipeCloseMove(e) {
+    if (!swipeCloseRef.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - swipeCloseRef.current.startX;
+    const dy = touch.clientY - swipeCloseRef.current.startY;
+    if (Math.abs(dy) > MAX_VERTICAL_DRIFT_PX) {
+      swipeCloseRef.current = null;
+      return;
+    }
+    if (dx < -SWIPE_CLOSE_THRESHOLD_PX) {
+      onClose();
+      swipeCloseRef.current = null;
+    }
+  }
+
+  function handleSwipeCloseEnd() {
+    swipeCloseRef.current = null;
+  }
+
   const sidebarClass = [
     'sidebar',
     collapsed ? 'collapsed' : '',
@@ -107,7 +138,12 @@ export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChan
   ].filter(Boolean).join(' ');
 
   return (
-    <aside className={sidebarClass}>
+    <aside
+      className={sidebarClass}
+      onTouchStart={handleSwipeCloseStart}
+      onTouchMove={handleSwipeCloseMove}
+      onTouchEnd={handleSwipeCloseEnd}
+    >
       {/* Logo */}
       <div className="sidebar-logo">
         <img

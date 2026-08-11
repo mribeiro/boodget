@@ -413,6 +413,10 @@ Below **768 px**:
 - The Navbar on mobile shows: hamburger (opens a full-screen drawer with the remaining items: Settings, Users, theme toggle, dossier selector) + page title + optional action button (⋮ context menu, used where needed).
 - Page body `padding-bottom: 72px` on mobile to avoid content hiding behind the bottom nav.
 
+**As actually implemented** (`AppShell.jsx`/`Sidebar.jsx`), this bottom-nav-bar description was never built — mobile instead reuses the same `Sidebar` component as an overlay drawer (`.sidebar.mobile-open`, opened via the hamburger or a swipe gesture, closed via the overlay backdrop, a swipe gesture, or the tap that navigated). Two touch gestures complement the hamburger button:
+- **Swipe-to-open**: an edge swipe (touch starting within 24px of the left screen edge, dragging right past 60px, ≤50px of vertical drift) opens the drawer — but **only** when `window.matchMedia('(display-mode: standalone)').matches` (or `navigator.standalone` on iOS), i.e. only in an installed PWA. In an ordinary mobile browser tab this is a no-op, since an edge-swipe listener there would fight the browser's own native edge-swipe-back navigation gesture; the hamburger button remains the only opener there.
+- **Swipe-to-close**: a swipe starting anywhere on the already-open drawer, dragging left past 60px (same vertical-drift tolerance), closes it. This is safe in both standalone and regular-browser contexts, since it doesn't start at the screen edge and so never competes with swipe-back.
+
 -----
 
 ## 6. Base Components
