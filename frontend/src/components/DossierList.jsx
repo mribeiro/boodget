@@ -17,13 +17,15 @@ export default function DossierList() {
 
   useEffect(() => {
     const isExplicit = location.state?.explicit;
-    if (isExplicit) {
+    const openCreate = location.state?.openCreate === true;
+    if (isExplicit || openCreate) {
       window.history.replaceState({}, document.title);
     }
+    if (openCreate) setShowForm(true);
     api
       .getDossiers()
       .then((data) => {
-        if (data.length === 1 && !isExplicit) {
+        if (data.length === 1 && !isExplicit && !openCreate) {
           navigate(`/dossiers/${data[0].id}`, { replace: true, state: { autoOpened: true } });
           return;
         }

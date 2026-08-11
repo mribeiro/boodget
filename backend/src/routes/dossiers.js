@@ -17,7 +17,7 @@ const subscriptionsRouter = require('./subscriptions');
 const ALLOWED_AI_MODELS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5'];
 
 // Anchor month for an active loan imported from a pre-v15 export (which carried no
-// balance_as_of). Mirrors migration 041's backfill: the effective current period, unless
+// balance_as_of). Mirrors migration 042's backfill: the effective current period, unless
 // that lands past the end date, in which case there's no plan to anchor.
 function defaultLoanAnchor(endDate, dayOfPayment) {
   if (!endDate) return null;
@@ -339,7 +339,7 @@ router.post('/import', (req, res) => {
       const isDraft = l.status !== 'active';
       // balance_as_of (v15+). Older exports carry an undated balance, which under the
       // pre-anchor rules meant "what's owed right now" — so anchor it at the effective
-      // current period, exactly as migration 041 does for a pre-anchor database. An old
+      // current period, exactly as migration 042 does for a pre-anchor database. An old
       // export and an old DB therefore land in the same state instead of diverging.
       const balanceAsOf = isDraft ? null : (l.balance_as_of ?? defaultLoanAnchor(l.end_date, l.day_of_payment));
       insertLoan.run(

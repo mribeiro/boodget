@@ -894,7 +894,16 @@ const migrations = [
     },
   },
   {
-    id: '041_add_balance_as_of_to_loans',
+    id: '041_add_avatar_to_users',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(users)').all();
+      if (!cols.find((c) => c.name === 'avatar')) {
+        db.exec('ALTER TABLE users ADD COLUMN avatar TEXT');
+      }
+    },
+  },
+  {
+    id: '042_add_balance_as_of_to_loans',
     up() {
       const cols = db.prepare('PRAGMA table_info(loans)').all();
       if (!cols.find((c) => c.name === 'balance_as_of')) {

@@ -274,17 +274,10 @@ body:has(.modal-overlay) {
   flex-shrink: 0;
 }
 
-.sidebar-logo-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #38bdf8, #6366f1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 700;
+.sidebar-logo-img {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -321,16 +314,94 @@ body:has(.modal-overlay) {
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  background: transparent;
-  border: none;
-  padding: var(--space-1) 0;
+  background: var(--sidebar-bg-hover);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
   cursor: pointer;
   color: var(--sidebar-text-active);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.sidebar-dossier-btn:hover {
+  background: var(--sidebar-bg-active);
+  border-color: var(--border-strong);
+}
+
+.sidebar-dossier-btn-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-dossier-chevron {
+  font-size: 11px;
+  color: var(--sidebar-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-dossier-wrap {
+  position: relative;
+}
+
+.sidebar-dossier-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-dropdown);
+  overflow: hidden;
+  padding: var(--space-1);
+}
+
+.sidebar-dossier-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.sidebar-dossier-option:hover {
+  background: var(--bg-table-row-hover);
+}
+
+.sidebar-dossier-option.active {
+  color: var(--color-brand);
+  font-weight: 600;
+}
+
+.sidebar-dossier-check {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.sidebar-dossier-divider {
+  border: none;
+  border-top: 1px solid var(--border-default);
+  margin: var(--space-1) 0;
+}
+
+.sidebar-dossier-create {
+  color: var(--color-brand);
 }
 
 .sidebar.collapsed .sidebar-dossier {
@@ -342,6 +413,12 @@ body:has(.modal-overlay) {
   padding: var(--space-2) 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.sidebar-nav-bottom {
+  flex-shrink: 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--sidebar-border);
 }
 
 .sidebar-nav hr {
@@ -562,11 +639,19 @@ body:has(.modal-overlay) {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  padding: 0;
   transition: opacity var(--transition-fast);
 }
 
 .user-avatar-btn:hover {
   opacity: 0.88;
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-dropdown {
@@ -613,6 +698,51 @@ body:has(.modal-overlay) {
   border: none;
   border-top: 1px solid var(--border-default);
   margin: 2px 0;
+}
+
+/* Profile picture upload */
+.avatar-upload-preview {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: var(--radius-full);
+  border: none;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-upload-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-upload-preview-initials {
+  color: #fff;
+  font-size: 48px;
+  font-weight: 700;
+}
+
+.avatar-upload-preview-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 24px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.avatar-upload-preview:hover .avatar-upload-preview-overlay {
+  opacity: 1;
 }
 
 /* ── Page body ───────────────────────────────────────────── */
@@ -1213,49 +1343,6 @@ select option {
 
 .annual-schedule-row.annual-schedule-head .expected {
   text-align: right;
-}
-
-/* ── Tabs ────────────────────────────────────────────────── */
-
-.tabs {
-  display: flex;
-  border-bottom: 1px solid var(--border-default);
-  margin-bottom: var(--space-5);
-  gap: 0;
-}
-
-.tab-btn {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  padding: 10px var(--space-4);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 0;
-  transition: color var(--transition-fast), border-color var(--transition-fast),
-              background var(--transition-fast);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.tab-btn.active {
-  color: var(--color-brand);
-  border-bottom-color: var(--color-brand);
-}
-
-.tab-btn:hover:not(:disabled):not(.active) {
-  color: var(--text-primary);
-  background: var(--bg-table-row-hover);
-}
-
-.tab-btn-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
 }
 
 .coming-soon-badge {
@@ -2387,35 +2474,6 @@ tr:hover td {
 
   .page-body {
     padding: var(--space-4);
-  }
-
-  /* Dossier tab bar: icon-only on mobile so all 5 tabs fit without scrolling */
-  .tabs--dossier {
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    flex-wrap: nowrap;
-  }
-
-  .tabs--dossier::-webkit-scrollbar {
-    display: none;
-  }
-
-  .tabs--dossier .tab-btn {
-    flex-shrink: 0;
-    flex: 1;
-    justify-content: center;
-    padding: 10px var(--space-2);
-  }
-
-  .tabs--dossier .tab-btn-label {
-    display: none;
-  }
-
-  .tabs--dossier .tab-btn-icon {
-    width: 18px;
-    height: 18px;
   }
 
   .modal {

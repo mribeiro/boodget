@@ -2,19 +2,9 @@ import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faChartLine,
-  faCalendarDays,
-  faCalendarCheck,
-  faScaleBalanced,
-  faBullseye,
-  faHandHoldingDollar,
-  faShieldHalved,
-  faWandMagicSparkles,
-  faGear,
   faArrowLeft,
   faCalendarPlus,
   faXmark,
-  faArrowsRotate,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext, AppContext } from '../App';
@@ -58,12 +48,11 @@ export default function DossierView() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useContext(AuthContext);
-  const { setCurrentDossier } = useContext(AppContext);
+  const { setCurrentDossier, activeTab, setActiveTab } = useContext(AppContext);
   const autoOpened = location.state?.autoOpened === true;
 
   const [dossier, setDossier] = useState(null);
   const [months, setMonths] = useState([]);
-  const [activeTab, setActiveTab] = useState(location.state?.tab ?? 'capital');
   const [showAddMonth, setShowAddMonth] = useState(false);
   const [compareView, setCompareView] = useState(false);
   const [error, setError] = useState('');
@@ -76,6 +65,11 @@ export default function DossierView() {
         setCurrentDossier(d);
       })
       .catch(() => setError('Failed to load dossier'));
+  }, [id]);
+
+  useEffect(() => {
+    setActiveTab(location.state?.tab ?? 'capital');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const aiEnabled = dossier ? dossier.ai_enabled !== 0 : true;
@@ -130,30 +124,6 @@ export default function DossierView() {
         months={months}
         onNavigate={setActiveTab}
       />
-
-      <div className="tabs tabs--dossier">
-        {[
-          { key: 'capital',          icon: faChartLine,     label: 'Capital' },
-          { key: 'expenses',         icon: faCalendarDays,  label: 'Monthly Expenses' },
-          { key: 'annual-expenses',  icon: faCalendarCheck, label: 'Annual Expenses' },
-          { key: 'workbench',        icon: faScaleBalanced, label: 'Workbench' },
-          { key: 'goals',            icon: faBullseye,      label: 'Goals' },
-          { key: 'loans',            icon: faHandHoldingDollar, label: 'Loans' },
-          { key: 'subscriptions',    icon: faArrowsRotate,  label: 'Subscriptions' },
-          { key: 'emergency-fund',   icon: faShieldHalved,  label: 'Emergency Fund' },
-          ...(aiEnabled ? [{ key: 'ai-advisor', icon: faWandMagicSparkles, label: 'AI Advisor' }] : []),
-          { key: 'settings',         icon: faGear,          label: 'Settings' },
-        ].map(({ key, icon, label }) => (
-          <button
-            key={key}
-            className={`tab-btn${activeTab === key ? ' active' : ''}`}
-            onClick={() => setActiveTab(key)}
-          >
-            <FontAwesomeIcon icon={icon} className="tab-btn-icon" />
-            <span className="tab-btn-label">{label}</span>
-          </button>
-        ))}
-      </div>
 
       <div key={activeTab} className="tab-content">
       {activeTab === 'capital' && (

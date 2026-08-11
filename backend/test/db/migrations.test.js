@@ -5,8 +5,8 @@ const { computeLoanValues, effectiveCurrentPeriod } = require('../../src/routes/
 // A fresh test database already has every migration applied, so a backfill's behaviour is
 // otherwise unreachable: these tests hand-build the pre-migration state (a NULL anchor) and
 // re-run the migration's up(), which is idempotent by design.
-describe('041_add_balance_as_of_to_loans', () => {
-  const migration = migrations.find((m) => m.id === '041_add_balance_as_of_to_loans');
+describe('042_add_balance_as_of_to_loans', () => {
+  const migration = migrations.find((m) => m.id === '042_add_balance_as_of_to_loans');
 
   function activeLoanWithNoAnchor(overrides = {}) {
     const user = createUser(db);
@@ -19,9 +19,11 @@ describe('041_add_balance_as_of_to_loans', () => {
     return { dossier, loan };
   }
 
-  it('exists and is the latest migration', () => {
+  it('is registered in the migrations list', () => {
+    // Deliberately not asserting it's *last*: any migration merged in alongside this one
+    // would break that with nothing actually wrong (which is exactly what happened when
+    // 041_add_avatar_to_users landed on main first). Existence is the part that matters.
     expect(migration).toBeDefined();
-    expect(migrations[migrations.length - 1].id).toBe('041_add_balance_as_of_to_loans');
   });
 
   it('backfills an active loan with its own effective current period', () => {
