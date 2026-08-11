@@ -142,7 +142,7 @@ describe('export/import — weekend adjustment round-trip', () => {
 
     const exportRes = await agent.get(`/api/dossiers/${dossier.id}/export`);
     expect(exportRes.status).toBe(200);
-    expect(exportRes.body.version).toBe(14);
+    expect(exportRes.body.version).toBe(15);
     expect(exportRes.body.dossier.cycle_start_weekend_adjustment).toBe('next_monday');
     expect(exportRes.body.cycles[0].actual_start_date).toBe('2026-11-02');
 

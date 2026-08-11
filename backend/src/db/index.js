@@ -902,6 +902,54 @@ const migrations = [
       }
     },
   },
+  {
+    id: '042_add_balance_as_of_to_loans',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(loans)').all();
+      if (!cols.find((c) => c.name === 'balance_as_of')) {
+        db.exec('ALTER TABLE loans ADD COLUMN balance_as_of TEXT');
+      }
+
+      // Backfill: before this column existed, remaining_balance meant "what's owed right
+      // now", so anchoring it at each loan's own effective current period is exactly what
+      // the old code assumed. That makes this a visual no-op at deploy — every loan's
+      // monthly_payment reads identically the moment this lands, and only stops climbing
+      // from the following month onward. Best-effort in the same sense as 039's cycle
+      // backfill: the month each balance was *actually* accurate as of was never recorded,
+      // so "as of now" is the honest assumption, and the user can re-anchor from the form.
+      //
+      // The date math is inlined rather than imported from routes/loans: requiring a route
+      // module here would be circular (routes/loans → ../db), and a migration must never
+      // depend on a live helper whose meaning can change later and retroactively rewrite
+      // recorded history. Same reasoning as 039's inline copy.
+      const rows = db
+        .prepare(
+          `SELECT id, end_date, day_of_payment FROM loans
+           WHERE status = 'active' AND end_date IS NOT NULL AND balance_as_of IS NULL
+             AND remaining_balance > 0`
+        )
+        .all();
+      const update = db.prepare('UPDATE loans SET balance_as_of = ? WHERE id = ?');
+      const now = new Date();
+      for (const loan of rows) {
+        let year = now.getUTCFullYear();
+        let month = now.getUTCMonth() + 1;
+        if (loan.day_of_payment != null) {
+          const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+          if (now.getUTCDate() >= Math.min(loan.day_of_payment, lastDay)) {
+            month += 1;
+            if (month > 12) { month = 1; year += 1; }
+          }
+        }
+        // An anchor past the end date leaves nothing to schedule — an already-matured loan
+        // has no plan to anchor, so leave it NULL and let the read path stay on the legacy
+        // branch until the user fixes the loan up.
+        const [endYear, endMonth] = loan.end_date.split('-').map(Number);
+        if ((endYear * 12 + endMonth) - (year * 12 + month) + 1 < 1) continue;
+        update.run(`${year}-${String(month).padStart(2, '0')}`, loan.id);
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
@@ -952,4 +1000,7 @@ const sessionCleanupTimer = setInterval(() => {
 // Don't let this timer keep the process (or a test runner) alive.
 sessionCleanupTimer.unref();
 
-module.exports = { db, SQLiteSessionStore };
+// `migrations` is exported so individual migrations can be unit-tested against a
+// hand-built pre-migration state — a fresh test DB has every migration already applied,
+// so a backfill's behaviour is otherwise unreachable from a test.
+module.exports = { db, SQLiteSessionStore, migrations };

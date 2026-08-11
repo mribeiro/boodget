@@ -223,8 +223,9 @@ function buildDossierContext(dossierId) {
   const efStatus = computeEmergencyFundStatus(dossierId);
   delete efStatus.contributing_accounts;
 
-  // Loans — draft (what-if studies) and active (real, ongoing). Amortization schedules are
-  // not included (they're client-side-only and can span hundreds of rows for long terms).
+  // Loans — draft (what-if studies) and active (real, ongoing). Payment plans and their
+  // per-period paid status are not included (the plan is client-side-only and can span
+  // hundreds of rows for long terms); `payments_made` summarizes the progress instead.
   const loanRows = db.prepare('SELECT * FROM loans WHERE dossier_id = ? ORDER BY created_at ASC').all(dossierId);
   const loans = loanRows.map((loan) => {
     const computed = computeLoanValues(loan, dossierId);
@@ -236,7 +237,18 @@ function buildDossierContext(dossierId) {
       salary_pct: computed.salary_pct,
       ...(loan.status === 'draft'
         ? { principal: loan.principal, term_months: loan.term_months }
-        : { remaining_balance: loan.remaining_balance, months_left: computed.months_left, is_matured: computed.is_matured }),
+        : {
+            // current_balance is the live figure; loan.remaining_balance is a *dated*
+            // anchor (balance_as_of) and can be many months stale, so it deliberately
+            // isn't sent — reading it as today's debt would overstate what's owed.
+            current_balance: computed.current_balance,
+            balance_as_of: loan.balance_as_of,
+            months_left: computed.months_left,
+            payments_made: computed.payments_made,
+            term_from_anchor: computed.term_from_anchor,
+            payments_tracked: !!computed.linked_item,
+            is_matured: computed.is_matured,
+          }),
       purchase_price: computed.purchase_price,
       total_interest: computed.total_interest,
       total_amount_payable: computed.total_amount_payable,
@@ -463,7 +475,7 @@ Produce a rigorous but encouraging analysis:
 - highlights: 3-6 notable strengths or positive facts, each with a short title and a specific detail referencing actual numbers.
 - improvements: 2-6 concrete, actionable suggestions, each with a short title and a specific detail.
 - risks: 0-4 risks or warning signs worth watching (empty array if none).
-The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities. An active loan with is_matured true has passed its end date without being closed out or updated — its monthly_payment shows as 0, but the debt itself likely isn't actually gone; flag this as a risk prompting the user to review/update the loan rather than reading it as fully repaid.
+The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities. For an active loan, current_balance is the live figure, projected forward from a balance the user dated at balance_as_of — the older that anchor and the higher payments_made, the more the projection can have drifted from reality, so treat a long-stale anchor as worth re-checking rather than as fact. An active loan with payments_tracked false has no monthly expense assigned, so its payment isn't budgeted anywhere in the monthly template — flag that as a gap. An active loan with is_matured true has passed its end date without being closed out or updated — its current_balance projects down to 0, but the debt itself likely isn't actually gone; flag this as a risk prompting the user to review/update the loan rather than reading it as fully repaid.
 annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check whether a year's budgeted total looks right, and to factor upcoming recurring costs into repayment/savings capacity even if the current year hasn't budgeted for them yet.
 workbench holds ephemeral scenario snapshots (what-if plans the user built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as the user's own targets or plans, useful for comparing against what's actually happening in recent_cycles (e.g. flag a plan that's structurally unaffordable, i.e. a strongly negative leftover, or note if actual spending has drifted far from a stated plan).
 subscriptions are active recurring discretionary costs (e.g. streaming, software) the user deliberately funds from a distribution rather than the monthly expense template — when a subscription's linked_distribution is set, compare that distribution's total linked subscriptions against the distribution's own budgeted value (from expense_template.distributions) and flag it as a risk if the subscriptions exceed it.
@@ -475,7 +487,7 @@ The dossier data follows:
 
 const CHAT_SYSTEM_INTRO = `You are a personal-finance advisor inside the "boodget" capital-tracking app, chatting with the owner of the financial dossier below.
 Answer questions about this dossier concretely, referencing actual numbers, account names, and months from the data. All amounts are in the dossier's currency.
-The dossier may include loans (draft studies or active, ongoing loans) — draw on their monthly payments, interest rates, budget coverage, and total interest figures when relevant; treat draft loans as hypothetical studies, not commitments. An active loan with is_matured true is past its end date but still marked active — its monthly_payment shows as 0 but the debt likely isn't actually gone, so mention that it needs review rather than treating it as paid off.
+The dossier may include loans (draft studies or active, ongoing loans) — draw on their monthly payments, interest rates, budget coverage, and total interest figures when relevant; treat draft loans as hypothetical studies, not commitments. For active loans, current_balance is projected forward from a balance dated at balance_as_of, so a long-stale anchor is an estimate rather than a statement of fact; payments_tracked false means the loan has no monthly expense assigned and so isn't budgeted anywhere. An active loan with is_matured true is past its end date but still marked active — its current_balance projects down to 0 but the debt likely isn't actually gone, so mention that it needs review rather than treating it as paid off.
 annual_expense_template is the recurring annual-cost baseline annual_expense_years is instantiated from; workbench holds ephemeral what-if planning snapshots (not real transactions) with Must/Want/Save totals already computed — draw on both when relevant, treating workbench figures as the user's own targets/plans rather than actuals.
 subscriptions are active recurring discretionary costs funded from a distribution rather than the monthly expense template — when relevant, compare a distribution's linked subscriptions total against that distribution's budgeted value.
 If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight and factor it into your answers.
@@ -508,7 +520,7 @@ All monetary amounts are in the currency noted in the data. Reply in markdown, f
 - **Title** — specific detail.
 (0-4 risks or warning signs — omit this whole section if there are none)
 
-The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities. An active loan with is_matured true has passed its end date without being closed out or updated — its monthly_payment shows as 0, but the debt itself likely isn't actually gone; flag this as a risk prompting me to review/update the loan rather than reading it as fully repaid.
+The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities. For an active loan, current_balance is the live figure, projected forward from a balance the user dated at balance_as_of — the older that anchor and the higher payments_made, the more the projection can have drifted from reality, so treat a long-stale anchor as worth re-checking rather than as fact. An active loan with payments_tracked false has no monthly expense assigned, so its payment isn't budgeted anywhere in the monthly template — flag that as a gap. An active loan with is_matured true has passed its end date without being closed out or updated — its current_balance projects down to 0, but the debt itself likely isn't actually gone; flag this as a risk prompting me to review/update the loan rather than reading it as fully repaid.
 annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check a year's budgeted total, and factor upcoming recurring costs into repayment/savings capacity even if not yet budgeted for. workbench holds ephemeral scenario snapshots (what-if plans I built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as my own targets or plans, useful for comparing against what's actually happening in recent_cycles.
 subscriptions are active recurring discretionary costs I fund from a distribution rather than the monthly expense template — when a subscription's linked_distribution is set, compare that distribution's total linked subscriptions against the distribution's own budgeted value and flag it if the subscriptions exceed it.
 If dossier.user_notes is present, it's context I wrote myself — give it real weight: use it to explain away a risk or anomaly it addresses, and factor in any goals, constraints, or plans it mentions.

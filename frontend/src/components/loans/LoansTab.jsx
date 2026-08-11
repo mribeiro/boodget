@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faCheck, faTriangleExclamation, faCoins } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faCheck, faTriangleExclamation, faCoins, faLinkSlash } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { formatNumber } from '../../utils/numbers';
 import LoanFormModal from './LoanFormModal';
@@ -16,7 +16,30 @@ function formatEur(value) {
 }
 
 function CoveragePill({ loan }) {
-  if (loan.status !== 'active' || !loan.linked_item) return null;
+  if (loan.status !== 'active') return null;
+  // No linked expense: the loan isn't budgeted anywhere and its payments can't be ticked
+  // off. That's worth surfacing in the list, not just on the detail page.
+  if (!loan.linked_item) {
+    return (
+      <span
+        title="No monthly expense assigned — payments aren't tracked and it isn't budgeted"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.3rem',
+          padding: '2px 10px',
+          borderRadius: 'var(--radius-full)',
+          fontSize: 11,
+          fontWeight: 600,
+          background: 'var(--color-warning-light)',
+          color: 'var(--color-warning-text)',
+          border: '1px solid var(--color-warning-border)',
+        }}
+      >
+        <FontAwesomeIcon icon={faLinkSlash} style={{ fontSize: 9 }} />Not tracked
+      </span>
+    );
+  }
   return (
     <span
       style={{
@@ -83,7 +106,9 @@ export default function LoansTab({ dossierId }) {
 
   const activeLoans = loans.filter((l) => l.status === 'active');
   const totalMonthlyAmount = activeLoans.reduce((sum, l) => sum + (l.monthly_payment || 0), 0);
-  const totalAmountDue = activeLoans.reduce((sum, l) => sum + (l.remaining_balance || 0), 0);
+  // The projected balances, not the dated anchors the user typed — this figure falls on
+  // its own each month as payments come due.
+  const totalAmountDue = activeLoans.reduce((sum, l) => sum + (l.current_balance ?? l.remaining_balance ?? 0), 0);
   const referenceSalary = loans.find((l) => l.reference_salary != null)?.reference_salary ?? null;
   const totalSalaryPct = referenceSalary > 0 ? (totalMonthlyAmount / referenceSalary) * 100 : null;
 

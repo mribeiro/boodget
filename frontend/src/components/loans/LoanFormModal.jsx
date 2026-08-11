@@ -3,7 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
-import { computeMonthlyPayment, computeMonthsLeft } from '../../utils/loanMath';
+import Checkbox from '../ui/Checkbox';
+import { computeMonthlyPayment, computeMonthsLeft, computeTermFromAnchor, effectiveCurrentPeriod } from '../../utils/loanMath';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -44,6 +45,10 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const [endMonth, setEndMonth] = useState(initialEndYM.month);
   const [dayOfPayment, setDayOfPayment] = useState(loan?.day_of_payment != null ? String(loan.day_of_payment) : '');
   const [expenseTemplateItemId, setExpenseTemplateItemId] = useState(loan?.expense_template_item_id ?? '');
+  const initialAnchor = loan?.balance_as_of ? parseYM(loan.balance_as_of) : effectiveCurrentPeriod(loan?.day_of_payment ?? null);
+  const [anchorYear, setAnchorYear] = useState(initialAnchor.year);
+  const [anchorMonth, setAnchorMonth] = useState(initialAnchor.month);
+  const [createExpense, setCreateExpense] = useState(false);
   const [purchasePrice, setPurchasePrice] = useState(loan?.purchase_price != null ? String(loan.purchase_price) : '');
   const [downPayment, setDownPayment] = useState(loan?.down_payment != null ? String(loan.down_payment) : '');
   const [taeg, setTaeg] = useState(loan?.taeg != null ? String(loan.taeg) : '');
@@ -87,9 +92,23 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const parsedDayOfPayment = dayOfPayment === '' ? null : Number(dayOfPayment);
   const previewMonthsLeft = status === 'active' ? computeMonthsLeft(endDate, parsedDayOfPayment) : null;
 
+  // The anchored span (balance_as_of → end_date), which is what the server computes the
+  // stable payment over. Using previewMonthsLeft here instead would make the preview drift
+  // away from the saved figure the moment the anchor sits in the past.
+  const balanceAsOf = `${anchorYear}-${String(anchorMonth).padStart(2, '0')}`;
+  const previewTermFromAnchor = status === 'active' ? computeTermFromAnchor(balanceAsOf, endDate) : null;
+
   const previewPayment = status === 'draft'
     ? computeMonthlyPayment(effectiveDraftPrincipal, parseDecimalInput(interestRate), Number(termMonths))
-    : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), previewMonthsLeft);
+    : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), previewTermFromAnchor);
+
+  // A rate change rewrites the whole plan, including months already paid. Re-anchoring is
+  // the honest fix, but it has to be the user's deliberate call — silently moving the
+  // anchor forward while keeping an old balance figure would corrupt the balance outright.
+  const rateChangedOnPastAnchor =
+    status === 'active' && isEdit && loan?.balance_as_of &&
+    parseDecimalInput(interestRate) !== loan.interest_rate &&
+    (loan.payments_made ?? 0) > 0;
 
   const hasDraftTerm = status === 'draft' && Number.isInteger(Number(termMonths)) && Number(termMonths) > 0;
 
@@ -158,10 +177,16 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
         return;
       }
       if (computeMonthsLeft(endDate, parsedDayOfPayment) < 1) { setError('End date must be the current month or later'); return; }
+      if (computeTermFromAnchor(balanceAsOf, endDate) < 1) { setError('Balance date must be the same month as the end date or earlier'); return; }
       payload.remaining_balance = b;
       payload.end_date = endDate;
       payload.day_of_payment = parsedDayOfPayment;
-      payload.expense_template_item_id = expenseTemplateItemId || null;
+      payload.balance_as_of = balanceAsOf;
+      if (createExpense && !expenseTemplateItemId) {
+        payload.create_expense_template_item = true;
+      } else {
+        payload.expense_template_item_id = expenseTemplateItemId || null;
+      }
     }
 
     setSaving(true);
@@ -310,6 +335,49 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
                   </div>
                 </div>
                 <div className="form-group">
+                  <label>Balance as of</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <select value={anchorMonth} onChange={(e) => setAnchorMonth(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 0 }}>
+                      {MONTH_NAMES.map((m, i) => (
+                        <option key={i + 1} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number" inputMode="decimal"
+                      value={anchorYear}
+                      onChange={(e) => setAnchorYear(Number(e.target.value))}
+                      min="2020" max="2100"
+                      style={{ flex: '0 0 70px', minWidth: 0 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    The month whose payment is the next one still owed on that balance. The monthly payment is worked
+                    out once from here and stays fixed — the balance is what falls each month, so you never have to
+                    update it again.
+                  </div>
+                  {isEdit && loan?.current_balance != null && (loan?.payments_made ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ marginTop: '0.4rem' }}
+                      onClick={() => {
+                        const p = effectiveCurrentPeriod(parsedDayOfPayment);
+                        setRemainingBalance(String(Math.round(loan.current_balance * 100) / 100));
+                        setAnchorYear(p.year);
+                        setAnchorMonth(p.month);
+                      }}
+                    >
+                      Re-anchor to today ({formatEur(loan.current_balance)})
+                    </button>
+                  )}
+                  {rateChangedOnPastAnchor && (
+                    <div className="alert alert-warning" style={{ marginTop: '0.5rem', fontSize: '0.78rem' }}>
+                      Changing the rate recalculates the whole plan, including months already paid. If the rate changed
+                      recently rather than from the start, re-anchor to today first and enter the balance your bank shows.
+                    </div>
+                  )}
+                </div>
+                <div className="form-group">
                   <label>Loan end date</label>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 0 }}>
@@ -365,6 +433,20 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
               {status === 'draft' && (
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                   Draft loans cannot be linked to an expense — switch to Active to link one.
+                </div>
+              )}
+              {status === 'active' && !expenseTemplateItemId && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <Checkbox
+                    checked={createExpense}
+                    onChange={() => setCreateExpense((v) => !v)}
+                    label="Create a matching Fixed monthly expense"
+                  />
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    {createExpense
+                      ? `Adds "${name.trim() || 'this loan'}" to the monthly template as a must-pay Fixed expense of ${formatEur(previewPayment)} on day ${parsedDayOfPayment ?? '—'}, and links it. It appears in cycles you open from now on, not in ones already open.`
+                      : 'Assigning a monthly expense is what lets you tick each payment off and keeps the loan budgeted.'}
+                  </div>
                 </div>
               )}
             </div>

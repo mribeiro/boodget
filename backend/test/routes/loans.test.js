@@ -4,6 +4,9 @@ const {
   computeMonthsLeft,
   computeLoanValues,
   validateLoanFields,
+  computeTermFromAnchor,
+  computePaymentsMade,
+  projectBalance,
 } = require('../../src/routes/loans');
 const { createUser, createDossier, createExpenseTemplateItem } = require('../fixtures/builders');
 
@@ -289,5 +292,294 @@ describe('validateLoanFields', () => {
   it('rejects day_of_payment outside 1-31', () => {
     const body = { name: 'x', status: 'active', remaining_balance: 1000, end_date: '2099-01', day_of_payment: 32 };
     expect(validateLoanFields(body, null, 'd').error).toMatch(/day_of_payment/);
+  });
+});
+
+// ── Balance anchoring ────────────────────────────────────────────────────────
+
+describe('computeTermFromAnchor', () => {
+  it('counts both the anchor and the end month, so a same-month anchor schedules 1 payment', () => {
+    expect(computeTermFromAnchor('2026-03', '2026-03')).toBe(1);
+  });
+
+  it('counts a full year inclusively', () => {
+    expect(computeTermFromAnchor('2026-01', '2026-12')).toBe(12);
+  });
+
+  it('spans year boundaries', () => {
+    expect(computeTermFromAnchor('2025-11', '2026-02')).toBe(4);
+  });
+
+  it('goes non-positive when the anchor is past the end date', () => {
+    expect(computeTermFromAnchor('2026-05', '2026-03')).toBeLessThan(1);
+  });
+
+  it('is null when either side is missing', () => {
+    expect(computeTermFromAnchor(null, '2026-03')).toBeNull();
+    expect(computeTermFromAnchor('2026-03', null)).toBeNull();
+  });
+});
+
+describe('computePaymentsMade', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('is 0 when the anchor is the current effective period', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z')); // day 3 < day_of_payment 8
+    expect(computePaymentsMade('2026-03', 8, 48)).toBe(0);
+  });
+
+  it('counts the months elapsed since the anchor', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T12:00:00Z'));
+    expect(computePaymentsMade('2026-03', 8, 48)).toBe(3);
+  });
+
+  it('counts this month as made once day_of_payment has passed, same as months_left', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-20T12:00:00Z')); // day 20 >= day_of_payment 8
+    expect(computePaymentsMade('2026-03', 8, 48)).toBe(4);
+  });
+
+  it('clamps to 0 for an anchor in the future', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    expect(computePaymentsMade('2026-09', 8, 48)).toBe(0);
+  });
+
+  it('clamps to the full term for a loan left far past its end date', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-06-03T12:00:00Z'));
+    expect(computePaymentsMade('2026-03', 8, 12)).toBe(12);
+  });
+});
+
+describe('projectBalance', () => {
+  it('returns the balance untouched for 0 periods', () => {
+    expect(projectBalance(10000, 5, 500, 0)).toBe(10000);
+  });
+
+  it('subtracts the whole payment each period at a 0% rate', () => {
+    // 3 rows into a 12-row plan — a partial walk, so no final-row clamp applies.
+    expect(projectBalance(1200, 0, 100, 3, 12)).toBeCloseTo(900, 6);
+  });
+
+  it('lands on exactly 0 after the full term rather than a float residue', () => {
+    const payment = computeMonthlyPayment(10000, 6, 24);
+    expect(projectBalance(10000, 6, payment, 24, 24)).toBe(0);
+  });
+
+  it('clamps the final row to 0 when the walk covers the whole plan', () => {
+    expect(projectBalance(1200, 0, 100, 12)).toBe(0);
+  });
+
+  it('clamps at 0 rather than going negative when overshooting', () => {
+    expect(projectBalance(1000, 0, 400, 10, 10)).toBe(0);
+  });
+
+  it('holds the balance rather than compounding it when the payment cannot cover the interest', () => {
+    // Only reachable from hand-edited data; must not run away upward.
+    expect(projectBalance(10000, 24, 50, 12, 12)).toBe(10000);
+  });
+});
+
+describe('computeLoanValues — balance anchoring', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const anchoredLoan = {
+    status: 'active',
+    interest_rate: 4.2,
+    remaining_balance: 18000,
+    balance_as_of: '2026-03',
+    end_date: '2029-12',
+    day_of_payment: 8,
+    salary: 2000,
+  };
+
+  it('keeps monthly_payment identical as months pass — the drift this feature exists to fix', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    const march = computeLoanValues(anchoredLoan, 'd').monthly_payment;
+
+    vi.setSystemTime(new Date('2026-06-03T12:00:00Z'));
+    const june = computeLoanValues(anchoredLoan, 'd').monthly_payment;
+
+    expect(june).toBe(march);
+  });
+
+  it('still drifts without an anchor, pinning the legacy fallback', () => {
+    vi.useFakeTimers();
+    const unanchored = { ...anchoredLoan, balance_as_of: null };
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    const march = computeLoanValues(unanchored, 'd').monthly_payment;
+
+    vi.setSystemTime(new Date('2026-06-03T12:00:00Z'));
+    const june = computeLoanValues(unanchored, 'd').monthly_payment;
+
+    expect(june).toBeGreaterThan(march);
+  });
+
+  it('reproduces the pre-anchor figures exactly when balance_as_of is null', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    const unanchored = computeLoanValues({ ...anchoredLoan, balance_as_of: null }, 'd');
+
+    expect(unanchored.monthly_payment).toBe(
+      computeMonthlyPayment(18000, 4.2, computeMonthsLeft('2029-12', 8))
+    );
+    expect(unanchored.current_balance).toBe(18000);
+    expect(unanchored.payments_made).toBeNull();
+    expect(unanchored.term_from_anchor).toBeNull();
+  });
+
+  it('holds months_left === term_from_anchor − payments_made across several dates', () => {
+    vi.useFakeTimers();
+    for (const now of ['2026-03-03', '2026-06-20', '2027-01-09', '2029-11-30']) {
+      vi.setSystemTime(new Date(`${now}T12:00:00Z`));
+      const v = computeLoanValues(anchoredLoan, 'd');
+      expect(v.months_left).toBe(v.term_from_anchor - v.payments_made);
+      expect(v.months_left).toBe(computeMonthsLeft('2029-12', 8));
+    }
+  });
+
+  it('projects current_balance down from the anchor as payments come due', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    const atAnchor = computeLoanValues(anchoredLoan, 'd');
+    expect(atAnchor.current_balance).toBe(18000);
+    expect(atAnchor.payments_made).toBe(0);
+
+    vi.setSystemTime(new Date('2026-09-03T12:00:00Z'));
+    const later = computeLoanValues(anchoredLoan, 'd');
+    expect(later.payments_made).toBe(6);
+    expect(later.current_balance).toBeLessThan(18000);
+    expect(later.current_balance).toBeGreaterThan(0);
+  });
+
+  it('computes remaining_interest against the live balance, not the dated anchor', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-03T12:00:00Z'));
+    const v = computeLoanValues(anchoredLoan, 'd');
+    expect(v.remaining_interest).toBeCloseTo(v.monthly_payment * v.months_left - v.current_balance, 6);
+  });
+
+  it('clamps payments_made at 0 for a future anchor, leaving the balance untouched', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    const v = computeLoanValues({ ...anchoredLoan, balance_as_of: '2026-09' }, 'd');
+    expect(v.payments_made).toBe(0);
+    expect(v.current_balance).toBe(18000);
+  });
+
+  it('falls back to the legacy branch for an anchor past the end date rather than emitting NaN', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    // Only reachable from hand-edited data — validation rejects it on write.
+    const v = computeLoanValues({ ...anchoredLoan, balance_as_of: '2030-06' }, 'd');
+    expect(v.term_from_anchor).toBeNull();
+    expect(Number.isNaN(v.monthly_payment)).toBe(false);
+    expect(v.current_balance).toBe(18000);
+  });
+
+  it('nulls remaining_interest once matured but keeps reporting the real payment', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-06-03T12:00:00Z')); // well past end_date
+    const v = computeLoanValues(anchoredLoan, 'd');
+    expect(v.is_matured).toBe(true);
+    expect(v.months_left).toBe(0);
+    expect(v.remaining_interest).toBeNull();
+    // Unlike the pre-anchor behaviour, the payment does NOT collapse to 0 — a loan past
+    // its end date isn't suddenly free.
+    expect(v.monthly_payment).toBeGreaterThan(0);
+    expect(v.current_balance).toBe(0);
+  });
+
+  it('keeps salary_pct stable as months pass', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    const march = computeLoanValues(anchoredLoan, 'd').salary_pct;
+    vi.setSystemTime(new Date('2026-09-03T12:00:00Z'));
+    expect(computeLoanValues(anchoredLoan, 'd').salary_pct).toBe(march);
+  });
+
+  it('keeps a covered loan covered as months pass', () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const item = createExpenseTemplateItem(db, {
+      dossierId: dossier.id, section: 'expense', type: 'Fixed', name: 'Car Loan', value: 500, day_of_payment: 8,
+    });
+    const loan = { ...anchoredLoan, expense_template_item_id: item.id };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z'));
+    expect(computeLoanValues(loan, dossier.id).covered).toBe(true);
+    // Pre-anchor, the climbing payment flipped this to false on its own after a while.
+    vi.setSystemTime(new Date('2029-06-03T12:00:00Z'));
+    expect(computeLoanValues(loan, dossier.id).covered).toBe(true);
+  });
+});
+
+describe('validateLoanFields — balance_as_of', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const activeBody = { name: 'x', status: 'active', remaining_balance: 1000, end_date: '2099-01', day_of_payment: 5 };
+
+  it('rejects a malformed month', () => {
+    const result = validateLoanFields({ ...activeBody, balance_as_of: '2026/03' }, null, 'd');
+    expect(result.error).toMatch(/balance_as_of must be in YYYY-MM format/);
+  });
+
+  it('rejects being set on a draft loan', () => {
+    const body = { name: 'x', status: 'draft', principal: 1000, term_months: 12, balance_as_of: '2026-03' };
+    expect(validateLoanFields(body, null, 'd').error).toMatch(/balance_as_of can only be set on active loans/);
+  });
+
+  it('rejects an anchor past the end date', () => {
+    const result = validateLoanFields({ ...activeBody, end_date: '2099-01', balance_as_of: '2099-06' }, null, 'd');
+    expect(result.error).toMatch(/balance_as_of must be the same month as end_date or earlier/);
+  });
+
+  it('clears it on demotion to draft, alongside the other active-only fields', () => {
+    const existing = {
+      name: 'x', status: 'active', interest_rate: 5, remaining_balance: 1000,
+      end_date: '2099-01', day_of_payment: 5, balance_as_of: '2026-03', principal: 5000, term_months: 24,
+    };
+    const result = validateLoanFields({ status: 'draft' }, existing, 'd');
+    expect(result.error).toBeUndefined();
+    expect(result.balance_as_of).toBeNull();
+    expect(result.end_date).toBeNull();
+    expect(result.day_of_payment).toBeNull();
+  });
+
+  it('auto-anchors an active loan created without one', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-03T12:00:00Z')); // day 3 < day_of_payment 5
+    const result = validateLoanFields(activeBody, null, 'd');
+    expect(result.balance_as_of).toBe('2026-03');
+  });
+
+  it('re-anchors when the balance itself changes', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-03T12:00:00Z'));
+    const existing = { ...activeBody, interest_rate: 5, balance_as_of: '2026-03' };
+    const result = validateLoanFields({ ...activeBody, remaining_balance: 800 }, existing, 'd');
+    expect(result.balance_as_of).toBe('2026-09');
+  });
+
+  it('does NOT re-anchor when the full payload is resent with an unchanged balance', () => {
+    // LoanFormModal resends every field on save; a presence-only check would silently
+    // wipe the recorded plan on an unrelated edit.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-03T12:00:00Z'));
+    const existing = { ...activeBody, interest_rate: 5, balance_as_of: '2026-03' };
+    const result = validateLoanFields({ ...activeBody, interest_rate: 6 }, existing, 'd');
+    expect(result.balance_as_of).toBe('2026-03');
+  });
+
+  it('lets an explicit balance_as_of win over the auto-anchor', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-03T12:00:00Z'));
+    const result = validateLoanFields({ ...activeBody, balance_as_of: '2026-05' }, null, 'd');
+    expect(result.balance_as_of).toBe('2026-05');
   });
 });

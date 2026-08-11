@@ -268,13 +268,13 @@ function mkLoan(dossierId, def) {
   db.prepare(
     `INSERT INTO loans
        (id, dossier_id, name, status, interest_rate, salary, principal, term_months,
-        remaining_balance, end_date, day_of_payment, expense_template_item_id, down_payment, taeg, opening_fee)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        remaining_balance, end_date, day_of_payment, balance_as_of, expense_template_item_id, down_payment, taeg, opening_fee)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id, dossierId, def.name, def.status, def.interest_rate,
     def.salary ?? null, def.principal ?? null, def.term_months ?? null,
     def.remaining_balance ?? null, def.end_date ?? null, def.day_of_payment ?? null,
-    def.expense_template_item_id ?? null,
+    def.balance_as_of ?? null, def.expense_template_item_id ?? null,
     def.down_payment ?? null, def.taeg ?? null, def.opening_fee ?? null
   );
   return id;
@@ -397,6 +397,7 @@ module.exports = function seed() {
       { section: 'expense',      name: 'Rent',            type: 'Fixed',  value: 900, day_of_payment: 1,    paid: 1,    spent: null, done: null },
       { section: 'expense',      name: 'Electricity',     type: 'Fixed',  value: 65,  day_of_payment: 10,   paid: 1,    spent: null, done: null },
       { section: 'expense',      name: 'Internet',        type: 'Fixed',  value: 35,  day_of_payment: 15,   paid: 1,    spent: null, done: null },
+      { section: 'expense',      name: 'Car Loan Payment', type: 'Fixed', value: 220, day_of_payment: 8,    paid: 1,    spent: null, done: null },
       { section: 'expense',      name: 'Groceries',       type: 'Budget', value: 350, day_of_payment: null, paid: null, spent: 320,  done: null },
       { section: 'distribution', name: 'Investment Top-up', type: null,   value: 300, day_of_payment: null, paid: null, spent: null, done: 1    },
     ]);
@@ -408,6 +409,7 @@ module.exports = function seed() {
       { section: 'expense',      name: 'Internet',          type: 'Fixed',  value: 35,  day_of_payment: 15,   paid: 0,    spent: null, done: null },
       { section: 'expense',      name: 'Gym',               type: 'Fixed',  value: 45,  day_of_payment: 5,    paid: 0,    spent: null, done: null },
       { section: 'expense',      name: 'Streaming',         type: 'Fixed',  value: 18,  day_of_payment: 20,   paid: 0,    spent: null, done: null },
+      { section: 'expense',      name: 'Car Loan Payment',  type: 'Fixed',  value: 220, day_of_payment: 8,    paid: 0,    spent: null, done: null },
       { section: 'expense',      name: 'Groceries',         type: 'Budget', value: 350, day_of_payment: null, paid: null, spent: 180,  done: null },
       { section: 'expense',      name: 'Restaurants',       type: 'Budget', value: 120, day_of_payment: null, paid: null, spent: 45,   done: null },
       { section: 'expense',      name: 'Transport',         type: 'Budget', value: 80,  day_of_payment: null, paid: null, spent: 32,   done: null },
@@ -464,7 +466,11 @@ module.exports = function seed() {
     // exercising the down payment / TAEG / opening fee fields.
     mkLoan(d0, {
       name: 'Car Loan', status: 'active', interest_rate: 4.5, salary: 1950,
-      remaining_balance: 9000, end_date: addMonthsYM(calYear, calMonth, 47), // 48 months left
+      // Anchored 4 months back, so the payment plan seeded here has real history to show:
+      // four already-due periods (matched against the seeded cycles' "Car Loan Payment"
+      // items) ahead of the current one, rather than the degenerate nothing-paid-yet state.
+      remaining_balance: 9000, balance_as_of: addMonthsYM(calYear, calMonth, -4),
+      end_date: addMonthsYM(calYear, calMonth, 47),
       day_of_payment: 8, // matches "Car Loan Payment" template's own day_of_payment
       expense_template_item_id: templateIds[10], // Car Loan Payment
     });
