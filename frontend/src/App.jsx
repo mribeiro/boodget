@@ -12,6 +12,7 @@ import MonthEditor from './components/MonthEditor';
 import CycleEditor from './components/expenses/CycleEditor';
 import UserManager from './components/UserManager';
 import PasswordChange from './components/PasswordChange';
+import AvatarUpload from './components/AvatarUpload';
 import GoalDetail from './components/goals/GoalDetail';
 import LoanDetail from './components/loans/LoanDetail';
 import NotificationSettings from './pages/NotificationSettings';
@@ -132,6 +133,7 @@ function AppRoutes() {
           <Route path="/dossiers/:id/loans/:loanId" element={<LoanDetail />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
+          <Route path="/profile-picture" element={<AvatarUpload />} />
           <Route path="/notifications" element={<NotificationSettings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

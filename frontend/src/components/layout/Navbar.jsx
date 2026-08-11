@@ -3,17 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext, AppContext } from '../../App';
 import { useTheme } from '../../contexts/ThemeContext';
 import { api } from '../../services/api';
+import { getInitials } from '../../utils/user';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCircleHalfStroke, faMoon, faSun, faBars } from '@fortawesome/free-solid-svg-icons';
 
 const THEME_ICONS = { system: faCircleHalfStroke, light: faSun, dark: faMoon };
 const THEME_LABELS = { system: 'Following system', light: 'Light mode', dark: 'Dark mode' };
 const THEME_ORDER = ['system', 'light', 'dark'];
-
-function getInitials(username) {
-  if (!username) return '?';
-  return username.slice(0, 2).toUpperCase();
-}
 
 function getDossierIdFromPath(pathname) {
   const m = pathname.match(/^\/dossiers\/([^/]+)/);
@@ -108,7 +104,11 @@ export default function Navbar({ onHamburger }) {
             onClick={() => setDropdownOpen((o) => !o)}
             title={user?.username}
           >
-            {getInitials(user?.username)}
+            {user?.avatar ? (
+              <img src={user.avatar} alt="" className="user-avatar-img" />
+            ) : (
+              getInitials(user?.username)
+            )}
           </button>
 
           {dropdownOpen && (
@@ -116,6 +116,12 @@ export default function Navbar({ onHamburger }) {
               <div style={{ padding: '8px 16px 6px', fontSize: 12, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-default)', marginBottom: 2 }}>
                 {user?.username}
               </div>
+              <button
+                className="user-dropdown-item"
+                onClick={() => { navigate('/profile-picture'); setDropdownOpen(false); }}
+              >
+                Profile Picture
+              </button>
               {!user?.is_oidc && (
                 <button
                   className="user-dropdown-item"

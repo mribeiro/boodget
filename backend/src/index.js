@@ -17,7 +17,10 @@ const { db, SQLiteSessionStore } = require('./db');
 const app = express();
 app.set('trust proxy', 1);
 
-app.use(express.json());
+// Raised above the default 100kb so a base64-encoded profile picture (resized client-side,
+// but still ~33% larger encoded than raw) fits comfortably under the 2MB decoded-size cap
+// enforced in routes/auth.js.
+app.use(express.json({ limit: '4mb' }));
 
 app.use(
   session({
