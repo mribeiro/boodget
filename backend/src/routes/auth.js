@@ -19,9 +19,32 @@ function validatePassword(password) {
   );
 }
 
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2MB decoded
+const AVATAR_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const AVATAR_DATA_URL_RE = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+=*)$/;
+
+// Validates a client-supplied avatar data URL, returning { mime, byteLength } on success or
+// throwing an Error whose message is safe to surface directly to the client (400).
+function parseAvatarDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string') {
+    throw new Error('Image is required');
+  }
+  const match = AVATAR_DATA_URL_RE.exec(dataUrl);
+  if (!match) {
+    throw new Error(`Image must be a PNG, JPEG, or WebP data URL (allowed: ${AVATAR_MIME_TYPES.join(', ')})`);
+  }
+  const [, mime, base64] = match;
+  const byteLength = Buffer.byteLength(base64, 'base64');
+  if (byteLength > AVATAR_MAX_BYTES) {
+    throw new Error('Image must be smaller than 2MB');
+  }
+  return { mime, byteLength };
+}
+
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ id: req.user.id, username: req.user.username, is_oidc: req.user.is_oidc });
+  const user = db.prepare('SELECT avatar FROM users WHERE id = ?').get(req.user.id);
+  res.json({ id: req.user.id, username: req.user.username, is_oidc: req.user.is_oidc, avatar: user?.avatar || null });
 });
 
 // POST /api/auth/login
@@ -42,7 +65,7 @@ router.post('/login', loginLimiter, (req, res) => {
   }
   req.session.userId = user.id;
   console.log(`[auth] User logged in: ${user.username} (${user.id})`);
-  res.json({ id: user.id, username: user.username, is_oidc: user.is_oidc });
+  res.json({ id: user.id, username: user.username, is_oidc: user.is_oidc, avatar: user.avatar || null });
 });
 
 // POST /api/auth/logout
@@ -76,6 +99,25 @@ router.post('/change-password', requireAuth, (req, res) => {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.id);
   console.log(`[auth] Password changed for user: ${req.user.username} (${req.user.id})`);
   res.json({ ok: true });
+});
+
+// POST /api/auth/avatar
+router.post('/avatar', requireAuth, (req, res) => {
+  try {
+    parseAvatarDataUrl(req.body.image);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(req.body.image, req.user.id);
+  console.log(`[auth] Avatar updated for user: ${req.user.username} (${req.user.id})`);
+  res.json({ avatar: req.body.image });
+});
+
+// DELETE /api/auth/avatar
+router.delete('/avatar', requireAuth, (req, res) => {
+  db.prepare('UPDATE users SET avatar = NULL WHERE id = ?').run(req.user.id);
+  console.log(`[auth] Avatar removed for user: ${req.user.username} (${req.user.id})`);
+  res.status(204).end();
 });
 
 // GET /api/auth/oidc/config
@@ -144,3 +186,4 @@ async function initOIDC() {
 
 module.exports = router;
 module.exports.initOIDC = initOIDC;
+module.exports.parseAvatarDataUrl = parseAvatarDataUrl;

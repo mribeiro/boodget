@@ -10,7 +10,8 @@ const { apiLimiter } = require('../../src/middleware/rate-limit');
 
 function buildTestApp() {
   const app = express();
-  app.use(express.json());
+  // Mirrors src/index.js's raised limit (base64 profile pictures exceed the 100kb default).
+  app.use(express.json({ limit: '4mb' }));
   // This app is only ever driven in-process by supertest — it's never bound to a real
   // port or exposed to real network traffic, so there's no CSRF surface to protect and no
   // transport to secure. secure:true would also break every session-based integration test:

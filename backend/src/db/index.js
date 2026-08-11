@@ -893,6 +893,15 @@ const migrations = [
       }
     },
   },
+  {
+    id: '041_add_avatar_to_users',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(users)').all();
+      if (!cols.find((c) => c.name === 'avatar')) {
+        db.exec('ALTER TABLE users ADD COLUMN avatar TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
