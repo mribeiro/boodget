@@ -19,7 +19,12 @@ import NotificationSettings from './pages/NotificationSettings';
 import UpdateBanner from './components/ui/UpdateBanner';
 
 export const AuthContext = createContext(null);
-export const AppContext = createContext({ currentDossier: null, setCurrentDossier: () => {} });
+export const AppContext = createContext({
+  currentDossier: null,
+  setCurrentDossier: () => {},
+  activeTab: 'capital',
+  setActiveTab: () => {},
+});
 
 export default function App() {
   const [authState, setAuthState] = useState({ loading: true, needsSetup: false, user: null });
@@ -87,6 +92,7 @@ export default function App() {
 function AppRoutes() {
   const { needsSetup, user, setAuthState } = useContext(AuthContext);
   const [currentDossier, setCurrentDossier] = useState(null);
+  const [activeTab, setActiveTab] = useState('capital');
 
   if (needsSetup) {
     return (
@@ -116,7 +122,7 @@ function AppRoutes() {
   }
 
   return (
-    <AppContext.Provider value={{ currentDossier, setCurrentDossier }}>
+    <AppContext.Provider value={{ currentDossier, setCurrentDossier, activeTab, setActiveTab }}>
       <AppShell>
         <Routes>
           <Route path="/" element={<DossierList />} />

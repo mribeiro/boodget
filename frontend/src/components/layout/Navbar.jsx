@@ -12,7 +12,7 @@ const THEME_LABELS = { system: 'Following system', light: 'Light mode', dark: 'D
 const THEME_ORDER = ['system', 'light', 'dark'];
 
 function getDossierIdFromPath(pathname) {
-  const m = pathname.match(/^\/dossiers\/(\d+)/);
+  const m = pathname.match(/^\/dossiers\/([^/]+)/);
   return m ? m[1] : null;
 }
 
