@@ -1,17 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWandMagicSparkles, faKey, faCopy, faFileExport, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faWandMagicSparkles, faKey, faCopy, faFileExport, faCheck, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import AnalysisPanel from './AnalysisPanel';
 import ChatPanel from './ChatPanel';
-import { isAiDisabledError } from '../../utils/aiModels';
-
-const MODEL_OPTIONS = [
-  { value: 'claude-haiku-4-5', label: 'Haiku 4.5 — fastest & cheapest ($1/$5 per MTok)' },
-  { value: 'claude-sonnet-5', label: 'Sonnet 5 — balanced ($3/$15 per MTok)' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8 — best for financial analysis ($5/$25 per MTok)' },
-  { value: 'claude-fable-5', label: 'Fable 5 — most capable ($10/$50 per MTok)' },
-];
+import { isAiDisabledError, useAiAvailableModels, modelSelectOptions } from '../../utils/aiModels';
 
 export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [loading, setLoading] = useState(true);
@@ -19,7 +12,7 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [aiDisabled, setAiDisabled] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [analysis, setAnalysis] = useState(null);
-  const [aiModel, setAiModel] = useState('claude-opus-4-8');
+  const [aiModel, setAiModel] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const [exportingPrompt, setExportingPrompt] = useState(false);
@@ -29,12 +22,13 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const { models: availableModels, refreshing, refresh: refreshModels } = useAiAvailableModels(dossierId);
 
   const loadAll = useCallback(async () => {
     setError('');
     try {
       const settings = await api.getDossierSettings(dossierId);
-      setAiModel(settings.ai_model || 'claude-opus-4-8');
+      setAiModel(settings.ai_model || '');
       setUserNotes(settings.ai_user_context || '');
       setNotesDraft(settings.ai_user_context || '');
       if (settings.ai_enabled === false) {
@@ -72,6 +66,15 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       setError(err.message);
     } finally {
       setSavingModel(false);
+    }
+  }
+
+  async function handleRefreshModels() {
+    setError('');
+    try {
+      await refreshModels();
+    } catch (err) {
+      setError(err.message);
     }
   }
 
@@ -244,11 +247,23 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ flex: 1, minWidth: 240, marginBottom: 0 }}>
             <label style={{ fontSize: 12 }}>Model{savingModel ? ' (saving…)' : ''}</label>
-            <select value={aiModel} onChange={handleModelChange} disabled={savingModel || analyzing}>
-              {MODEL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <select value={aiModel} onChange={handleModelChange} disabled={savingModel || analyzing} style={{ flex: 1 }}>
+                {modelSelectOptions(availableModels, aiModel).map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleRefreshModels}
+                disabled={refreshing}
+                title="Check the Claude API for the latest Haiku/Sonnet/Opus model versions"
+                style={{ padding: '0.4rem 0.6rem' }}
+              >
+                <FontAwesomeIcon icon={faArrowsRotate} spin={refreshing} />
+              </button>
+            </div>
           </div>
           <button
             className="btn-primary"

@@ -3,6 +3,7 @@ const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const { computeCycleStartDate, computeTheoreticalCycleEndDate, addDays, toIsoDate, fromIsoDate } = require('../utils/cycleDates');
+const { isAllowedAiModel, DEFAULT_AI_MODEL } = require('./ai-advisor');
 
 function adjacentPeriod(year, month, offset) {
   const total = (year * 12 + (month - 1)) + offset;
@@ -172,7 +173,7 @@ router.get('/settings', (req, res) => {
     paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
     expense_notification_days_before: dossier.expense_notification_days_before ?? 1,
     ai_enabled: dossier.ai_enabled == null ? true : !!dossier.ai_enabled,
-    ai_model: dossier.ai_model ?? 'claude-opus-4-8',
+    ai_model: dossier.ai_model ?? DEFAULT_AI_MODEL,
     ai_api_key_set: !!dossier.ai_api_key,
     ai_user_context: dossier.ai_user_context ?? '',
     reference_salary: dossier.reference_salary ?? null,
@@ -180,7 +181,6 @@ router.get('/settings', (req, res) => {
   });
 });
 
-const ALLOWED_AI_MODELS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5'];
 const ALLOWED_WEEKEND_ADJUSTMENTS = ['none', 'previous_friday', 'next_monday'];
 
 function isValidDay(v) {
@@ -249,8 +249,8 @@ router.patch('/settings', (req, res) => {
   if (ai_enabled !== undefined && typeof ai_enabled !== 'boolean') {
     return res.status(400).json({ error: 'ai_enabled must be a boolean' });
   }
-  if (ai_model !== undefined && !ALLOWED_AI_MODELS.includes(ai_model)) {
-    return res.status(400).json({ error: `ai_model must be one of: ${ALLOWED_AI_MODELS.join(', ')}` });
+  if (ai_model !== undefined && !isAllowedAiModel(ai_model)) {
+    return res.status(400).json({ error: 'ai_model must be a claude-haiku-*, claude-sonnet-*, or claude-opus-* model id' });
   }
   if (ai_api_key !== undefined && ai_api_key !== null && typeof ai_api_key !== 'string') {
     return res.status(400).json({ error: 'ai_api_key must be a string or null' });
@@ -318,7 +318,7 @@ router.patch('/settings', (req, res) => {
     paperless_amount_field_id: updated.paperless_amount_field_id ?? null,
     expense_notification_days_before: updated.expense_notification_days_before ?? 1,
     ai_enabled: updated.ai_enabled == null ? true : !!updated.ai_enabled,
-    ai_model: updated.ai_model ?? 'claude-opus-4-8',
+    ai_model: updated.ai_model ?? DEFAULT_AI_MODEL,
     ai_api_key_set: !!updated.ai_api_key,
     ai_user_context: updated.ai_user_context ?? '',
     reference_salary: updated.reference_salary ?? null,

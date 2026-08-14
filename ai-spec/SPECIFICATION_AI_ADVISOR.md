@@ -19,19 +19,28 @@ It lives in a dedicated **AI Advisor** tab in `DossierView` (`frontend/src/compo
 
 ## Model selection
 
-- Persisted per dossier in `dossiers.ai_model` (migration `033_add_ai_advisor`), default `claude-opus-4-8`.
-- Exposed through the existing `GET/PATCH /api/dossiers/:id/settings`; PATCH validates against the whitelist. Dossier import (`POST /api/dossiers/import`) validates the same whitelist, coercing an out-of-whitelist `ai_model` (e.g. from a hand-edited export) to the default rather than storing it as-is — keeps the Settings dropdown and `resolveAiConfig`'s runtime fallback from silently diverging.
-- Editable from two places that write the same setting: the `<select>` in the AI Advisor tab header, and the "Default model" picker in **Settings → AI Settings** (`DossierSettingsTab.jsx`).
-- Whitelist and pricing (USD per million tokens; used for the cost estimate):
+- Persisted per dossier in `dossiers.ai_model` (migration `033_add_ai_advisor`), default `claude-opus-5`.
+- **The whitelist is by family, not exact model+version.** `isAllowedAiModel(modelId)` (`backend/src/routes/ai-advisor.js`) accepts any id matching `/^claude-(haiku|sonnet|opus)-/` — `claude-fable-*`/`claude-mythos-*` and anything else are rejected. This is deliberate: a dossier's chosen model never becomes invalid just because a newer version of that family is released (e.g. a dossier left on `claude-opus-4-8` stays valid indefinitely, even after `claude-opus-5` becomes the suggested default). Exposed through the existing `GET/PATCH /api/dossiers/:id/settings`; PATCH validates via `isAllowedAiModel`. Dossier import (`POST /api/dossiers/import`) validates the same way, coercing an out-of-family `ai_model` (e.g. from a hand-edited export, or a pre-this-change export carrying `claude-fable-5`) to `DEFAULT_AI_MODEL` rather than storing it as-is — keeps the Settings dropdown and `resolveAiConfig`'s runtime fallback from silently diverging.
+- Editable from two places that write the same setting: the `<select>` in the AI Advisor tab header, and the "Default model" picker in **Settings → AI Settings** (`DossierSettingsTab.jsx`). Both pickers are plain `<select>`s; changing either PATCHes the setting immediately.
 
-| Model | Input | Output | Notes |
-|---|---|---|---|
-| `claude-haiku-4-5` | $1 | $5 | fastest & cheapest |
-| `claude-sonnet-5` | $3 | $15 | balanced |
-| `claude-opus-4-8` | $5 | $25 | **default** — best for financial analysis |
-| `claude-fable-5` | $10 | $50 | most capable; requires 30-day data retention on the Anthropic org and may refuse requests (safety classifiers) |
+### Model catalog (picker options) — dynamic, refreshable
 
-- Both pickers are plain `<select>`s; changing either PATCHes the setting immediately.
+The whitelist (above) governs *validity*; a separate, app-wide **catalog** governs what the two pickers *suggest*. This keeps a hardcoded model list from going stale (e.g. a new "Opus 5" shipping with no code change) while never retroactively invalidating an already-chosen older version.
+
+- `getAvailableModels()` reads a single JSON blob from `app_settings` (key `ai_available_models`, same key-value table the VAPID keys use — no dedicated schema, no migration needed) shaped `{ models: [{id, family, display_name}, ...], updated_at }`. If the row is missing, unparseable, or empty, it falls back to `DEFAULT_MODELS` — three baked-in entries (one per family, currently `claude-haiku-4-5` / `claude-sonnet-5` / `claude-opus-5`) that also define `DEFAULT_AI_MODEL` (the opus entry). The cache is **global**, not per-dossier — model availability isn't dossier-scoped, so every dossier's picker reads the same resolved list.
+- `refreshAvailableModels(apiKey)` calls `GET https://api.anthropic.com/v1/models` (paginated via `after_id`/`has_more`, no beta header), filters to ids matching the family regex, and for each of the 3 families keeps only the entry with the most recent `created_at` — **older versions of a family are dropped from the suggested list, never offered as both an "old" and "new" option side by side**. A family absent from the response (e.g. a transient gap) keeps its previously-cached entry rather than being dropped or reset to the baked-in default. The result is written back to `app_settings` with a fresh `updated_at` and returned.
+- Requires a resolvable API key — the same precedence as everywhere else (`resolveAiConfig(dossierId).apiKey`: the dossier's own `ai_api_key`, else `ANTHROPIC_API_KEY`) — and throws a `503` if neither is set.
+- **Not gated by `ai_enabled`** (neither the GET nor the POST below): the Settings → AI Settings picker must render options even while the feature is turned off, so a user can see what's available before enabling it.
+
+### Cost estimate pricing — by family, not exact model
+
+`FAMILY_PRICING` in `ai-advisor.js` is keyed by family (`haiku`/`sonnet`/`opus`), not exact model id — `GET /v1/models` doesn't expose pricing, and a family's rate is far more stable across its own version bumps than the id itself. `computeCostUsd(model, usage)` resolves the model's family first, then looks up pricing; an id outside the three families (e.g. a historical `claude-fable-5` value on an old `ai_analyses` row) returns `null` — that row's already-persisted `cost_usd` is unaffected, since it was computed and stored at analysis time, not recomputed on read.
+
+| Family | Input | Output |
+|---|---|---|
+| haiku | $1 | $5 |
+| sonnet | $3 | $15 |
+| opus | $5 | $25 |
 
 ## Cost label
 
@@ -103,6 +112,16 @@ GET  /api/dossiers/:id/ai-advisor/export-prompt
      → { prompt: string } — self-contained, paste-into-claude.ai prompt (context + instructions)
      Does not call the Claude API; no API key required.
      Errors: 403 AI disabled for this dossier
+
+GET  /api/dossiers/:id/ai-advisor/available-models
+     → { models: [{id, family, display_name}], updated_at: string|null }
+     Cached/default catalog — does not call the Claude API. Not gated on ai_enabled.
+
+POST /api/dossiers/:id/ai-advisor/refresh-models
+     → same shape as GET above, freshly fetched from GET https://api.anthropic.com/v1/models
+     Keeps only the latest-created model per family (haiku/sonnet/opus); a family absent from
+     the response keeps its previous entry. Not gated on ai_enabled.
+     Errors: 503 no API key resolvable · 502 upstream error
 ```
 
 The `analysis` object merges the stored JSON content with metadata: `health_score` (integer 0–100), `health_summary`, `highlights[]`, `improvements[]`, `risks[]` (each item `{title, detail}`), plus `model`, `created_at`, `cost_usd`, `input_tokens`, `output_tokens`.
@@ -130,13 +149,13 @@ For users who'd rather use a Claude subscription than pay per API call, the "Use
 
 ## Export / import
 
-- Export format **version 10**: `dossier.ai_model`, `dossier.ai_enabled`, and `dossier.ai_user_context` round-trip. Imports of versions ≤ 9 default `ai_model` to `claude-opus-4-8`, `ai_enabled` to `true`, and `ai_user_context` to `null` (those versions predate the field). An imported `ai_model` outside the current whitelist (e.g. a hand-edited export, or one written by a future version with new model options) is likewise coerced to `claude-opus-4-8` rather than stored as-is.
+- Export format **version 10**: `dossier.ai_model`, `dossier.ai_enabled`, and `dossier.ai_user_context` round-trip. Imports of versions ≤ 9 default `ai_model` to `claude-opus-5`, `ai_enabled` to `true`, and `ai_user_context` to `null` (those versions predate the field). An imported `ai_model` outside the allowed families (haiku/sonnet/opus — e.g. a hand-edited export, `claude-fable-5`, or any other string) is likewise coerced to `DEFAULT_AI_MODEL` rather than stored as-is; a valid-family model of any version (including an older one a "Refresh models" run has since superseded in the picker) round-trips unchanged.
 - `ai_api_key` is a secret, like `paperless_token` — it is **never exported or imported**. An imported dossier always falls back to the operator's `ANTHROPIC_API_KEY` env var (if set) until a new key is entered in its own Settings.
 - `ai_analyses` rows are deliberately **not** exported (point-in-time, cheap to regenerate).
 
 ## Logging
 
-`[ai-advisor]` category: analysis runs and chat turns log dossier id, username, model, token counts and cost — never prompt or reply content. Failures log the error message.
+`[ai-advisor]` category: analysis runs and chat turns log dossier id, username, model, token counts and cost — never prompt or reply content. Model catalog refreshes log the triggering user/dossier and the resolved model ids. Failures log the error message.
 
 ## Out of scope (v1)
 

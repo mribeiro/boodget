@@ -11,10 +11,9 @@ const goalsRouter = require('./goals');
 const emergencyFundRouter = require('./emergency-fund');
 const annualExpensesRouter = require('./annual-expenses');
 const aiAdvisorRouter = require('./ai-advisor');
+const { isAllowedAiModel, DEFAULT_AI_MODEL } = aiAdvisorRouter;
 const loansRouter = require('./loans');
 const subscriptionsRouter = require('./subscriptions');
-
-const ALLOWED_AI_MODELS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5'];
 
 // Anchor month for an active loan imported from a pre-v15 export (which carried no
 // balance_as_of). Mirrors migration 042's backfill: the effective current period, unless
@@ -89,9 +88,9 @@ router.post('/import', (req, res) => {
       // Versions <= 9 have no ai_enabled/ai_model; default to enabled + the app's default model.
       // ai_api_key is a secret and is never exported/imported.
       (data.dossier.ai_enabled ?? true) ? 1 : 0,
-      // A hand-edited or stale export can carry an ai_model outside the current whitelist;
-      // coerce it to the default rather than storing a value the Settings dropdown can't display.
-      ALLOWED_AI_MODELS.includes(data.dossier.ai_model) ? data.dossier.ai_model : 'claude-opus-4-8',
+      // A hand-edited or stale export can carry an ai_model outside the allowed families
+      // (haiku/sonnet/opus); coerce it to the default rather than storing it as-is.
+      isAllowedAiModel(data.dossier.ai_model) ? data.dossier.ai_model : DEFAULT_AI_MODEL,
       data.dossier.ai_user_context ?? null,
       data.dossier.reference_salary ?? null,
       data.dossier.loans_max_salary_pct ?? null
@@ -393,7 +392,12 @@ router.post('/', (req, res) => {
   const { name } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = uuidv4();
-  db.prepare('INSERT INTO dossiers (id, name, creator_id) VALUES (?, ?, ?)').run(id, name.trim(), req.user.id);
+  db.prepare('INSERT INTO dossiers (id, name, creator_id, ai_model) VALUES (?, ?, ?, ?)').run(
+    id,
+    name.trim(),
+    req.user.id,
+    DEFAULT_AI_MODEL
+  );
   console.log(`[dossiers] Created dossier "${name.trim()}" (${id}) by user ${req.user.username}`);
   res.status(201).json({ id, name: name.trim(), creator_id: req.user.id, is_creator: 1, currency: 'EUR' });
 });
@@ -628,7 +632,7 @@ router.get('/:id/export', (req, res) => {
       paperless_date_field_id: dossier.paperless_date_field_id ?? null,
       paperless_amount_field_id: dossier.paperless_amount_field_id ?? null,
       ai_enabled: dossier.ai_enabled == null ? true : !!dossier.ai_enabled,
-      ai_model: dossier.ai_model ?? 'claude-opus-4-8',
+      ai_model: dossier.ai_model ?? DEFAULT_AI_MODEL,
       ai_user_context: dossier.ai_user_context ?? null,
       reference_salary: dossier.reference_salary ?? null,
       loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,

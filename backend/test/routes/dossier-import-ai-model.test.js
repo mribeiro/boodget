@@ -26,8 +26,8 @@ function minimalExport(overrides) {
   };
 }
 
-describe('POST /dossiers/import — ai_model whitelist enforcement', () => {
-  it('coerces an ai_model outside the whitelist to the default', async () => {
+describe('POST /dossiers/import — ai_model family whitelist enforcement', () => {
+  it('coerces an ai_model outside the haiku/sonnet/opus families to the default', async () => {
     const user = createUser(db);
     const app = buildTestApp();
     const agent = await loggedInAgent(app, user);
@@ -36,10 +36,22 @@ describe('POST /dossiers/import — ai_model whitelist enforcement', () => {
     expect(importRes.status).toBe(201);
 
     const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
-    expect(settingsRes.body.ai_model).toBe('claude-opus-4-8');
+    expect(settingsRes.body.ai_model).toBe('claude-opus-5');
   });
 
-  it('preserves a valid whitelisted ai_model', async () => {
+  it('coerces a fable/mythos model — no longer an allowed family — to the default', async () => {
+    const user = createUser(db);
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const importRes = await agent.post('/api/dossiers/import').send(minimalExport({ ai_model: 'claude-fable-5' }));
+    expect(importRes.status).toBe(201);
+
+    const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
+    expect(settingsRes.body.ai_model).toBe('claude-opus-5');
+  });
+
+  it('preserves a valid family member regardless of version', async () => {
     const user = createUser(db);
     const app = buildTestApp();
     const agent = await loggedInAgent(app, user);
@@ -51,6 +63,18 @@ describe('POST /dossiers/import — ai_model whitelist enforcement', () => {
     expect(settingsRes.body.ai_model).toBe('claude-sonnet-5');
   });
 
+  it('preserves an older-but-still-valid version of a family (e.g. from before a "Refresh models" run)', async () => {
+    const user = createUser(db);
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const importRes = await agent.post('/api/dossiers/import').send(minimalExport({ ai_model: 'claude-opus-4-8' }));
+    expect(importRes.status).toBe(201);
+
+    const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
+    expect(settingsRes.body.ai_model).toBe('claude-opus-4-8');
+  });
+
   it('defaults ai_model when missing, as with pre-v10 exports', async () => {
     const user = createUser(db);
     const app = buildTestApp();
@@ -60,6 +84,6 @@ describe('POST /dossiers/import — ai_model whitelist enforcement', () => {
     expect(importRes.status).toBe(201);
 
     const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
-    expect(settingsRes.body.ai_model).toBe('claude-opus-4-8');
+    expect(settingsRes.body.ai_model).toBe('claude-opus-5');
   });
 });

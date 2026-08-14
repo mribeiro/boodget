@@ -9,6 +9,7 @@ import {
   faPlus,
   faPencil,
   faXmark,
+  faArrowsRotate,
 } from '@fortawesome/free-solid-svg-icons';
 import DossierSettings from './expenses/DossierSettings';
 import ExpenseTemplate from './expenses/ExpenseTemplate';
@@ -25,13 +26,7 @@ import SettingsCard from './ui/SettingsCard';
 import Toast from './ui/Toast';
 import useToast from './ui/useToast';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
-
-const AI_MODEL_OPTIONS = [
-  { value: 'claude-haiku-4-5', label: 'Haiku 4.5 — fastest & cheapest' },
-  { value: 'claude-sonnet-5', label: 'Sonnet 5 — balanced' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8 — best for financial analysis' },
-  { value: 'claude-fable-5', label: 'Fable 5 — most capable' },
-];
+import { useAiAvailableModels, modelSelectOptions } from '../utils/aiModels';
 
 function formatEur(value) {
   if (value == null || isNaN(value)) return 'Not set';
@@ -334,6 +329,7 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const { models: availableModels, refreshing, refresh: refreshModels } = useAiAvailableModels(dossierId);
 
   async function updateField(fields, toastMessage) {
     setSaving(true);
@@ -358,8 +354,18 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
 
   function handleModelChange(e) {
     const value = e.target.value;
-    const label = AI_MODEL_OPTIONS.find((o) => o.value === value)?.label ?? value;
-    updateField({ ai_model: value }, `Model set to ${label.split(' \u2014 ')[0]}`).catch(() => {});
+    const label = modelSelectOptions(availableModels, value).find((o) => o.value === value)?.label ?? value;
+    updateField({ ai_model: value }, `Model set to ${label}`).catch(() => {});
+  }
+
+  async function handleRefreshModels() {
+    setError('');
+    try {
+      const { models } = await refreshModels();
+      showToast(`Model catalog refreshed \u2014 ${models.map((m) => m.display_name).join(', ')}`);
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   function openModal() {
@@ -397,10 +403,20 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
 
       <SettingRow label="Default model">
         <select value={settings.ai_model} onChange={handleModelChange} disabled={saving}>
-          {AI_MODEL_OPTIONS.map((o) => (
+          {modelSelectOptions(availableModels, settings.ai_model).map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+        <button
+          type="button"
+          className="btn-secondary btn-icon"
+          onClick={handleRefreshModels}
+          disabled={refreshing}
+          aria-label="Check the Claude API for the latest Haiku/Sonnet/Opus model versions"
+          title="Check the Claude API for the latest Haiku/Sonnet/Opus model versions"
+        >
+          <FontAwesomeIcon icon={faArrowsRotate} spin={refreshing} />
+        </button>
       </SettingRow>
 
       <SettingRow
