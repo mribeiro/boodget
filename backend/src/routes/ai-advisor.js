@@ -17,19 +17,40 @@ function canAccess(dossierId, userId) {
     .get(dossierId, userId);
 }
 
-const ALLOWED_AI_MODELS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5'];
-const DEFAULT_AI_MODEL = 'claude-opus-4-8';
+// Whitelist is by family, not exact model+version — any claude-{haiku,sonnet,opus}-* id is
+// allowed, so a dossier's chosen model never becomes invalid just because a newer version of
+// that family was released. "Refresh models" (below) narrows the *suggested* picker options to
+// the latest version per family; it never invalidates an already-chosen older one.
+const MODEL_FAMILIES = ['haiku', 'sonnet', 'opus'];
+const FAMILY_REGEX = /^claude-(haiku|sonnet|opus)-/;
+function modelFamily(modelId) {
+  const m = FAMILY_REGEX.exec(modelId || '');
+  return m ? m[1] : null;
+}
+function isAllowedAiModel(modelId) {
+  return modelFamily(modelId) !== null;
+}
 
-// USD per million tokens. Cache writes cost 1.25x input, cache reads 0.1x input.
-const PRICING = {
-  'claude-haiku-4-5': { input: 1, output: 5 },
-  'claude-sonnet-5': { input: 3, output: 15 },
-  'claude-opus-4-8': { input: 5, output: 25 },
-  'claude-fable-5': { input: 10, output: 50 },
+// Baked-in defaults, used until the first successful refresh (or if a refresh has never found
+// a model for a given family). Update these when a new default generation ships.
+const DEFAULT_MODELS = [
+  { id: 'claude-haiku-4-5', family: 'haiku', display_name: 'Claude Haiku 4.5' },
+  { id: 'claude-sonnet-5', family: 'sonnet', display_name: 'Claude Sonnet 5' },
+  { id: 'claude-opus-5', family: 'opus', display_name: 'Claude Opus 5' },
+];
+const DEFAULT_AI_MODEL = DEFAULT_MODELS.find((m) => m.family === 'opus').id;
+
+// USD per million tokens, by family (not exact model — a family's pricing is stable across its
+// own version bumps far more often than not, and the Models API doesn't expose pricing at all).
+// Cache writes cost 1.25x input, cache reads 0.1x input. Estimates only — see cost label docs.
+const FAMILY_PRICING = {
+  haiku: { input: 1, output: 5 },
+  sonnet: { input: 3, output: 15 },
+  opus: { input: 5, output: 25 },
 };
 
 function computeCostUsd(model, usage) {
-  const p = PRICING[model];
+  const p = FAMILY_PRICING[modelFamily(model)];
   if (!p || !usage) return null;
   const input = usage.input_tokens || 0;
   const output = usage.output_tokens || 0;
@@ -39,6 +60,89 @@ function computeCostUsd(model, usage) {
     (input * p.input + output * p.output + cacheWrite * 1.25 * p.input + cacheRead * 0.1 * p.input) /
     1e6
   );
+}
+
+// Global (not per-dossier) cache of the latest-per-family model catalog, stored in app_settings
+// like the VAPID keys. Falls back to DEFAULT_MODELS until the first refresh (or for any family
+// a refresh never found a match for).
+const AVAILABLE_MODELS_KEY = 'ai_available_models';
+
+function getAvailableModels() {
+  const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(AVAILABLE_MODELS_KEY);
+  if (!row) return { models: DEFAULT_MODELS, updated_at: null };
+  try {
+    const parsed = JSON.parse(row.value);
+    if (!Array.isArray(parsed.models) || parsed.models.length === 0) {
+      return { models: DEFAULT_MODELS, updated_at: null };
+    }
+    return { models: parsed.models, updated_at: parsed.updated_at ?? null };
+  } catch (e) {
+    return { models: DEFAULT_MODELS, updated_at: null };
+  }
+}
+
+// Calls GET /v1/models, keeps only claude-{haiku,sonnet,opus}-* ids, and picks the most recently
+// created model per family (by the API's created_at) — ignoring older versions. A family with no
+// match in this response keeps its previously-resolved entry (or the baked-in default).
+async function refreshAvailableModels(apiKey) {
+  if (!apiKey) {
+    const err = new Error(
+      'No Claude API key is configured for this dossier or the server, so the model catalog can\'t be refreshed.'
+    );
+    err.status = 503;
+    throw err;
+  }
+
+  const latestByFamily = {};
+  let afterId;
+  do {
+    const url = new URL('https://api.anthropic.com/v1/models');
+    url.searchParams.set('limit', '1000');
+    if (afterId) url.searchParams.set('after_id', afterId);
+
+    let resp;
+    try {
+      resp = await fetch(url, {
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      });
+    } catch (e) {
+      const err = new Error('Could not reach the Claude API');
+      err.status = 502;
+      throw err;
+    }
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      const upstream = data?.error?.message || `HTTP ${resp.status}`;
+      const err = new Error(`Claude API error: ${upstream}`);
+      err.status = 502;
+      throw err;
+    }
+
+    for (const m of data?.data || []) {
+      const family = modelFamily(m.id);
+      if (!family) continue;
+      const existing = latestByFamily[family];
+      if (!existing || new Date(m.created_at) > new Date(existing.created_at)) {
+        latestByFamily[family] = { id: m.id, family, display_name: m.display_name || m.id, created_at: m.created_at };
+      }
+    }
+
+    afterId = data?.has_more ? data?.last_id : null;
+  } while (afterId);
+
+  const previous = getAvailableModels().models;
+  const models = MODEL_FAMILIES.map((family) => {
+    const found = latestByFamily[family];
+    if (found) return { id: found.id, family, display_name: found.display_name };
+    return previous.find((m) => m.family === family) || DEFAULT_MODELS.find((m) => m.family === family);
+  });
+
+  const updated_at = new Date().toISOString();
+  db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run(
+    AVAILABLE_MODELS_KEY,
+    JSON.stringify({ models, updated_at })
+  );
+  return { models, updated_at };
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -426,7 +530,7 @@ function resolveAiConfig(dossierId) {
   const dossier = db.prepare('SELECT ai_enabled, ai_api_key, ai_model FROM dossiers WHERE id = ?').get(dossierId);
   const enabled = dossier?.ai_enabled == null ? true : !!dossier.ai_enabled;
   const apiKey = dossier?.ai_api_key || process.env.ANTHROPIC_API_KEY || null;
-  const model = ALLOWED_AI_MODELS.includes(dossier?.ai_model) ? dossier.ai_model : DEFAULT_AI_MODEL;
+  const model = isAllowedAiModel(dossier?.ai_model) ? dossier.ai_model : DEFAULT_AI_MODEL;
   return { enabled, apiKey, model };
 }
 
@@ -548,6 +652,32 @@ function analysisResponse(row) {
     output_tokens: row.output_tokens,
   };
 }
+
+// GET /ai-advisor/available-models — the current model catalog (latest per family, from cache
+// or defaults). Not gated on ai_enabled: the Settings picker needs this to render even while the
+// feature is turned off, so the user can see options before turning it on.
+router.get('/ai-advisor/available-models', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  res.json(getAvailableModels());
+});
+
+// POST /ai-advisor/refresh-models — re-fetch the model catalog from the Claude API, keeping only
+// the latest version per family (haiku/sonnet/opus). Global, not per-dossier — any dossier with a
+// resolvable API key can trigger it. Not gated on ai_enabled, same reasoning as the GET above.
+router.post('/ai-advisor/refresh-models', async (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const { apiKey } = resolveAiConfig(req.params.id);
+  try {
+    const result = await refreshAvailableModels(apiKey);
+    console.log(
+      `[ai-advisor] Refreshed available models (triggered by user ${req.user.username} via dossier ${req.params.id}): ${result.models.map((m) => m.id).join(', ')}`
+    );
+    res.json(result);
+  } catch (err) {
+    console.error(`[ai-advisor] Model refresh failed — ${err.message}`);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
 
 // GET /ai-advisor/analysis — last persisted analysis
 router.get('/ai-advisor/analysis', (req, res) => {
@@ -693,3 +823,9 @@ module.exports = router;
 module.exports.summarizeWorkbenchData = summarizeWorkbenchData;
 module.exports.computeCostUsd = computeCostUsd;
 module.exports.buildDossierContext = buildDossierContext;
+module.exports.isAllowedAiModel = isAllowedAiModel;
+module.exports.modelFamily = modelFamily;
+module.exports.getAvailableModels = getAvailableModels;
+module.exports.refreshAvailableModels = refreshAvailableModels;
+module.exports.DEFAULT_AI_MODEL = DEFAULT_AI_MODEL;
+module.exports.MODEL_FAMILIES = MODEL_FAMILIES;

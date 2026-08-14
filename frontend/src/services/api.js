@@ -254,4 +254,6 @@ export const api = {
   runAiAnalysis: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/analysis`),
   sendAiChatMessage: (dossierId, data) => request('POST', `/dossiers/${dossierId}/ai-advisor/chat`, data),
   getAiExportPrompt: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/export-prompt`),
+  getAiAvailableModels: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/available-models`),
+  refreshAiAvailableModels: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/refresh-models`),
 };
