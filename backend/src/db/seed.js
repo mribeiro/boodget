@@ -559,6 +559,21 @@ module.exports = function seed() {
       avg_kwh_per_100km: 17.4, cost_per_kwh: 0.19,
     });
 
+    // "Family Hybrid" — the third fuel-type variant, exercising both the fuel and
+    // electric legs on the same snapshot (and their independent carry-forward).
+    const familyHybridId = mkCar(d0, {
+      name: 'Family Hybrid', make: 'Toyota', model: 'Corolla', license_plate: '90-EF-12',
+      fuel_type: 'hybrid', initial_mileage_km: 30500,
+    });
+    mkCarMonth(familyHybridId, {
+      year: prevCycleDisplay.year, month: prevCycleDisplay.month, mileage_km: 31150,
+      avg_l_per_100km: 4.1, cost_per_l: 1.68, avg_kwh_per_100km: 9.5, cost_per_kwh: 0.19,
+    });
+    mkCarMonth(familyHybridId, {
+      year: curCycleDisplay.year, month: curCycleDisplay.month, mileage_km: 31860,
+      avg_l_per_100km: 4.3, cost_per_l: 1.74, avg_kwh_per_100km: 9.8, cost_per_kwh: 0.19,
+    });
+
     // ══════════════════════════════════════════════════════════════════════
     // DOSSIER A — "Glances — All Good"
     // Capital: normal (variation + idle)

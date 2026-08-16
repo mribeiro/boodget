@@ -31,10 +31,30 @@ function findBaselineSnapshot(months, year, month, excludeId) {
   return best;
 }
 
+// Defaults a new snapshot's period to the month right after the car's own most recent
+// snapshot — continuing its natural cadence — rather than always "last calendar month".
+// Two cars can have a different number of snapshots (e.g. one just started being tracked
+// later than another), so "last calendar month" can silently collide with a period that
+// already exists for one car but not the other; when it does, the baseline lookup below
+// skips past the car's true latest reading to whatever (if anything) came before that
+// existing entry — which can be nothing at all, making the averages look uncopied even
+// though the carry-forward logic itself is correct for the period actually selected.
+// Falls back to last calendar month only when the car has no snapshots yet.
+function computeDefaultPeriod(months, now) {
+  let latest = null;
+  for (const m of months || []) {
+    if (!latest || periodKey(m.year, m.month) > periodKey(latest.year, latest.month)) latest = m;
+  }
+  if (latest) {
+    return latest.month === 12 ? { year: latest.year + 1, month: 1 } : { year: latest.year, month: latest.month + 1 };
+  }
+  return now.getMonth() === 0 ? { year: now.getFullYear() - 1, month: 12 } : { year: now.getFullYear(), month: now.getMonth() };
+}
+
 export default function CarMonthFormModal({ dossierId, car, months, snapshot, onSave, onClose }) {
   const isEdit = !!snapshot;
   const now = new Date();
-  const defaultPrev = now.getMonth() === 0 ? { year: now.getFullYear() - 1, month: 12 } : { year: now.getFullYear(), month: now.getMonth() };
+  const defaultPrev = computeDefaultPeriod(months, now);
 
   const [year, setYear] = useState(snapshot?.year ?? defaultPrev.year);
   const [month, setMonth] = useState(snapshot?.month ?? defaultPrev.month);

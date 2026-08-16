@@ -68,6 +68,8 @@ A field left unset for the car's fuel type simply isn't used — for example, a 
 
 When starting a new snapshot, the four average/price fields are prefilled from the most recent prior snapshot as an editable suggestion — the same UX precedent as a cycle's "previous balance" prefill from the prior closed cycle's `final_real_balance`. This is done client-side: the snapshot-creation modal already has every prior snapshot in memory from the car's detail payload, so no extra round trip is needed. Mileage is never prefilled — it's the one genuinely new reading each month.
 
+The default period offered for a new snapshot is **the month right after the car's own most recent snapshot** (continuing its natural cadence), falling back to last calendar month only when the car has no snapshots yet — not an unconditional "last calendar month." Two cars can have a different number of recorded months (one may simply have started being tracked later), so always defaulting to "last calendar month" can silently land on a period that already exists for one car but not another; when that happens, the carry-forward lookup correctly resolves the baseline for the period actually selected, but that baseline can end up being several months further back than the car's true latest reading — or, if nothing exists before that colliding period, no baseline at all — which reads as "the averages didn't carry forward" even though the underlying lookup was never wrong for the period it was actually asked about.
+
 -----
 
 ## 4. Energy Cost Formula
