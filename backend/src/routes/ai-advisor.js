@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const { computeEmergencyFundStatus } = require('./emergency-fund');
 const { computeGoalValues } = require('./goals');
 const { computeLoanValues } = require('./loans');
+const { buildCarCostContext, computeCarMonthValues, summarizeCarMonths } = require('./cars');
 
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
@@ -382,6 +383,60 @@ function buildDossierContext(dossierId) {
     total_monthly_cost: subscriptionRows.reduce((sum, s) => sum + s.monthly_cost, 0),
   };
 
+  // Cars — per-vehicle running cost. Reuses computeCarMonthValues/summarizeCarMonths from
+  // routes/cars, the same way loans reuse computeLoanValues. Only the last 12 monthly
+  // snapshots per car are sent (same capping discipline as capital_series/recent_cycles);
+  // the per-item cost breakdown is dropped — the linked item names already appear in
+  // expense_template/annual_expense_template, and repeating their amounts here would
+  // duplicate recent_cycles. Raw snapshot averages/prices (L/100km, €/kWh) are also
+  // dropped — the model can't act on a per-liter price, only the resulting cost.
+  const carRows = db.prepare('SELECT * FROM cars WHERE dossier_id = ? ORDER BY created_at ASC').all(dossierId);
+  const carCtx = buildCarCostContext(dossierId);
+  const cars = carRows.map((car) => {
+    const snapshots = db.prepare('SELECT * FROM car_months WHERE car_id = ? ORDER BY year, month').all(car.id);
+    const monthsAsc = [];
+    let prevSnap = null;
+    for (const s of snapshots) {
+      monthsAsc.push({ ...s, ...computeCarMonthValues(car, s, prevSnap, carCtx) });
+      prevSnap = s;
+    }
+    const latest = monthsAsc.length ? monthsAsc[monthsAsc.length - 1] : null;
+    const summary = summarizeCarMonths(monthsAsc);
+    const last12 = monthsAsc.slice(-12);
+
+    const linkedMonthlyNames = db
+      .prepare("SELECT name FROM expense_template_items WHERE dossier_id = ? AND car_id = ? AND section = 'expense'")
+      .all(dossierId, car.id).map((r) => r.name);
+    const linkedAnnualNames = db
+      .prepare('SELECT name FROM annual_expense_template_items WHERE dossier_id = ? AND car_id = ?')
+      .all(dossierId, car.id).map((r) => r.name);
+
+    return {
+      name: car.name,
+      fuel_type: car.fuel_type,
+      latest_mileage_km: latest ? latest.mileage_km : car.initial_mileage_km,
+      latest_month: latest
+        ? {
+            period: `${latest.year}-${String(latest.month).padStart(2, '0')}`,
+            km_driven: latest.km_driven,
+            energy_cost: latest.energy_cost,
+            monthly_expenses_total: latest.monthly_expenses_total,
+            annual_expenses_total: latest.annual_expenses_total,
+            total_cost: latest.total_cost,
+            unknown_count: latest.unknown_count,
+          }
+        : null,
+      ytd_total_cost: summary.ytd.total_cost,
+      avg_monthly_cost_12m: summary.avg_monthly_cost,
+      linked_expense_items: [...linkedMonthlyNames, ...linkedAnnualNames],
+      monthly_series: last12.map((m) => ({
+        period: `${m.year}-${String(m.month).padStart(2, '0')}`,
+        km_driven: m.km_driven,
+        total_cost: m.total_cost,
+      })),
+    };
+  });
+
   // Annual expense years summary
   const annualYears = db
     .prepare('SELECT id, year, carryover FROM annual_expense_years WHERE dossier_id = ? ORDER BY year DESC LIMIT 3')
@@ -446,6 +501,7 @@ function buildDossierContext(dossierId) {
       goals,
       loans,
       subscriptions,
+      cars,
       emergency_fund: efStatus,
       annual_expense_years,
       annual_expense_template,
@@ -583,6 +639,7 @@ The dossier may include loans (draft studies or active, ongoing loans). For acti
 annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check whether a year's budgeted total looks right, and to factor upcoming recurring costs into repayment/savings capacity even if the current year hasn't budgeted for them yet.
 workbench holds ephemeral scenario snapshots (what-if plans the user built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as the user's own targets or plans, useful for comparing against what's actually happening in recent_cycles (e.g. flag a plan that's structurally unaffordable, i.e. a strongly negative leftover, or note if actual spending has drifted far from a stated plan).
 subscriptions are active recurring discretionary costs (e.g. streaming, software) the user deliberately funds from a distribution rather than the monthly expense template — when a subscription's linked_distribution is set, compare that distribution's total linked subscriptions against the distribution's own budgeted value (from expense_template.distributions) and flag it as a risk if the subscriptions exceed it.
+cars each report a latest_month figure that is the *actual* cost for that calendar month (energy computed from the mileage/consumption snapshot, plus the real paid/spent amount of every linked expense) — not a budgeted estimate. When latest_month.unknown_count is greater than 0, some linked items had no cycle data yet for that month, so total_cost is a floor, not a final figure — say so rather than treating it as exact. Weigh a car's cost against reference_salary when both are set, and note a car with no linked_expense_items as one whose insurance/tax/upkeep may not be budgeted anywhere else in the dossier.
 If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight: use it to explain away a risk or anomaly it addresses (don't flag something the user has already accounted for), and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data. Use plain text inside every field: no markdown, no bullet characters.
 
@@ -594,6 +651,7 @@ Answer questions about this dossier concretely, referencing actual numbers, acco
 The dossier may include loans (draft studies or active, ongoing loans) — draw on their monthly payments, interest rates, budget coverage, and total interest figures when relevant; treat draft loans as hypothetical studies, not commitments. For active loans, current_balance is projected forward from a balance dated at balance_as_of, so a long-stale anchor is an estimate rather than a statement of fact; payments_tracked false means the loan has no monthly expense assigned and so isn't budgeted anywhere. An active loan with is_matured true is past its end date but still marked active — its current_balance projects down to 0 but the debt likely isn't actually gone, so mention that it needs review rather than treating it as paid off.
 annual_expense_template is the recurring annual-cost baseline annual_expense_years is instantiated from; workbench holds ephemeral what-if planning snapshots (not real transactions) with Must/Want/Save totals already computed — draw on both when relevant, treating workbench figures as the user's own targets/plans rather than actuals.
 subscriptions are active recurring discretionary costs funded from a distribution rather than the monthly expense template — when relevant, compare a distribution's linked subscriptions total against that distribution's budgeted value.
+cars report actual (not budgeted) monthly cost — energy from the mileage/consumption snapshot plus real paid/spent amounts of any linked expenses. A latest_month.unknown_count above 0 means total_cost is a floor for that month, not final — mention that if it's relevant to the answer.
 If dossier.user_notes is present, it's free-text context the user wrote themselves — give it real weight and factor it into your answers.
 Be concise. Answer in plain text only — no markdown, no headers, no bullet characters. If a question cannot be answered from the data, say so briefly.
 
@@ -627,6 +685,7 @@ All monetary amounts are in the currency noted in the data. Reply in markdown, f
 The dossier may include loans (draft studies or active, ongoing loans). For active loans, factor their monthly_payment into repayment capacity, note whether they're covered by a linked budgeted expense (underbudgeted loans are a risk worth flagging), and weigh total interest/salary_pct where relevant. If the dossier has both a reference_salary and a loans_max_salary_pct set, compare the combined active-loan payments against that self-imposed ceiling and flag it as a risk if exceeded. Draft loans are hypothetical studies, not commitments — treat them as context, not liabilities. For an active loan, current_balance is the live figure, projected forward from a balance the user dated at balance_as_of — the older that anchor and the higher payments_made, the more the projection can have drifted from reality, so treat a long-stale anchor as worth re-checking rather than as fact. An active loan with payments_tracked false has no monthly expense assigned, so its payment isn't budgeted anywhere in the monthly template — flag that as a gap. An active loan with is_matured true has passed its end date without being closed out or updated — its current_balance projects down to 0, but the debt itself likely isn't actually gone; flag this as a risk prompting me to review/update the loan rather than reading it as fully repaid.
 annual_expense_template is the recurring baseline (insurance, car tax, etc.) that annual_expense_years is instantiated from each calendar year — use total_monthly_avg to sanity-check a year's budgeted total, and factor upcoming recurring costs into repayment/savings capacity even if not yet budgeted for. workbench holds ephemeral scenario snapshots (what-if plans I built, not real transactions) with total_income/total_must/total_want/total_save/leftover already computed — treat these as my own targets or plans, useful for comparing against what's actually happening in recent_cycles.
 subscriptions are active recurring discretionary costs I fund from a distribution rather than the monthly expense template — when a subscription's linked_distribution is set, compare that distribution's total linked subscriptions against the distribution's own budgeted value and flag it if the subscriptions exceed it.
+cars report the *actual* cost for their latest month — energy computed from the mileage/consumption snapshot plus the real paid/spent amount of every linked expense, not a budgeted estimate. If latest_month.unknown_count is above 0, some linked items had no cycle data yet, so treat total_cost as a floor rather than a final figure.
 If dossier.user_notes is present, it's context I wrote myself — give it real weight: use it to explain away a risk or anomaly it addresses, and factor in any goals, constraints, or plans it mentions.
 Be specific — reference actual account names, amounts, and months from the data.
 

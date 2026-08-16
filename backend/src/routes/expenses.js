@@ -100,6 +100,23 @@ function canAccess(dossierId, userId) {
     .get(dossierId, userId);
 }
 
+// car_id tags a template item (Monthly Fixed/Budget or Annual) as belonging to a car, for
+// the Car Expenses module's cost rollup. Purely additive — never changes anything about how
+// the item behaves elsewhere. Distributions can't be tagged: a distribution's only "actual"
+// signal is a done boolean with no amount, so it has nothing to roll up.
+// Same 3-way contract as subscriptions' resolveDistributionLink: key absent = no change,
+// null = clear the link, an id = validate against this dossier's cars and set it.
+function resolveCarLink(body, dossierId, section) {
+  if (body.car_id === undefined) return { changed: false };
+  if (body.car_id === null || body.car_id === '') return { changed: true, value: null };
+  if (section === 'distribution') {
+    return { error: 'Only expense items can be assigned to a car' };
+  }
+  const car = db.prepare('SELECT id FROM cars WHERE id = ? AND dossier_id = ?').get(body.car_id, dossierId);
+  if (!car) return { error: 'car_id must reference a car in this dossier' };
+  return { changed: true, value: car.id };
+}
+
 function computeSummary(cycle, items, incomeTotal = 0) {
   const expenses = items.filter((i) => i.section === 'expense');
   const distributions = items.filter((i) => i.section === 'distribution');
@@ -366,6 +383,8 @@ router.post('/expense-template', (req, res) => {
     if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
     if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
   }
+  const carLink = resolveCarLink(req.body, req.params.id, section);
+  if (carLink.error) return res.status(400).json({ error: carLink.error });
 
   const maxPos = db
     .prepare('SELECT MAX(position) as mp FROM expense_template_items WHERE dossier_id = ? AND section = ?')
@@ -375,10 +394,11 @@ router.post('/expense-template', (req, res) => {
   const tagId = section === 'expense' && type === 'Fixed' && paperless_tag_id != null ? Number(paperless_tag_id) : null;
   const excludeFromEF = section === 'expense' && exclude_from_emergency_fund ? 1 : 0;
   const accountId = section === 'distribution' && account_id != null ? account_id : null;
+  const carId = carLink.changed ? carLink.value : null;
 
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, paperless_tag_id, exclude_from_emergency_fund, account_id, car_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     id,
     req.params.id,
@@ -390,7 +410,8 @@ router.post('/expense-template', (req, res) => {
     position,
     tagId,
     excludeFromEF,
-    accountId
+    accountId,
+    carId
   );
 
   const item = db.prepare('SELECT * FROM expense_template_items WHERE id = ?').get(id);
@@ -418,6 +439,8 @@ router.put('/expense-template/:itemId', (req, res) => {
     if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
     if (!acc.can_receive_transfers) return res.status(400).json({ error: 'This account cannot receive transfers' });
   }
+  const carLink = resolveCarLink(req.body, req.params.id, item.section);
+  if (carLink.error) return res.status(400).json({ error: carLink.error });
 
   const newName = name !== undefined ? name.trim() : item.name;
   const newValue = value !== undefined ? Number(value) : item.value;
@@ -432,11 +455,12 @@ router.put('/expense-template/:itemId', (req, res) => {
       ? (item.section === 'expense' && exclude_from_emergency_fund ? 1 : 0)
       : item.exclude_from_emergency_fund;
   const newAccountId = account_id !== undefined ? (account_id || null) : item.account_id;
+  const newCarId = carLink.changed ? carLink.value : item.car_id;
 
   const apply = db.transaction(() => {
     db.prepare(
-      'UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ?, classification = ?, must_amount = ?, want_amount = ?, save_amount = ?, paperless_tag_id = ?, exclude_from_emergency_fund = ?, account_id = ? WHERE id = ?'
-    ).run(newName, newValue, newDop, newClassification, newMustAmount, newWantAmount, newSaveAmount, newTagId, newExcludeFromEF, newAccountId, req.params.itemId);
+      'UPDATE expense_template_items SET name = ?, value = ?, day_of_payment = ?, classification = ?, must_amount = ?, want_amount = ?, save_amount = ?, paperless_tag_id = ?, exclude_from_emergency_fund = ?, account_id = ?, car_id = ? WHERE id = ?'
+    ).run(newName, newValue, newDop, newClassification, newMustAmount, newWantAmount, newSaveAmount, newTagId, newExcludeFromEF, newAccountId, newCarId, req.params.itemId);
 
     // Propagate exclusion flag to all linked cycle items so the EF average updates retroactively.
     if (exclude_from_emergency_fund !== undefined && item.section === 'expense') {
@@ -478,6 +502,10 @@ router.post('/expense-template/bulk-replace', (req, res) => {
     // whole section is wiped below — capture (loan_id, item_name) so they can be
     // re-linked by name after reinsert (same philosophy as migration 022 / import re-linking).
     let linkedLoans = [];
+    // Cars tagged onto expense-section items are captured by name too — car_id is NOT read
+    // from the incoming payload (that would silently wipe every tag on any caller that
+    // doesn't send it, which is exactly the latent bug account_id already has here).
+    let carTags = [];
     if (section === 'expense') {
       linkedLoans = db
         .prepare(
@@ -486,6 +514,11 @@ router.post('/expense-template/bulk-replace', (req, res) => {
            WHERE l.dossier_id = ? AND eti.dossier_id = ? AND eti.section = 'expense'`
         )
         .all(req.params.id, req.params.id);
+      carTags = db
+        .prepare(
+          "SELECT name as item_name, car_id FROM expense_template_items WHERE dossier_id = ? AND section = 'expense' AND car_id IS NOT NULL"
+        )
+        .all(req.params.id);
     }
 
     // Same problem for distribution-section links: subscriptions.distribution_template_item_id
@@ -550,6 +583,19 @@ router.post('/expense-template/bulk-replace', (req, res) => {
       for (const { loan_id, item_name } of linkedLoans) {
         const match = findByName.get(req.params.id, item_name);
         updateLoan.run(match ? match.id : null, loan_id);
+      }
+    }
+
+    // Re-tag cars by matching name on the freshly-inserted expense items. Renamed/dropped
+    // items lose the tag — same semantics as the loan re-link above.
+    if (section === 'expense' && carTags.length > 0) {
+      const findByNameForCar = db.prepare(
+        "SELECT id FROM expense_template_items WHERE dossier_id = ? AND section = 'expense' AND name = ? LIMIT 1"
+      );
+      const setCar = db.prepare('UPDATE expense_template_items SET car_id = ? WHERE id = ?');
+      for (const { item_name, car_id } of carTags) {
+        const match = findByNameForCar.get(req.params.id, item_name);
+        if (match) setCar.run(car_id, match.id);
       }
     }
 
@@ -1356,6 +1402,9 @@ router.post('/annual-expense-template', (req, res) => {
   if (classification && !['must', 'want'].includes(classification)) {
     return res.status(400).json({ error: 'classification must be "must" or "want"' });
   }
+  const carLink = resolveCarLink(req.body, req.params.id, null);
+  if (carLink.error) return res.status(400).json({ error: carLink.error });
+  const carId = carLink.changed ? carLink.value : null;
 
   const maxPos = db
     .prepare('SELECT MAX(position) as mp FROM annual_expense_template_items WHERE dossier_id = ?')
@@ -1366,12 +1415,12 @@ router.post('/annual-expense-template', (req, res) => {
   const id = uuidv4();
   const createItem = db.transaction(() => {
     db.prepare(
-      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments, car_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       id, req.params.id, String(name).trim(), Number(value),
       day_of_payment != null ? day_of_payment : null,
       month_of_payment != null ? month_of_payment : null,
-      classification || null, position, numInst
+      classification || null, position, numInst, carId
     );
     if (Array.isArray(installments)) {
       const insertInst = db.prepare('INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)');
@@ -1404,6 +1453,8 @@ router.put('/annual-expense-template/:itemId', (req, res) => {
   if (classification !== undefined && classification !== null && !['must', 'want'].includes(classification)) {
     return res.status(400).json({ error: 'classification must be "must" or "want"' });
   }
+  const carLink = resolveCarLink(req.body, req.params.id, null);
+  if (carLink.error) return res.status(400).json({ error: carLink.error });
 
   const newName = name !== undefined ? String(name).trim() : item.name;
   const newValue = value !== undefined ? Number(value) : item.value;
@@ -1411,11 +1462,12 @@ router.put('/annual-expense-template/:itemId', (req, res) => {
   const newMop = month_of_payment !== undefined ? month_of_payment : item.month_of_payment;
   const newClassification = classification !== undefined ? classification : item.classification;
   const newNumInst = num_installments !== undefined ? Math.max(1, Number(num_installments)) : item.num_installments ?? 1;
+  const newCarId = carLink.changed ? carLink.value : item.car_id;
 
   const doUpdate = db.transaction(() => {
     db.prepare(
-      'UPDATE annual_expense_template_items SET name = ?, value = ?, day_of_payment = ?, month_of_payment = ?, classification = ?, num_installments = ? WHERE id = ?'
-    ).run(newName, newValue, newDop, newMop, newClassification, newNumInst, req.params.itemId);
+      'UPDATE annual_expense_template_items SET name = ?, value = ?, day_of_payment = ?, month_of_payment = ?, classification = ?, num_installments = ?, car_id = ? WHERE id = ?'
+    ).run(newName, newValue, newDop, newMop, newClassification, newNumInst, newCarId, req.params.itemId);
 
     if (Array.isArray(installments)) {
       db.prepare('DELETE FROM annual_expense_template_installments WHERE template_item_id = ?').run(req.params.itemId);
@@ -1449,6 +1501,13 @@ router.post('/annual-expense-template/bulk-replace', (req, res) => {
   if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
 
   const replace = db.transaction(() => {
+    // Cars tagged onto annual template items lose their id-based link when the table is
+    // wiped below — capture by name, re-link after reinsert, same mechanism as the
+    // expense-template bulk-replace above. Not read from the payload for the same reason.
+    const carTags = db
+      .prepare('SELECT name as item_name, car_id FROM annual_expense_template_items WHERE dossier_id = ? AND car_id IS NOT NULL')
+      .all(req.params.id);
+
     db.prepare('DELETE FROM annual_expense_template_items WHERE dossier_id = ?').run(req.params.id);
     const insert = db.prepare(
       'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -1471,6 +1530,17 @@ router.post('/annual-expense-template/bulk-replace', (req, res) => {
         insertInst.run(uuidv4(), itemId, 1, item.month_of_payment, item.day_of_payment);
       }
     });
+
+    if (carTags.length > 0) {
+      const findByNameForCar = db.prepare(
+        'SELECT id FROM annual_expense_template_items WHERE dossier_id = ? AND name = ? LIMIT 1'
+      );
+      const setCar = db.prepare('UPDATE annual_expense_template_items SET car_id = ? WHERE id = ?');
+      for (const { item_name, car_id } of carTags) {
+        const match = findByNameForCar.get(req.params.id, item_name);
+        if (match) setCar.run(car_id, match.id);
+      }
+    }
   });
 
   replace();

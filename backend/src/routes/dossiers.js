@@ -14,6 +14,7 @@ const aiAdvisorRouter = require('./ai-advisor');
 const { isAllowedAiModel, DEFAULT_AI_MODEL } = aiAdvisorRouter;
 const loansRouter = require('./loans');
 const subscriptionsRouter = require('./subscriptions');
+const carsRouter = require('./cars');
 
 // Anchor month for an active loan imported from a pre-v15 export (which carried no
 // balance_as_of). Mirrors migration 042's backfill: the effective current period, unless
@@ -60,7 +61,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -115,6 +116,37 @@ router.post('/import', (req, res) => {
       accountNameToId[a.name] = accountIdMap[a.id];
     }
 
+    // Cars (v16+) — imported before the expense/annual templates below, since their car_id
+    // tags are re-linked by car name (same convention as account_name/linked_expense_name).
+    const carNameToId = {};
+    const insertCar = db.prepare(
+      `INSERT INTO cars (id, dossier_id, name, license_plate, make, model, fuel_type, initial_mileage_km, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const insertCarMonth = db.prepare(
+      `INSERT INTO car_months (id, car_id, year, month, mileage_km, avg_l_per_100km, avg_kwh_per_100km, cost_per_l, cost_per_kwh, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const c of (data.cars || [])) {
+      const carId = uuidv4();
+      carNameToId[c.name] = carId;
+      insertCar.run(carId, dossierId, c.name, c.license_plate ?? null, c.make ?? null, c.model ?? null, c.fuel_type, c.initial_mileage_km ?? 0, c.created_at || null);
+      for (const m of (c.months || [])) {
+        insertCarMonth.run(
+          uuidv4(),
+          carId,
+          m.year,
+          m.month,
+          m.mileage_km,
+          m.avg_l_per_100km ?? null,
+          m.avg_kwh_per_100km ?? null,
+          m.cost_per_l ?? null,
+          m.cost_per_kwh ?? null,
+          m.notes ?? null
+        );
+      }
+    }
+
     const insertMonth = db.prepare(
       'INSERT INTO months (id, dossier_id, year, month, filled, comment, filled_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
@@ -133,7 +165,7 @@ router.post('/import', (req, res) => {
     }
 
     const insertTemplateItem = db.prepare(
-      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund, account_id, car_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const templateNameToId = {};
     const expenseTemplateNameToId = {};
@@ -142,7 +174,8 @@ router.post('/import', (req, res) => {
       if (ti.section === 'distribution') templateNameToId[ti.name] = newId;
       if (ti.section === 'expense') expenseTemplateNameToId[ti.name] = newId;
       const accountId = ti.account_name ? (accountNameToId[ti.account_name] ?? null) : null;
-      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0, accountId);
+      const carId = ti.car_name ? (carNameToId[ti.car_name] ?? null) : null;
+      insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0, accountId, carId);
     }
 
     // income_template is version 14+; absent/empty on older exports.
@@ -157,7 +190,7 @@ router.post('/import', (req, res) => {
     });
 
     const insertAnnualTemplateItem = db.prepare(
-      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments, car_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertAnnualTemplateInstallment = db.prepare(
       'INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
@@ -167,7 +200,8 @@ router.post('/import', (req, res) => {
       const tiId = uuidv4();
       annualTemplateNameToId[ti.name] = tiId;
       const numInst = ti.num_installments ?? 1;
-      insertAnnualTemplateItem.run(tiId, dossierId, ti.name, ti.value ?? 0, ti.day_of_payment ?? null, ti.month_of_payment ?? null, ti.classification ?? null, ti.position ?? 0, numInst);
+      const carId = ti.car_name ? (carNameToId[ti.car_name] ?? null) : null;
+      insertAnnualTemplateItem.run(tiId, dossierId, ti.name, ti.value ?? 0, ti.day_of_payment ?? null, ti.month_of_payment ?? null, ti.classification ?? null, ti.position ?? 0, numInst, carId);
       for (const inst of (ti.installments || [])) {
         insertAnnualTemplateInstallment.run(uuidv4(), tiId, inst.installment_number, inst.month, inst.day);
       }
@@ -442,9 +476,10 @@ router.get('/:id/export', (req, res) => {
     .prepare(
       `SELECT eti.section, eti.name, eti.type, eti.value, eti.day_of_payment, eti.position, eti.classification,
               eti.must_amount, eti.want_amount, eti.save_amount, eti.paperless_tag_id, eti.exclude_from_emergency_fund,
-              acc.name as account_name
+              acc.name as account_name, car.name as car_name
        FROM expense_template_items eti
        LEFT JOIN accounts acc ON acc.id = eti.account_id
+       LEFT JOIN cars car ON car.id = eti.car_id
        WHERE eti.dossier_id = ? ORDER BY eti.section, eti.position`
     )
     .all(req.params.id);
@@ -454,7 +489,13 @@ router.get('/:id/export', (req, res) => {
     .all(req.params.id);
 
   const annualExpenseTemplateRaw = db
-    .prepare('SELECT id, name, value, day_of_payment, month_of_payment, classification, position, num_installments FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+    .prepare(
+      `SELECT ti.id, ti.name, ti.value, ti.day_of_payment, ti.month_of_payment, ti.classification, ti.position,
+              ti.num_installments, car.name as car_name
+       FROM annual_expense_template_items ti
+       LEFT JOIN cars car ON car.id = ti.car_id
+       WHERE ti.dossier_id = ? ORDER BY ti.position`
+    )
     .all(req.params.id);
   const annualExpenseTemplate = annualExpenseTemplateRaw.map((ti) => ({
     name: ti.name,
@@ -464,6 +505,7 @@ router.get('/:id/export', (req, res) => {
     classification: ti.classification,
     position: ti.position,
     num_installments: ti.num_installments ?? 1,
+    car_name: ti.car_name ?? null,
     installments: db.prepare('SELECT installment_number, month, day FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number').all(ti.id),
   }));
 
@@ -617,10 +659,32 @@ router.get('/:id/export', (req, res) => {
     )
     .all(req.params.id);
 
+  const carsExport = db
+    .prepare(
+      `SELECT id, name, license_plate, make, model, fuel_type, initial_mileage_km, created_at
+       FROM cars WHERE dossier_id = ? ORDER BY created_at`
+    )
+    .all(req.params.id)
+    .map((c) => ({
+      name: c.name,
+      license_plate: c.license_plate,
+      make: c.make,
+      model: c.model,
+      fuel_type: c.fuel_type,
+      initial_mileage_km: c.initial_mileage_km,
+      created_at: c.created_at,
+      months: db
+        .prepare(
+          `SELECT year, month, mileage_km, avg_l_per_100km, avg_kwh_per_100km, cost_per_l, cost_per_kwh, notes
+           FROM car_months WHERE car_id = ? ORDER BY year, month`
+        )
+        .all(c.id),
+    }));
+
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 15,
+    version: 16,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
@@ -671,6 +735,7 @@ router.get('/:id/export', (req, res) => {
     annual_expense_distributions: aeDistributionNames,
     loans: loansExport,
     subscriptions: subscriptionsExport,
+    cars: carsExport,
   });
   console.log(`[dossiers] Exported dossier "${dossier.name}" (${req.params.id}) by user ${req.user.username}`);
 });
@@ -749,5 +814,6 @@ router.use('/:id', aiAdvisorRouter);
 // Loans sub-router
 router.use('/:id', loansRouter);
 router.use('/:id', subscriptionsRouter);
+router.use('/:id', carsRouter);
 
 module.exports = router;

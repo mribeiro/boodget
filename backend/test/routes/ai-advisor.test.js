@@ -145,4 +145,36 @@ describe('buildDossierContext trimming caps', () => {
     const context = JSON.parse(buildDossierContext(dossier.id));
     expect(context.dossier.user_notes).toBe('Ignore the March spike, that was a one-off.');
   });
+
+  it('includes a trimmed cars section with linked-item names but no raw snapshot averages', () => {
+    const { dossier } = setup();
+    const { createCar, createCarMonth, createExpenseTemplateItem } = require('../fixtures/builders');
+    const car = createCar(db, { dossierId: dossier.id, name: 'Daily Driver', fuel_type: 'gas', initial_mileage_km: 1000 });
+    createExpenseTemplateItem(db, { dossierId: dossier.id, section: 'expense', type: 'Fixed', name: 'Insurance', day_of_payment: 5, value: 40, car_id: car.id });
+    createCarMonth(db, { carId: car.id, year: 2025, month: 3, mileage_km: 1200, avg_l_per_100km: 6, cost_per_l: 1.5 });
+
+    const context = JSON.parse(buildDossierContext(dossier.id));
+    expect(context.cars).toHaveLength(1);
+    const carCtx = context.cars[0];
+    expect(carCtx.name).toBe('Daily Driver');
+    expect(carCtx.fuel_type).toBe('gas');
+    expect(carCtx.linked_expense_items).toEqual(['Insurance']);
+    expect(carCtx.latest_month.period).toBe('2025-03');
+    expect(carCtx.latest_month.total_cost).toBeGreaterThan(0);
+    expect(carCtx.monthly_series).toHaveLength(1);
+    // Raw per-snapshot averages/prices are dropped — only the derived cost is sent.
+    expect(carCtx.avg_l_per_100km).toBeUndefined();
+    expect(carCtx.cost_per_l).toBeUndefined();
+  });
+
+  it('caps a car\'s monthly_series at the 12 most recent months', () => {
+    const { dossier } = setup();
+    const { createCar, createCarMonth } = require('../fixtures/builders');
+    const car = createCar(db, { dossierId: dossier.id, fuel_type: 'gas', initial_mileage_km: 0 });
+    for (let i = 1; i <= 14; i++) {
+      createCarMonth(db, { carId: car.id, year: 2024, month: i <= 12 ? i : i - 12, mileage_km: i * 100, ...(i > 12 ? { year: 2025 } : {}) });
+    }
+    const context = JSON.parse(buildDossierContext(dossier.id));
+    expect(context.cars[0].monthly_series).toHaveLength(12);
+  });
 });

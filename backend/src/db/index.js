@@ -950,6 +950,53 @@ const migrations = [
       }
     },
   },
+  {
+    id: '043_create_cars_and_car_months',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS cars (
+          id TEXT PRIMARY KEY,
+          dossier_id TEXT NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          license_plate TEXT,
+          make TEXT,
+          model TEXT,
+          fuel_type TEXT NOT NULL CHECK(fuel_type IN ('electric','hybrid','gas')),
+          initial_mileage_km REAL NOT NULL DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS car_months (
+          id TEXT PRIMARY KEY,
+          car_id TEXT NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+          year INTEGER NOT NULL,
+          month INTEGER NOT NULL,
+          mileage_km REAL NOT NULL,
+          avg_l_per_100km REAL,
+          avg_kwh_per_100km REAL,
+          cost_per_l REAL,
+          cost_per_kwh REAL,
+          notes TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(car_id, year, month)
+        )
+      `);
+    },
+  },
+  {
+    id: '044_add_car_id_to_expense_templates',
+    up() {
+      const tplCols = db.prepare('PRAGMA table_info(expense_template_items)').all();
+      if (!tplCols.find((c) => c.name === 'car_id')) {
+        db.exec('ALTER TABLE expense_template_items ADD COLUMN car_id TEXT REFERENCES cars(id) ON DELETE SET NULL');
+      }
+      const annCols = db.prepare('PRAGMA table_info(annual_expense_template_items)').all();
+      if (!annCols.find((c) => c.name === 'car_id')) {
+        db.exec('ALTER TABLE annual_expense_template_items ADD COLUMN car_id TEXT REFERENCES cars(id) ON DELETE SET NULL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

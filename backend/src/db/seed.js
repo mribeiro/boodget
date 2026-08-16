@@ -70,6 +70,17 @@ function addMonthsYM(year, month, n) {
   return ym(Math.floor(total / 12), (total % 12) + 1);
 }
 
+// The calendar month a cycle stored (year, month) with CYCLE_START=25 displays as/ends
+// in — used to key car snapshots against the same calendar months the seeded cycles
+// actually resolve to, so a car's linked-expense breakdown shows real (not "no cycle")
+// data for its most recent snapshots.
+function displayMonthOf(year, month) {
+  return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+}
+function monthBefore({ year, month }) {
+  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+}
+
 // ── DB helpers ──────────────────────────────────────────────────────────────
 
 function mkDossier(userId, name, opts = {}) {
@@ -280,6 +291,26 @@ function mkLoan(dossierId, def) {
   return id;
 }
 
+function mkCar(dossierId, def) {
+  const id = uuidv4();
+  db.prepare(
+    `INSERT INTO cars (id, dossier_id, name, license_plate, make, model, fuel_type, initial_mileage_km)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, dossierId, def.name, def.license_plate ?? null, def.make ?? null, def.model ?? null, def.fuel_type, def.initial_mileage_km ?? 0);
+  return id;
+}
+
+function mkCarMonth(carId, def) {
+  db.prepare(
+    `INSERT INTO car_months (id, car_id, year, month, mileage_km, avg_l_per_100km, avg_kwh_per_100km, cost_per_l, cost_per_kwh, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    uuidv4(), carId, def.year, def.month, def.mileage_km,
+    def.avg_l_per_100km ?? null, def.avg_kwh_per_100km ?? null,
+    def.cost_per_l ?? null, def.cost_per_kwh ?? null, def.notes ?? null
+  );
+}
+
 // ── Seed entry point ─────────────────────────────────────────────────────────
 
 module.exports = function seed() {
@@ -390,7 +421,7 @@ module.exports = function seed() {
         ],
       },
     ];
-    mkAnnualTemplate(d0, d0AnnualTemplateItems);
+    const d0AnnualTemplateIds = mkAnnualTemplate(d0, d0AnnualTemplateItems);
 
     // Previous cycle (closed)
     const d0PrevCycleId = mkCycle(d0, prevCycleYear, prevCycleMonth, 1950, 180, true, [
@@ -479,6 +510,54 @@ module.exports = function seed() {
       principal: 200000, term_months: 300, down_payment: 50000, taeg: 3.8, opening_fee: 350,
     });
 
+    // Cars: two cars exercising the multi-car list and both fuel-type variants.
+    // "Daily Driver" is tagged to three already-seeded items — the "Car Loan Payment"
+    // Fixed expense, the "Transport" Budget expense, and the "Car Insurance" annual
+    // item — so its detail page shows a genuinely populated breakdown across all three
+    // source types with zero new template/cycle rows needed. Snapshots are keyed to the
+    // calendar months the two seeded cycles actually display as/end in (not their stored
+    // year/month), so the two most recent snapshots resolve real cycle data; the oldest
+    // snapshot predates both seeded cycles, deliberately covering the "no cycle yet"
+    // pending state instead.
+    const prevCycleDisplay = displayMonthOf(prevCycleYear, prevCycleMonth);
+    const curCycleDisplay = displayMonthOf(curCycleYear, curCycleMonth);
+    const oldestCarDisplay = monthBefore(prevCycleDisplay);
+
+    const dailyDriverId = mkCar(d0, {
+      name: 'Daily Driver', make: 'Renault', model: 'Clio', license_plate: '12-AB-34',
+      fuel_type: 'gas', initial_mileage_km: 84200,
+    });
+    db.prepare('UPDATE expense_template_items SET car_id = ? WHERE id IN (?, ?)')
+      .run(dailyDriverId, templateIds[10], templateIds[7]); // Car Loan Payment, Transport
+    db.prepare('UPDATE annual_expense_template_items SET car_id = ? WHERE id = ?')
+      .run(dailyDriverId, d0AnnualTemplateIds[0]); // Car Insurance
+    mkCarMonth(dailyDriverId, {
+      year: oldestCarDisplay.year, month: oldestCarDisplay.month, mileage_km: 85100,
+      avg_l_per_100km: 6.2, cost_per_l: 1.72,
+    });
+    mkCarMonth(dailyDriverId, {
+      year: prevCycleDisplay.year, month: prevCycleDisplay.month, mileage_km: 86050,
+      avg_l_per_100km: 6.4, cost_per_l: 1.79,
+    });
+    mkCarMonth(dailyDriverId, {
+      year: curCycleDisplay.year, month: curCycleDisplay.month, mileage_km: 86930,
+      avg_l_per_100km: 6.1, cost_per_l: 1.75,
+    });
+
+    // "Weekend EV" deliberately has no linked expenses — covers the electric-only
+    // fields and the "no expenses assigned" empty state.
+    const weekendEvId = mkCar(d0, {
+      name: 'Weekend EV', make: 'Tesla', model: 'Model 3', license_plate: '56-CD-78',
+      fuel_type: 'electric', initial_mileage_km: 12400,
+    });
+    mkCarMonth(weekendEvId, {
+      year: prevCycleDisplay.year, month: prevCycleDisplay.month, mileage_km: 12980,
+      avg_kwh_per_100km: 16.8, cost_per_kwh: 0.18,
+    });
+    mkCarMonth(weekendEvId, {
+      year: curCycleDisplay.year, month: curCycleDisplay.month, mileage_km: 13610,
+      avg_kwh_per_100km: 17.4, cost_per_kwh: 0.19,
+    });
 
     // ══════════════════════════════════════════════════════════════════════
     // DOSSIER A — "Glances — All Good"
