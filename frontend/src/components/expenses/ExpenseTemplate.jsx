@@ -67,6 +67,8 @@ function transferableAccounts(accounts, currentAccountId) {
 export default function ExpenseTemplate({ dossierId, settings, showToast }) {
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [cars, setCars] = useState([]);
+  const carsAvailable = cars.length > 0;
   const cycleStartDay = settings?.cycle_start_day ?? 25;
   const paperlessActive = !!(
     settings?.paperless_url &&
@@ -97,12 +99,14 @@ export default function ExpenseTemplate({ dossierId, settings, showToast }) {
 
   async function load() {
     try {
-      const [data, accountsData] = await Promise.all([
+      const [data, accountsData, carsData] = await Promise.all([
         api.getExpenseTemplate(dossierId),
         api.getAccounts(dossierId, false),
+        api.getCars(dossierId),
       ]);
       setItems(data);
       setAccounts(accountsData);
+      setCars(carsData);
     } catch (err) {
       setError(err.message);
     }
@@ -158,6 +162,15 @@ export default function ExpenseTemplate({ dossierId, settings, showToast }) {
     }
   }
 
+  async function handleCarChange(item, carId) {
+    try {
+      const updated = await api.updateTemplateItem(dossierId, item.id, { car_id: carId || null });
+      setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleSaveItem(data, itemId) {
     try {
       if (itemId) {
@@ -202,6 +215,7 @@ export default function ExpenseTemplate({ dossierId, settings, showToast }) {
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value / Max</th>
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Day</th>
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
+                  {carsAvailable && <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Car</th>}
                   {paperlessActive && <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Paperless Tag ID</th>}
                   <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
                 </tr>
@@ -236,6 +250,20 @@ export default function ExpenseTemplate({ dossierId, settings, showToast }) {
                         onChange={(v) => handleClassificationChange(item, v)}
                       />
                     </td>
+                    {carsAvailable && (
+                      <td data-label="Car" className="mobile-detail" style={{ padding: '0.3rem 0.4rem' }}>
+                        <select
+                          value={item.car_id ?? ''}
+                          onChange={(e) => handleCarChange(item, e.target.value)}
+                          style={{ fontSize: '0.8rem', maxWidth: '9rem' }}
+                        >
+                          <option value="">— None —</option>
+                          {cars.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                    )}
                     {paperlessActive && (
                       <td data-label="Paperless Tag ID" className="mobile-detail" style={{ padding: '0.4rem 0.5rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
                         {item.type === 'Fixed' ? (item.paperless_tag_id != null ? item.paperless_tag_id : '—') : ''}

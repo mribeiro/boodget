@@ -17,6 +17,8 @@ function formatValue(v) {
 
 export default function AnnualExpenseTemplate({ dossierId, showToast }) {
   const [items, setItems] = useState([]);
+  const [cars, setCars] = useState([]);
+  const carsAvailable = cars.length > 0;
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [error, setError] = useState('');
@@ -37,8 +39,12 @@ export default function AnnualExpenseTemplate({ dossierId, showToast }) {
 
   async function load() {
     try {
-      const data = await api.getAnnualExpenseTemplate(dossierId);
+      const [data, carsData] = await Promise.all([
+        api.getAnnualExpenseTemplate(dossierId),
+        api.getCars(dossierId),
+      ]);
       setItems(data);
+      setCars(carsData);
     } catch (err) {
       setError(err.message);
     }
@@ -91,6 +97,15 @@ export default function AnnualExpenseTemplate({ dossierId, showToast }) {
     }
   }
 
+  async function handleCarChange(item, carId) {
+    try {
+      const updated = await api.updateAnnualTemplateItem(dossierId, item.id, { car_id: carId || null });
+      setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div>
       {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
@@ -106,6 +121,7 @@ export default function AnnualExpenseTemplate({ dossierId, showToast }) {
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Value</th>
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'center' }}>Installments</th>
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Classification</th>
+                {carsAvailable && <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Car</th>}
                 <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}></th>
               </tr>
             </thead>
@@ -137,6 +153,20 @@ export default function AnnualExpenseTemplate({ dossierId, showToast }) {
                           onChange={(v) => handleClassificationChange(item, v)}
                         />
                       </td>
+                      {carsAvailable && (
+                        <td data-label="Car" className="mobile-detail" style={{ padding: '0.3rem 0.4rem' }}>
+                          <select
+                            value={item.car_id ?? ''}
+                            onChange={(e) => handleCarChange(item, e.target.value)}
+                            style={{ fontSize: '0.8rem', maxWidth: '9rem' }}
+                          >
+                            <option value="">— None —</option>
+                            {cars.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                       <td data-label="" className="mobile-detail mobile-detail-actions" style={{ padding: '0.4rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <span className="met-actions">
                           <button
@@ -155,7 +185,7 @@ export default function AnnualExpenseTemplate({ dossierId, showToast }) {
                       </td>
                     </tr>
                     <tr className={`annual-schedule-tr${expanded ? ' expanded' : ''}`}>
-                      <td colSpan={5} style={{ padding: 0 }}>
+                      <td colSpan={carsAvailable ? 6 : 5} style={{ padding: 0 }}>
                         {/* grid-template-rows animates to actual content height — same
                             technique as CollapsibleSection/ExpenseSection, chosen here
                             because a plain conditional mount gave no animation, and a
