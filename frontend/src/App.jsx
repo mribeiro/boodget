@@ -15,6 +15,7 @@ import PasswordChange from './components/PasswordChange';
 import AvatarUpload from './components/AvatarUpload';
 import GoalDetail from './components/goals/GoalDetail';
 import LoanDetail from './components/loans/LoanDetail';
+import CarDetail from './components/car-expenses/CarDetail';
 import NotificationSettings from './pages/NotificationSettings';
 import UpdateBanner from './components/ui/UpdateBanner';
 
@@ -131,6 +132,7 @@ function AppRoutes() {
           <Route path="/dossiers/:id/cycles/:cycleId" element={<CycleEditor />} />
           <Route path="/dossiers/:id/goals/:goalId" element={<GoalDetail />} />
           <Route path="/dossiers/:id/loans/:loanId" element={<LoanDetail />} />
+          <Route path="/dossiers/:id/cars/:carId" element={<CarDetail />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
           <Route path="/profile-picture" element={<AvatarUpload />} />

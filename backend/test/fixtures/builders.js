@@ -135,8 +135,8 @@ function createExpenseTemplateItem(db, overrides = {}) {
   db.prepare(
     `INSERT INTO expense_template_items
        (id, dossier_id, section, name, type, value, day_of_payment, position, classification,
-        must_amount, want_amount, save_amount, exclude_from_emergency_fund, account_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        must_amount, want_amount, save_amount, exclude_from_emergency_fund, account_id, car_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     dossierId,
@@ -151,7 +151,8 @@ function createExpenseTemplateItem(db, overrides = {}) {
     overrides.want_amount ?? null,
     overrides.save_amount ?? null,
     overrides.exclude_from_emergency_fund ? 1 : 0,
-    overrides.account_id ?? null
+    overrides.account_id ?? null,
+    overrides.car_id ?? null
   );
   return db.prepare('SELECT * FROM expense_template_items WHERE id = ?').get(id);
 }
@@ -321,8 +322,8 @@ function createAnnualExpenseTemplateItem(db, overrides = {}) {
   const dossierId = overrides.dossierId || overrides.dossier_id;
   if (!dossierId) throw new Error('createAnnualExpenseTemplateItem requires dossierId');
   db.prepare(
-    `INSERT INTO annual_expense_template_items (id, dossier_id, name, value, classification, num_installments, position)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO annual_expense_template_items (id, dossier_id, name, value, classification, num_installments, position, car_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     dossierId,
@@ -330,7 +331,8 @@ function createAnnualExpenseTemplateItem(db, overrides = {}) {
     overrides.value ?? 120,
     overrides.classification ?? null,
     overrides.num_installments ?? 1,
-    overrides.position ?? 0
+    overrides.position ?? 0,
+    overrides.car_id ?? null
   );
   const installments = overrides.installments || [{ month: 1, day: 15 }];
   const insertInst = db.prepare(
@@ -395,6 +397,48 @@ function createAnnualExpensePayment(db, overrides = {}) {
   return db.prepare('SELECT * FROM annual_expense_payments WHERE id = ?').get(id);
 }
 
+function createCar(db, overrides = {}) {
+  const id = overrides.id || uid('car');
+  const dossierId = overrides.dossierId || overrides.dossier_id;
+  if (!dossierId) throw new Error('createCar requires dossierId');
+  db.prepare(
+    `INSERT INTO cars (id, dossier_id, name, license_plate, make, model, fuel_type, initial_mileage_km)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    dossierId,
+    overrides.name || 'Test Car',
+    overrides.license_plate ?? null,
+    overrides.make ?? null,
+    overrides.model ?? null,
+    overrides.fuel_type || 'gas',
+    overrides.initial_mileage_km ?? 0
+  );
+  return db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
+}
+
+function createCarMonth(db, overrides = {}) {
+  const id = overrides.id || uid('car-month');
+  const carId = overrides.carId || overrides.car_id;
+  if (!carId) throw new Error('createCarMonth requires carId');
+  db.prepare(
+    `INSERT INTO car_months (id, car_id, year, month, mileage_km, avg_l_per_100km, avg_kwh_per_100km, cost_per_l, cost_per_kwh, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    carId,
+    overrides.year,
+    overrides.month,
+    overrides.mileage_km ?? 0,
+    overrides.avg_l_per_100km ?? null,
+    overrides.avg_kwh_per_100km ?? null,
+    overrides.cost_per_l ?? null,
+    overrides.cost_per_kwh ?? null,
+    overrides.notes ?? null
+  );
+  return db.prepare('SELECT * FROM car_months WHERE id = ?').get(id);
+}
+
 // Logs the given user in through the real HTTP endpoint (not a DB shortcut) so the
 // supertest agent carries a genuine session cookie for subsequent requests.
 async function loginAs(agent, { username, password }) {
@@ -424,5 +468,7 @@ module.exports = {
   createAnnualExpenseYear,
   createAnnualExpenseYearItem,
   createAnnualExpensePayment,
+  createCar,
+  createCarMonth,
   loginAs,
 };

@@ -235,6 +235,21 @@ export const api = {
   deleteSubscription: (dossierId, subscriptionId) =>
     request('DELETE', `/dossiers/${dossierId}/subscriptions/${subscriptionId}`),
 
+  // Cars
+  getCars: (dossierId) => request('GET', `/dossiers/${dossierId}/cars`),
+  createCar: (dossierId, data) => request('POST', `/dossiers/${dossierId}/cars`, data),
+  getCar: (dossierId, carId) => request('GET', `/dossiers/${dossierId}/cars/${carId}`),
+  updateCar: (dossierId, carId, data) =>
+    request('PUT', `/dossiers/${dossierId}/cars/${carId}`, data),
+  deleteCar: (dossierId, carId) =>
+    request('DELETE', `/dossiers/${dossierId}/cars/${carId}`),
+  createCarMonth: (dossierId, carId, data) =>
+    request('POST', `/dossiers/${dossierId}/cars/${carId}/months`, data),
+  updateCarMonth: (dossierId, carId, carMonthId, data) =>
+    request('PUT', `/dossiers/${dossierId}/cars/${carId}/months/${carMonthId}`, data),
+  deleteCarMonth: (dossierId, carId, carMonthId) =>
+    request('DELETE', `/dossiers/${dossierId}/cars/${carId}/months/${carMonthId}`),
+
   // Push notifications — VAPID & subscriptions
   getVapidPublicKey: () => request('GET', '/push/vapid-public-key'),
   subscribePush: (subscription) => request('POST', '/push/subscribe', subscription),
