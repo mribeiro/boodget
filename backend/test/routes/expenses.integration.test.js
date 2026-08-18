@@ -257,3 +257,62 @@ describe('PATCH /settings — ai_user_context length cap', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('PATCH /settings — ai_gemini_api_key and Gemini ai_model', () => {
+  it('sets and masks the Gemini API key, never returning the raw value', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ ai_gemini_api_key: 'g-secret' });
+    expect(res.status).toBe(200);
+    expect(res.body.ai_gemini_api_key_set).toBe(true);
+    expect(res.body.ai_gemini_api_key).toBeUndefined();
+
+    const row = db.prepare('SELECT ai_gemini_api_key FROM dossiers WHERE id = ?').get(dossier.id);
+    expect(row.ai_gemini_api_key).toBe('g-secret');
+  });
+
+  it('clears the Gemini API key when set to an empty string', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id, ai_gemini_api_key: 'g-secret' });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ ai_gemini_api_key: '' });
+    expect(res.status).toBe(200);
+    expect(res.body.ai_gemini_api_key_set).toBe(false);
+  });
+
+  it('rejects a non-string, non-null ai_gemini_api_key', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ ai_gemini_api_key: 42 });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a Gemini model id for ai_model', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ ai_model: 'gemini-3.1-pro-preview' });
+    expect(res.status).toBe(200);
+    expect(res.body.ai_model).toBe('gemini-3.1-pro-preview');
+  });
+
+  it('rejects an excluded Gemini variant for ai_model', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ ai_model: 'gemini-2.5-flash-lite' });
+    expect(res.status).toBe(400);
+  });
+});

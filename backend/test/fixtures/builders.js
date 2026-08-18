@@ -50,6 +50,7 @@ function createDossier(db, overrides = {}) {
     'ai_enabled',
     'ai_model',
     'ai_api_key',
+    'ai_gemini_api_key',
     'ai_user_context',
   ];
   const sets = [];

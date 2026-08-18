@@ -89,7 +89,8 @@ router.post('/import', (req, res) => {
       // ai_api_key is a secret and is never exported/imported.
       (data.dossier.ai_enabled ?? true) ? 1 : 0,
       // A hand-edited or stale export can carry an ai_model outside the allowed families
-      // (haiku/sonnet/opus); coerce it to the default rather than storing it as-is.
+      // (claude-{haiku,sonnet,opus}-* or gemini-{version}-{pro,flash}); coerce it to the
+      // default rather than storing it as-is.
       isAllowedAiModel(data.dossier.ai_model) ? data.dossier.ai_model : DEFAULT_AI_MODEL,
       data.dossier.ai_user_context ?? null,
       data.dossier.reference_salary ?? null,
@@ -410,6 +411,7 @@ router.get('/:id', (req, res) => {
     .prepare('SELECT *, (creator_id = ?) as is_creator FROM dossiers WHERE id = ?')
     .get(req.user.id, req.params.id);
   delete dossier.ai_api_key;
+  delete dossier.ai_gemini_api_key;
   res.json(dossier);
 });
 

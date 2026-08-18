@@ -950,6 +950,15 @@ const migrations = [
       }
     },
   },
+  {
+    id: '043_add_ai_gemini_api_key_to_dossiers',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'ai_gemini_api_key')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN ai_gemini_api_key TEXT');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
