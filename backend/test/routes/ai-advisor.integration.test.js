@@ -163,7 +163,7 @@ describe('AI Advisor — provider-aware configured', () => {
     const dossier = createDossier(db, {
       creatorId: user.id,
       ai_enabled: 1,
-      ai_model: 'gemini-3.7-pro',
+      ai_model: 'gemini-3.1-pro-preview',
       ai_api_key: 'claude-key',
       ai_gemini_api_key: null,
     });
@@ -215,7 +215,7 @@ describe('AI Advisor — Gemini analysis happy path', () => {
     const dossier = createDossier(db, {
       creatorId: user.id,
       ai_enabled: 1,
-      ai_model: 'gemini-3.7-pro',
+      ai_model: 'gemini-3.1-pro-preview',
       ai_gemini_api_key: 'g-key',
     });
     const app = buildTestApp();
@@ -237,7 +237,7 @@ describe('AI Advisor — Gemini analysis happy path', () => {
     const res = await agent.post(`/api/dossiers/${dossier.id}/ai-advisor/analysis`);
     expect(res.status).toBe(200);
     expect(res.body.analysis.health_score).toBe(82);
-    expect(res.body.analysis.model).toBe('gemini-3.7-pro');
+    expect(res.body.analysis.model).toBe('gemini-3.1-pro-preview');
     expect(res.body.analysis.input_tokens).toBe(1000);
     // thoughtsTokenCount folds into output_tokens alongside candidatesTokenCount
     expect(res.body.analysis.output_tokens).toBe(250);
@@ -260,7 +260,7 @@ describe('AI Advisor — Gemini analysis happy path', () => {
     const dossier = createDossier(db, {
       creatorId: user.id,
       ai_enabled: 1,
-      ai_model: 'gemini-3.1-flash',
+      ai_model: 'gemini-3.7-flash',
       ai_gemini_api_key: 'g-key',
     });
     const app = buildTestApp();
@@ -283,7 +283,7 @@ describe('AI Advisor — Gemini analysis happy path', () => {
     });
     expect(res.status).toBe(200);
     expect(res.body.reply).toBe('Here is your answer.');
-    expect(res.body.model).toBe('gemini-3.1-flash');
+    expect(res.body.model).toBe('gemini-3.7-flash');
 
     const [, options] = global.fetch.mock.calls[0];
     const body = JSON.parse(options.body);
@@ -295,7 +295,7 @@ describe('AI Advisor — Gemini analysis happy path', () => {
     const dossier = createDossier(db, {
       creatorId: user.id,
       ai_enabled: 1,
-      ai_model: 'gemini-3.7-pro',
+      ai_model: 'gemini-3.1-pro-preview',
       ai_gemini_api_key: 'g-key',
     });
     const app = buildTestApp();
@@ -316,7 +316,7 @@ describe('AI Advisor — Gemini analysis happy path', () => {
     const dossier = createDossier(db, {
       creatorId: user.id,
       ai_enabled: 1,
-      ai_model: 'gemini-3.7-pro',
+      ai_model: 'gemini-3.1-pro-preview',
       ai_gemini_api_key: 'g-key',
     });
     const app = buildTestApp();
@@ -337,7 +337,7 @@ describe('AI Advisor — Gemini analysis happy path', () => {
     const dossier = createDossier(db, {
       creatorId: user.id,
       ai_enabled: 1,
-      ai_model: 'gemini-3.7-pro',
+      ai_model: 'gemini-3.1-pro-preview',
       ai_gemini_api_key: 'g-key',
     });
     const app = buildTestApp();

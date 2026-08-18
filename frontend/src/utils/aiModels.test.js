@@ -59,8 +59,8 @@ describe('modelProvider', () => {
   });
 
   it('resolves gemini-* ids to google', () => {
-    expect(modelProvider('gemini-3.7-pro')).toBe('google');
-    expect(modelProvider('gemini-3.1-flash')).toBe('google');
+    expect(modelProvider('gemini-3.1-pro-preview')).toBe('google');
+    expect(modelProvider('gemini-3.7-flash')).toBe('google');
   });
 
   it('returns null for unknown or missing ids', () => {
@@ -75,15 +75,15 @@ describe('modelSelectGroups', () => {
   const mixedModels = [
     { id: 'claude-haiku-4-5', family: 'haiku', display_name: 'Claude Haiku 4.5' },
     { id: 'claude-opus-5', family: 'opus', display_name: 'Claude Opus 5' },
-    { id: 'gemini-3.7-pro', family: 'gemini-pro', display_name: 'Gemini 3.7 Pro' },
-    { id: 'gemini-3.1-flash', family: 'gemini-flash', display_name: 'Gemini 3.1 Flash' },
+    { id: 'gemini-3.1-pro-preview', family: 'gemini-pro', display_name: 'Gemini 3.7 Pro' },
+    { id: 'gemini-3.7-flash', family: 'gemini-flash', display_name: 'Gemini 3.1 Flash' },
   ];
 
   it('groups a mixed catalog by provider, Claude first then Gemini', () => {
     const groups = modelSelectGroups(mixedModels, 'claude-opus-5');
     expect(groups.map((g) => g.label)).toEqual(['Claude', 'Gemini']);
     expect(groups[0].options.map((o) => o.value)).toEqual(['claude-haiku-4-5', 'claude-opus-5']);
-    expect(groups[1].options.map((o) => o.value)).toEqual(['gemini-3.7-pro', 'gemini-3.1-flash']);
+    expect(groups[1].options.map((o) => o.value)).toEqual(['gemini-3.1-pro-preview', 'gemini-3.7-flash']);
   });
 
   it('yields a single group for a single-provider catalog', () => {

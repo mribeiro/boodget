@@ -168,8 +168,8 @@ describe('getAvailableModels — cache + fallback', () => {
     const { models, updated_at } = getAvailableModels();
     expect(updated_at).toBe('2026-01-01T00:00:00Z');
     expect(models.map((m) => m.family).sort()).toEqual(['gemini-flash', 'gemini-pro', 'haiku', 'opus', 'sonnet']);
-    expect(models.find((m) => m.family === 'gemini-pro').id).toBe('gemini-3.7-pro');
-    expect(models.find((m) => m.family === 'gemini-flash').id).toBe('gemini-3.1-flash');
+    expect(models.find((m) => m.family === 'gemini-pro').id).toBe('gemini-3.1-pro-preview');
+    expect(models.find((m) => m.family === 'gemini-flash').id).toBe('gemini-3.7-flash');
     // the cached Claude entries are still honored, not silently replaced by defaults
     expect(models.find((m) => m.family === 'haiku').id).toBe('claude-haiku-4-5');
   });
@@ -379,7 +379,7 @@ describe('POST /ai-advisor/refresh-models', () => {
     expect(res.body.skipped).toEqual(['google']);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const byFamily = Object.fromEntries(res.body.models.map((m) => [m.family, m.id]));
-    expect(byFamily['gemini-pro']).toBe('gemini-3.7-pro');
+    expect(byFamily['gemini-pro']).toBe('gemini-3.1-pro-preview');
   });
 
   it('refreshes Gemini when only a Gemini key is present, leaving Claude at defaults and reporting it skipped', async () => {

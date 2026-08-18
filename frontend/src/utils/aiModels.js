@@ -11,8 +11,8 @@ export const MODEL_LABELS = {
   'claude-opus-4-8': 'Opus 4.8',
   'claude-opus-5': 'Opus 5',
   'claude-fable-5': 'Fable 5',
-  'gemini-3.7-pro': 'Gemini 3.7 Pro',
-  'gemini-3.1-flash': 'Gemini 3.1 Flash',
+  'gemini-3.1-pro-preview': 'Gemini 3.1 Pro Preview',
+  'gemini-3.7-flash': 'Gemini 3.7 Flash',
 };
 
 // Which provider's API a model id belongs to, purely display-side (the backend is the source of

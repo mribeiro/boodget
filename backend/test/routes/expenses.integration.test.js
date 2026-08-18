@@ -301,9 +301,9 @@ describe('PATCH /settings — ai_gemini_api_key and Gemini ai_model', () => {
     const app = buildTestApp();
     const agent = await loggedInAgent(app, user);
 
-    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ ai_model: 'gemini-3.7-pro' });
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ ai_model: 'gemini-3.1-pro-preview' });
     expect(res.status).toBe(200);
-    expect(res.body.ai_model).toBe('gemini-3.7-pro');
+    expect(res.body.ai_model).toBe('gemini-3.1-pro-preview');
   });
 
   it('rejects an excluded Gemini variant for ai_model', async () => {

@@ -94,11 +94,11 @@ describe('POST /dossiers/import — ai_model family whitelist enforcement', () =
 
     const importRes = await agent
       .post('/api/dossiers/import')
-      .send(minimalExport({ ai_model: 'gemini-3.7-pro' }));
+      .send(minimalExport({ ai_model: 'gemini-3.1-pro-preview' }));
     expect(importRes.status).toBe(201);
 
     const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
-    expect(settingsRes.body.ai_model).toBe('gemini-3.7-pro');
+    expect(settingsRes.body.ai_model).toBe('gemini-3.1-pro-preview');
   });
 
   it('coerces a versionless Gemini -latest alias to the default (not a real, refresh-resolved id)', async () => {
@@ -122,7 +122,7 @@ describe('POST /dossiers/import — ai_model family whitelist enforcement', () =
 
     const importRes = await agent
       .post('/api/dossiers/import')
-      .send(minimalExport({ ai_model: 'gemini-3.7-pro' }));
+      .send(minimalExport({ ai_model: 'gemini-3.1-pro-preview' }));
     expect(importRes.status).toBe(201);
 
     await agent

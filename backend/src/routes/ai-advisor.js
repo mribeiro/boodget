@@ -67,8 +67,8 @@ const DEFAULT_MODELS = [
   { id: 'claude-haiku-4-5', family: 'haiku', display_name: 'Claude Haiku 4.5' },
   { id: 'claude-sonnet-5', family: 'sonnet', display_name: 'Claude Sonnet 5' },
   { id: 'claude-opus-5', family: 'opus', display_name: 'Claude Opus 5' },
-  { id: 'gemini-3.7-pro', family: 'gemini-pro', display_name: 'Gemini 3.7 Pro' },
-  { id: 'gemini-3.1-flash', family: 'gemini-flash', display_name: 'Gemini 3.1 Flash' },
+  { id: 'gemini-3.1-pro-preview', family: 'gemini-pro', display_name: 'Gemini 3.1 Pro Preview' },
+  { id: 'gemini-3.7-flash', family: 'gemini-flash', display_name: 'Gemini 3.7 Flash' },
 ];
 const DEFAULT_AI_MODEL = DEFAULT_MODELS.find((m) => m.family === 'opus').id;
 
@@ -782,7 +782,14 @@ async function callGemini({ model, system, messages, maxTokens, jsonSchema, apiK
   const data = await resp.json().catch(() => null);
   if (!resp.ok) {
     const upstream = data?.error?.message || `HTTP ${resp.status}`;
-    const err = new Error(`Gemini API error: ${upstream}`);
+    // A 404 here almost always means the stored model id is no longer served by Google (a
+    // preview model was retired/renamed, or a stale baked-in default was never refreshed) —
+    // isAllowedAiModel only validates the id's *shape*, not that Google still serves it, so
+    // this is the one place that distinction becomes visible to the user.
+    const hint = resp.status === 404
+      ? ' Click "Refresh" next to the model picker in Settings → AI Settings (or the AI Advisor tab) to pull the current list of available Gemini models, then re-select one.'
+      : '';
+    const err = new Error(`Gemini API error: ${upstream}${hint}`);
     err.status = 502;
     throw err;
   }
