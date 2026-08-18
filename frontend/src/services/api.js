@@ -251,9 +251,39 @@ export const api = {
 
   // AI Advisor
   getAiAnalysis: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/analysis`),
-  runAiAnalysis: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/analysis`),
-  sendAiChatMessage: (dossierId, data) => request('POST', `/dossiers/${dossierId}/ai-advisor/chat`, data),
+  startAiAnalysis: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/analysis/start`),
+  startAiChat: (dossierId, data) => request('POST', `/dossiers/${dossierId}/ai-advisor/chat/start`, data),
+  getAiActiveJobs: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/jobs/active`),
   getAiExportPrompt: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/export-prompt`),
   getAiAvailableModels: (dossierId) => request('GET', `/dossiers/${dossierId}/ai-advisor/available-models`),
   refreshAiAvailableModels: (dossierId) => request('POST', `/dossiers/${dossierId}/ai-advisor/refresh-models`),
 };
+
+// Attaches to an AI Advisor job's SSE stream (`kind` is 'analysis' or 'chat'). Callbacks:
+// onSync({text, status}) fires once on attach with whatever the job has accumulated so far (a
+// reconnect should replace its local buffer with this, not append to it); onDelta(text) for each
+// new chunk; onDone(result) once, with the final persisted/computed result; onError(message) if
+// the job itself failed server-side. A transient connection drop does NOT call onError — the
+// browser's native EventSource retry reconnects on its own, and the server's `sync` event on
+// reconnect catches the client back up, so the UI just keeps waiting rather than erroring out.
+export function streamAiJob(dossierId, kind, jobId, { onSync, onDelta, onDone, onError } = {}) {
+  const es = new EventSource(`${BASE}/dossiers/${dossierId}/ai-advisor/${kind}/stream/${jobId}`);
+  es.addEventListener('sync', (e) => onSync?.(JSON.parse(e.data)));
+  es.addEventListener('delta', (e) => onDelta?.(JSON.parse(e.data).text));
+  es.addEventListener('done', (e) => {
+    onDone?.(JSON.parse(e.data));
+    es.close();
+  });
+  es.addEventListener('error', (e) => {
+    if (!e.data) return; // transient connection drop — let EventSource auto-reconnect
+    let message = 'Something went wrong';
+    try {
+      message = JSON.parse(e.data).error || message;
+    } catch (err) {
+      // ignore
+    }
+    onError?.(message);
+    es.close();
+  });
+  return es;
+}

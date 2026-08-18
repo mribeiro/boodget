@@ -5,6 +5,7 @@ import { api } from '../../services/api';
 import AnalysisPanel from './AnalysisPanel';
 import ChatPanel from './ChatPanel';
 import { isAiDisabledError, useAiAvailableModels, modelSelectOptions } from '../../utils/aiModels';
+import { subscribeAnalysis, startAnalysis as startAnalysisSession, reconnectAnalysis, clearAnalysisJob } from '../../utils/aiAdvisorSession';
 
 export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [loading, setLoading] = useState(true);
@@ -13,7 +14,7 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [configured, setConfigured] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [aiModel, setAiModel] = useState('');
-  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisJob, setAnalysisJob] = useState(null);
   const [savingModel, setSavingModel] = useState(false);
   const [exportingPrompt, setExportingPrompt] = useState(false);
   const [exportError, setExportError] = useState('');
@@ -41,6 +42,10 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       const analysisResp = await api.getAiAnalysis(dossierId);
       setConfigured(analysisResp.configured);
       setAnalysis(analysisResp.analysis);
+      // Reconnect to an analysis already in progress — covers both a same-session tab-switch
+      // remount and a genuine page reload, since the backend job registry is the source of truth.
+      const jobs = await api.getAiActiveJobs(dossierId).catch(() => null);
+      if (jobs?.analysis) reconnectAnalysis(dossierId, jobs.analysis);
     } catch (e) {
       if (isAiDisabledError(e)) {
         setAiDisabled(true);
@@ -53,6 +58,21 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
   }, [dossierId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  useEffect(() => subscribeAnalysis(dossierId, ({ job }) => setAnalysisJob(job)), [dossierId]);
+
+  useEffect(() => {
+    if (!analysisJob) return;
+    if (analysisJob.status === 'done') {
+      setAnalysis(analysisJob.result);
+      clearAnalysisJob(dossierId);
+    } else if (analysisJob.status === 'error') {
+      setError(analysisJob.error);
+      clearAnalysisJob(dossierId);
+    }
+  }, [analysisJob, dossierId]);
+
+  const analyzing = analysisJob?.status === 'running';
 
   async function handleModelChange(e) {
     const value = e.target.value;
@@ -96,18 +116,14 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
 
   async function handleAnalyze() {
     setError('');
-    setAnalyzing(true);
     try {
-      const resp = await api.runAiAnalysis(dossierId);
-      setAnalysis(resp.analysis);
+      await startAnalysisSession(dossierId);
     } catch (err) {
       if (isAiDisabledError(err)) {
         setAiDisabled(true);
       } else {
         setError(err.message);
       }
-    } finally {
-      setAnalyzing(false);
     }
   }
 
@@ -276,9 +292,31 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
           </button>
         </div>
         {analyzing && (
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '10px 0 0' }}>
-            Gathering the dossier data and asking the model — this can take a minute or two on larger models.
-          </p>
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+              {analysisJob?.text ? 'Streaming the response…' : 'Gathering the dossier data and asking the model…'}
+            </p>
+            {analysisJob?.text && (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 'var(--space-3)',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  maxHeight: 220,
+                  overflowY: 'auto',
+                  fontFamily: 'inherit',
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                {analysisJob.text}
+              </pre>
+            )}
+          </div>
         )}
       </div>
 
