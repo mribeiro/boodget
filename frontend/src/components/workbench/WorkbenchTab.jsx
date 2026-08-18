@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown, faMoneyBillWave, faReceipt, faCalendarDays, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import KpiStrip from '../ui/KpiStrip';
@@ -160,6 +161,8 @@ export default function WorkbenchTab({ dossierId }) {
     loadAll();
   }, [dossierId]);
 
+  useEffect(() => () => clearPageContext(), []);
+
   async function loadAll() {
     setLoading(true);
     setError('');
@@ -176,12 +179,20 @@ export default function WorkbenchTab({ dossierId }) {
       const monthly = expTemplate.filter((i) => i.section === 'expense');
       const dists = expTemplate.filter((i) => i.section === 'distribution');
 
+      let initialState;
       if (snaps.length === 1) {
         setLoadedSnapshot({ id: snaps[0].id, name: snaps[0].name });
-        setState(stateFromSnapshot(snaps[0].data));
+        initialState = stateFromSnapshot(snaps[0].data);
       } else {
-        setState(buildWorkingStateFromTemplates(monthly, annTemplate, dists));
+        initialState = buildWorkingStateFromTemplates(monthly, annTemplate, dists);
       }
+      setState(initialState);
+      // Snapshot at load time only — not re-published on every edit, since that would republish
+      // on every keystroke while the widget (mounted elsewhere in the app) is subscribed.
+      publishPageContext({
+        label: `Workbench${snaps.length === 1 ? `: ${snaps[0].name}` : ' (unsaved scenario)'}`,
+        data: computeGlobalSummary(initialState),
+      });
     } catch (err) {
       setError(err.message);
     } finally {

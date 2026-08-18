@@ -512,12 +512,24 @@ function buildDossierContext(dossierId) {
   );
 }
 
-// Call the Claude Messages API. Returns { text, usage, model } or throws { status, message }.
-async function callClaude({ model, system, messages, maxTokens, outputFormat, apiKey }) {
+// Call the Claude Messages API with stream:true, parsing the SSE body by hand (this codebase talks
+// to the Claude API via raw fetch throughout — see refreshAvailableModels — rather than the
+// @anthropic-ai/sdk package, so streaming follows the same convention instead of introducing it).
+// Invokes onDelta(textChunk) as text arrives. Returns { text, usage, model } (same shape the old
+// buffered callClaude returned) or throws { status, message }. Structured output
+// (outputFormat/output_config.format) is compatible with streaming — the JSON still arrives as
+// ordinary text_delta chunks on one text content block.
+const AI_NOT_CONFIGURED_MESSAGE =
+  'AI Advisor is not configured. Set an API key in this dossier\'s Settings → AI Settings, or set ANTHROPIC_API_KEY in your .env / docker-compose environment.';
+
+// Max serialized length of a chat turn's optional page_context (see POST .../chat/start below) —
+// larger than ai_user_context's 4000 since a page like a loan's amortization schedule can
+// legitimately be bigger than a hand-typed note.
+const PAGE_CONTEXT_MAX_CHARS = 6000;
+
+async function callClaudeStream({ model, system, messages, maxTokens, outputFormat, apiKey, onDelta }) {
   if (!apiKey) {
-    const err = new Error(
-      'AI Advisor is not configured. Set an API key in this dossier\'s Settings → AI Settings, or set ANTHROPIC_API_KEY in your .env / docker-compose environment.'
-    );
+    const err = new Error(AI_NOT_CONFIGURED_MESSAGE);
     err.status = 503;
     throw err;
   }
@@ -525,6 +537,7 @@ async function callClaude({ model, system, messages, maxTokens, outputFormat, ap
   const body = {
     model,
     max_tokens: maxTokens,
+    stream: true,
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages,
   };
@@ -547,37 +560,83 @@ async function callClaude({ model, system, messages, maxTokens, outputFormat, ap
       signal: controller.signal,
     });
   } catch (e) {
+    clearTimeout(timeout);
     const err = new Error('Could not reach the Claude API');
     err.status = 502;
     throw err;
-  } finally {
-    clearTimeout(timeout);
   }
 
-  const data = await resp.json().catch(() => null);
   if (!resp.ok) {
+    clearTimeout(timeout);
+    const data = await resp.json().catch(() => null);
     const upstream = data?.error?.message || `HTTP ${resp.status}`;
     const err = new Error(`Claude API error: ${upstream}`);
     err.status = 502;
     throw err;
   }
 
-  if (data.stop_reason === 'refusal') {
+  let text = '';
+  let model_ = model;
+  let usage = {};
+  let stopReason = null;
+
+  try {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop(); // last chunk may be incomplete — keep it for the next read
+      for (const frame of frames) {
+        const dataLine = frame.split('\n').find((l) => l.startsWith('data:'));
+        if (!dataLine) continue;
+        let evt;
+        try {
+          evt = JSON.parse(dataLine.slice(5).trim());
+        } catch (e) {
+          continue;
+        }
+        if (evt.type === 'message_start') {
+          model_ = evt.message?.model || model_;
+          usage = { ...usage, ...(evt.message?.usage || {}) };
+        } else if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+          text += evt.delta.text;
+          onDelta?.(evt.delta.text);
+        } else if (evt.type === 'message_delta') {
+          usage = { ...usage, ...(evt.delta?.usage || evt.usage || {}) };
+          if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+        } else if (evt.type === 'error') {
+          const upstream = evt.error?.message || 'Unknown streaming error';
+          const err = new Error(`Claude API error: ${upstream}`);
+          err.status = 502;
+          throw err;
+        }
+      }
+    }
+  } catch (e) {
+    if (e.status) throw e;
+    const err = new Error('Lost connection to the Claude API while streaming');
+    err.status = 502;
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (stopReason === 'refusal') {
     const err = new Error('The model declined this request. Try again or pick a different model in the selector.');
     err.status = 502;
     throw err;
   }
-  if (data.stop_reason === 'max_tokens') {
+  if (stopReason === 'max_tokens') {
     const err = new Error('The response was cut short by the token limit. Please try again.');
     err.status = 502;
     throw err;
   }
 
-  const text = (data.content || [])
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
-  return { text, usage: data.usage || {}, model: data.model || model };
+  return { text, usage, model: model_ };
 }
 
 // Resolves per-dossier AI configuration: whether the feature is enabled, which API key to use
@@ -761,29 +820,75 @@ router.get('/ai-advisor/export-prompt', (req, res) => {
   res.json({ prompt: EXPORT_PROMPT_INTRO + context });
 });
 
-// POST /ai-advisor/analysis — run a new analysis and persist it
-router.post('/ai-advisor/analysis', async (req, res) => {
-  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const config = resolveAiConfig(req.params.id);
-  if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
-  const model = config.model;
+// In-memory job registry for streamed analysis/chat runs. Single Node process (docker-compose,
+// SQLite, no horizontal scaling), so an in-memory Map is sufficient — no queue/pubsub needed. A
+// job is started by a POST .../start and runs detached from that HTTP request, so a client
+// disconnect (tab switch, navigation, reload) never interrupts it; any number of GET
+// .../stream/:jobId connections can attach/reattach to watch it, including after it has already
+// finished (jobs are kept for JOB_RETENTION_MS after completion so a reconnect shortly after a
+// remount still gets the buffered result instead of nothing).
+const aiJobs = new Map(); // jobId -> job
+const activeJobByDossier = new Map(); // `${dossierId}:${type}` -> jobId, present only while running
+const JOB_RETENTION_MS = 20 * 60 * 1000;
 
+function createJob(dossierId, type, model) {
+  const job = {
+    id: uuidv4(),
+    dossierId,
+    type,
+    status: 'running', // 'running' | 'done' | 'error'
+    text: '',
+    result: null,
+    error: null,
+    listeners: new Set(),
+  };
+  aiJobs.set(job.id, job);
+  activeJobByDossier.set(`${dossierId}:${type}`, job.id);
+  return job;
+}
+
+function sendSse(res, event, data) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function broadcastDelta(job, chunk) {
+  job.text += chunk;
+  for (const res of job.listeners) sendSse(res, 'delta', { text: chunk });
+}
+
+function finishJob(job, event, payload) {
+  job.status = event === 'done' ? 'done' : 'error';
+  if (event === 'done') job.result = payload;
+  else job.error = payload.error;
+  const key = `${job.dossierId}:${job.type}`;
+  if (activeJobByDossier.get(key) === job.id) activeJobByDossier.delete(key);
+  for (const res of job.listeners) {
+    sendSse(res, event, payload);
+    res.end();
+  }
+  job.listeners.clear();
+  setTimeout(() => aiJobs.delete(job.id), JOB_RETENTION_MS).unref();
+}
+
+async function runAnalysisJob(job, config, dossierId, username) {
+  const model = config.model;
   try {
-    const context = buildDossierContext(req.params.id);
-    const result = await callClaude({
+    const context = buildDossierContext(dossierId);
+    const result = await callClaudeStream({
       model,
       system: ANALYSIS_SYSTEM_INTRO + context,
       messages: [{ role: 'user', content: 'Analyse this financial dossier and return the structured assessment.' }],
       maxTokens: 8192,
       outputFormat: { type: 'json_schema', schema: ANALYSIS_SCHEMA },
       apiKey: config.apiKey,
+      onDelta: (chunk) => broadcastDelta(job, chunk),
     });
 
     let parsed;
     try {
       parsed = JSON.parse(result.text);
     } catch (e) {
-      return res.status(502).json({ error: 'The model returned an unexpected response. Please try again.' });
+      return finishJob(job, 'error', { error: 'The model returned an unexpected response. Please try again.' });
     }
 
     const costUsd = computeCostUsd(model, result.usage);
@@ -801,7 +906,7 @@ router.post('/ai-advisor/analysis', async (req, res) => {
          created_at = datetime('now')`
     ).run(
       uuidv4(),
-      req.params.id,
+      dossierId,
       model,
       JSON.stringify(parsed),
       result.usage.input_tokens ?? null,
@@ -812,23 +917,84 @@ router.post('/ai-advisor/analysis', async (req, res) => {
     );
 
     console.log(
-      `[ai-advisor] Analysis run for dossier ${req.params.id} by user ${req.user.username} — model=${model} in=${result.usage.input_tokens} out=${result.usage.output_tokens} cost=$${costUsd?.toFixed(4)}`
+      `[ai-advisor] Analysis run for dossier ${dossierId} by user ${username} — model=${model} in=${result.usage.input_tokens} out=${result.usage.output_tokens} cost=$${costUsd?.toFixed(4)}`
     );
 
-    const row = db.prepare('SELECT * FROM ai_analyses WHERE dossier_id = ?').get(req.params.id);
-    res.json({ configured: true, analysis: analysisResponse(row) });
+    const row = db.prepare('SELECT * FROM ai_analyses WHERE dossier_id = ?').get(dossierId);
+    finishJob(job, 'done', analysisResponse(row));
   } catch (err) {
-    console.error(`[ai-advisor] Analysis failed for dossier ${req.params.id} — ${err.message}`);
-    res.status(err.status || 500).json({ error: err.message });
+    console.error(`[ai-advisor] Analysis failed for dossier ${dossierId} — ${err.message}`);
+    finishJob(job, 'error', { error: err.message });
   }
+}
+
+async function runChatJob(job, config, dossierId, username, messages) {
+  const model = config.model;
+  try {
+    const context = buildDossierContext(dossierId);
+    const result = await callClaudeStream({
+      model,
+      system: CHAT_SYSTEM_INTRO + context,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      maxTokens: 2048,
+      apiKey: config.apiKey,
+      onDelta: (chunk) => broadcastDelta(job, chunk),
+    });
+
+    const costUsd = computeCostUsd(model, result.usage);
+    console.log(
+      `[ai-advisor] Chat turn for dossier ${dossierId} by user ${username} — model=${model} in=${result.usage.input_tokens} out=${result.usage.output_tokens} cost=$${costUsd?.toFixed(4)}`
+    );
+
+    finishJob(job, 'done', {
+      reply: result.text,
+      model,
+      cost_usd: costUsd,
+      input_tokens: result.usage.input_tokens ?? null,
+      output_tokens: result.usage.output_tokens ?? null,
+    });
+  } catch (err) {
+    console.error(`[ai-advisor] Chat failed for dossier ${dossierId} — ${err.message}`);
+    finishJob(job, 'error', { error: err.message });
+  }
+}
+
+// GET /ai-advisor/jobs/active — lets the frontend discover an in-flight job on mount (including
+// after a full page reload for analysis) and reconnect instead of showing stale state or starting
+// a redundant, billable second run.
+router.get('/ai-advisor/jobs/active', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  res.json({
+    analysis: activeJobByDossier.get(`${req.params.id}:analysis`) || null,
+    chat: activeJobByDossier.get(`${req.params.id}:chat`) || null,
+  });
 });
 
-// POST /ai-advisor/chat — one buffered chat turn with the dossier as context
-router.post('/ai-advisor/chat', async (req, res) => {
+// POST /ai-advisor/analysis/start — starts (or, if one is already running for this dossier,
+// reattaches to) an analysis job and returns its id immediately; the run itself streams via
+// GET .../analysis/stream/:jobId and persists to ai_analyses on completion exactly as before.
+router.post('/ai-advisor/analysis/start', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const config = resolveAiConfig(req.params.id);
   if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
-  const { messages } = req.body;
+  if (!config.apiKey) return res.status(503).json({ error: AI_NOT_CONFIGURED_MESSAGE });
+
+  const existingId = activeJobByDossier.get(`${req.params.id}:analysis`);
+  if (existingId) return res.status(202).json({ job_id: existingId });
+
+  const job = createJob(req.params.id, 'analysis', config.model);
+  runAnalysisJob(job, config, req.params.id, req.user.username);
+  res.status(202).json({ job_id: job.id });
+});
+
+// POST /ai-advisor/chat/start — starts a chat turn job and returns its id immediately; the reply
+// streams via GET .../chat/stream/:jobId. Not deduplicated against an already-running chat job
+// (unlike analysis) since each call carries its own distinct question.
+router.post('/ai-advisor/chat/start', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const config = resolveAiConfig(req.params.id);
+  if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
+  const { messages, model: modelOverride, page_context: pageContext } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages must be a non-empty array' });
@@ -848,35 +1014,81 @@ router.post('/ai-advisor/chat', async (req, res) => {
     return res.status(400).json({ error: 'Conversation must start and end with a user message' });
   }
 
-  const model = config.model;
-
-  try {
-    const context = buildDossierContext(req.params.id);
-    const result = await callClaude({
-      model,
-      system: CHAT_SYSTEM_INTRO + context,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      maxTokens: 2048,
-      apiKey: config.apiKey,
-    });
-
-    const costUsd = computeCostUsd(model, result.usage);
-    console.log(
-      `[ai-advisor] Chat turn for dossier ${req.params.id} by user ${req.user.username} — model=${model} in=${result.usage.input_tokens} out=${result.usage.output_tokens} cost=$${costUsd?.toFixed(4)}`
-    );
-
-    res.json({
-      reply: result.text,
-      model,
-      cost_usd: costUsd,
-      input_tokens: result.usage.input_tokens ?? null,
-      output_tokens: result.usage.output_tokens ?? null,
-    });
-  } catch (err) {
-    console.error(`[ai-advisor] Chat failed for dossier ${req.params.id} — ${err.message}`);
-    res.status(err.status || 500).json({ error: err.message });
+  // Ephemeral, per-call model override (e.g. from the floating chat widget's model switcher) —
+  // never written to dossiers.ai_model, only ever used for this one job.
+  let model = config.model;
+  if (modelOverride !== undefined) {
+    if (!isAllowedAiModel(modelOverride)) {
+      return res.status(400).json({ error: 'Unsupported model' });
+    }
+    model = modelOverride;
   }
+
+  // Optional structured summary of whatever page the widget was open on (see pageContext.js on
+  // the frontend) — spliced onto the *last* message's text only, not the cached system block, so
+  // the large, stable dossier-context prefix stays cacheable turn over turn even as the user
+  // navigates between pages mid-conversation.
+  let outgoingMessages = messages;
+  if (pageContext !== undefined) {
+    // Always a string: pageContext is already a value express.json() parsed out of the request
+    // body, so it can only be JSON-representable types — JSON.stringify never throws or returns
+    // undefined for those (unlike an arbitrary in-memory object, which could contain a function,
+    // a circular reference, etc.).
+    const serialized = JSON.stringify(pageContext);
+    if (serialized.length > PAGE_CONTEXT_MAX_CHARS) {
+      return res.status(400).json({ error: `page_context must be at most ${PAGE_CONTEXT_MAX_CHARS} characters` });
+    }
+    const last = messages[messages.length - 1];
+    outgoingMessages = [
+      ...messages.slice(0, -1),
+      { ...last, content: `${last.content}\n\n[The user is currently viewing this page:]\n${serialized}` },
+    ];
+  }
+
+  if (!config.apiKey) return res.status(503).json({ error: AI_NOT_CONFIGURED_MESSAGE });
+
+  const job = createJob(req.params.id, 'chat', model);
+  runChatJob(job, { ...config, model }, req.params.id, req.user.username, outgoingMessages);
+  res.status(202).json({ job_id: job.id });
 });
+
+// Shared SSE attach handler for both analysis and chat streams. Emits a `sync` event with
+// whatever text has accumulated so far (a reconnect replaces its local buffer with this rather
+// than appending), then either an immediate terminal event if the job already finished, or
+// live `delta`/`done`/`error` events as they occur. Closing the connection only removes this
+// listener — it never cancels the job, which keeps running server-side regardless.
+function attachJobStream(req, res, type) {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const job = aiJobs.get(req.params.jobId);
+  if (!job || job.dossierId !== req.params.id || job.type !== type) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+
+  sendSse(res, 'sync', { text: job.text, status: job.status });
+
+  if (job.status === 'done') {
+    sendSse(res, 'done', job.result);
+    return res.end();
+  }
+  if (job.status === 'error') {
+    sendSse(res, 'error', { error: job.error });
+    return res.end();
+  }
+
+  job.listeners.add(res);
+  req.on('close', () => job.listeners.delete(res));
+}
+
+router.get('/ai-advisor/analysis/stream/:jobId', (req, res) => attachJobStream(req, res, 'analysis'));
+router.get('/ai-advisor/chat/stream/:jobId', (req, res) => attachJobStream(req, res, 'chat'));
 
 module.exports = router;
 module.exports.summarizeWorkbenchData = summarizeWorkbenchData;

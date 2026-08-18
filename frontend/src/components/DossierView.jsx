@@ -7,6 +7,7 @@ import {
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
+import { publishPageContext, clearPageContext } from '../utils/pageContext';
 import { AuthContext, AppContext } from '../App';
 import CapitalChart from './CapitalChart';
 import CapitalCompareTable from './CapitalCompareTable';
@@ -78,6 +79,23 @@ export default function DossierView() {
   useEffect(() => {
     if (!aiEnabled && activeTab === 'ai-advisor') setActiveTab('capital');
   }, [aiEnabled, activeTab]);
+
+  // The Capital tab's content is inlined here rather than a separate component (unlike every
+  // other tab), so it needs its own activeTab-gated publish/clear instead of the usual
+  // mount/unmount pair a dedicated tab component gets for free from the key={activeTab} remount.
+  useEffect(() => {
+    if (activeTab !== 'capital' || !dossier) return;
+    publishPageContext({
+      label: 'Capital',
+      data: {
+        months: months.slice(0, 12).map((m) => ({
+          year: m.year, month: m.month, filled: m.filled,
+          capital_total: m.capital_total, idle_total: m.idle_total,
+        })),
+      },
+    });
+    return () => clearPageContext();
+  }, [activeTab, months, dossier]);
 
   async function handleAddMonth({ year, month }) {
     try {

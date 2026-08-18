@@ -1,73 +1,56 @@
 import { useState, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPaperPlane, faComments } from '@fortawesome/free-solid-svg-icons';
-import { api } from '../../services/api';
+import { faPaperPlane } from '@fortawesome/free-solid-svg-icons';
 import CostLabel from './CostLabel';
 import { MODEL_LABELS, isAiDisabledError } from '../../utils/aiModels';
+import { subscribeChat, sendChatMessage } from '../../utils/aiAdvisorSession';
 
-// Chat about the dossier. History is client-side only (ephemeral by design):
-// the full conversation is re-sent to the backend on every turn. `onDisabled` lets the parent
-// switch to its friendly disabled view if ai_enabled was toggled off mid-session.
-export default function ChatPanel({ dossierId, disabled, onDisabled }) {
+// The conversation body (message list + compose form) — no card wrapper, no header, no Clear
+// button; those live in the floating AiChatWidget shell that embeds this. History lives in the
+// module-level aiAdvisorSession store (not local React state), so an in-flight turn survives
+// switching dossier tabs and back instead of being silently discarded — see aiAdvisorSession.js.
+// It still resets on a full page reload or leaving the dossier, matching the "conversation is not
+// stored and resets when you leave" copy below. `onDisabled` lets the parent switch to its
+// friendly disabled view if ai_enabled was toggled off mid-session. `model` (ephemeral override)
+// and `pageContext` (attached only when the widget's toggle is on) are forwarded to
+// sendChatMessage as-is — `null`/undefined omits them.
+export default function ChatPanel({ dossierId, disabled, onDisabled, model, pageContext }) {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [pending, setPending] = useState(false);
+  const [chatJob, setChatJob] = useState(null);
   const [error, setError] = useState('');
+  const [input, setInput] = useState('');
   const scrollRef = useRef(null);
+
+  useEffect(
+    () =>
+      subscribeChat(dossierId, (state) => {
+        setMessages(state.messages);
+        setChatJob(state.job);
+        setError(state.error || '');
+      }),
+    [dossierId]
+  );
+
+  useEffect(() => {
+    if (error && isAiDisabledError({ message: error })) onDisabled?.();
+  }, [error, onDisabled]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, pending]);
+  }, [messages, chatJob]);
+
+  const pending = !!chatJob;
 
   async function handleSend(e) {
     e.preventDefault();
     const text = input.trim();
     if (!text || pending || disabled) return;
-    setError('');
     setInput('');
-    const history = [...messages, { role: 'user', content: text }];
-    setMessages(history);
-    setPending(true);
-    try {
-      const resp = await api.sendAiChatMessage(dossierId, {
-        messages: history.map((m) => ({ role: m.role, content: m.content })),
-      });
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: resp.reply,
-          model: resp.model,
-          cost_usd: resp.cost_usd,
-          input_tokens: resp.input_tokens,
-          output_tokens: resp.output_tokens,
-        },
-      ]);
-    } catch (err) {
-      if (isAiDisabledError(err)) {
-        onDisabled?.();
-      } else {
-        setError(err.message);
-      }
-    } finally {
-      setPending(false);
-    }
+    await sendChatMessage(dossierId, text, { model, pageContext });
   }
 
   return (
-    <div className="card card--flat" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <h3 style={{ fontSize: 14, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <FontAwesomeIcon icon={faComments} style={{ color: 'var(--color-brand)' }} />
-          Chat about this dossier
-        </h3>
-        {messages.length > 0 && (
-          <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => { setMessages([]); setError(''); }}>
-            Clear
-          </button>
-        )}
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div ref={scrollRef} className="ai-chat-messages">
         {messages.length === 0 && !pending && (
           <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '1.5rem 1rem' }}>
@@ -96,15 +79,21 @@ export default function ChatPanel({ dossierId, disabled, onDisabled }) {
           );
         })}
         {pending && (
-          <div className="ai-chat-bubble ai-chat-bubble--assistant" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-            Thinking…
+          <div className="ai-chat-bubble ai-chat-bubble--assistant">
+            {chatJob.text ? (
+              <div style={{ whiteSpace: 'pre-wrap' }}>{chatJob.text}</div>
+            ) : (
+              <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Thinking…</span>
+            )}
           </div>
         )}
       </div>
 
-      {error && <div className="alert alert-error" style={{ marginBottom: 8 }}>{error}</div>}
+      {error && !isAiDisabledError({ message: error }) && (
+        <div className="alert alert-error" style={{ margin: '0 var(--space-3) 8px' }}>{error}</div>
+      )}
 
-      <form onSubmit={handleSend} style={{ display: 'flex', gap: 8 }}>
+      <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, padding: 'var(--space-3)', paddingTop: 0 }}>
         <input
           type="text"
           value={input}

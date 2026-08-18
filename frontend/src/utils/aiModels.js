@@ -23,7 +23,11 @@ export function isAiDisabledError(err) {
 
 // Loads the AI Advisor's model catalog (latest known model per haiku/sonnet/opus family) and
 // exposes a refresh() that re-fetches the live list from the Claude API, keeping only the newest
-// version per family. Shared by the AI Advisor tab's picker and the Settings → AI Settings picker.
+// version per family. Shared by the AI Advisor tab's picker, the Settings → AI Settings picker,
+// and the floating chat widget's model switcher — the last of which may call this with a
+// falsy dossierId while outside any dossier, so both load()/refresh() no-op in that case rather
+// than requesting `/dossiers/undefined/...` (the hook itself is always called unconditionally,
+// per the Rules of Hooks, even when the widget has nothing to show yet).
 export function useAiAvailableModels(dossierId) {
   const [models, setModels] = useState([]);
   const [updatedAt, setUpdatedAt] = useState(null);
@@ -32,6 +36,7 @@ export function useAiAvailableModels(dossierId) {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    if (!dossierId) { setLoading(false); return; }
     setError('');
     try {
       const resp = await api.getAiAvailableModels(dossierId);
@@ -47,6 +52,7 @@ export function useAiAvailableModels(dossierId) {
   useEffect(() => { load(); }, [load]);
 
   const refresh = useCallback(async () => {
+    if (!dossierId) return;
     setError('');
     setRefreshing(true);
     try {

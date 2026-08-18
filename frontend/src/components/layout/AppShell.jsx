@@ -1,6 +1,9 @@
-import { useState, useRef } from 'react';
-import Sidebar from './Sidebar';
+import { useState, useRef, useContext } from 'react';
+import { useLocation } from 'react-router-dom';
+import Sidebar, { isInDossierPath } from './Sidebar';
 import Navbar from './Navbar';
+import AiChatWidget from '../ai-advisor/AiChatWidget';
+import { AppContext } from '../../App';
 
 // Edge-swipe-to-open only fires in standalone (installed PWA) mode, where
 // there's no browser chrome claiming the screen edge for swipe-back
@@ -19,11 +22,28 @@ export default function AppShell({ children }) {
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem('ct-sidebar-collapsed') === 'true'
   );
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatPinned, setChatPinned] = useState(
+    () => localStorage.getItem('ct-chat-pinned') === 'true'
+  );
   const swipeRef = useRef(null);
+
+  const { currentDossier } = useContext(AppContext);
+  const location = useLocation();
+  // Same gate the sidebar uses for its own dossier-scoped nav — the chat widget is equally
+  // dossier-scoped (ai_enabled, dossier context, etc. are all per-dossier), and hidden entirely
+  // when the feature is off so there's no AI reference anywhere in the dossier UI.
+  const chatAvailable = isInDossierPath(location.pathname) && !!currentDossier && currentDossier.ai_enabled !== 0;
+  const chatPanelDocked = chatAvailable && chatOpen && chatPinned;
 
   function handleCollapseChange(next) {
     setCollapsed(next);
     localStorage.setItem('ct-sidebar-collapsed', String(next));
+  }
+
+  function handleChatPinnedChange(next) {
+    setChatPinned(next);
+    localStorage.setItem('ct-chat-pinned', String(next));
   }
 
   function handleTouchStart(e) {
@@ -76,13 +96,23 @@ export default function AppShell({ children }) {
       )}
 
       {/* Main column */}
-      <div className={`app-shell-main${collapsed ? ' sidebar-collapsed' : ''}`}>
+      <div className={`app-shell-main${collapsed ? ' sidebar-collapsed' : ''}${chatPanelDocked ? ' chat-pinned' : ''}`}>
         <Navbar onHamburger={() => setMobileOpen((o) => !o)} />
 
         <main className="page-body">
           {children}
         </main>
       </div>
+
+      {chatAvailable && (
+        <AiChatWidget
+          dossier={currentDossier}
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+          pinned={chatPinned}
+          onPinnedChange={handleChatPinnedChange}
+        />
+      )}
     </div>
   );
 }

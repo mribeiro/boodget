@@ -9,6 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer,
 } from 'recharts';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
 import KpiStrip from '../ui/KpiStrip';
@@ -225,6 +226,7 @@ export default function AnnualExpensesTab({ dossierId }) {
     try {
       const data = await api.getAnnualYear(dossierId, yearId);
       setYearData(data);
+      publishPageContext({ label: `Annual Expenses: ${data.year}`, data });
     } catch (e) {
       setError(e.message);
     }
@@ -243,6 +245,8 @@ export default function AnnualExpensesTab({ dossierId }) {
   useEffect(() => {
     loadYearData(selectedYearId);
   }, [selectedYearId, loadYearData]);
+
+  useEffect(() => () => clearPageContext(), []);
 
   async function handleCreateYear(year) {
     try {

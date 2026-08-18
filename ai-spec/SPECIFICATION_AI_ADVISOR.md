@@ -8,14 +8,14 @@ The AI Advisor is a per-dossier feature that sends a trimmed snapshot of the dos
 2. **Chat** — a free-form conversation about the dossier, with the same data snapshot as context.
 3. **Export prompt** — a copy/download of a self-contained prompt (same instructions + data) for pasting into claude.ai chat or any other subscription-billed Claude client, for users who'd rather not pay per API call.
 
-It lives in a dedicated **AI Advisor** tab in `DossierView` (`frontend/src/components/ai-advisor/`), backed by `backend/src/routes/ai-advisor.js` (mounted from `dossiers.js` like the other `/:id` sub-routers).
+Analysis lives in a dedicated **AI Advisor** tab in `DossierView`; Chat lives in a floating widget available from anywhere inside a dossier (`frontend/src/components/ai-advisor/`), backed by `backend/src/routes/ai-advisor.js` (mounted from `dossiers.js` like the other `/:id` sub-routers). Both Analysis and Chat stream from the Claude API through an in-memory backend job registry (see Endpoints below) and a frontend module-level store, `frontend/src/utils/aiAdvisorSession.js`, that keeps an in-flight request alive across the `DossierView` tab-switch remount — see Analysis behaviour / Chat behaviour below for the recovery guarantees, and Chat behaviour's "Floating chat widget" subsection for the widget's states, per-chat model switch, and page-context attachment.
 
 ## Configuration
 
 - The server operator can supply a shared Anthropic API key via the `ANTHROPIC_API_KEY` environment variable (set in `.env`, referenced by `docker-compose.yml`). Additionally, each dossier can set its own key in **Settings → AI Settings** (`dossiers.ai_api_key`, write-only — never returned by any GET endpoint, and stripped from `GET /api/dossiers/:id`'s `SELECT *` response before it reaches the frontend). A dossier's own key, when set, takes priority over the env var; otherwise the env var is used as a fallback. Neither key is ever exposed to the frontend once saved (the settings GET exposes only `ai_api_key_set: bool`, mirroring the `paperless_token` convention).
-- **Per-dossier enable/disable**: `dossiers.ai_enabled` (default `true`) is also configured in Settings → AI Settings. When disabled: the **AI Advisor tab is not rendered at all** in `DossierView` (no reference to AI appears anywhere in the dossier UI), and all four backend endpoints (`GET/POST /ai-advisor/analysis`, `POST /ai-advisor/chat`, `GET /ai-advisor/export-prompt`) return `403 { error: 'AI Advisor is disabled for this dossier' }` regardless of frontend state, as defense in depth. `AIAdvisorTab` also guards against a **mid-session disable**: if `ai_enabled` is toggled off in another tab/session while this one already has the AI Advisor tab open, `loadAll` picks it up from `GET /settings`'s `ai_enabled` on its next run, and any in-flight action (Analyze, chat send, copy/download prompt) that hits the `403` above matches the exact error string (`isAiDisabledError` in `frontend/src/utils/aiModels.js`, shared with `ChatPanel` via an `onDisabled` callback) and switches the whole tab body to the same friendly "AI Advisor is disabled for this dossier" card used for the never-configured case, instead of surfacing the raw error.
-- If no key is resolved (neither dossier nor env var): `GET /ai-advisor/analysis` still succeeds and returns `configured: false` (the UI shows a setup card pointing at both configuration options, and disables actions); `POST` endpoints return `503` with a setup message.
-- The Claude API is called with raw `fetch` (no SDK dependency): `POST https://api.anthropic.com/v1/messages`, headers `x-api-key`, `anthropic-version: 2023-06-01`, 180 s `AbortController` timeout. No `thinking` parameter is sent (models use their own defaults).
+- **Per-dossier enable/disable**: `dossiers.ai_enabled` (default `true`) is also configured in Settings → AI Settings. When disabled: the **AI Advisor tab is not rendered at all** in `DossierView` (no reference to AI appears anywhere in the dossier UI), and every backend endpoint (`GET /ai-advisor/analysis`, `POST /ai-advisor/analysis/start`, `POST /ai-advisor/chat/start`, `GET /ai-advisor/export-prompt`, and the two `GET .../stream/:jobId` — see Endpoints below) returns `403 { error: 'AI Advisor is disabled for this dossier' }` regardless of frontend state, as defense in depth. `AIAdvisorTab` also guards against a **mid-session disable**: if `ai_enabled` is toggled off in another tab/session while this one already has the AI Advisor tab open, `loadAll` picks it up from `GET /settings`'s `ai_enabled` on its next run, and any in-flight action (Analyze, chat send, copy/download prompt) that hits the `403` above matches the exact error string (`isAiDisabledError` in `frontend/src/utils/aiModels.js`, shared with `ChatPanel` via an `onDisabled` callback) and switches the whole tab body to the same friendly "AI Advisor is disabled for this dossier" card used for the never-configured case, instead of surfacing the raw error.
+- If no key is resolved (neither dossier nor env var): `GET /ai-advisor/analysis` still succeeds and returns `configured: false` (the UI shows a setup card pointing at both configuration options, and disables actions); the `/start` endpoints return `503` with a setup message, checked synchronously before any job is created.
+- The Claude API is called with raw `fetch` (no SDK dependency): `POST https://api.anthropic.com/v1/messages` with `"stream": true`, headers `x-api-key`, `anthropic-version: 2023-06-01`, 180 s `AbortController` timeout. The response body's Server-Sent Events are parsed by hand (`callClaudeStream` in `ai-advisor.js` — split on blank lines, read the `event:`/`data:` fields) rather than via an SDK helper, for the same no-new-dependency reason. No `thinking` parameter is sent (models use their own defaults).
 
 ## Model selection
 
@@ -96,18 +96,45 @@ Schema: migration `034_add_ai_settings_to_dossiers` adds `dossiers.ai_enabled IN
 
 ```
 GET  /api/dossiers/:id/ai-advisor/analysis
-     → { configured: bool, analysis: {...} | null }
+     → { configured: bool, analysis: {...} | null }   — last persisted analysis, buffered read
      Errors: 403 AI disabled for this dossier
 
-POST /api/dossiers/:id/ai-advisor/analysis
-     → runs a new analysis, upserts ai_analyses, returns same shape as GET
-     Errors: 403 AI disabled · 503 not configured · 502 upstream/refusal/truncation/unparseable
+POST /api/dossiers/:id/ai-advisor/analysis/start
+     → 202 { job_id }   — starts a new run, or reattaches to one already running for this
+     dossier (idempotent: no duplicate concurrent runs from a double-click or a second tab)
+     Errors: 403 AI disabled · 503 not configured (checked synchronously, before any job exists)
 
-POST /api/dossiers/:id/ai-advisor/chat   { messages: [{role, content}] }
-     → { reply, model, cost_usd, input_tokens, output_tokens }
+GET  /api/dossiers/:id/ai-advisor/analysis/stream/:jobId
+     → text/event-stream. `sync` once on attach (whatever text has accumulated so far — a
+     reconnect replaces its buffer with this, not append), then `delta` per chunk, then a
+     terminal `done` (analysis object, same shape as the GET above) or `error` ({error: string}).
+     Job keeps running server-side even if every listener disconnects; a fresh GET some time
+     later still gets a `sync` catch-up (jobs are retained ~20 min after completion).
+     Errors: 404 job not found / not this dossier's
+
+POST /api/dossiers/:id/ai-advisor/chat/start   { messages: [{role, content}], model?, page_context? }
+     → 202 { job_id }
      Validation: 1–40 messages, roles user/assistant, non-empty strings ≤ 8000 chars,
-     must start and end with a user message. Nothing persisted.
-     Errors: 403 AI disabled · 503 not configured
+     must start and end with a user message (all checked before the 503-not-configured check).
+     model: optional ephemeral per-call override — must pass the family whitelist
+     (isAllowedAiModel), 400 otherwise; used only for this job, never written to
+     dossiers.ai_model.
+     page_context: optional arbitrary JSON object (from the floating widget's "attach page"
+     toggle — see Chat behaviour below), capped at 6000 serialized chars (400 if exceeded);
+     spliced onto the newest message's text only, never into the cached system block.
+     Nothing persisted server-side (see Chat behaviour below).
+     Errors: 400 validation · 403 AI disabled · 503 not configured
+
+GET  /api/dossiers/:id/ai-advisor/chat/stream/:jobId
+     → text/event-stream, same `sync`/`delta`/`done`/`error` shape as the analysis stream;
+     `done`'s payload is { reply, model, cost_usd, input_tokens, output_tokens }.
+     Errors: 404 job not found / not this dossier's
+
+GET  /api/dossiers/:id/ai-advisor/jobs/active
+     → { analysis: jobId|null, chat: jobId|null }
+     Lets a fresh mount (including a full page reload) discover a run already in progress and
+     reconnect via the stream endpoints above, instead of showing stale state or starting a
+     redundant, billable second run.
 
 GET  /api/dossiers/:id/ai-advisor/export-prompt
      → { prompt: string } — self-contained, paste-into-claude.ai prompt (context + instructions)
@@ -129,16 +156,28 @@ The `analysis` object merges the stored JSON content with metadata: `health_scor
 
 ## Analysis behaviour
 
-- Uses **structured outputs** (`output_config.format` with a JSON schema) so the response always parses; `max_tokens` 8192.
+- Uses **structured outputs** (`output_config.format` with a JSON schema) so the response always parses; `max_tokens` 8192. Structured output is compatible with streaming — the JSON still arrives as ordinary `text_delta` chunks on one text content block, so it's only parsed once the stream completes (no partial-JSON parsing on the frontend).
 - The system prompt instructs: score 0–100, 2–4 sentence summary, 3–6 highlights, 2–6 improvements, 0–4 risks; plain text in every field; reference concrete numbers/accounts/months. It also instructs the model to factor active loans' `monthly_payment` into repayment capacity, flag underbudgeted (uncovered) linked loans as a risk, compare combined active-loan payments against the dossier's `loans_max_salary_pct` ceiling (when both it and `reference_salary` are set) and flag if exceeded, treat draft loans as hypothetical studies rather than real liabilities, treat a long-stale `balance_as_of` as an estimate worth re-checking rather than fact, and flag an active loan with `payments_tracked` false as an unbudgeted gap. It further instructs the model to use `annual_expense_template.total_monthly_avg` to sanity-check a given year's budgeted total and factor recurring-but-not-yet-budgeted costs into capacity, and to treat `workbench` snapshots as the user's own targets/plans (not actuals) — useful for flagging a structurally unaffordable plan (strongly negative `leftover`) or a large drift between a stated plan and `recent_cycles`.
-- Result is **upserted** into `ai_analyses` (UNIQUE on `dossier_id` — only the latest analysis is kept per dossier). The tab shows the stored analysis with "Analysed on [date] · [model] · cost" on open; a Re-analyze button replaces it.
-- `stop_reason` handling: `refusal` → 502 with a suggestion to pick another model; `max_tokens` → 502 "cut short". Text is extracted by concatenating only `type === 'text'` content blocks (thinking blocks are ignored).
+- **Streamed via an in-memory job**: `POST .../analysis/start` creates a job (or returns the id of one already running for this dossier) and kicks off `runAnalysisJob` detached from that HTTP request — it keeps running to completion even if every SSE listener disconnects. Result is **upserted** into `ai_analyses` (UNIQUE on `dossier_id` — only the latest analysis is kept per dossier) exactly as before streaming was added. The tab shows the stored analysis with "Analysed on [date] · [model] · cost" on open; a Re-analyze button starts a new job. While a job is running, `AIAdvisorTab` shows a live raw-text preview (the accumulating stream) in place of the button's static state, swapping to the normal structured panel once the `done` event's parsed result arrives.
+- Recovery: `GET .../jobs/active` on mount (including a genuine page reload, not just a same-session remount) reports a running analysis job so the tab reconnects to it via `GET .../analysis/stream/:jobId` instead of showing stale state or letting the user fire a redundant, billable second run.
+- `stop_reason` handling: `refusal` → the job ends in `error` with a suggestion to pick another model; `max_tokens` → `error` "cut short". Text is accumulated from `content_block_delta` events whose `delta.type === 'text_delta'` (thinking/other block types are ignored) — the same shape the old buffered code produced by concatenating `type === 'text'` content blocks, just assembled incrementally.
 
 ## Chat behaviour
 
-- Ephemeral by design: history lives in component state, resets on tab leave, and the full history is re-sent each turn (`max_tokens` 2048 per reply).
+- Ephemeral by design: history lives in a module-level store (`frontend/src/utils/aiAdvisorSession.js`), not in the backend and not in React component state, and the full history is re-sent each turn (`max_tokens` 2048 per reply). Nothing about a chat turn is written to the database.
+- **Streamed via the same in-memory job mechanism as Analysis** (`POST .../chat/start` → `GET .../chat/stream/:jobId`), but *not* deduplicated against an already-running chat job — each call carries its own distinct question, unlike re-clicking Analyze.
+- **Recovery scope is deliberately narrower than Analysis**: because `DossierView`'s tab content is remounted on every tab switch (`key={activeTab}`, see `ai-spec/SPECIFICATION_UI.md`), a `ChatPanel` backed only by local `useState` used to lose an in-flight turn — and the tokens it cost — the instant the user switched to another tab and back. Moving chat state into the module-level `aiAdvisorSession` store (keyed by dossier id, holding both `chatMessages` and the current `chatJob`) fixes that: it survives the remount because it isn't React state. A full page reload or navigating away from the dossier still resets chat, matching the panel's own "conversation is not stored and resets when you leave" copy — there is intentionally no `GET .../jobs/active` reconnect for chat on mount, since a reload has nothing to reconnect the message history *to* anyway.
 - The chat system prompt instructs concise plain-text answers (no markdown — the UI renders with `white-space: pre-wrap`, no markdown renderer) and to draw on loan data (payments, rates, coverage, total interest) when relevant, treating draft loans as hypothetical and a long-stale `balance_as_of` as an estimate rather than fact, and to draw on `annual_expense_template`/`workbench` when relevant, treating workbench figures as targets/plans rather than actuals.
-- UI: bubbles (`.ai-chat-bubble--user/--assistant`), "Thinking…" pending bubble, per-reply cost label, Clear button. Each assistant message also stores the `model` returned with that reply (`ChatPanel`'s local history, mirroring `AnalysisPanel`'s persisted `model` field); a small model-name badge (shared `MODEL_LABELS` map in `utils/aiModels.js`) is shown next to a reply only when it differs from the model of the previous assistant reply, so switching the per-dossier `ai_model` setting mid-conversation is visible in the transcript.
+
+### Floating chat widget
+
+Chat is not embedded in the AI Advisor tab — it's a floating widget (`frontend/src/components/ai-advisor/AiChatWidget.jsx`) available from anywhere inside a dossier. `AIAdvisorTab` keeps only Analysis, the additional-context notes textarea, and the Analysis model picker, with a small pointer card ("use the chat button in the bottom-right corner…") where the embedded panel used to be.
+
+- **Mounting and visibility**: mounted once in `AppShell.jsx` — the one place in the component tree that survives both route changes and the dossier tab-switch remount — so an open widget (and any in-flight turn) is unaffected by navigating anywhere inside the dossier. Shown only when the current route is inside a dossier (same `isInDossierPath` check `Sidebar.jsx` uses for its own nav) *and* that dossier's `ai_enabled !== 0`; hidden entirely otherwise (Dossier List, Users, Notifications, or a disabled dossier), matching the "no AI reference anywhere" principle from the Configuration section above.
+- **Three states, controlled by `AppShell`** (mirroring how it already owns the sidebar's `collapsed` state): closed (a `.ai-chat-fab` button, bottom-right), open as a small popup card (`.ai-chat-widget`), or open pinned as a full-height panel docked to the right edge (`.ai-chat-widget.pinned`). Pinning also adds a `chat-pinned` class to `.app-shell-main`, which gets a matching `margin-right: var(--chat-widget-width)` (380px) so the main column reflows around the docked panel instead of being covered by it — the same pattern `.sidebar-collapsed` already uses for the sidebar's own margin. The pinned preference persists in `localStorage` as `ct-chat-pinned` (mirroring `ct-sidebar-collapsed`); open/closed does not persist and always starts closed. Pinning is unavailable below the `768px` breakpoint (mobile always renders the popup-card style, full-width near the bottom of the screen).
+- **Per-chat model switcher**: a compact `<select>` in the widget header, populated from the same `useAiAvailableModels`/`modelSelectOptions` catalog the Analysis picker uses, defaulting to the dossier's `ai_model` on open. Selecting a different model here only affects this widget's own chat calls (via the `model` field on `POST .../chat/start` — see Endpoints above); it is never written to `dossiers.ai_model` and has no effect on the Analysis picker or a future "Analyze dossier" run.
+- **"Attach current page" toggle**: a small module-level singleton, `frontend/src/utils/pageContext.js` (`publishPageContext({label, data})` / `clearPageContext()` / `subscribePageContext(cb)`), holds a summary of whatever dossier page is currently on screen. Each dossier page publishes into it as it loads (and clears it on unmount) — wired into the list tabs (Capital, Monthly Expenses, Annual Expenses, Workbench, Goals, Loans, Subscriptions, Emergency Fund) and the detail routes (a Month, a Cycle, a Goal, a Loan). Settings and the AI Advisor tab itself are not wired (config/meta pages, not "data to ask about"). When the toggle is on and a page has published something, the widget shows a small chip with that page's `label` and forwards its `data` as `page_context` on the next `POST .../chat/start`; the toggle is disabled with an explanatory tooltip when nothing's published for the current page. This is genuinely richer than the dossier-wide snapshot in some cases — e.g. a Loan's full amortization schedule, or a cycle older than the 6-most-recent window `buildDossierContext` caps at, are both things `page_context` can surface that the standing dossier context deliberately omits.
+- UI: bubbles (`.ai-chat-bubble--user/--assistant`), a pending bubble that fills in live as `delta` events arrive (falling back to "Thinking…" until the first chunk), per-reply cost label, Clear button (`clearChat`, resets the session store for this dossier). Each assistant message also stores the `model` returned with that reply (mirroring `AnalysisPanel`'s persisted `model` field); a small model-name badge (shared `MODEL_LABELS` map in `utils/aiModels.js`) is shown next to a reply only when it differs from the model of the previous assistant reply, so switching the per-dossier `ai_model` setting mid-conversation is visible in the transcript.
 
 ## Export prompt (paste into claude.ai chat)
 
@@ -160,6 +199,5 @@ For users who'd rather use a Claude subscription than pay per API call, the "Use
 
 ## Out of scope (v1)
 
-- Streaming (SSE) chat responses — buffered by design; can be added later.
-- Persisting chat history.
+- Persisting chat history server-side — chat stays ephemeral by design (see Chat behaviour above); only the in-flight turn is made resilient to in-app navigation, not the transcript across reloads.
 - Per-user API keys or spend limits (per-*dossier* keys are supported; see AI Settings above).

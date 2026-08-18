@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faCheck, faTriangleExclamation, faCoins, faLinkSlash } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { formatNumber } from '../../utils/numbers';
 import LoanFormModal from './LoanFormModal';
 import KpiStrip from '../ui/KpiStrip';
@@ -83,12 +84,23 @@ export default function LoansTab({ dossierId }) {
       .catch(() => setSettingsFailed(true));
   }, [dossierId]);
 
+  useEffect(() => () => clearPageContext(), []);
+
   async function loadLoans() {
     setLoading(true);
     setError('');
     try {
       const data = await api.getLoans(dossierId);
       setLoans(data);
+      publishPageContext({
+        label: `Loans list (${data.length})`,
+        data: {
+          loans: data.map((l) => ({
+            name: l.name, status: l.status, monthly_payment: l.monthly_payment,
+            covered: l.covered, salary_pct: l.salary_pct,
+          })),
+        },
+      });
     } catch (err) {
       setError(err.message);
     } finally {

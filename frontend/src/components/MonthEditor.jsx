@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faArrowsRotate, faRotateLeft, faFloppyDisk, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
+import { publishPageContext, clearPageContext } from '../utils/pageContext';
 import ConfirmModal from './ConfirmModal';
 import KpiStrip from './ui/KpiStrip';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
@@ -55,9 +56,12 @@ export default function MonthEditor() {
         }
         setValues(v);
         setComments(c);
+        publishPageContext({ label: `Month: ${monthLabel(data.year, data.month)}`, data });
       })
       .catch(() => setError('Failed to load month data'));
   }, [dossierId, monthId]);
+
+  useEffect(() => () => clearPageContext(), []);
 
   async function handleSubmit(e) {
     e.preventDefault();

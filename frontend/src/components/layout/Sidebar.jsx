@@ -38,7 +38,9 @@ const NAV_ITEMS = [
   { key: 'settings',        icon: faGear,              label: 'Settings' },
 ];
 
-function isInDossierPath(pathname) {
+// Exported so other AppShell-level components (e.g. AiChatWidget) can gate their own visibility
+// on "is the user inside a dossier" using the exact same check, rather than reimplementing it.
+export function isInDossierPath(pathname) {
   return /^\/dossiers\/[^/]+/.test(pathname);
 }
 

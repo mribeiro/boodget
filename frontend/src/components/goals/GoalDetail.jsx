@@ -18,6 +18,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import GoalFormModal from './GoalFormModal';
 import ConfirmModal from '../ConfirmModal';
@@ -101,12 +102,15 @@ export default function GoalDetail() {
     load();
   }, [dossierId, goalId]);
 
+  useEffect(() => () => clearPageContext(), []);
+
   async function load() {
     setLoading(true);
     setError('');
     try {
       const g = await api.getGoal(dossierId, goalId);
       setGoal(g);
+      publishPageContext({ label: `Goal: ${g.name}`, data: g });
     } catch (err) {
       setError(err.message);
     } finally {
