@@ -26,7 +26,7 @@ import SettingsCard from './ui/SettingsCard';
 import Toast from './ui/Toast';
 import useToast from './ui/useToast';
 import { parseDecimalInput, formatNumber } from '../utils/numbers';
-import { useAiAvailableModels, modelSelectOptions } from '../utils/aiModels';
+import { useAiAvailableModels, modelSelectOptions, modelSelectGroups, modelProvider } from '../utils/aiModels';
 
 function formatEur(value) {
   if (value == null || isNaN(value)) return 'Not set';
@@ -321,10 +321,26 @@ function PaperlessSettings({ dossierId, settings, onChange, showToast }) {
   );
 }
 
+// Per-key config for the shared API-key edit modal in AISettings below — keyed by which
+// dossier settings field is being edited.
+const AI_KEY_FIELDS = {
+  ai_api_key: {
+    title: 'Claude API key',
+    placeholder: 'sk-ant-…',
+    envVar: 'ANTHROPIC_API_KEY',
+  },
+  ai_gemini_api_key: {
+    title: 'Gemini API key',
+    placeholder: 'AIza…',
+    envVar: 'GEMINI_API_KEY',
+  },
+};
+
 function AISettings({ dossierId, settings, onChange, showToast }) {
   // The API key edits in a modal like every other scalar setting; only the
   // enable toggle and the model select auto-save, and both confirm with a toast.
-  const [modalOpen, setModalOpen] = useState(false);
+  // editingKey names which of AI_KEY_FIELDS is open, or null when the modal is closed.
+  const [editingKey, setEditingKey] = useState(null);
   const [keyDraft, setKeyDraft] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -361,27 +377,32 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
   async function handleRefreshModels() {
     setError('');
     try {
-      const { models } = await refreshModels();
-      showToast(`Model catalog refreshed \u2014 ${models.map((m) => m.display_name).join(', ')}`);
+      const { models, skipped, errors } = await refreshModels();
+      const notes = [
+        ...(skipped || []).map((p) => `${p === 'google' ? 'Gemini' : 'Claude'} skipped \u2014 no API key`),
+        ...(errors || []).map((e) => `${e.provider === 'google' ? 'Gemini' : 'Claude'} failed \u2014 ${e.message}`),
+      ];
+      const suffix = notes.length ? ` (${notes.join('; ')})` : '';
+      showToast(`Model catalog refreshed \u2014 ${models.map((m) => m.display_name).join(', ')}${suffix}`);
     } catch (err) {
       setError(err.message);
     }
   }
 
-  function openModal() {
+  function openModal(field) {
     // The stored key is never returned by the API, so editing always starts blank.
     setKeyDraft('');
     setShowKey(false);
     setError('');
-    setModalOpen(true);
+    setEditingKey(field);
   }
 
-  function closeModal() { setModalOpen(false); setKeyDraft(''); setError(''); }
+  function closeModal() { setEditingKey(null); setKeyDraft(''); setError(''); }
 
   async function handleSave() {
     const raw = keyDraft.trim();
     try {
-      await updateField({ ai_api_key: raw || null }, raw ? 'API key saved' : 'API key cleared');
+      await updateField({ [editingKey]: raw || null }, raw ? 'API key saved' : 'API key cleared');
       closeModal();
     } catch {
       // error already surfaced via updateField
@@ -403,8 +424,12 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
 
       <SettingRow label="Default model">
         <select value={settings.ai_model} onChange={handleModelChange} disabled={saving}>
-          {modelSelectOptions(availableModels, settings.ai_model).map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+          {modelSelectGroups(availableModels, settings.ai_model).map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <button
@@ -412,17 +437,26 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
           className="btn-secondary btn-icon"
           onClick={handleRefreshModels}
           disabled={refreshing}
-          aria-label="Check the Claude API for the latest Haiku/Sonnet/Opus model versions"
-          title="Check the Claude API for the latest Haiku/Sonnet/Opus model versions"
+          aria-label="Check the Claude and Gemini APIs for the latest model versions"
+          title="Check the Claude and Gemini APIs for the latest model versions"
         >
           <FontAwesomeIcon icon={faArrowsRotate} spin={refreshing} />
         </button>
       </SettingRow>
+      <p className="hint" style={{ textAlign: 'right' }}>
+        {modelProvider(settings.ai_model) === 'google'
+          ? settings.ai_gemini_api_key_set
+            ? "Uses this dossier's Gemini API key."
+            : "Uses the server's GEMINI_API_KEY (set the Gemini API key below to override)."
+          : settings.ai_api_key_set
+            ? "Uses this dossier's Claude API key."
+            : "Uses the server's ANTHROPIC_API_KEY (set the Claude API key below to override)."}
+      </p>
 
       <SettingRow
         label="Claude API key"
         value={settings.ai_api_key_set ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : null}
-        onEdit={openModal}
+        onEdit={() => openModal('ai_api_key')}
       />
       <p className="hint" style={{ textAlign: 'right' }}>
         {settings.ai_api_key_set
@@ -430,9 +464,20 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
           : "Falls back to the server's ANTHROPIC_API_KEY."}
       </p>
 
-      {modalOpen && (
+      <SettingRow
+        label="Gemini API key"
+        value={settings.ai_gemini_api_key_set ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : null}
+        onEdit={() => openModal('ai_gemini_api_key')}
+      />
+      <p className="hint" style={{ textAlign: 'right' }}>
+        {settings.ai_gemini_api_key_set
+          ? "Overrides the server's GEMINI_API_KEY for this dossier."
+          : "Falls back to the server's GEMINI_API_KEY."}
+      </p>
+
+      {editingKey && (
         <Modal
-          title="Claude API key"
+          title={AI_KEY_FIELDS[editingKey].title}
           onClose={closeModal}
           footer={
             <div className="form-actions">
@@ -448,7 +493,7 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
               type={showKey ? 'text' : 'password'}
               value={keyDraft}
               onChange={(e) => setKeyDraft(e.target.value)}
-              placeholder="sk-ant-\u2026"
+              placeholder={AI_KEY_FIELDS[editingKey].placeholder}
               autoFocus
               style={{ paddingRight: '2rem' }}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
@@ -462,12 +507,14 @@ function AISettings({ dossierId, settings, onChange, showToast }) {
               <FontAwesomeIcon icon={showKey ? faEyeSlash : faEye} />
             </button>
           </div>
-          <p className="hint">Leave blank to clear the key and fall back to the server's ANTHROPIC_API_KEY.</p>
+          <p className="hint">
+            {`Leave blank to clear the key and fall back to the server's ${AI_KEY_FIELDS[editingKey].envVar}.`}
+          </p>
           {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}
 
-      {error && !modalOpen && <div className="alert alert-error alert--modal">{error}</div>}
+      {error && !editingKey && <div className="alert alert-error alert--modal">{error}</div>}
     </div>
   );
 }
@@ -819,7 +866,7 @@ export default function DossierSettingsTab({ dossierId, dossier }) {
 
       <SettingsCard
         title="AI Advisor"
-        description="Control the AI Advisor for this dossier. When disabled, the AI Advisor tab and all AI references are hidden. The API key is optional — if left unset, the server's ANTHROPIC_API_KEY environment variable is used instead."
+        description="Control the AI Advisor for this dossier. When disabled, the AI Advisor tab and all AI references are hidden. Both API keys are optional — if left unset, the server's ANTHROPIC_API_KEY / GEMINI_API_KEY environment variables are used instead, whichever matches the selected model."
       >
         <AISettings {...settingsProps} />
       </SettingsCard>

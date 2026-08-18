@@ -1,4 +1,4 @@
-import { isAiDisabledError, modelSelectOptions, MODEL_LABELS } from './aiModels';
+import { isAiDisabledError, modelSelectOptions, modelSelectGroups, modelProvider, MODEL_LABELS } from './aiModels';
 
 describe('isAiDisabledError', () => {
   it('matches the exact ai-advisor "disabled" error message', () => {
@@ -49,5 +49,58 @@ describe('modelSelectOptions', () => {
       { value: 'claude-opus-5', label: MODEL_LABELS['claude-opus-5'] },
     ]);
     expect(modelSelectOptions([], '')).toEqual([]);
+  });
+});
+
+describe('modelProvider', () => {
+  it('resolves claude-* ids to anthropic', () => {
+    expect(modelProvider('claude-opus-5')).toBe('anthropic');
+    expect(modelProvider('claude-haiku-4-5')).toBe('anthropic');
+  });
+
+  it('resolves gemini-* ids to google', () => {
+    expect(modelProvider('gemini-3.7-pro')).toBe('google');
+    expect(modelProvider('gemini-3.1-flash')).toBe('google');
+  });
+
+  it('returns null for unknown or missing ids', () => {
+    expect(modelProvider('fable-5')).toBeNull();
+    expect(modelProvider('')).toBeNull();
+    expect(modelProvider(null)).toBeNull();
+    expect(modelProvider(undefined)).toBeNull();
+  });
+});
+
+describe('modelSelectGroups', () => {
+  const mixedModels = [
+    { id: 'claude-haiku-4-5', family: 'haiku', display_name: 'Claude Haiku 4.5' },
+    { id: 'claude-opus-5', family: 'opus', display_name: 'Claude Opus 5' },
+    { id: 'gemini-3.7-pro', family: 'gemini-pro', display_name: 'Gemini 3.7 Pro' },
+    { id: 'gemini-3.1-flash', family: 'gemini-flash', display_name: 'Gemini 3.1 Flash' },
+  ];
+
+  it('groups a mixed catalog by provider, Claude first then Gemini', () => {
+    const groups = modelSelectGroups(mixedModels, 'claude-opus-5');
+    expect(groups.map((g) => g.label)).toEqual(['Claude', 'Gemini']);
+    expect(groups[0].options.map((o) => o.value)).toEqual(['claude-haiku-4-5', 'claude-opus-5']);
+    expect(groups[1].options.map((o) => o.value)).toEqual(['gemini-3.7-pro', 'gemini-3.1-flash']);
+  });
+
+  it('yields a single group for a single-provider catalog', () => {
+    const claudeOnly = mixedModels.filter((m) => m.id.startsWith('claude-'));
+    const groups = modelSelectGroups(claudeOnly, 'claude-opus-5');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe('Claude');
+  });
+
+  it('places a current value not in the catalog into its own provider group', () => {
+    const groups = modelSelectGroups(mixedModels, 'claude-opus-4-8');
+    const claudeGroup = groups.find((g) => g.label === 'Claude');
+    expect(claudeGroup.options.map((o) => o.value)).toContain('claude-opus-4-8');
+  });
+
+  it('handles an empty/missing catalog without throwing', () => {
+    expect(modelSelectGroups(undefined, '')).toEqual([]);
+    expect(modelSelectGroups([], '')).toEqual([]);
   });
 });

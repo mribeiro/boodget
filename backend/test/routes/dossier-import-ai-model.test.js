@@ -86,4 +86,52 @@ describe('POST /dossiers/import — ai_model family whitelist enforcement', () =
     const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
     expect(settingsRes.body.ai_model).toBe('claude-opus-5');
   });
+
+  it('preserves a Gemini model id from a version-15 export', async () => {
+    const user = createUser(db);
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const importRes = await agent
+      .post('/api/dossiers/import')
+      .send(minimalExport({ ai_model: 'gemini-3.7-pro' }));
+    expect(importRes.status).toBe(201);
+
+    const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
+    expect(settingsRes.body.ai_model).toBe('gemini-3.7-pro');
+  });
+
+  it('coerces a versionless Gemini -latest alias to the default (not a real, refresh-resolved id)', async () => {
+    const user = createUser(db);
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const importRes = await agent
+      .post('/api/dossiers/import')
+      .send(minimalExport({ ai_model: 'gemini-pro-latest' }));
+    expect(importRes.status).toBe(201);
+
+    const settingsRes = await agent.get(`/api/dossiers/${importRes.body.id}/settings`);
+    expect(settingsRes.body.ai_model).toBe('claude-opus-5');
+  });
+
+  it('never exports ai_gemini_api_key, the same secret treatment as ai_api_key', async () => {
+    const user = createUser(db);
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const importRes = await agent
+      .post('/api/dossiers/import')
+      .send(minimalExport({ ai_model: 'gemini-3.7-pro' }));
+    expect(importRes.status).toBe(201);
+
+    await agent
+      .patch(`/api/dossiers/${importRes.body.id}/settings`)
+      .send({ ai_gemini_api_key: 'g-secret' });
+
+    const exportRes = await agent.get(`/api/dossiers/${importRes.body.id}/export`);
+    expect(exportRes.status).toBe(200);
+    expect(exportRes.body.dossier.ai_gemini_api_key).toBeUndefined();
+    expect(exportRes.body.dossier.ai_api_key).toBeUndefined();
+  });
 });

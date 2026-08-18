@@ -11,7 +11,22 @@ export const MODEL_LABELS = {
   'claude-opus-4-8': 'Opus 4.8',
   'claude-opus-5': 'Opus 5',
   'claude-fable-5': 'Fable 5',
+  'gemini-3.7-pro': 'Gemini 3.7 Pro',
+  'gemini-3.1-flash': 'Gemini 3.1 Flash',
 };
+
+// Which provider's API a model id belongs to, purely display-side (the backend is the source of
+// truth for validity — see modelFamily/modelProvider in backend/src/routes/ai-advisor.js). Used
+// to group the picker by provider and to pick which API-key setting explains an "unconfigured"
+// state.
+export function modelProvider(modelId) {
+  if (!modelId) return null;
+  if (modelId.startsWith('claude-')) return 'anthropic';
+  if (modelId.startsWith('gemini-')) return 'google';
+  return null;
+}
+
+export const PROVIDER_LABELS = { anthropic: 'Claude', google: 'Gemini' };
 
 // Exact message every ai-advisor endpoint returns when ai_enabled is false, so a mid-session
 // disable (toggled in Settings while the tab is already open) can be told apart from other errors.
@@ -74,4 +89,24 @@ export function modelSelectOptions(models, currentValue) {
     options.push({ value: currentValue, label: MODEL_LABELS[currentValue] || currentValue });
   }
   return options;
+}
+
+// Groups modelSelectOptions' flat list by provider, for a grouped <optgroup> picker — Claude
+// first, then Gemini, then any option whose provider can't be determined (shouldn't happen in
+// practice, but keeps the picker from silently dropping an option).
+export function modelSelectGroups(models, currentValue) {
+  const options = modelSelectOptions(models, currentValue);
+  const order = ['anthropic', 'google'];
+  const byProvider = { anthropic: [], google: [], other: [] };
+  for (const option of options) {
+    const provider = modelProvider(option.value);
+    (byProvider[provider] || byProvider.other).push(option);
+  }
+  const groups = order
+    .filter((provider) => byProvider[provider].length > 0)
+    .map((provider) => ({ label: PROVIDER_LABELS[provider], options: byProvider[provider] }));
+  if (byProvider.other.length > 0) {
+    groups.push({ label: 'Other', options: byProvider.other });
+  }
+  return groups;
 }

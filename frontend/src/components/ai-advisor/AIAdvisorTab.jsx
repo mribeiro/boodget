@@ -4,7 +4,7 @@ import { faWandMagicSparkles, faKey, faCopy, faFileExport, faCheck, faArrowsRota
 import { api } from '../../services/api';
 import AnalysisPanel from './AnalysisPanel';
 import ChatPanel from './ChatPanel';
-import { isAiDisabledError, useAiAvailableModels, modelSelectOptions } from '../../utils/aiModels';
+import { isAiDisabledError, useAiAvailableModels, modelSelectGroups, modelProvider } from '../../utils/aiModels';
 
 export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [loading, setLoading] = useState(true);
@@ -22,6 +22,7 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const [refreshNote, setRefreshNote] = useState('');
   const { models: availableModels, refreshing, refresh: refreshModels } = useAiAvailableModels(dossierId);
 
   const loadAll = useCallback(async () => {
@@ -71,8 +72,14 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
 
   async function handleRefreshModels() {
     setError('');
+    setRefreshNote('');
     try {
-      await refreshModels();
+      const resp = await refreshModels();
+      const notes = [
+        ...(resp.skipped || []).map((p) => `${p === 'google' ? 'Gemini' : 'Claude'} skipped — no API key configured`),
+        ...(resp.errors || []).map((e) => `${e.provider === 'google' ? 'Gemini' : 'Claude'} refresh failed — ${e.message}`),
+      ];
+      if (notes.length) setRefreshNote(notes.join('. '));
     } catch (err) {
       setError(err.message);
     }
@@ -178,12 +185,13 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
       {error && <div className="alert alert-error">{error}</div>}
 
       <div className="card card--flat" style={{ padding: 'var(--space-4)' }}>
-        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Use your Claude subscription instead</h3>
+        <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Use your Claude or Gemini subscription instead</h3>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
           Copy or download a ready-to-paste prompt with this dossier's full context and the same
           instructions used by "Analyze dossier" below (health score, summary, highlights,
-          improvements, risks). Paste it into claude.ai chat — no API key needed, billed to your
-          Claude subscription instead of API usage — then keep chatting under the same context.
+          improvements, risks). Paste it into claude.ai, gemini.google.com, or any other chat
+          client — no API key needed, billed to your subscription instead of API usage — then keep
+          chatting under the same context.
         </p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={handleCopyPrompt} disabled={exportingPrompt}>
@@ -204,14 +212,26 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
             <FontAwesomeIcon icon={faKey} style={{ color: 'var(--color-warning)' }} />
             AI Advisor is not configured
           </h3>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-            Set an API key for this dossier in Settings → AI Settings, or set{' '}
-            <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file (referenced by{' '}
-            <code>docker-compose.yml</code>) and restart the app. You can create an API key at{' '}
-            console.anthropic.com. Costs are billed to your own Anthropic account; each response
-            shows an estimate of what it cost. Alternatively, use the section above to run the same
-            analysis in claude.ai chat instead, using your Claude subscription — no key required.
-          </p>
+          {modelProvider(aiModel) === 'google' ? (
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+              Set a Gemini API key for this dossier in Settings → AI Settings, or set{' '}
+              <code>GEMINI_API_KEY</code> in your <code>.env</code> file (referenced by{' '}
+              <code>docker-compose.yml</code>) and restart the app. You can create an API key at{' '}
+              aistudio.google.com. Costs are billed to your own Google account; each response
+              shows an estimate of what it cost. Alternatively, use the section above to run the
+              same analysis in gemini.google.com instead, using your Gemini subscription — no key
+              required.
+            </p>
+          ) : (
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+              Set an API key for this dossier in Settings → AI Settings, or set{' '}
+              <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file (referenced by{' '}
+              <code>docker-compose.yml</code>) and restart the app. You can create an API key at{' '}
+              console.anthropic.com. Costs are billed to your own Anthropic account; each response
+              shows an estimate of what it cost. Alternatively, use the section above to run the same
+              analysis in claude.ai chat instead, using your Claude subscription — no key required.
+            </p>
+          )}
         </div>
       )}
 
@@ -249,8 +269,12 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
             <label style={{ fontSize: 12 }}>Model{savingModel ? ' (saving…)' : ''}</label>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <select value={aiModel} onChange={handleModelChange} disabled={savingModel || analyzing} style={{ flex: 1 }}>
-                {modelSelectOptions(availableModels, aiModel).map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                {modelSelectGroups(availableModels, aiModel).map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.options.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               <button
@@ -258,12 +282,15 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
                 className="btn-secondary"
                 onClick={handleRefreshModels}
                 disabled={refreshing}
-                title="Check the Claude API for the latest Haiku/Sonnet/Opus model versions"
+                title="Check the Claude and Gemini APIs for the latest model versions"
                 style={{ padding: '0.4rem 0.6rem' }}
               >
                 <FontAwesomeIcon icon={faArrowsRotate} spin={refreshing} />
               </button>
             </div>
+            {refreshNote && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>{refreshNote}</p>
+            )}
           </div>
           <button
             className="btn-primary"

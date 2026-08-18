@@ -36,7 +36,7 @@ in the full guide for the reasoning behind that choice.
 | **Subscriptions** | Recurring personal costs tracked against the distribution that funds them. |
 | **Emergency Fund** | A savings-buffer target derived from your recent average spend. |
 | **Glances** | An at-a-glance, colour-coded panel (Capital, Cycle, Next Expense, Goals) on every dossier. |
-| **AI Advisor** | Optional, opt-in Claude-powered analysis and chat over a trimmed snapshot of your dossier. |
+| **AI Advisor** | Optional, opt-in Claude- or Gemini-powered analysis and chat over a trimmed snapshot of your dossier. |
 | **Notifications** | Browser push reminders before upcoming expenses. |
 | **Sharing** | Multiple users, multiple dossiers, per-dossier access control, optional OIDC/SSO. |
 
@@ -76,8 +76,8 @@ GitHub Codespaces.
 
 Node.js + Express (CommonJS) API, SQLite via `better-sqlite3`, React 18 SPA
 built with Vite, and Docker for deployment. No external services required to
-run the core app — the only optional outbound call is to the Claude API, and
-only if you enable the AI Advisor. See
+run the core app — the only optional outbound calls are to the Claude and/or
+Gemini APIs, and only if you enable the AI Advisor. See
 [docs/PLATFORM_GUIDE.md](docs/PLATFORM_GUIDE.md) for the architecture
 diagram and [CLAUDE.md](CLAUDE.md) for the full tech stack table.
 

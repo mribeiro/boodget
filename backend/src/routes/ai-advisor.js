@@ -17,18 +17,48 @@ function canAccess(dossierId, userId) {
     .get(dossierId, userId);
 }
 
-// Whitelist is by family, not exact model+version — any claude-{haiku,sonnet,opus}-* id is
-// allowed, so a dossier's chosen model never becomes invalid just because a newer version of
-// that family was released. "Refresh models" (below) narrows the *suggested* picker options to
-// the latest version per family; it never invalidates an already-chosen older one.
-const MODEL_FAMILIES = ['haiku', 'sonnet', 'opus'];
-const FAMILY_REGEX = /^claude-(haiku|sonnet|opus)-/;
+// Whitelist is by family, not exact model+version — any claude-{haiku,sonnet,opus}-* or
+// gemini-{version}-{pro,flash} id is allowed, so a dossier's chosen model never becomes invalid
+// just because a newer version of that family was released. "Refresh models" (below) narrows
+// the *suggested* picker options to the latest version per family; it never invalidates an
+// already-chosen older one. Provider (which API to call, which key to use) is always derived
+// from the model id's prefix — see modelProvider — never stored separately, so it can't drift
+// out of sync with the id itself.
+const PROVIDERS = {
+  anthropic: { families: ['haiku', 'sonnet', 'opus'] },
+  google: { families: ['gemini-pro', 'gemini-flash'] },
+};
+const MODEL_FAMILIES = ['haiku', 'sonnet', 'opus', 'gemini-pro', 'gemini-flash'];
+const ANTHROPIC_FAMILY_REGEX = /^claude-(haiku|sonnet|opus)-/;
+// Only the canonical "pro"/"flash" tiers count as an available model — a suffix tail matching
+// this exclusion list is rejected even though it starts with gemini-<version>-<pro|flash>, so
+// -lite/-8b/-image/-tts/-audio/-embedding variants and the versionless -latest alias (we resolve
+// "latest" ourselves via refresh, so a floating alias id is never offered) don't show up.
+const GEMINI_FAMILY_REGEX = /^gemini-(\d+(?:\.\d+)*)-(pro|flash)((?:-[a-z0-9]+)*)$/;
+const GEMINI_EXCLUDED_TAIL = /(^|-)(lite|8b|image|tts|audio|embedding|latest)(-|$)/;
+
 function modelFamily(modelId) {
-  const m = FAMILY_REGEX.exec(modelId || '');
-  return m ? m[1] : null;
+  const id = modelId || '';
+  const anthropicMatch = ANTHROPIC_FAMILY_REGEX.exec(id);
+  if (anthropicMatch) return anthropicMatch[1];
+  const geminiMatch = GEMINI_FAMILY_REGEX.exec(id);
+  if (geminiMatch && !GEMINI_EXCLUDED_TAIL.test(geminiMatch[3])) {
+    return `gemini-${geminiMatch[2]}`;
+  }
+  return null;
 }
 function isAllowedAiModel(modelId) {
   return modelFamily(modelId) !== null;
+}
+// Which provider's API a model id belongs to, derived purely from its family — there is no
+// separate stored provider setting anywhere in the app.
+function modelProvider(modelId) {
+  const family = modelFamily(modelId);
+  if (!family) return null;
+  for (const [provider, cfg] of Object.entries(PROVIDERS)) {
+    if (cfg.families.includes(family)) return provider;
+  }
+  return null;
 }
 
 // Baked-in defaults, used until the first successful refresh (or if a refresh has never found
@@ -37,16 +67,26 @@ const DEFAULT_MODELS = [
   { id: 'claude-haiku-4-5', family: 'haiku', display_name: 'Claude Haiku 4.5' },
   { id: 'claude-sonnet-5', family: 'sonnet', display_name: 'Claude Sonnet 5' },
   { id: 'claude-opus-5', family: 'opus', display_name: 'Claude Opus 5' },
+  { id: 'gemini-3.7-pro', family: 'gemini-pro', display_name: 'Gemini 3.7 Pro' },
+  { id: 'gemini-3.1-flash', family: 'gemini-flash', display_name: 'Gemini 3.1 Flash' },
 ];
 const DEFAULT_AI_MODEL = DEFAULT_MODELS.find((m) => m.family === 'opus').id;
 
 // USD per million tokens, by family (not exact model — a family's pricing is stable across its
-// own version bumps far more often than not, and the Models API doesn't expose pricing at all).
-// Cache writes cost 1.25x input, cache reads 0.1x input. Estimates only — see cost label docs.
+// own version bumps far more often than not, and neither provider's Models API exposes pricing
+// at all). Cache writes cost 1.25x input, cache reads 0.1x input (Claude only — see callGemini's
+// usage normalization for why Gemini's cache fields are always 0). Estimates only.
 const FAMILY_PRICING = {
   haiku: { input: 1, output: 5 },
   sonnet: { input: 3, output: 15 },
   opus: { input: 5, output: 25 },
+  // Base (<=200k-token prompt) tier from Google's published Gemini API pricing at the time this
+  // was written — Pro is context-tiered (a higher rate applies above ~200k prompt tokens), but
+  // buildDossierContext's caps keep every request far under that threshold, so only the base
+  // tier is modeled. Re-check https://ai.google.dev/gemini-api/docs/pricing whenever the baked-in
+  // default model ids above are bumped, since a new generation can reprice.
+  'gemini-pro': { input: 1.25, output: 10 },
+  'gemini-flash': { input: 0.3, output: 2.5 },
 };
 
 function computeCostUsd(model, usage) {
@@ -67,32 +107,34 @@ function computeCostUsd(model, usage) {
 // a refresh never found a match for).
 const AVAILABLE_MODELS_KEY = 'ai_available_models';
 
+// Merges the cached catalog against MODEL_FAMILIES (cached entry for a family if present, else
+// the baked-in default) rather than returning the cache verbatim — so an existing install's
+// cache from before a new family was added (e.g. Gemini) still surfaces that family's default
+// immediately, instead of hiding it until someone happens to click Refresh.
 function getAvailableModels() {
   const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(AVAILABLE_MODELS_KEY);
-  if (!row) return { models: DEFAULT_MODELS, updated_at: null };
-  try {
-    const parsed = JSON.parse(row.value);
-    if (!Array.isArray(parsed.models) || parsed.models.length === 0) {
-      return { models: DEFAULT_MODELS, updated_at: null };
+  let cached = [];
+  let updated_at = null;
+  if (row) {
+    try {
+      const parsed = JSON.parse(row.value);
+      if (Array.isArray(parsed.models) && parsed.models.length > 0) {
+        cached = parsed.models;
+        updated_at = parsed.updated_at ?? null;
+      }
+    } catch (e) {
+      // fall through — cached stays empty, every family falls back to its default below
     }
-    return { models: parsed.models, updated_at: parsed.updated_at ?? null };
-  } catch (e) {
-    return { models: DEFAULT_MODELS, updated_at: null };
   }
+  const models = MODEL_FAMILIES.map(
+    (family) => cached.find((m) => m.family === family) || DEFAULT_MODELS.find((m) => m.family === family)
+  );
+  return { models, updated_at };
 }
 
 // Calls GET /v1/models, keeps only claude-{haiku,sonnet,opus}-* ids, and picks the most recently
-// created model per family (by the API's created_at) — ignoring older versions. A family with no
-// match in this response keeps its previously-resolved entry (or the baked-in default).
-async function refreshAvailableModels(apiKey) {
-  if (!apiKey) {
-    const err = new Error(
-      'No Claude API key is configured for this dossier or the server, so the model catalog can\'t be refreshed.'
-    );
-    err.status = 503;
-    throw err;
-  }
-
+// created model per family (by the API's created_at) — ignoring older versions.
+async function fetchAnthropicLatest(apiKey) {
   const latestByFamily = {};
   let afterId;
   do {
@@ -130,9 +172,143 @@ async function refreshAvailableModels(apiKey) {
     afterId = data?.has_more ? data?.last_id : null;
   } while (afterId);
 
+  return latestByFamily;
+}
+
+// Parses the numeric version out of a gemini-<version>-<tier>... id, e.g. '3.7' -> [3, 7].
+function parseGeminiVersion(id) {
+  const m = GEMINI_FAMILY_REGEX.exec(id || '');
+  if (!m) return [];
+  return m[1].split('.').map((n) => parseInt(n, 10));
+}
+
+// Compares two version tuples element-wise; a shorter prefix loses to a longer one at an equal
+// prefix (e.g. [3] < [3, 1]).
+function compareVersionTuples(a, b) {
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+// True if this id looks like a preview/experimental build rather than a stable release — used
+// only as a tiebreaker at equal version, so a brand-new generation that's preview-only for a
+// while still wins over an older stable one (that's how new Gemini generations typically ship).
+function isGeminiPreview(id) {
+  return /(^|-)(preview|exp|experimental)(-|$)/.test(id || '');
+}
+
+// Picks the better of two same-family Gemini candidates: higher version first, then stable over
+// preview at equal version, then the raw id string as a final deterministic tiebreak (so e.g. a
+// newer numbered revision like -002 sorts after -001).
+function betterGeminiCandidate(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const versionDiff = compareVersionTuples(parseGeminiVersion(a.id), parseGeminiVersion(b.id));
+  if (versionDiff !== 0) return versionDiff > 0 ? a : b;
+  const aPreview = isGeminiPreview(a.id);
+  const bPreview = isGeminiPreview(b.id);
+  if (aPreview !== bPreview) return aPreview ? b : a;
+  return a.id >= b.id ? a : b;
+}
+
+// Calls GET /v1beta/models, keeps only gemini-{pro,flash} ids that support generateContent, and
+// picks the best candidate per family via betterGeminiCandidate — Google's list has no
+// created_at like Anthropic's, so "latest" is determined by parsing the version out of the id.
+async function fetchGeminiLatest(apiKey) {
+  const bestByFamily = {};
+  let pageToken;
+  do {
+    const url = new URL('https://generativelanguage.googleapis.com/v1beta/models');
+    url.searchParams.set('pageSize', '1000');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+    let resp;
+    try {
+      resp = await fetch(url, { headers: { 'x-goog-api-key': apiKey } });
+    } catch (e) {
+      const err = new Error('Could not reach the Gemini API');
+      err.status = 502;
+      throw err;
+    }
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      const upstream = data?.error?.message || `HTTP ${resp.status}`;
+      const err = new Error(`Gemini API error: ${upstream}`);
+      err.status = 502;
+      throw err;
+    }
+
+    for (const m of data?.models || []) {
+      if (!Array.isArray(m.supportedGenerationMethods) || !m.supportedGenerationMethods.includes('generateContent')) {
+        continue;
+      }
+      const id = String(m.name || '').replace(/^models\//, '');
+      const family = modelFamily(id);
+      if (!family || !PROVIDERS.google.families.includes(family)) continue;
+      const candidate = { id, family, display_name: m.displayName || id };
+      bestByFamily[family] = betterGeminiCandidate(bestByFamily[family], candidate);
+    }
+
+    pageToken = data?.nextPageToken || null;
+  } while (pageToken);
+
+  return bestByFamily;
+}
+
+// Refreshes the model catalog from both providers' list-models APIs. A provider with no
+// resolvable key is skipped — its families keep their previously-cached/default entries — rather
+// than failing the whole refresh, so a dossier with only a Claude key can still refresh Claude.
+// Throws 503 only if neither key resolves; an upstream error on a provider that *did* have a key
+// is reported in `errors` rather than thrown, unless it's the only provider attempted.
+async function refreshAvailableModels(apiKeys) {
+  const { anthropic, gemini } = apiKeys || {};
+  if (!anthropic && !gemini) {
+    const err = new Error(
+      'No Claude or Gemini API key is configured for this dossier or the server, so the model catalog can\'t be refreshed.'
+    );
+    err.status = 503;
+    throw err;
+  }
+
+  const foundByFamily = {};
+  const skipped = [];
+  const errors = [];
+  let attempted = 0;
+
+  if (anthropic) {
+    attempted++;
+    try {
+      Object.assign(foundByFamily, await fetchAnthropicLatest(anthropic));
+    } catch (e) {
+      errors.push({ provider: 'anthropic', message: e.message });
+    }
+  } else {
+    skipped.push('anthropic');
+  }
+
+  if (gemini) {
+    attempted++;
+    try {
+      Object.assign(foundByFamily, await fetchGeminiLatest(gemini));
+    } catch (e) {
+      errors.push({ provider: 'google', message: e.message });
+    }
+  } else {
+    skipped.push('google');
+  }
+
+  if (attempted > 0 && errors.length === attempted) {
+    const err = new Error(errors[0].message);
+    err.status = 502;
+    throw err;
+  }
+
   const previous = getAvailableModels().models;
   const models = MODEL_FAMILIES.map((family) => {
-    const found = latestByFamily[family];
+    const found = foundByFamily[family];
     if (found) return { id: found.id, family, display_name: found.display_name };
     return previous.find((m) => m.family === family) || DEFAULT_MODELS.find((m) => m.family === family);
   });
@@ -142,7 +318,7 @@ async function refreshAvailableModels(apiKey) {
     AVAILABLE_MODELS_KEY,
     JSON.stringify({ models, updated_at })
   );
-  return { models, updated_at };
+  return { models, updated_at, skipped, errors };
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -457,7 +633,7 @@ function buildDossierContext(dossierId) {
 }
 
 // Call the Claude Messages API. Returns { text, usage, model } or throws { status, message }.
-async function callClaude({ model, system, messages, maxTokens, outputFormat, apiKey }) {
+async function callClaude({ model, system, messages, maxTokens, jsonSchema, apiKey }) {
   if (!apiKey) {
     const err = new Error(
       'AI Advisor is not configured. Set an API key in this dossier\'s Settings → AI Settings, or set ANTHROPIC_API_KEY in your .env / docker-compose environment.'
@@ -472,8 +648,8 @@ async function callClaude({ model, system, messages, maxTokens, outputFormat, ap
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages,
   };
-  if (outputFormat) {
-    body.output_config = { format: outputFormat };
+  if (jsonSchema) {
+    body.output_config = { format: { type: 'json_schema', schema: jsonSchema } };
   }
 
   const controller = new AbortController();
@@ -524,14 +700,165 @@ async function callClaude({ model, system, messages, maxTokens, outputFormat, ap
   return { text, usage: data.usage || {}, model: data.model || model };
 }
 
-// Resolves per-dossier AI configuration: whether the feature is enabled, which API key to use
-// (dossier-specific key takes priority over the operator's ANTHROPIC_API_KEY env var), and model.
+// Converts the JSON-Schema dialect ANALYSIS_SCHEMA is written in to the OpenAPI-3.0 subset
+// Gemini's responseSchema accepts: additionalProperties isn't supported, types must be uppercase,
+// and propertyOrdering keeps object key order stable/deterministic in the response.
+function toGeminiSchema(schema) {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map(toGeminiSchema);
+  const out = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'additionalProperties') continue;
+    if (key === 'type' && typeof value === 'string') {
+      out.type = value.toUpperCase();
+      continue;
+    }
+    if (key === 'properties' && value && typeof value === 'object') {
+      out.properties = {};
+      for (const [propKey, propValue] of Object.entries(value)) {
+        out.properties[propKey] = toGeminiSchema(propValue);
+      }
+      out.propertyOrdering = Object.keys(value);
+      continue;
+    }
+    if (key === 'items') {
+      out.items = toGeminiSchema(value);
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+// Finish reasons that mean the model refused/was blocked, mapped to the same user-facing message
+// as Claude's stop_reason === 'refusal' so the UI reads identically regardless of provider.
+const GEMINI_REFUSAL_FINISH_REASONS = new Set(['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII', 'RECITATION']);
+
+// Call the Gemini generateContent API. Returns { text, usage, model } normalized to the same
+// shape as callClaude (usage keyed by input_tokens/output_tokens/cache_*), or throws
+// { status, message }. No SDK, same no-`thinking`-parameter/no-streaming/180s-timeout contract.
+async function callGemini({ model, system, messages, maxTokens, jsonSchema, apiKey }) {
+  if (!apiKey) {
+    const err = new Error(
+      'AI Advisor is not configured for Gemini. Set a Gemini API key in this dossier\'s Settings → AI Settings, or set GEMINI_API_KEY in your .env / docker-compose environment.'
+    );
+    err.status = 503;
+    throw err;
+  }
+
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: messages.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    })),
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+      ...(jsonSchema
+        ? { responseMimeType: 'application/json', responseSchema: toGeminiSchema(jsonSchema) }
+        : {}),
+    },
+  };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180000);
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    const err = new Error('Could not reach the Gemini API');
+    err.status = 502;
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const upstream = data?.error?.message || `HTTP ${resp.status}`;
+    const err = new Error(`Gemini API error: ${upstream}`);
+    err.status = 502;
+    throw err;
+  }
+
+  if (data.promptFeedback?.blockReason) {
+    const err = new Error('The model declined this request. Try again or pick a different model in the selector.');
+    err.status = 502;
+    throw err;
+  }
+
+  const candidate = data.candidates?.[0];
+  const finishReason = candidate?.finishReason;
+  if (finishReason === 'MAX_TOKENS') {
+    const err = new Error('The response was cut short by the token limit. Please try again.');
+    err.status = 502;
+    throw err;
+  }
+  if (finishReason && GEMINI_REFUSAL_FINISH_REASONS.has(finishReason)) {
+    const err = new Error('The model declined this request. Try again or pick a different model in the selector.');
+    err.status = 502;
+    throw err;
+  }
+  if (finishReason && finishReason !== 'STOP') {
+    const err = new Error(`The model stopped unexpectedly (${finishReason}). Please try again.`);
+    err.status = 502;
+    throw err;
+  }
+
+  const text = (candidate?.content?.parts || [])
+    .filter((p) => typeof p.text === 'string' && !p.thought)
+    .map((p) => p.text)
+    .join('');
+
+  const usageMetadata = data.usageMetadata || {};
+  // promptTokenCount already reflects Gemini's own implicit-cache handling, and its discount
+  // rate differs from Anthropic's — rather than model it, cache fields are left at 0 so the
+  // estimate is conservative (never understated). thoughtsTokenCount is billed as output but is
+  // NOT included in candidatesTokenCount on thinking-by-default models, so it must be added in.
+  const usage = {
+    input_tokens: usageMetadata.promptTokenCount ?? 0,
+    output_tokens: (usageMetadata.candidatesTokenCount ?? 0) + (usageMetadata.thoughtsTokenCount ?? 0),
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  };
+
+  return { text, usage, model };
+}
+
+// Routes to the right provider's call function based on the model id's derived provider, so the
+// analysis/chat route handlers stay provider-agnostic.
+async function callAiProvider({ model, system, messages, maxTokens, jsonSchema, apiKey }) {
+  const provider = modelProvider(model);
+  if (provider === 'google') return callGemini({ model, system, messages, maxTokens, jsonSchema, apiKey });
+  if (provider === 'anthropic') return callClaude({ model, system, messages, maxTokens, jsonSchema, apiKey });
+  const err = new Error('Unsupported model');
+  err.status = 500;
+  throw err;
+}
+
+// Resolves per-dossier AI configuration: whether the feature is enabled, which model, which
+// provider that model belongs to, and which API key applies (dossier-specific key takes priority
+// over the operator's env var, resolved separately per provider — apiKey is whichever of the two
+// matches the resolved model's provider; apiKeys carries both, used only by the refresh route).
 function resolveAiConfig(dossierId) {
-  const dossier = db.prepare('SELECT ai_enabled, ai_api_key, ai_model FROM dossiers WHERE id = ?').get(dossierId);
+  const dossier = db
+    .prepare('SELECT ai_enabled, ai_api_key, ai_gemini_api_key, ai_model FROM dossiers WHERE id = ?')
+    .get(dossierId);
   const enabled = dossier?.ai_enabled == null ? true : !!dossier.ai_enabled;
-  const apiKey = dossier?.ai_api_key || process.env.ANTHROPIC_API_KEY || null;
   const model = isAllowedAiModel(dossier?.ai_model) ? dossier.ai_model : DEFAULT_AI_MODEL;
-  return { enabled, apiKey, model };
+  const provider = modelProvider(model);
+  const apiKeys = {
+    anthropic: dossier?.ai_api_key || process.env.ANTHROPIC_API_KEY || null,
+    gemini: dossier?.ai_gemini_api_key || process.env.GEMINI_API_KEY || null,
+  };
+  const apiKey = provider === 'google' ? apiKeys.gemini : apiKeys.anthropic;
+  return { enabled, model, provider, apiKey, apiKeys };
 }
 
 const ANALYSIS_SCHEMA = {
@@ -661,16 +988,24 @@ router.get('/ai-advisor/available-models', (req, res) => {
   res.json(getAvailableModels());
 });
 
-// POST /ai-advisor/refresh-models — re-fetch the model catalog from the Claude API, keeping only
-// the latest version per family (haiku/sonnet/opus). Global, not per-dossier — any dossier with a
-// resolvable API key can trigger it. Not gated on ai_enabled, same reasoning as the GET above.
+// POST /ai-advisor/refresh-models — re-fetch the model catalog from the Claude and Gemini APIs,
+// keeping only the latest version per family (haiku/sonnet/opus/gemini-pro/gemini-flash). Global,
+// not per-dossier — any dossier with a resolvable API key for either provider can trigger it, and
+// a provider whose key is missing is simply skipped (see refreshAvailableModels). Not gated on
+// ai_enabled, same reasoning as the GET above.
 router.post('/ai-advisor/refresh-models', async (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
-  const { apiKey } = resolveAiConfig(req.params.id);
+  const { apiKeys } = resolveAiConfig(req.params.id);
   try {
-    const result = await refreshAvailableModels(apiKey);
+    const result = await refreshAvailableModels(apiKeys);
+    const skippedNote = result.skipped.length
+      ? ` (skipped: ${result.skipped.join(', ')} — no API key)`
+      : '';
+    const errorNote = result.errors.length
+      ? ` (errors: ${result.errors.map((e) => `${e.provider} — ${e.message}`).join('; ')})`
+      : '';
     console.log(
-      `[ai-advisor] Refreshed available models (triggered by user ${req.user.username} via dossier ${req.params.id}): ${result.models.map((m) => m.id).join(', ')}`
+      `[ai-advisor] Refreshed available models (triggered by user ${req.user.username} via dossier ${req.params.id}): ${result.models.map((m) => m.id).join(', ')}${skippedNote}${errorNote}`
     );
     res.json(result);
   } catch (err) {
@@ -711,12 +1046,12 @@ router.post('/ai-advisor/analysis', async (req, res) => {
 
   try {
     const context = buildDossierContext(req.params.id);
-    const result = await callClaude({
+    const result = await callAiProvider({
       model,
       system: ANALYSIS_SYSTEM_INTRO + context,
       messages: [{ role: 'user', content: 'Analyse this financial dossier and return the structured assessment.' }],
       maxTokens: 8192,
-      outputFormat: { type: 'json_schema', schema: ANALYSIS_SCHEMA },
+      jsonSchema: ANALYSIS_SCHEMA,
       apiKey: config.apiKey,
     });
 
@@ -793,7 +1128,7 @@ router.post('/ai-advisor/chat', async (req, res) => {
 
   try {
     const context = buildDossierContext(req.params.id);
-    const result = await callClaude({
+    const result = await callAiProvider({
       model,
       system: CHAT_SYSTEM_INTRO + context,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -825,6 +1160,8 @@ module.exports.computeCostUsd = computeCostUsd;
 module.exports.buildDossierContext = buildDossierContext;
 module.exports.isAllowedAiModel = isAllowedAiModel;
 module.exports.modelFamily = modelFamily;
+module.exports.modelProvider = modelProvider;
+module.exports.toGeminiSchema = toGeminiSchema;
 module.exports.getAvailableModels = getAvailableModels;
 module.exports.refreshAvailableModels = refreshAvailableModels;
 module.exports.DEFAULT_AI_MODEL = DEFAULT_AI_MODEL;
