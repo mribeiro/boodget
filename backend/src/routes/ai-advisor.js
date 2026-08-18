@@ -466,6 +466,11 @@ function buildDossierContext(dossierId) {
 const AI_NOT_CONFIGURED_MESSAGE =
   'AI Advisor is not configured. Set an API key in this dossier\'s Settings → AI Settings, or set ANTHROPIC_API_KEY in your .env / docker-compose environment.';
 
+// Max serialized length of a chat turn's optional page_context (see POST .../chat/start below) —
+// larger than ai_user_context's 4000 since a page like a loan's amortization schedule can
+// legitimately be bigger than a hand-typed note.
+const PAGE_CONTEXT_MAX_CHARS = 6000;
+
 async function callClaudeStream({ model, system, messages, maxTokens, outputFormat, apiKey, onDelta }) {
   if (!apiKey) {
     const err = new Error(AI_NOT_CONFIGURED_MESSAGE);
@@ -930,7 +935,7 @@ router.post('/ai-advisor/chat/start', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const config = resolveAiConfig(req.params.id);
   if (!config.enabled) return res.status(403).json({ error: 'AI Advisor is disabled for this dossier' });
-  const { messages } = req.body;
+  const { messages, model: modelOverride, page_context: pageContext } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages must be a non-empty array' });
@@ -949,10 +954,42 @@ router.post('/ai-advisor/chat/start', (req, res) => {
   if (messages[0].role !== 'user' || messages[messages.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'Conversation must start and end with a user message' });
   }
+
+  // Ephemeral, per-call model override (e.g. from the floating chat widget's model switcher) —
+  // never written to dossiers.ai_model, only ever used for this one job.
+  let model = config.model;
+  if (modelOverride !== undefined) {
+    if (!isAllowedAiModel(modelOverride)) {
+      return res.status(400).json({ error: 'Unsupported model' });
+    }
+    model = modelOverride;
+  }
+
+  // Optional structured summary of whatever page the widget was open on (see pageContext.js on
+  // the frontend) — spliced onto the *last* message's text only, not the cached system block, so
+  // the large, stable dossier-context prefix stays cacheable turn over turn even as the user
+  // navigates between pages mid-conversation.
+  let outgoingMessages = messages;
+  if (pageContext !== undefined) {
+    // Always a string: pageContext is already a value express.json() parsed out of the request
+    // body, so it can only be JSON-representable types — JSON.stringify never throws or returns
+    // undefined for those (unlike an arbitrary in-memory object, which could contain a function,
+    // a circular reference, etc.).
+    const serialized = JSON.stringify(pageContext);
+    if (serialized.length > PAGE_CONTEXT_MAX_CHARS) {
+      return res.status(400).json({ error: `page_context must be at most ${PAGE_CONTEXT_MAX_CHARS} characters` });
+    }
+    const last = messages[messages.length - 1];
+    outgoingMessages = [
+      ...messages.slice(0, -1),
+      { ...last, content: `${last.content}\n\n[The user is currently viewing this page:]\n${serialized}` },
+    ];
+  }
+
   if (!config.apiKey) return res.status(503).json({ error: AI_NOT_CONFIGURED_MESSAGE });
 
-  const job = createJob(req.params.id, 'chat', config.model);
-  runChatJob(job, config, req.params.id, req.user.username, messages);
+  const job = createJob(req.params.id, 'chat', model);
+  runChatJob(job, { ...config, model }, req.params.id, req.user.username, outgoingMessages);
   res.status(202).json({ job_id: job.id });
 });
 

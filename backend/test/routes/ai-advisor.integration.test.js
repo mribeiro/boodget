@@ -296,6 +296,90 @@ describe('AI Advisor job-based analysis/chat streaming', () => {
     expect(stream.text).toContain('You are in decent shape.');
   });
 
+  it('a valid model override is used for the outgoing Claude API call instead of the dossier default', async () => {
+    const { user, dossier } = setup();
+    mockInstantSse(
+      sseFrame('message_start', { type: 'message_start', message: { model: 'claude-sonnet-5', usage: { input_tokens: 200 } } }) +
+        sseFrame('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } }) +
+        sseFrame('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } }) +
+        sseFrame('message_stop', { type: 'message_stop' })
+    );
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const start = await agent
+      .post(`/api/dossiers/${dossier.id}/ai-advisor/chat/start`)
+      .send({ messages: [{ role: 'user', content: 'hi' }], model: 'claude-sonnet-5' });
+    expect(start.status).toBe(202);
+
+    await waitFor(async () => {
+      const active = await agent.get(`/api/dossiers/${dossier.id}/ai-advisor/jobs/active`);
+      return active.body.chat === null;
+    });
+
+    const [, requestInit] = global.fetch.mock.calls[0];
+    expect(JSON.parse(requestInit.body).model).toBe('claude-sonnet-5');
+  });
+
+  it('rejects an unsupported model override', async () => {
+    const { user, dossier } = setup();
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent
+      .post(`/api/dossiers/${dossier.id}/ai-advisor/chat/start`)
+      .send({ messages: [{ role: 'user', content: 'hi' }], model: 'gpt-4' });
+    expect(res.status).toBe(400);
+  });
+
+  it('splices page_context onto the last message only, leaving the cached system prompt untouched', async () => {
+    const { user, dossier } = setup();
+    mockInstantSse(
+      sseFrame('message_start', { type: 'message_start', message: { model: 'claude-opus-5', usage: { input_tokens: 200 } } }) +
+        sseFrame('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } }) +
+        sseFrame('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } }) +
+        sseFrame('message_stop', { type: 'message_stop' })
+    );
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const start = await agent
+      .post(`/api/dossiers/${dossier.id}/ai-advisor/chat/start`)
+      .send({
+        messages: [{ role: 'user', content: 'Why is this loan expensive?' }],
+        page_context: { name: 'Car Loan', total_interest: 4200 },
+      });
+    expect(start.status).toBe(202);
+
+    await waitFor(async () => {
+      const active = await agent.get(`/api/dossiers/${dossier.id}/ai-advisor/jobs/active`);
+      return active.body.chat === null;
+    });
+
+    const [, requestInit] = global.fetch.mock.calls[0];
+    const body = JSON.parse(requestInit.body);
+    expect(body.messages).toHaveLength(1);
+    expect(body.messages[0].content).toContain('Why is this loan expensive?');
+    expect(body.messages[0].content).toContain('"total_interest":4200');
+    // The system block is the dossier context alone — page_context never touches it, so it
+    // stays identical (and thus cacheable) across turns regardless of what page the user is on.
+    expect(body.system[0].text).not.toContain('total_interest');
+  });
+
+  it('rejects a page_context over the size cap', async () => {
+    const { user, dossier } = setup();
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent
+      .post(`/api/dossiers/${dossier.id}/ai-advisor/chat/start`)
+      .send({
+        messages: [{ role: 'user', content: 'hi' }],
+        page_context: { blob: 'x'.repeat(7000) },
+      });
+    expect(res.status).toBe(400);
+  });
+
   it('enforces dossier access on both /start and /stream/:jobId', async () => {
     const { dossier } = setup();
     const outsider = createUser(db);

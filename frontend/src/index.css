@@ -107,12 +107,16 @@
   --sidebar-width-collapsed: 60px;
   --sidebar-width:           var(--sidebar-width-expanded);
 
+  /* --- AI chat widget dimensions --- */
+  --chat-widget-width: 380px;
+
   /* --- Z-index stack --- */
-  --z-sidebar:  100;
-  --z-navbar:   90;
-  --z-dropdown: 200;
-  --z-modal:    300;
-  --z-toast:    400;
+  --z-sidebar:     100;
+  --z-navbar:      90;
+  --z-dropdown:    200;
+  --z-chat-widget: 250;
+  --z-modal:       300;
+  --z-toast:       400;
 
   /* --- Transitions --- */
   --transition-fast:   120ms ease;
@@ -233,6 +237,20 @@ body:has(.modal-overlay) {
 
 .app-shell-main.sidebar-collapsed {
   margin-left: var(--sidebar-width-collapsed);
+}
+
+.app-shell-main.chat-pinned {
+  margin-right: var(--chat-widget-width);
+  transition: margin-right var(--transition-slow);
+}
+
+@media (max-width: 767px) {
+  /* Pinning isn't offered below the sidebar's own mobile breakpoint (see AiChatWidget.jsx) —
+     never reflow the single-column mobile layout even if a stale ct-chat-pinned value lingers
+     from a desktop session. */
+  .app-shell-main.chat-pinned {
+    margin-right: 0;
+  }
 }
 
 /* Legacy: keep .app for routes that don't use AppShell yet */
@@ -3017,11 +3035,10 @@ tr:hover td {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 420px;
-  min-height: 120px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 4px 2px;
-  margin-bottom: 10px;
+  padding: 8px var(--space-3);
 }
 
 .ai-chat-bubble {
@@ -3044,4 +3061,120 @@ tr:hover td {
   background: var(--bg-table-row-hover);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
+}
+
+/* ── Floating AI chat widget ─────────────────────────────────
+   Three states, one component (AiChatWidget.jsx): closed (.ai-chat-fab only), open-popup
+   (.ai-chat-widget floating above the FAB), open-pinned (.ai-chat-widget.pinned docked to the
+   right edge, full height — .app-shell-main.chat-pinned above adds the matching margin-right). */
+
+.ai-chat-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  color: #fff;
+  border: none;
+  box-shadow: var(--shadow-lg);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: var(--z-chat-widget);
+  transition: transform var(--transition-fast);
+}
+
+.ai-chat-fab:hover {
+  transform: scale(1.06);
+}
+
+.ai-chat-widget {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: var(--chat-widget-width);
+  max-width: calc(100vw - 32px);
+  height: 560px;
+  max-height: calc(100vh - 140px);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  z-index: var(--z-chat-widget);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp var(--transition-normal);
+}
+
+.ai-chat-widget.pinned {
+  top: 56px; /* matches .navbar's height */
+  bottom: 0;
+  right: 0;
+  height: auto;
+  max-height: none;
+  max-width: 100vw;
+  border-radius: 0;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.08);
+}
+
+.ai-chat-widget-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ai-chat-widget-header select {
+  font-size: 12px;
+  padding: 0.3rem 0.4rem;
+}
+
+.ai-chat-context-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--space-3);
+  font-size: 11px;
+  color: var(--color-brand);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ai-chat-context-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .ai-chat-widget,
+  .ai-chat-widget.pinned {
+    top: auto;
+    bottom: 88px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+    height: calc(100vh - 160px);
+    max-height: none;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-modal);
+  }
+
+  /* Pinning a side panel doesn't make sense on a single-column mobile layout. */
+  .ai-chat-pin-btn {
+    display: none;
+  }
 }

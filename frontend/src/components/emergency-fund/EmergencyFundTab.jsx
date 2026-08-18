@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faTriangleExclamation, faListCheck, faPlus, faPencil, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
@@ -73,6 +74,7 @@ export default function EmergencyFundTab({ dossierId }) {
       setAccounts(accs);
       setSelectedIds(sel);
       setExtraValues(evs);
+      publishPageContext({ label: 'Emergency Fund', data: st });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -81,6 +83,8 @@ export default function EmergencyFundTab({ dossierId }) {
   }, [dossierId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  useEffect(() => () => clearPageContext(), []);
 
   async function refreshStatus() {
     try {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faPencil, faTrash, faCheck, faTriangleExclamation, faEye, faEyeSlash, faBan, faArrowRotateLeft, faXmark, faClock } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
 import KpiStrip from '../ui/KpiStrip';
@@ -84,6 +85,7 @@ export default function SubscriptionsTab({ dossierId }) {
     load();
   }, [dossierId, showCancelled]);
 
+  useEffect(() => () => clearPageContext(), []);
 
   async function load() {
     setLoading(true);
@@ -97,6 +99,15 @@ export default function SubscriptionsTab({ dossierId }) {
       setSubscriptions(subs);
       setDistributions(template.filter((i) => i.section === 'distribution'));
       setCycleStartDay(settings.cycle_start_day ?? 25);
+      publishPageContext({
+        label: `Subscriptions (${subs.length})`,
+        data: {
+          subscriptions: subs.map((s) => ({
+            name: s.name, monthly_cost: s.monthly_cost, status: s.status,
+            linked_distribution: s.linked_distribution?.name ?? null,
+          })),
+        },
+      });
     } catch (err) {
       setError(err.message);
     } finally {

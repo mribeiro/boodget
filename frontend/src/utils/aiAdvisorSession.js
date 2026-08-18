@@ -131,7 +131,10 @@ function attachChatStream(dossierId, jobId) {
   });
 }
 
-export async function sendChatMessage(dossierId, text) {
+// `model` (ephemeral per-call override, from the floating widget's model switcher — never
+// persisted to the dossier's ai_model setting) and `pageContext` (whatever pageContext.js
+// currently holds, attached only when the widget's toggle for it is on) are both optional.
+export async function sendChatMessage(dossierId, text, { model, pageContext } = {}) {
   const s = getSession(dossierId);
   if (s.chatJob) return; // a turn is already in flight
   s.chatError = null;
@@ -140,6 +143,8 @@ export async function sendChatMessage(dossierId, text) {
   try {
     const { job_id } = await api.startAiChat(dossierId, {
       messages: s.chatMessages.map((m) => ({ role: m.role, content: m.content })),
+      ...(model ? { model } : {}),
+      ...(pageContext ? { page_context: pageContext } : {}),
     });
     attachChatStream(dossierId, job_id);
   } catch (err) {

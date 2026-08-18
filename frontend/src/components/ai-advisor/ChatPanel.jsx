@@ -1,17 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPaperPlane, faComments } from '@fortawesome/free-solid-svg-icons';
+import { faPaperPlane } from '@fortawesome/free-solid-svg-icons';
 import CostLabel from './CostLabel';
 import { MODEL_LABELS, isAiDisabledError } from '../../utils/aiModels';
-import { subscribeChat, sendChatMessage, clearChat } from '../../utils/aiAdvisorSession';
+import { subscribeChat, sendChatMessage } from '../../utils/aiAdvisorSession';
 
-// Chat about the dossier. History lives in the module-level aiAdvisorSession store (not local
-// React state), so an in-flight turn survives switching dossier tabs and back instead of being
-// silently discarded — see aiAdvisorSession.js. It still resets on a full page reload or leaving
-// the dossier, matching the "conversation is not stored and resets when you leave" copy below.
-// `onDisabled` lets the parent switch to its friendly disabled view if ai_enabled was toggled off
-// mid-session.
-export default function ChatPanel({ dossierId, disabled, onDisabled }) {
+// The conversation body (message list + compose form) — no card wrapper, no header, no Clear
+// button; those live in the floating AiChatWidget shell that embeds this. History lives in the
+// module-level aiAdvisorSession store (not local React state), so an in-flight turn survives
+// switching dossier tabs and back instead of being silently discarded — see aiAdvisorSession.js.
+// It still resets on a full page reload or leaving the dossier, matching the "conversation is not
+// stored and resets when you leave" copy below. `onDisabled` lets the parent switch to its
+// friendly disabled view if ai_enabled was toggled off mid-session. `model` (ephemeral override)
+// and `pageContext` (attached only when the widget's toggle is on) are forwarded to
+// sendChatMessage as-is — `null`/undefined omits them.
+export default function ChatPanel({ dossierId, disabled, onDisabled, model, pageContext }) {
   const [messages, setMessages] = useState([]);
   const [chatJob, setChatJob] = useState(null);
   const [error, setError] = useState('');
@@ -43,23 +46,11 @@ export default function ChatPanel({ dossierId, disabled, onDisabled }) {
     const text = input.trim();
     if (!text || pending || disabled) return;
     setInput('');
-    await sendChatMessage(dossierId, text);
+    await sendChatMessage(dossierId, text, { model, pageContext });
   }
 
   return (
-    <div className="card card--flat" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <h3 style={{ fontSize: 14, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <FontAwesomeIcon icon={faComments} style={{ color: 'var(--color-brand)' }} />
-          Chat about this dossier
-        </h3>
-        {messages.length > 0 && (
-          <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => clearChat(dossierId)}>
-            Clear
-          </button>
-        )}
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div ref={scrollRef} className="ai-chat-messages">
         {messages.length === 0 && !pending && (
           <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '1.5rem 1rem' }}>
@@ -99,10 +90,10 @@ export default function ChatPanel({ dossierId, disabled, onDisabled }) {
       </div>
 
       {error && !isAiDisabledError({ message: error }) && (
-        <div className="alert alert-error" style={{ marginBottom: 8 }}>{error}</div>
+        <div className="alert alert-error" style={{ margin: '0 var(--space-3) 8px' }}>{error}</div>
       )}
 
-      <form onSubmit={handleSend} style={{ display: 'flex', gap: 8 }}>
+      <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, padding: 'var(--space-3)', paddingTop: 0 }}>
         <input
           type="text"
           value={input}

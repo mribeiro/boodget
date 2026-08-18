@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWandMagicSparkles, faKey, faCopy, faFileExport, faCheck, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
+import { faWandMagicSparkles, faKey, faCopy, faFileExport, faCheck, faArrowsRotate, faComments } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import AnalysisPanel from './AnalysisPanel';
-import ChatPanel from './ChatPanel';
 import { isAiDisabledError, useAiAvailableModels, modelSelectOptions } from '../../utils/aiModels';
 import { subscribeAnalysis, startAnalysis as startAnalysisSession, reconnectAnalysis, clearAnalysisJob } from '../../utils/aiAdvisorSession';
 
@@ -334,7 +333,13 @@ export default function AIAdvisorTab({ dossierId, dossierName }) {
         )
       )}
 
-      <ChatPanel dossierId={dossierId} disabled={!configured} onDisabled={() => setAiDisabled(true)} />
+      <div className="card card--flat" style={{ padding: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <FontAwesomeIcon icon={faComments} style={{ color: 'var(--color-brand)', fontSize: 18 }} />
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+          Chat about this dossier moved to the chat button in the bottom-right corner — it's
+          available from any tab, and can optionally see what you're currently looking at.
+        </p>
+      </div>
     </div>
   );
 }

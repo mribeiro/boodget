@@ -7,6 +7,7 @@ import {
   faTable, faChevronDown, faChevronRight, faLinkSlash,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import {
   scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft,
@@ -113,12 +114,15 @@ export default function LoanDetail() {
     load();
   }, [dossierId, loanId]);
 
+  useEffect(() => () => clearPageContext(), []);
+
   async function load() {
     setLoading(true);
     setError('');
     try {
       const l = await api.getLoan(dossierId, loanId);
       setLoan(l);
+      publishPageContext({ label: `Loan: ${l.name}`, data: l });
       // Open the year the loan is currently in, so the plan lands on "now" rather than on
       // its first year — which for a 30-year mortgage could be a decade of scrolling away.
       if (!autoExpandedYear && l.status === 'active') {

@@ -145,12 +145,16 @@ All tokens are defined as CSS custom properties on `:root` (light theme) and ove
   --sidebar-width-expanded: 220px;
   --sidebar-width-collapsed: 60px;
 
+  /* --- AI chat widget dimensions --- */
+  --chat-widget-width: 380px;
+
   /* --- Z-index stack --- */
-  --z-sidebar:  100;
-  --z-navbar:   90;
-  --z-dropdown: 200;
-  --z-modal:    300;
-  --z-toast:    400;
+  --z-sidebar:     100;
+  --z-navbar:      90;
+  --z-dropdown:    200;
+  --z-chat-widget: 250;
+  --z-modal:       300;
+  --z-toast:       400;
 
   /* --- Transitions --- */
   --transition-fast:   120ms ease;
@@ -416,6 +420,20 @@ Below **768 px**:
 **As actually implemented** (`AppShell.jsx`/`Sidebar.jsx`), this bottom-nav-bar description was never built — mobile instead reuses the same `Sidebar` component as an overlay drawer (`.sidebar.mobile-open`, opened via the hamburger or a swipe gesture, closed via the overlay backdrop, a swipe gesture, or the tap that navigated). Two touch gestures complement the hamburger button:
 - **Swipe-to-open**: an edge swipe (touch starting within 24px of the left screen edge, dragging right past 60px, ≤50px of vertical drift) opens the drawer — but **only** when `window.matchMedia('(display-mode: standalone)').matches` (or `navigator.standalone` on iOS), i.e. only in an installed PWA. In an ordinary mobile browser tab this is a no-op, since an edge-swipe listener there would fight the browser's own native edge-swipe-back navigation gesture; the hamburger button remains the only opener there.
 - **Swipe-to-close**: a swipe starting anywhere on the already-open drawer, dragging left past 60px (same vertical-drift tolerance), closes it. This is safe in both standalone and regular-browser contexts, since it doesn't start at the screen edge and so never competes with swipe-back.
+
+### 5.6 Floating AI chat widget
+
+**Component**: `frontend/src/components/ai-advisor/AiChatWidget.jsx`, mounted once by `AppShell.jsx` as a sibling of the main column — the one place in the tree that survives both route changes and the dossier tab-switch remount. Visible only inside a dossier with AI enabled (see `ai-spec/SPECIFICATION_AI_ADVISOR.md` → Chat behaviour); otherwise renders nothing.
+
+Three states, all one component, controlled by `AppShell` the same way it already owns the sidebar's `collapsed` state:
+
+- **Closed**: `.ai-chat-fab` — a 56px circular button, `position: fixed`, `bottom: 24px`, `right: 24px`, `z-index: var(--z-chat-widget)` (250 — between `--z-dropdown` and `--z-modal`, so any modal/confirm dialog still renders above it).
+- **Open, popup**: `.ai-chat-widget` — a floating card, `position: fixed`, anchored above the FAB (`bottom: 96px; right: 24px`), 380×560px (`var(--chat-widget-width)` × fixed height), `var(--shadow-modal)`/`var(--radius-lg)` like `Modal.jsx`.
+- **Open, pinned**: `.ai-chat-widget.pinned` — the same card, repositioned to a full-height panel docked to the right edge (`top: 56px` — below the navbar — to `bottom: 0`, `right: 0`, no border-radius). Toggling the pin button also adds a `chat-pinned` class to `.app-shell-main`, which gets `margin-right: var(--chat-widget-width)` (with the same `--transition-slow` timing `.sidebar-collapsed`'s `margin-left` uses) so the main column reflows around the docked panel. The pinned preference persists in `localStorage` as `ct-chat-pinned` (mirrors `ct-sidebar-collapsed`); open/closed does not persist. Below **768px**, pinning is unavailable (the pin button is hidden) and the widget always renders the popup-card style, resized near-fullscreen.
+
+**Header** (`.ai-chat-widget-header`): a chat icon, a compact model `<select>` (the same catalog as the Analysis picker, but this selection is ephemeral — see the AI Advisor spec), an "attach current page" toggle button (`fa-location-dot`, disabled with a tooltip when the current page hasn't published any context), the pin/unpin button, a Clear button, and a close (✕) button. When the page-context toggle is on and something's published, a small chip row (`.ai-chat-context-chip`) shows that page's label between the header and the message list.
+
+**Body**: reuses `ChatPanel.jsx` (message bubbles + compose form only — no card wrapper or header of its own, both of which now live in the widget) when the dossier is configured; otherwise a condensed "not configured" message in place of it.
 
 -----
 

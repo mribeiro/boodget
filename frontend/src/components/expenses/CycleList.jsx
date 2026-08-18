@@ -4,6 +4,7 @@ import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import {
   computeCycleStartDate, computeTheoreticalCycleEndDate,
   formatCycleLabel, formatDateRange, fromIsoDate,
@@ -24,6 +25,8 @@ export default function CycleList({ dossierId }) {
     load();
   }, [dossierId]);
 
+  useEffect(() => () => clearPageContext(), []);
+
   async function load() {
     try {
       const [data, settings, template] = await Promise.all([
@@ -37,6 +40,15 @@ export default function CycleList({ dossierId }) {
       setCycleStartDay(settings.cycle_start_day ?? 25);
       setWeekendAdjustment(settings.cycle_start_weekend_adjustment ?? 'none');
       setIncomeTemplate(template);
+      publishPageContext({
+        label: `Monthly Expenses (${data.length} cycles)`,
+        data: {
+          cycles: data.map((c) => ({
+            year: c.year, month: c.month, is_closed: c.is_closed,
+            previous_balance: c.previous_balance, final_real_balance: c.final_real_balance,
+          })),
+        },
+      });
     } catch (err) {
       setError(err.message);
     }

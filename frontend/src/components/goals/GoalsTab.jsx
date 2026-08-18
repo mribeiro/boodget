@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { formatNumber } from '../../utils/numbers';
 import GoalFormModal from './GoalFormModal';
 
@@ -52,12 +53,23 @@ export default function GoalsTab({ dossierId }) {
     loadGoals();
   }, [dossierId]);
 
+  useEffect(() => () => clearPageContext(), []);
+
   async function loadGoals() {
     setLoading(true);
     setError('');
     try {
       const data = await api.getGoals(dossierId);
       setGoals(data);
+      publishPageContext({
+        label: `Goals list (${data.length})`,
+        data: {
+          goals: data.map((g) => ({
+            name: g.name, target_value: g.target_value, target_date: g.target_date,
+            state: g.state, total_current_progress: g.total_current_progress,
+          })),
+        },
+      });
     } catch (err) {
       setError(err.message);
     } finally {

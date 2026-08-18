@@ -10,6 +10,7 @@ import {
   faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import {
   computeCycleStartDate, computeTheoreticalCycleEndDate,
   formatCycleLabel, formatDateRange, fromIsoDate,
@@ -176,10 +177,19 @@ export default function CycleEditor() {
     api.getAccounts(dossierId, true).then(setAccounts).catch(() => {});
   }, [cycleId]);
 
+  // Wraps setCycle so every refetch (initial load and every mutation handler below) keeps the
+  // published page context current, not just the first load.
+  function applyCycle(data) {
+    setCycle(data);
+    publishPageContext({ label: `${formatCycleLabel(cycleActualDates(data).end)} Cycle`, data });
+  }
+
+  useEffect(() => () => clearPageContext(), []);
+
   async function load() {
     try {
       const data = await api.getCycle(dossierId, cycleId);
-      setCycle(data);
+      applyCycle(data);
     } catch (err) {
       setError(err.message);
     }
@@ -212,7 +222,7 @@ export default function CycleEditor() {
     try {
       await api.updateCycleItem(dossierId, cycleId, item.id, { paid: !item.paid });
       const fresh = await api.getCycle(dossierId, cycleId);
-      setCycle(fresh);
+      applyCycle(fresh);
     } catch (err) {
       setError(err.message);
     }
@@ -222,7 +232,7 @@ export default function CycleEditor() {
     try {
       await api.updateCycleItem(dossierId, cycleId, item.id, { done: !item.done });
       const fresh = await api.getCycle(dossierId, cycleId);
-      setCycle(fresh);
+      applyCycle(fresh);
     } catch (err) {
       setError(err.message);
     }
@@ -232,7 +242,7 @@ export default function CycleEditor() {
     try {
       await api.updateCycleItem(dossierId, cycleId, item.id, { spent: Number(newSpent) });
       const fresh = await api.getCycle(dossierId, cycleId);
-      setCycle(fresh);
+      applyCycle(fresh);
     } catch (err) {
       setError(err.message);
     }
@@ -248,7 +258,7 @@ export default function CycleEditor() {
         try {
           await api.deleteCycleItem(dossierId, cycleId, item.id);
           const fresh = await api.getCycle(dossierId, cycleId);
-          setCycle(fresh);
+          applyCycle(fresh);
           showToast('Item deleted');
         } catch (err) {
           setError(err.message);
@@ -280,7 +290,7 @@ export default function CycleEditor() {
     try {
       await api.updateCycleItem(dossierId, cycleId, item.id, data);
       const fresh = await api.getCycle(dossierId, cycleId);
-      setCycle(fresh);
+      applyCycle(fresh);
     } catch (err) {
       setError(err.message);
     }
@@ -361,7 +371,7 @@ export default function CycleEditor() {
     try {
       await api.createCycleItem(dossierId, cycleId, { ...data, section: activeTab === 'expenses' ? 'expense' : 'distribution' });
       const fresh = await api.getCycle(dossierId, cycleId);
-      setCycle(fresh);
+      applyCycle(fresh);
       setShowAddModal(false);
       showToast('Item added');
     } catch (err) {
