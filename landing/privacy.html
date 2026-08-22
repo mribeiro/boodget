@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — boodget</title>
+  <meta name="description" content="Privacy policy for boodget, a self-hosted, open-source personal finance app. boodget is not a hosted service — your installer controls your data." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/manual.css" />
+  <style>
+    .legal-container { max-width: 760px; }
+    .legal-updated { color: var(--text-m); font-size: .85rem; margin-bottom: 2rem; }
+    .tldr-box {
+      background: var(--brand-light); border: 1px solid #bfdbfe; border-radius: var(--radius-lg);
+      padding: 1.5rem 1.75rem; margin-bottom: 2.5rem;
+    }
+    .tldr-box .tldr-label {
+      display: inline-block; font-size: .75rem; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--brand-dark); margin-bottom: .75rem;
+    }
+    .tldr-box ul { margin: 0 0 0 1.1rem; padding: 0; }
+    .tldr-box li { margin-bottom: .55rem; color: var(--text-b); font-size: .95rem; line-height: 1.6; }
+    .tldr-box li:last-child { margin-bottom: 0; }
+    .tldr-box strong { color: var(--text-h); }
+    .legal-body h2 {
+      font-size: 1.3rem; font-weight: 700; color: var(--text-h);
+      margin: 2.5rem 0 1rem; letter-spacing: -.01em;
+    }
+    .legal-body h2:first-of-type { margin-top: 0; }
+    .legal-body p { margin-bottom: 1rem; font-size: .97rem; line-height: 1.75; color: var(--text-b); }
+    .legal-body ul, .legal-body ol { margin: 0 0 1rem 1.3rem; }
+    .legal-body li { margin-bottom: .5rem; font-size: .97rem; line-height: 1.7; color: var(--text-b); }
+    .legal-body strong { color: var(--text-h); }
+    .legal-body code { background: #f1f5f9; padding: .1rem .4rem; border-radius: 4px; font-size: .85em; }
+    .legal-footer-nav { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); font-size: .9rem; }
+  </style>
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="index.html">Home</a>
+      <a href="manual/index.html">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container legal-container">
+    <div class="manual-eyebrow">Privacy Policy</div>
+    <h1 class="manual-title">Privacy Policy</h1>
+    <div class="legal-updated">Last updated: August 22, 2026</div>
+
+    <div class="tldr-box">
+      <span class="tldr-label">TL;DR</span>
+      <ul>
+        <li><strong>boodget is free, open-source software you run yourself.</strong> There is no boodget-operated service, website, or database that your financial data ever passes through.</li>
+        <li><strong>The people who write boodget's code never see, receive, or have access to your data.</strong> Everything you enter lives in the database of the specific instance you (or whoever installed it for you) are running.</li>
+        <li>boodget itself doesn't add analytics, tracking, or telemetry, and doesn't phone home.</li>
+        <li>A couple of features are opt-in and, only if you turn them on and configure them yourself, send data to a third party you choose (e.g. the Anthropic API for the AI Advisor, your own Paperless instance, or a browser push service). Off by default, and entirely under your control.</li>
+        <li><strong>Whoever installs and operates a boodget instance is responsible for securing it and for their own compliance obligations</strong> (backups, access control, data protection law, etc.) — not the boodget project.</li>
+      </ul>
+    </div>
+
+    <div class="legal-body">
+      <h2>1. What this document covers</h2>
+      <p>boodget ("the software," "the project") is open-source, self-hosted personal finance software published at <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">github.com/ViBE-MiNDS/capital-tracker</a>. This Privacy Policy explains how the software itself handles data when it runs, and clarifies what the boodget project does and does not have visibility into.</p>
+      <p>This is <strong>not</strong> the privacy policy of a hosted product or online service operated by the boodget maintainers, because no such service exists. boodget is distributed as source code (and as a Docker image built from that source) for individuals and organizations to install and run on infrastructure of their own choosing — a home server, a personal VPS, a company's internal servers, or anywhere else. If you are using a boodget instance that someone else installed and manages (an employer, a family member, a friend), that operator is the one responsible for how your data is handled, backed up, and secured — refer to whatever privacy notice they give you, if any, in addition to this document.</p>
+
+      <h2>2. Data controller</h2>
+      <p>For any given boodget instance, <strong>the person or organization who deployed and operates that instance is the data controller</strong> — not the boodget project or its maintainers. The maintainers publish the source code but do not operate, monitor, or have network or database access to any installation they did not personally set up for their own use.</p>
+      <p>If you are installing boodget for yourself, you are both the controller and the data subject — you're simply keeping your own financial records on your own infrastructure. If you are installing boodget for others (e.g. a small business making it available to employees, or a developer offering it as a service to clients), you take on the legal responsibilities of a data controller/processor under whatever laws apply to you (such as GDPR, CCPA, or similar), and you should adapt this document — or write your own — to reflect your actual practices before offering it to your users.</p>
+
+      <h2>3. What data boodget can store</h2>
+      <p>Depending on how a given instance is used, the application's own database can hold:</p>
+      <ul>
+        <li>Account credentials (a username and a bcrypt-hashed password, or an OIDC identity if SSO is configured) and an optional profile picture.</li>
+        <li>Financial data you choose to enter: account balances and monthly snapshots, expense and income templates, budget cycles, goals, loans, subscriptions, car expenses, and any free-text notes or "additional context" you write.</li>
+        <li>Push notification subscription endpoints, if you opt into browser push notifications.</li>
+        <li>Session cookies used to keep you signed in (httpOnly, 72-hour expiry) — no third-party tracking cookies are set.</li>
+      </ul>
+      <p>All of this is stored in the SQLite database file of the specific instance you're using, at the location its operator configured. Nothing is synced to, mirrored to, or backed up by the boodget project — if the operator of your instance doesn't back it up, no one else has a copy.</p>
+
+      <h2>4. Data boodget sends to third parties (only if you enable it)</h2>
+      <p>By default, a boodget instance makes no outbound calls to third-party services about your financial data. A few optional, per-dossier features are the exception, and each only activates if explicitly configured:</p>
+      <ul>
+        <li><strong>AI Advisor.</strong> If enabled for a dossier and an Anthropic API key is configured (either the operator's own environment-level key, or a key you enter yourself in Dossier Settings), a trimmed summary of that dossier's data is sent to Anthropic's Claude API to generate an analysis or answer a chat question. This only happens when you click "Analyze" or send a chat message, and only for dossiers where the feature is turned on. Anthropic's own privacy policy and API terms govern how they handle that request. You can disable this feature entirely per dossier at any time.</li>
+        <li><strong>Paperless integration.</strong> If you configure a Paperless-ngx URL and token in Dossier Settings, boodget will query your own Paperless instance to match receipts to expenses. This is a connection you configure to infrastructure you already control — no boodget-operated intermediary is involved.</li>
+        <li><strong>Push notifications.</strong> If you opt in, boodget uses the standard Web Push protocol (VAPID) to deliver notifications through your browser vendor's push service (e.g. Google's or Mozilla's), the same mechanism any website uses for browser push — this is inherent to how web push works, not a boodget-specific data share.</li>
+        <li><strong>Single sign-on (OIDC).</strong> If the operator has configured OIDC, authentication happens against the identity provider they've set up; boodget doesn't introduce a new data flow beyond that provider.</li>
+      </ul>
+      <p>Outside of these opt-in cases, boodget does not transmit your data anywhere else. There is no analytics SDK, crash reporter, or telemetry beacon built into the application.</p>
+
+      <h2>5. Data export and deletion</h2>
+      <p>Every dossier can be exported to a JSON file at any time (excluding secrets like Paperless tokens and AI API keys, which are never exported) and deleted outright by whoever has access to it. Because boodget is self-hosted, there is no separate "request my data" process to go through with the project — you or your instance's operator already have direct access to the underlying database.</p>
+
+      <h2>6. Security</h2>
+      <p>boodget implements standard application-level protections (hashed passwords, session-based auth, rate limiting on login, HTTPS-friendly session cookies). However, <strong>the security of any given instance — the server it runs on, the network it's exposed to, TLS/HTTPS termination, firewall rules, backup encryption, and keeping the software up to date — is entirely the responsibility of whoever deploys it.</strong> The project provides the software "as is" (see the Terms and Conditions) and cannot guarantee the security of an installation it does not operate.</p>
+
+      <h2>7. Children's privacy</h2>
+      <p>boodget is a general-purpose personal finance tool and is not directed at children. It has no age-verification mechanism because it is self-hosted software, not a public service — it's the installing operator's responsibility to control who has access to their instance.</p>
+
+      <h2>8. Changes to this policy</h2>
+      <p>This document describes the software's default behavior as of the "Last updated" date above. Future versions of boodget may change what data is stored or which optional integrations exist; such changes will be reflected in this file in the project's repository. Since each instance runs whatever version its operator has deployed, an instance may not reflect the latest version of this policy until it is updated.</p>
+
+      <h2>9. Contact</h2>
+      <p>boodget is an open-source project, not a company. Questions about the software itself can be raised via <a href="https://github.com/ViBE-MiNDS/capital-tracker/issues" target="_blank">GitHub Issues</a>. Questions about how a specific instance handles your data should go to that instance's operator, not the project maintainers.</p>
+    </div>
+
+    <div class="legal-footer-nav">
+      <a href="terms.html">Read the Terms and Conditions →</a>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — open source, self-hosted, provided as-is.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>

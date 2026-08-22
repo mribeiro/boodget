@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms and Conditions — boodget</title>
+  <meta name="description" content="Terms and conditions for boodget, a self-hosted, open-source personal finance app provided as-is with no warranty." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/manual.css" />
+  <style>
+    .legal-container { max-width: 760px; }
+    .legal-updated { color: var(--text-m); font-size: .85rem; margin-bottom: 2rem; }
+    .tldr-box {
+      background: var(--brand-light); border: 1px solid #bfdbfe; border-radius: var(--radius-lg);
+      padding: 1.5rem 1.75rem; margin-bottom: 2.5rem;
+    }
+    .tldr-box .tldr-label {
+      display: inline-block; font-size: .75rem; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--brand-dark); margin-bottom: .75rem;
+    }
+    .tldr-box ul { margin: 0 0 0 1.1rem; padding: 0; }
+    .tldr-box li { margin-bottom: .55rem; color: var(--text-b); font-size: .95rem; line-height: 1.6; }
+    .tldr-box li:last-child { margin-bottom: 0; }
+    .tldr-box strong { color: var(--text-h); }
+    .legal-body h2 {
+      font-size: 1.3rem; font-weight: 700; color: var(--text-h);
+      margin: 2.5rem 0 1rem; letter-spacing: -.01em;
+    }
+    .legal-body h2:first-of-type { margin-top: 0; }
+    .legal-body p { margin-bottom: 1rem; font-size: .97rem; line-height: 1.75; color: var(--text-b); }
+    .legal-body ul, .legal-body ol { margin: 0 0 1rem 1.3rem; }
+    .legal-body li { margin-bottom: .5rem; font-size: .97rem; line-height: 1.7; color: var(--text-b); }
+    .legal-body strong { color: var(--text-h); }
+    .legal-body code { background: #f1f5f9; padding: .1rem .4rem; border-radius: 4px; font-size: .85em; }
+    .shout-box {
+      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+      border-radius: var(--radius); padding: 1.1rem 1.35rem; margin: 1.5rem 0;
+      font-size: .92rem; line-height: 1.65;
+    }
+    .legal-footer-nav { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); font-size: .9rem; }
+  </style>
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="index.html">Home</a>
+      <a href="manual/index.html">Manual</a>
+      <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container legal-container">
+    <div class="manual-eyebrow">Terms and Conditions</div>
+    <h1 class="manual-title">Terms and Conditions</h1>
+    <div class="legal-updated">Last updated: August 22, 2026</div>
+
+    <div class="tldr-box">
+      <span class="tldr-label">TL;DR</span>
+      <ul>
+        <li>boodget is <strong>free, open-source software</strong> that you (or someone you trust) download and run on your own infrastructure. There is no boodget-run service, subscription, or hosting behind it.</li>
+        <li>It is provided <strong>"as is," with no warranty of any kind</strong> — no guarantee it's bug-free, secure by default, accurate, or fit for any particular purpose.</li>
+        <li>Because it's self-hosted, <strong>you (the installer/operator) are solely responsible for securing your deployment</strong> — access control, HTTPS, backups, keeping it updated, and everything else that comes with running a server that holds financial data.</li>
+        <li>boodget is a tracking and calculation tool, <strong>not a financial, tax, or legal advisor</strong> — this applies especially to the AI Advisor feature, whose output is AI-generated and can be wrong.</li>
+        <li>To the maximum extent permitted by law, the maintainers/contributors are <strong>not liable</strong> for any damages, data loss, or financial decisions arising from use of the software.</li>
+      </ul>
+    </div>
+
+    <div class="legal-body">
+      <h2>1. Acceptance of these terms</h2>
+      <p>By downloading, installing, deploying, or using boodget ("the software"), you agree to these Terms and Conditions. If you do not agree, do not use the software. These terms apply to anyone who runs an instance of boodget (an "operator") as well as anyone who uses an instance run by someone else (a "user").</p>
+
+      <h2>2. Nature of the software</h2>
+      <p>boodget is an open-source, self-hosted personal finance application. It is distributed as source code and as a Docker image, published at <a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">github.com/ViBE-MiNDS/capital-tracker</a>. <strong>There is no boodget-operated website, server, or service that hosts your instance for you.</strong> Every installation runs entirely on infrastructure chosen and controlled by its operator — a home server, a personal cloud VM, a company's own servers, or anywhere else.</p>
+      <p>This means the boodget maintainers do not host, manage, monitor, back up, or have access to any instance they did not personally deploy for their own use. They are not a party to how you use your own installation, and cannot see, restore, or intervene in your data.</p>
+
+      <h2>3. License to use the code</h2>
+      <p>boodget's source code is open source. The specific terms governing your right to use, copy, modify, and redistribute the code (including any warranty disclaimers already embedded in that license) are set out in the license file published in the project's repository at the time you obtained the software — refer to the repository directly for the authoritative, current text. Nothing in this document narrows the rights that license grants you; where the two differ on licensing terms specifically, the repository's license file controls.</p>
+
+      <h2>4. Provided "as is" — no warranty</h2>
+      <div class="shout-box">
+        boodget is provided <strong>"AS IS" and "AS AVAILABLE," without warranty of any kind, express or implied</strong> — including, without limitation, any implied warranties of merchantability, fitness for a particular purpose, accuracy, non-infringement, or that the software will be uninterrupted, error-free, or secure. You use it entirely at your own risk.
+      </div>
+      <p>The maintainers and contributors make no promise that boodget's calculations, projections, or the AI Advisor's output are accurate, complete, or suitable for any real-world financial decision. Software has bugs; a self-hosted personal finance tool is not an exception.</p>
+
+      <h2>5. Your responsibility as an operator</h2>
+      <p>If you install and run a boodget instance — for yourself, your household, or others — you are solely responsible for:</p>
+      <ul>
+        <li><strong>Security:</strong> configuring HTTPS/TLS, network access controls, firewalls, a strong <code>SESSION_SECRET</code>, and keeping the underlying server, dependencies, and the boodget version itself patched and up to date.</li>
+        <li><strong>Backups:</strong> boodget stores everything in a local SQLite database file; if you don't back it up, no one else has a copy, and data loss (disk failure, accidental deletion, a bad upgrade) is unrecoverable through the project.</li>
+        <li><strong>Access management:</strong> who has an account on your instance, what dossiers they can see, and revoking access when appropriate.</li>
+        <li><strong>Any third-party integrations you configure</strong> (the Anthropic API for the AI Advisor, a Paperless-ngx server, OIDC/SSO, push notifications) — including any costs, API usage, or data-sharing that results, and compliance with those third parties' own terms.</li>
+        <li><strong>Legal and regulatory compliance</strong> applicable to you or your organization for storing financial data, including data protection law (e.g. GDPR, CCPA) if you operate an instance on behalf of other people.</li>
+      </ul>
+      <p>The project provides the software; it does not provide hosting, security auditing, compliance guarantees, or operational support for your specific deployment.</p>
+
+      <h2>6. Not financial, tax, or legal advice</h2>
+      <p>boodget is a tracking, budgeting, and calculation tool. Nothing it displays — capital totals, cycle balances, goal projections, loan amortization, emergency fund targets, or any output of the optional AI Advisor feature — constitutes financial, investment, tax, or legal advice. The AI Advisor specifically generates its analysis using a third-party large language model (Anthropic's Claude), which can be factually wrong, miss context, or give generic guidance that doesn't fit your actual circumstances. Always verify important figures yourself and consult a qualified professional before making financial decisions.</p>
+
+      <h2>7. Limitation of liability</h2>
+      <p>To the maximum extent permitted by applicable law, in no event will the maintainers, contributors, or copyright holders of boodget be liable for any direct, indirect, incidental, special, consequential, or exemplary damages (including, without limitation, loss of data, loss of profits, or financial losses resulting from decisions made using the software) arising out of or in connection with the use, or inability to use, boodget — even if advised of the possibility of such damages. This limitation applies regardless of the legal theory (contract, tort, or otherwise) on which a claim is based.</p>
+
+      <h2>8. No support obligation</h2>
+      <p>boodget is maintained as an open-source project on a best-effort, volunteer basis. There is no service-level agreement, guaranteed response time, or obligation to fix bugs, answer questions, or continue development. Community contributions, bug reports, and feature requests are welcome via <a href="https://github.com/ViBE-MiNDS/capital-tracker/issues" target="_blank">GitHub Issues</a>, but are handled at the maintainers' discretion.</p>
+
+      <h2>9. Changes to the software and these terms</h2>
+      <p>The software and this document may change over time as the project evolves. Because each instance runs whichever version its operator has deployed, changes to boodget itself only take effect on an instance when that operator upgrades it. Updates to this Terms and Conditions file take effect in the project's repository as of their "Last updated" date; if you operate an instance for others, you're responsible for communicating any material changes that affect them.</p>
+
+      <h2>10. Termination</h2>
+      <p>Since there is no boodget-operated account or service, there is nothing for the project to "terminate" on its end — you can stop using the software, or an operator can take an instance offline, at any time. Any license rights to the underlying code remain governed by the license referenced in Section 3.</p>
+
+      <h2>11. Contact</h2>
+      <p>boodget is an open-source project, not a company or legal entity providing a service to you. Questions about the software can be raised via <a href="https://github.com/ViBE-MiNDS/capital-tracker/issues" target="_blank">GitHub Issues</a>. If you're a user of an instance run by someone else, direct account- or data-related questions to that instance's operator.</p>
+    </div>
+
+    <div class="legal-footer-nav">
+      <a href="privacy.html">Read the Privacy Policy →</a>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — open source, self-hosted, provided as-is.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/ViBE-MiNDS/capital-tracker" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>
