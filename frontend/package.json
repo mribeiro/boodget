@@ -2,6 +2,7 @@
   "name": "capital-tracker-frontend",
   "version": "0.1.0",
   "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "vite",
     "build": "node scripts/generate-icons.js && vite build",

@@ -2,6 +2,7 @@
   "name": "capital-tracker-backend",
   "version": "0.1.0",
   "type": "commonjs",
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
