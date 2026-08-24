@@ -158,6 +158,19 @@ Both expose the same three scenario calculators (extra downpayment, target
 payment, rate change) and a full amortization schedule, so a "should I
 refinance" question has a concrete answer in seconds.
 
+### Car Expenses
+What a car actually costs you, month by month and year by year — not what
+you've budgeted for it. Log a monthly odometer reading plus average
+fuel/energy consumption and price, and boodget derives that month's energy
+cost. Tag existing Monthly and Annual Expense items (insurance, a fuel or
+maintenance budget) to a car so their real paid/spent amounts roll into its
+total too — a budget line that goes unused some months never inflates the
+figure. For real costs you don't personally pay and that have no expense
+item to tag at all — a spouse covering insurance or road tax out of their
+own money, say — log them directly against the car as a recurring monthly
+amount or a one-off entry for a specific month, so the total still reflects
+the whole picture.
+
 ### Subscriptions
 Recurring personal costs (streaming, software) tracked separately from your
 expense template, since they're usually funded out of a distribution rather
@@ -337,8 +350,8 @@ alternative (export a prompt and paste it into claude.ai yourself).
 ## Getting started
 
 ```bash
-git clone https://github.com/ViBE-MiNDS/capital-tracker
-cd capital-tracker
+git clone https://github.com/mribeiro/boodget
+cd boodget
 # edit SESSION_SECRET in docker-compose.yml before real use
 docker compose up --build -d
 ```
