@@ -5,6 +5,7 @@ const {
   createDossier,
   createCar,
   createCarMonth,
+  createCarAdhocExpense,
   createExpenseTemplateItem,
   createAnnualExpenseTemplateItem,
   createExpenseCycle,
@@ -145,6 +146,124 @@ describe('Car-month snapshot CRUD', () => {
 
     const deleted = await agent.delete(`/api/dossiers/${dossier.id}/cars/${car.id}/months/${snapshot.id}`);
     expect(deleted.status).toBe(204);
+  });
+});
+
+describe('Ad-hoc car expense CRUD', () => {
+  it('creates a monthly recurring ad-hoc expense and returns it in the car detail payload', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const car = createCar(db, { dossierId: dossier.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const created = await agent
+      .post(`/api/dossiers/${dossier.id}/cars/${car.id}/adhoc-expenses`)
+      .send({ name: 'Insurance (wife pays)', value: 45, recurrence: 'monthly' });
+    expect(created.status).toBe(201);
+    expect(created.body.name).toBe('Insurance (wife pays)');
+    expect(created.body.status).toBe('active');
+    expect(created.body.year).toBeNull();
+
+    const detail = await agent.get(`/api/dossiers/${dossier.id}/cars/${car.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.adhoc_expenses).toHaveLength(1);
+    expect(detail.body.adhoc_expenses[0].name).toBe('Insurance (wife pays)');
+  });
+
+  it('creates a one_off ad-hoc expense requiring year/month', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const car = createCar(db, { dossierId: dossier.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const missingPeriod = await agent
+      .post(`/api/dossiers/${dossier.id}/cars/${car.id}/adhoc-expenses`)
+      .send({ name: 'Road Tax', value: 180, recurrence: 'one_off' });
+    expect(missingPeriod.status).toBe(400);
+
+    const created = await agent
+      .post(`/api/dossiers/${dossier.id}/cars/${car.id}/adhoc-expenses`)
+      .send({ name: 'Road Tax', value: 180, recurrence: 'one_off', year: 2026, month: 3 });
+    expect(created.status).toBe(201);
+    expect(created.body.year).toBe(2026);
+    expect(created.body.month).toBe(3);
+  });
+
+  it('rejects an invalid recurrence with 400', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const car = createCar(db, { dossierId: dossier.id });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent
+      .post(`/api/dossiers/${dossier.id}/cars/${car.id}/adhoc-expenses`)
+      .send({ name: 'X', value: 10, recurrence: 'weekly' });
+    expect(res.status).toBe(400);
+  });
+
+  it('updates name/value/status via PATCH, and rejects changing recurrence', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const car = createCar(db, { dossierId: dossier.id });
+    const expense = createCarAdhocExpense(db, { carId: car.id, name: 'Insurance', value: 40, recurrence: 'monthly' });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const updated = await agent
+      .patch(`/api/dossiers/${dossier.id}/cars/${car.id}/adhoc-expenses/${expense.id}`)
+      .send({ value: 45, status: 'cancelled' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.value).toBe(45);
+    expect(updated.body.status).toBe('cancelled');
+
+    const rejected = await agent
+      .patch(`/api/dossiers/${dossier.id}/cars/${car.id}/adhoc-expenses/${expense.id}`)
+      .send({ recurrence: 'one_off' });
+    expect(rejected.status).toBe(400);
+  });
+
+  it('deletes an ad-hoc expense', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const car = createCar(db, { dossierId: dossier.id });
+    const expense = createCarAdhocExpense(db, { carId: car.id, name: 'Insurance', value: 40, recurrence: 'monthly' });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const deleted = await agent.delete(`/api/dossiers/${dossier.id}/cars/${car.id}/adhoc-expenses/${expense.id}`);
+    expect(deleted.status).toBe(204);
+
+    const detail = await agent.get(`/api/dossiers/${dossier.id}/cars/${car.id}`);
+    expect(detail.body.adhoc_expenses).toEqual([]);
+  });
+
+  it('cascades ad-hoc expenses when the car is deleted', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const car = createCar(db, { dossierId: dossier.id });
+    createCarAdhocExpense(db, { carId: car.id, name: 'Insurance', value: 40, recurrence: 'monthly' });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent.delete(`/api/dossiers/${dossier.id}/cars/${car.id}`);
+    expect(res.status).toBe(204);
+    expect(db.prepare('SELECT * FROM car_adhoc_expenses WHERE car_id = ?').all(car.id)).toEqual([]);
+  });
+
+  it("404s for an ad-hoc expense belonging to another car", async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const carA = createCar(db, { dossierId: dossier.id });
+    const carB = createCar(db, { dossierId: dossier.id });
+    const expense = createCarAdhocExpense(db, { carId: carB.id, name: 'Insurance', value: 40, recurrence: 'monthly' });
+    const app = buildTestApp();
+    const agent = await loggedInAgent(app, user);
+
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/cars/${carA.id}/adhoc-expenses/${expense.id}`).send({ value: 50 });
+    expect(res.status).toBe(404);
   });
 });
 

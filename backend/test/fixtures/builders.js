@@ -439,6 +439,26 @@ function createCarMonth(db, overrides = {}) {
   return db.prepare('SELECT * FROM car_months WHERE id = ?').get(id);
 }
 
+function createCarAdhocExpense(db, overrides = {}) {
+  const id = overrides.id || uid('car-adhoc');
+  const carId = overrides.carId || overrides.car_id;
+  if (!carId) throw new Error('createCarAdhocExpense requires carId');
+  db.prepare(
+    `INSERT INTO car_adhoc_expenses (id, car_id, name, value, recurrence, status, year, month)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    carId,
+    overrides.name || 'Test Ad-hoc Expense',
+    overrides.value ?? 0,
+    overrides.recurrence || 'monthly',
+    overrides.status || 'active',
+    overrides.year ?? null,
+    overrides.month ?? null
+  );
+  return db.prepare('SELECT * FROM car_adhoc_expenses WHERE id = ?').get(id);
+}
+
 // Logs the given user in through the real HTTP endpoint (not a DB shortcut) so the
 // supertest agent carries a genuine session cookie for subsequent requests.
 async function loginAs(agent, { username, password }) {
@@ -470,5 +490,6 @@ module.exports = {
   createAnnualExpensePayment,
   createCar,
   createCarMonth,
+  createCarAdhocExpense,
   loginAs,
 };

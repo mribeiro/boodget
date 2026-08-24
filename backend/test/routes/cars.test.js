@@ -6,12 +6,14 @@ const {
   summarizeCarMonths,
   validateCarFields,
   validateCarMonthFields,
+  validateAdhocExpenseFields,
 } = require('../../src/routes/cars');
 const {
   createUser,
   createDossier,
   createCar,
   createCarMonth,
+  createCarAdhocExpense,
   createExpenseTemplateItem,
   createExpenseCycle,
   createCycleItem,
@@ -184,6 +186,67 @@ describe('validateCarMonthFields', () => {
   it('rejects a negative average', () => {
     const result = validateCarMonthFields({ year: 2025, month: 3, mileage_km: 100, avg_l_per_100km: -1 }, null, car.id);
     expect(result.error).toMatch(/avg_l_per_100km/);
+  });
+});
+
+describe('validateAdhocExpenseFields', () => {
+  it('requires a valid recurrence on create', () => {
+    expect(validateAdhocExpenseFields({ name: 'Insurance', value: 40 }, null).error).toMatch(/recurrence/);
+    expect(validateAdhocExpenseFields({ name: 'Insurance', value: 40, recurrence: 'weekly' }, null).error).toMatch(/recurrence/);
+  });
+
+  it('requires a name and a non-negative value', () => {
+    expect(validateAdhocExpenseFields({ recurrence: 'monthly', value: 40 }, null).error).toMatch(/name/);
+    expect(validateAdhocExpenseFields({ name: 'Insurance', recurrence: 'monthly', value: -5 }, null).error).toMatch(/value/);
+  });
+
+  it('accepts a monthly recurring expense with no year/month', () => {
+    const result = validateAdhocExpenseFields({ name: 'Insurance', value: 40, recurrence: 'monthly' }, null);
+    expect(result.year).toBeNull();
+    expect(result.month).toBeNull();
+    expect(result.status).toBe('active');
+  });
+
+  it('requires year and month for a one_off expense', () => {
+    expect(validateAdhocExpenseFields({ name: 'Road Tax', value: 180, recurrence: 'one_off' }, null).error).toMatch(/year/);
+    expect(validateAdhocExpenseFields({ name: 'Road Tax', value: 180, recurrence: 'one_off', year: 2026 }, null).error).toMatch(/month/);
+  });
+
+  it('accepts a valid one_off expense', () => {
+    const result = validateAdhocExpenseFields({ name: 'Road Tax', value: 180, recurrence: 'one_off', year: 2026, month: 3 }, null);
+    expect(result.year).toBe(2026);
+    expect(result.month).toBe(3);
+    expect(result.status).toBe('active');
+  });
+
+  it('rejects changing recurrence on an existing expense', () => {
+    const existing = { name: 'Insurance', value: 40, recurrence: 'monthly', status: 'active', year: null, month: null };
+    expect(validateAdhocExpenseFields({ recurrence: 'one_off' }, existing).error).toMatch(/recurrence cannot be changed/);
+  });
+
+  it('rejects changing year or month on an existing one_off expense', () => {
+    const existing = { name: 'Road Tax', value: 180, recurrence: 'one_off', status: 'active', year: 2026, month: 3 };
+    expect(validateAdhocExpenseFields({ year: 2027 }, existing).error).toMatch(/year cannot be changed/);
+    expect(validateAdhocExpenseFields({ month: 4 }, existing).error).toMatch(/month cannot be changed/);
+  });
+
+  it('allows toggling status on a monthly recurring expense', () => {
+    const existing = { name: 'Insurance', value: 40, recurrence: 'monthly', status: 'active', year: null, month: null };
+    const result = validateAdhocExpenseFields({ status: 'cancelled' }, existing);
+    expect(result.status).toBe('cancelled');
+  });
+
+  it('forces status to active for a one_off expense regardless of input', () => {
+    const existing = { name: 'Road Tax', value: 180, recurrence: 'one_off', status: 'active', year: 2026, month: 3 };
+    const result = validateAdhocExpenseFields({ status: 'cancelled' }, existing);
+    expect(result.status).toBe('active');
+  });
+
+  it('carries forward existing name/value when omitted on update', () => {
+    const existing = { name: 'Insurance', value: 40, recurrence: 'monthly', status: 'active', year: null, month: null };
+    const result = validateAdhocExpenseFields({}, existing);
+    expect(result.name).toBe('Insurance');
+    expect(result.value).toBe(40);
   });
 });
 
@@ -403,6 +466,63 @@ describe('computeCarMonthValues', () => {
 
     const values = computeCarMonthValues(car, snapshot({ year: 2025, month: 4, mileage_km: 1000, avg_l_per_100km: 6, cost_per_l: 1.5 }), null, ctx);
     expect(values.total_cost).toBeCloseTo(values.energy_cost + 40, 5);
+    expect(values.unknown_count).toBe(0);
+  });
+
+  it('adds an active monthly recurring ad-hoc expense to every month, and folds it into total_cost', () => {
+    car = createCar(db, { dossierId: dossier.id, fuel_type: 'gas', initial_mileage_km: 0 });
+    createCarAdhocExpense(db, { carId: car.id, name: 'Insurance (wife pays)', value: 45, recurrence: 'monthly', status: 'active' });
+    ctx = buildCarCostContext(dossier.id);
+
+    const januaryValues = computeCarMonthValues(car, snapshot({ year: 2025, month: 1, mileage_km: 100, avg_l_per_100km: 6, cost_per_l: 1.5 }), null, ctx);
+    const aprilValues = computeCarMonthValues(car, snapshot({ year: 2025, month: 4, mileage_km: 400, avg_l_per_100km: 6, cost_per_l: 1.5 }), null, ctx);
+    expect(januaryValues.adhoc_expenses_total).toBe(45);
+    expect(aprilValues.adhoc_expenses_total).toBe(45);
+    expect(aprilValues.total_cost).toBeCloseTo(aprilValues.energy_cost + 45, 5);
+    expect(aprilValues.unknown_count).toBe(0);
+  });
+
+  it('excludes a cancelled monthly recurring ad-hoc expense', () => {
+    car = createCar(db, { dossierId: dossier.id, fuel_type: 'gas', initial_mileage_km: 0 });
+    createCarAdhocExpense(db, { carId: car.id, name: 'Old policy', value: 45, recurrence: 'monthly', status: 'cancelled' });
+    ctx = buildCarCostContext(dossier.id);
+
+    const values = computeCarMonthValues(car, snapshot({ year: 2025, month: 4, mileage_km: 100 }), null, ctx);
+    expect(values.adhoc_expenses_total).toBe(0);
+    expect(values.adhoc_expenses).toEqual([]);
+  });
+
+  it('applies a one_off ad-hoc expense only to its exact (year, month)', () => {
+    car = createCar(db, { dossierId: dossier.id, fuel_type: 'gas', initial_mileage_km: 0 });
+    createCarAdhocExpense(db, { carId: car.id, name: 'Road Tax (wife pays)', value: 180, recurrence: 'one_off', year: 2025, month: 3 });
+    ctx = buildCarCostContext(dossier.id);
+
+    const marchValues = computeCarMonthValues(car, snapshot({ year: 2025, month: 3, mileage_km: 100 }), null, ctx);
+    const aprilValues = computeCarMonthValues(car, snapshot({ year: 2025, month: 4, mileage_km: 200 }), null, ctx);
+    expect(marchValues.adhoc_expenses_total).toBe(180);
+    expect(marchValues.adhoc_expenses[0]).toMatchObject({ name: 'Road Tax (wife pays)', amount: 180, recurrence: 'one_off' });
+    expect(aprilValues.adhoc_expenses_total).toBe(0);
+  });
+
+  it('combines recurring and one-off ad-hoc expenses in the same month', () => {
+    car = createCar(db, { dossierId: dossier.id, fuel_type: 'gas', initial_mileage_km: 0 });
+    createCarAdhocExpense(db, { carId: car.id, name: 'Insurance', value: 45, recurrence: 'monthly', status: 'active' });
+    createCarAdhocExpense(db, { carId: car.id, name: 'Road Tax', value: 180, recurrence: 'one_off', year: 2025, month: 3 });
+    ctx = buildCarCostContext(dossier.id);
+
+    const values = computeCarMonthValues(car, snapshot({ year: 2025, month: 3, mileage_km: 100 }), null, ctx);
+    expect(values.adhoc_expenses_total).toBe(225);
+    expect(values.adhoc_expenses).toHaveLength(2);
+  });
+
+  it('never counts ad-hoc expenses toward unknown_count, even with no cycle for the month', () => {
+    car = createCar(db, { dossierId: dossier.id, fuel_type: 'gas', initial_mileage_km: 0 });
+    createCarAdhocExpense(db, { carId: car.id, name: 'Insurance', value: 45, recurrence: 'monthly', status: 'active' });
+    ctx = buildCarCostContext(dossier.id); // no cycles at all
+
+    const values = computeCarMonthValues(car, snapshot({ year: 2025, month: 4, mileage_km: 100, avg_l_per_100km: 6, cost_per_l: 1.5 }), null, ctx);
+    expect(values.adhoc_expenses_total).toBe(45);
+    expect(values.cycle).toBeNull();
     expect(values.unknown_count).toBe(0);
   });
 });

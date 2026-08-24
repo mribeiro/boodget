@@ -61,7 +61,7 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
 
   const baseName = data.dossier.name.trim();
@@ -127,10 +127,28 @@ router.post('/import', (req, res) => {
       `INSERT INTO car_months (id, car_id, year, month, mileage_km, avg_l_per_100km, avg_kwh_per_100km, cost_per_l, cost_per_kwh, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
+    // adhoc_expenses is version 17+; absent/empty on older exports.
+    const insertCarAdhocExpense = db.prepare(
+      `INSERT INTO car_adhoc_expenses (id, car_id, name, value, recurrence, status, year, month, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
     for (const c of (data.cars || [])) {
       const carId = uuidv4();
       carNameToId[c.name] = carId;
       insertCar.run(carId, dossierId, c.name, c.license_plate ?? null, c.make ?? null, c.model ?? null, c.fuel_type, c.initial_mileage_km ?? 0, c.created_at || null);
+      for (const e of (c.adhoc_expenses || [])) {
+        insertCarAdhocExpense.run(
+          uuidv4(),
+          carId,
+          e.name,
+          e.value ?? 0,
+          e.recurrence ?? 'monthly',
+          e.status ?? 'active',
+          e.year ?? null,
+          e.month ?? null,
+          e.created_at || null
+        );
+      }
       for (const m of (c.months || [])) {
         insertCarMonth.run(
           uuidv4(),
@@ -679,12 +697,18 @@ router.get('/:id/export', (req, res) => {
            FROM car_months WHERE car_id = ? ORDER BY year, month`
         )
         .all(c.id),
+      adhoc_expenses: db
+        .prepare(
+          `SELECT name, value, recurrence, status, year, month, created_at
+           FROM car_adhoc_expenses WHERE car_id = ? ORDER BY created_at`
+        )
+        .all(c.id),
     }));
 
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 16,
+    version: 17,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,

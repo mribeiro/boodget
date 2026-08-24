@@ -997,6 +997,24 @@ const migrations = [
       }
     },
   },
+  {
+    id: '045_create_car_adhoc_expenses',
+    up() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS car_adhoc_expenses (
+          id TEXT PRIMARY KEY,
+          car_id TEXT NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          value REAL NOT NULL,
+          recurrence TEXT NOT NULL CHECK(recurrence IN ('monthly','one_off')) DEFAULT 'monthly',
+          status TEXT NOT NULL CHECK(status IN ('active','cancelled')) DEFAULT 'active',
+          year INTEGER,
+          month INTEGER,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
 ];
 
 for (const migration of migrations) {
