@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft, faPencil, faTrash, faPlus, faTriangleExclamation,
-  faGasPump, faBolt, faCarBattery, faReceipt, faCalendarDays, faTable,
+  faGasPump, faBolt, faCarBattery, faReceipt, faCalendarDays, faTable, faHandHoldingDollar,
   faChevronDown, faChevronRight,
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { formatNumber } from '../../utils/numbers';
 import CarFormModal from './CarFormModal';
 import CarMonthFormModal from './CarMonthFormModal';
+import CarAdhocExpenseFormModal from './CarAdhocExpenseFormModal';
 import ConfirmModal from '../ConfirmModal';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import Badge from '../ui/Badge';
@@ -69,10 +70,13 @@ export default function CarDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [showSnapshotForm, setShowSnapshotForm] = useState(false);
   const [editingSnapshot, setEditingSnapshot] = useState(null);
+  const [showAdhocForm, setShowAdhocForm] = useState(false);
+  const [editingAdhoc, setEditingAdhoc] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
 
   const [breakdownCollapsed, setBreakdownCollapsed] = useState(false);
   const [linkedCollapsed, setLinkedCollapsed] = useState(false);
+  const [adhocCollapsed, setAdhocCollapsed] = useState(false);
   const [yearlyCollapsed, setYearlyCollapsed] = useState(false);
   const [snapshotsCollapsed, setSnapshotsCollapsed] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -129,6 +133,23 @@ export default function CarDetail() {
       onConfirm: async () => {
         try {
           await api.deleteCarMonth(dossierId, car.id, snapshot.id);
+          await load();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
+  }
+
+  function handleDeleteAdhoc(expense) {
+    setConfirmState({
+      title: 'Delete ad-hoc expense',
+      message: `Delete "${expense.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteCarAdhocExpense(dossierId, car.id, expense.id);
           await load();
         } catch (err) {
           setError(err.message);
@@ -257,6 +278,14 @@ export default function CarDetail() {
                     ))}
                   </div>
                 )}
+                {latest.adhoc_expenses.length > 0 && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', marginBottom: '0.2rem' }}>Ad-hoc expenses</div>
+                    {latest.adhoc_expenses.map((item) => (
+                      <LineItemRow key={item.id} name={item.name} amount={item.amount} />
+                    ))}
+                  </div>
+                )}
                 <div style={{ borderTop: '1px solid var(--border-default)', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
                   <StatRow label="Total" value={formatEur(latest.total_cost)} valueStyle={{ fontSize: 15 }} />
                 </div>
@@ -317,6 +346,59 @@ export default function CarDetail() {
                   </div>
                 )}
               </>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Ad-hoc expenses"
+            icon={faHandHoldingDollar}
+            accent="var(--text-muted)"
+            collapsed={adhocCollapsed}
+            onToggle={() => setAdhocCollapsed((v) => !v)}
+          >
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 0.6rem' }}>
+              Costs of owning this car that you don't personally pay (e.g. insurance or road tax someone else covers), tracked here so they still count toward its total cost.
+            </p>
+            <div style={{ marginBottom: '0.6rem' }}>
+              <button className="btn-secondary" onClick={() => { setEditingAdhoc(null); setShowAdhocForm(true); }}>
+                <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />Add expense
+              </button>
+            </div>
+            {car.adhoc_expenses.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>None yet.</p>
+            ) : (
+              car.adhoc_expenses.map((expense) => (
+                <div key={expense.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0', fontSize: 13, gap: 8 }}>
+                  <span style={{ minWidth: 0 }}>
+                    {expense.name}{' '}
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                      ({expense.recurrence === 'monthly' ? 'monthly' : `${MONTH_NAMES[expense.month - 1]} ${expense.year}`})
+                    </span>
+                    {expense.recurrence === 'monthly' && expense.status === 'cancelled' && (
+                      <Badge variant="neutral" style={{ marginLeft: 6 }}>Cancelled</Badge>
+                    )}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
+                    <span style={{ fontWeight: 600 }}>{formatEur(expense.value)}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingAdhoc(expense); setShowAdhocForm(true); }}
+                      title="Edit"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}
+                    >
+                      <FontAwesomeIcon icon={faPencil} style={{ fontSize: 12 }} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAdhoc(expense)}
+                      title="Delete"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger-text)', padding: 2 }}
+                    >
+                      <FontAwesomeIcon icon={faTrash} style={{ fontSize: 12 }} />
+                    </button>
+                  </span>
+                </div>
+              ))
             )}
           </CollapsibleSection>
 
@@ -414,6 +496,9 @@ export default function CarDetail() {
                         {m.annual_expenses.map((item) => (
                           <LineItemRow key={item.template_item_id} name={item.name} amount={item.amount} status={item.status} />
                         ))}
+                        {m.adhoc_expenses.map((item) => (
+                          <LineItemRow key={item.id} name={item.name} amount={item.amount} />
+                        ))}
                         {m.notes && (
                           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '0.35rem', fontStyle: 'italic' }}>{m.notes}</div>
                         )}
@@ -443,6 +528,15 @@ export default function CarDetail() {
           snapshot={editingSnapshot}
           onSave={() => { setShowSnapshotForm(false); setEditingSnapshot(null); load(); }}
           onClose={() => { setShowSnapshotForm(false); setEditingSnapshot(null); }}
+        />
+      )}
+      {showAdhocForm && (
+        <CarAdhocExpenseFormModal
+          dossierId={dossierId}
+          car={car}
+          expense={editingAdhoc}
+          onSave={() => { setShowAdhocForm(false); setEditingAdhoc(null); load(); }}
+          onClose={() => { setShowAdhocForm(false); setEditingAdhoc(null); }}
         />
       )}
       {confirmState && <ConfirmModal {...confirmState} onCancel={() => setConfirmState(null)} />}

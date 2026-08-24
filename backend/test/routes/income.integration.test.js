@@ -229,7 +229,7 @@ describe('Export/import round-trip — income lines', () => {
 
     const exportRes = await agent.get(`/api/dossiers/${dossier.id}/export`);
     expect(exportRes.status).toBe(200);
-    expect(exportRes.body.version).toBe(16);
+    expect(exportRes.body.version).toBe(17);
     expect(exportRes.body.income_template).toHaveLength(1);
     expect(exportRes.body.cycles[0].income_items).toHaveLength(2);
     expect(exportRes.body.cycles[0].salary).toBeUndefined();

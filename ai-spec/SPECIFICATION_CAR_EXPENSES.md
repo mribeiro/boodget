@@ -10,7 +10,7 @@
 
 ## 1. Overview
 
-The Car Expenses section lets users track what each car in a dossier actually costs, month by month and year by year. A dossier may have several independent cars. Each car has basic identity data (name, license plate, make, model, fuel type) and a starting mileage. Every month the user logs a snapshot — the current odometer reading and the average fuel/energy consumption and price for that month — from which the app derives that month's energy cost. Existing Monthly and Annual Expense Template items (insurance, road tax, a fuel or maintenance budget) can be "assigned" to a car so their **actual** paid/spent amounts roll into that car's cost too.
+The Car Expenses section lets users track what each car in a dossier actually costs, month by month and year by year. A dossier may have several independent cars. Each car has basic identity data (name, license plate, make, model, fuel type) and a starting mileage. Every month the user logs a snapshot — the current odometer reading and the average fuel/energy consumption and price for that month — from which the app derives that month's energy cost. Existing Monthly and Annual Expense Template items (insurance, road tax, a fuel or maintenance budget) can be "assigned" to a car so their **actual** paid/spent amounts roll into that car's cost too. Real costs the user doesn't personally pay and that have no template item to tag at all — e.g. a spouse covering a car's insurance or road tax out of untracked money — can be logged directly against the car as **ad-hoc expenses** (§5.7), either a recurring monthly amount or a one-off amount for a specific month, so the car's total cost still reflects the whole picture.
 
 The defining design decision is that a car's monthly/yearly cost reflects **actual** spend, not the full budgeted value of its linked items — many months a budget goes unused or underused, and a budgeted total would systematically overstate the real cost. Getting the actual figure requires resolving which expense cycle represents a given calendar month, since cycles don't align to calendar-month boundaries (see §5.3).
 
@@ -155,14 +155,27 @@ For each car-linked `annual_expense_template_items` row, once a cycle is resolve
 
 `null` (unknown) is counted as `0` when summing a *total*, so a total is always renderable — but the UI must never render an unknown amount as `0,00 €`; it renders a muted `—`, and a footer note ("N item(s) pending cycle data") makes clear the total is a floor.
 
+### 5.7 Ad-hoc expenses (`car_adhoc_expenses`) — costs someone else pays
+
+A car's cost can include real costs the user doesn't personally pay and that have no corresponding row anywhere in the dossier's own expense system at all — e.g. a spouse who pays a car's insurance or road tax out of their own, untracked money. There is no template item or cycle to link for this: the tag-a-template-item mechanism in §5.1 only rolls up costs the user already budgets *somewhere* in the dossier. Ad-hoc expenses are logged directly against the car instead, via `car_adhoc_expenses`, independent of the dossier's expense-template/cycle system entirely.
+
+Each entry has a `name`, a `value`, and a `recurrence`:
+
+- **`monthly`** — a recurring amount (e.g. a monthly-equivalent insurance premium) that applies to every calendar month a car has a snapshot for, for as long as it's `status = 'active'`. Cancelling it (`status = 'cancelled'`) stops it from every month's total, past and future alike — a deliberate simplification (it isn't a dated on/off toggle), since the amount is derived at read time rather than stored per month. A cost that changed value or genuinely started/stopped at a specific point in time should use a one-off entry instead of relying on cancel/edit timing.
+- **`one_off`** — a fixed amount tied to one specific `(year, month)` (e.g. a lump-sum annual road tax payment logged the month it was actually paid). It only ever contributes to that exact month; `status` doesn't apply (an entry no longer wanted is simply deleted, not cancelled).
+
+`recurrence` is immutable once created (same delete-and-recreate convention as `car_months`' `year`/`month`, §3.2) — switching types is a different kind of record, not an edit of the same one. `year`/`month` are likewise immutable on a `one_off` entry once created.
+
+Ad-hoc expenses are always a known, real number — a direct manual entry, never derived from a cycle — so unlike monthly/annual linked items (§5.6) they **never** contribute to `unknown_count`, whether or not a cycle exists for that calendar month.
+
 -----
 
 ## 6. Totals and Rollups
 
-Per snapshot: `total_cost = energy_cost + monthly_expenses_total + annual_expenses_total`, plus `unknown_count` (how many legs — energy, monthly items, annual items — were genuinely unresolvable for that month).
+Per snapshot: `total_cost = energy_cost + monthly_expenses_total + annual_expenses_total + adhoc_expenses_total`, plus `unknown_count` (how many legs — energy, monthly items, annual items — were genuinely unresolvable for that month; ad-hoc expenses never contribute here, §5.7).
 
 The car detail payload additionally provides:
-- `summary.per_year` — one rollup per calendar year with any snapshots, summing `km_driven`/`energy_cost`/`monthly_expenses_total`/`annual_expenses_total`/`total_cost`/`unknown_count` across that year's snapshots.
+- `summary.per_year` — one rollup per calendar year with any snapshots, summing `km_driven`/`energy_cost`/`monthly_expenses_total`/`annual_expenses_total`/`adhoc_expenses_total`/`total_cost`/`unknown_count` across that year's snapshots.
 - `summary.ytd` — the same rollup restricted to the current calendar year.
 - `summary.last_12_months` — the same rollup over an inclusive rolling 12-calendar-month window ending "now".
 - `summary.avg_monthly_cost` — `last_12_months.total_cost ÷ last_12_months.snapshot_count`, or `null` if there are no snapshots in that window.
@@ -181,7 +194,8 @@ The car detail payload additionally provides:
 | `cycle` | The resolved cycle (`{id, year, month, is_closed}`) for this snapshot's calendar month, or `null` |
 | `monthly_expenses[]` / `monthly_expenses_total` / `monthly_expenses_unknown_count` | §5.4 |
 | `annual_expenses[]` / `annual_expenses_total` | §5.5 |
-| `total_cost` | `energy_cost + monthly_expenses_total + annual_expenses_total` |
+| `adhoc_expenses[]` / `adhoc_expenses_total` | §5.7 — each entry `{id, name, amount, recurrence}` |
+| `total_cost` | `energy_cost + monthly_expenses_total + annual_expenses_total + adhoc_expenses_total` |
 | `unknown_count` | Count of unresolvable legs (§5.6) |
 
 -----
@@ -189,7 +203,7 @@ The car detail payload additionally provides:
 ## 8. UI Notes
 
 - **Car Expenses tab** (`CarExpensesTab.jsx`): a `KpiStrip` (latest-month total across cars, cost this year, car count, km this month) above a clickable card list, following the Loans tab's list-page pattern. A "N pending" amber badge appears on a car's row when its latest month has `unknown_count > 0`.
-- **Car detail page** (`CarDetail.jsx`, route `/dossiers/:id/cars/:carId`): follows `LoanDetail.jsx`'s layout — page-header + toolbar, a hero stats card, a two-column `CollapsibleSection` grid (latest month's cost breakdown left; linked expenses + yearly totals right), and a full-width expandable "Monthly snapshots" table below (the same `Set`-backed per-row expand idiom `AnnualExpenseTemplate.jsx` uses).
+- **Car detail page** (`CarDetail.jsx`, route `/dossiers/:id/cars/:carId`): follows `LoanDetail.jsx`'s layout — page-header + toolbar, a hero stats card, a two-column `CollapsibleSection` grid (latest month's cost breakdown left; linked expenses + ad-hoc expenses + yearly totals right), and a full-width expandable "Monthly snapshots" table below (the same `Set`-backed per-row expand idiom `AnnualExpenseTemplate.jsx` uses). The "Ad-hoc expenses" `CollapsibleSection` lists every `car_adhoc_expenses` row (recurring and one-off together, each labelled "monthly" or its `(Month Year)`, with a muted "Cancelled" badge on an inactive recurring entry) with inline edit/delete and an "Add expense" button opening `CarAdhocExpenseFormModal.jsx` — a type selector (`monthly`/`one_off`, disabled once created), name, amount, a month/year picker (one-off only), and an Active `Toggle` (recurring only). The cost-breakdown card and each expanded snapshot row both gain an "Ad-hoc expenses" line group alongside Monthly/Annual expenses, using the same `LineItemRow` (ad-hoc amounts are never unknown, so never render as a muted `—`).
 - **Unknown amounts render as a muted `—`, never as `0,00 €`** — the same rule Loans applies to `paid: null`. A footer note under the breakdown states how many items are pending cycle data.
 - **Car picker on the Expense Template / Annual Expense Template tabs**: a "Car" column, hidden entirely for dossiers with zero cars, with an inline `<select>` per expense row — mirrors the existing Account picker on the Distributions table. No Car column on the Distributions table (§5.2).
 - **Snapshot form** (`CarMonthFormModal.jsx`): fuel-type-conditional fields, carried-forward averages (§3.3), and a live "≈ X € this month" energy preview recomputed on every keystroke via the client-side `computeEnergyCost` in `frontend/src/utils/carMath.js` — a small deliberate duplication of the backend formula for live-preview purposes only (the linked-expense/cycle-resolution logic is server-only).
@@ -229,6 +243,19 @@ The car detail payload additionally provides:
 
 `expense_template_items.car_id` and `annual_expense_template_items.car_id` — both `TEXT REFERENCES cars(id) ON DELETE SET NULL`, nullable.
 
+### 9.4 `car_adhoc_expenses` table
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | TEXT PK | |
+| `car_id` | TEXT | `REFERENCES cars(id) ON DELETE CASCADE` |
+| `name` | TEXT NOT NULL | |
+| `value` | REAL NOT NULL | ≥ 0. Monthly amount if `recurrence='monthly'`, one-off amount if `recurrence='one_off'`. |
+| `recurrence` | TEXT NOT NULL | `CHECK IN ('monthly','one_off')`, default `'monthly'`. Immutable once created. |
+| `status` | TEXT NOT NULL | `CHECK IN ('active','cancelled')`, default `'active'`. Only meaningful for `recurrence='monthly'` — always `'active'` on a `one_off` row. |
+| `year` / `month` | INTEGER | Nullable. Only set for `recurrence='one_off'`; immutable once created. |
+| `created_at` | TEXT | |
+
 -----
 
 ## 10. API Contract
@@ -244,17 +271,23 @@ POST   /api/dossiers/:id/cars/:carId/months     { year, month, mileage_km, avg_l
                                                 # 400 if (car_id, year, month) already exists
 PUT    /api/dossiers/:id/cars/:carId/months/:carMonthId   # year/month immutable — 400 if changed
 DELETE /api/dossiers/:id/cars/:carId/months/:carMonthId
+
+POST   /api/dossiers/:id/cars/:carId/adhoc-expenses     { name, value, recurrence, year?, month? }
+                                                # year/month required (and only meaningful) when recurrence='one_off'
+PATCH  /api/dossiers/:id/cars/:carId/adhoc-expenses/:expenseId  { name?, value?, status? }
+                                                # recurrence and (for one_off) year/month are immutable — 400 if changed
+DELETE /api/dossiers/:id/cars/:carId/adhoc-expenses/:expenseId
 ```
 
 `car_id` is additionally accepted on the existing `POST`/`PUT /expense-template[/:itemId]` and `POST`/`PUT /annual-expense-template[/:itemId]` endpoints (§5.1) — no new endpoints for tagging.
 
-`GET /cars/:carId` returns the car row, every snapshot (each merged with its computed values, newest first), a `summary` block (§6), and `linked_monthly_items[]`/`linked_annual_items[]`.
+`GET /cars/:carId` returns the car row, every snapshot (each merged with its computed values, newest first), a `summary` block (§6), `linked_monthly_items[]`/`linked_annual_items[]`, and every `adhoc_expenses[]` row (§5.7, §9.4) — there is no separate list endpoint for ad-hoc expenses, matching how snapshots are only ever returned nested in this response too.
 
 -----
 
 ## 11. Export / Import
 
-Export version **16** (bumped from 15). A new `cars[]` array, each entry carrying a nested `months[]` array (matching the `goals[].historical_contributions` nesting convention — no cross-reference key needed between the two). `expense_template[]` and `annual_expense_template[]` entries gain a `car_name` field (`null` when untagged), round-tripped by name on import exactly like `linked_expense_name`/`distribution_name`. Cars are imported before the template loops so `car_name` can be resolved. Import accepts versions 1–16; versions ≤ 15 import with zero cars and every `car_id` `null`.
+Export version **17** (bumped from 16). The `cars[]` array (introduced version 16), each entry carrying a nested `months[]` array (matching the `goals[].historical_contributions` nesting convention — no cross-reference key needed between the two) plus, as of version 17, a nested `adhoc_expenses[]` array (`{name, value, recurrence, status, year, month, created_at}`, re-inserted verbatim — no re-linking needed since it references nothing outside the car itself). `expense_template[]` and `annual_expense_template[]` entries gain a `car_name` field (`null` when untagged), round-tripped by name on import exactly like `linked_expense_name`/`distribution_name`. Cars are imported before the template loops so `car_name` can be resolved. Import accepts versions 1–17; versions ≤ 15 import with zero cars and every `car_id` `null`; version 16 imports its cars but with zero ad-hoc expenses (the field didn't exist yet).
 
 `car_id` survives a `POST /expense-template/bulk-replace` / `POST /annual-expense-template/bulk-replace` via the same capture-by-name-then-relink mechanism already used there for loans/subscriptions/goal_distributions — tags on renamed or dropped items are lost, same semantics as those other links.
 
@@ -262,7 +295,7 @@ Export version **16** (bumped from 15). A new `cars[]` array, each entry carryin
 
 ## 12. AI Advisor Integration
 
-`buildDossierContext` in `backend/src/routes/ai-advisor.js` includes a `cars` array, one entry per car: `name`, `fuel_type`, `latest_mileage_km`, `latest_month` (period, km_driven, energy_cost, monthly_expenses_total, annual_expenses_total, total_cost, unknown_count), `ytd_total_cost`, `avg_monthly_cost_12m`, `linked_expense_items` (names only), and `monthly_series` (last 12 months, oldest first, `{period, km_driven, total_cost}`). Raw snapshot averages/prices and the per-item cost breakdown are deliberately omitted — the model can't act on a €/liter price, and the linked item names/amounts already appear via `expense_template`/`annual_expense_template`/`recent_cycles`. All three prompt intros (`ANALYSIS_SYSTEM_INTRO`, `CHAT_SYSTEM_INTRO`, `EXPORT_PROMPT_INTRO`) note that a car's `total_cost` is actual, not budgeted, and that `unknown_count > 0` means that month's total is a floor rather than a final figure.
+`buildDossierContext` in `backend/src/routes/ai-advisor.js` includes a `cars` array, one entry per car: `name`, `fuel_type`, `latest_mileage_km`, `latest_month` (period, km_driven, energy_cost, monthly_expenses_total, annual_expenses_total, adhoc_expenses_total, total_cost, unknown_count), `ytd_total_cost`, `avg_monthly_cost_12m`, `linked_expense_items` (names only), `adhoc_recurring_items` (active recurring ad-hoc expenses, `{name, monthly_value}` — §5.7), and `monthly_series` (last 12 months, oldest first, `{period, km_driven, total_cost}`). Raw snapshot averages/prices and the per-item cost breakdown are deliberately omitted — the model can't act on a €/liter price, and the linked item names/amounts already appear via `expense_template`/`annual_expense_template`/`recent_cycles`. All three prompt intros (`ANALYSIS_SYSTEM_INTRO`, `CHAT_SYSTEM_INTRO`, `EXPORT_PROMPT_INTRO`) note that a car's `total_cost` is actual, not budgeted, that `unknown_count > 0` means that month's total is a floor rather than a final figure, and that `adhoc_expenses_total`/`adhoc_recurring_items` are real costs someone else pays (folded into `total_cost`, but not the user's own spending).
 
 -----
 

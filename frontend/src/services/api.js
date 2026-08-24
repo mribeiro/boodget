@@ -249,6 +249,12 @@ export const api = {
     request('PUT', `/dossiers/${dossierId}/cars/${carId}/months/${carMonthId}`, data),
   deleteCarMonth: (dossierId, carId, carMonthId) =>
     request('DELETE', `/dossiers/${dossierId}/cars/${carId}/months/${carMonthId}`),
+  createCarAdhocExpense: (dossierId, carId, data) =>
+    request('POST', `/dossiers/${dossierId}/cars/${carId}/adhoc-expenses`, data),
+  updateCarAdhocExpense: (dossierId, carId, expenseId, data) =>
+    request('PATCH', `/dossiers/${dossierId}/cars/${carId}/adhoc-expenses/${expenseId}`, data),
+  deleteCarAdhocExpense: (dossierId, carId, expenseId) =>
+    request('DELETE', `/dossiers/${dossierId}/cars/${carId}/adhoc-expenses/${expenseId}`),
 
   // Push notifications — VAPID & subscriptions
   getVapidPublicKey: () => request('GET', '/push/vapid-public-key'),

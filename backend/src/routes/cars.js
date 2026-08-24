@@ -188,7 +188,28 @@ function computeCarMonthValues(car, snapshot, prevSnapshot, ctx) {
     annualTotal += amount;
   }
 
-  const totalCost = energyCost + monthlyTotal + annualTotal;
+  // Ad-hoc expenses (car_adhoc_expenses) — costs the user tracks manually because they're
+  // outside the dossier's own expense system entirely (e.g. insurance or road tax someone
+  // else pays, so there's no cycle/template item for it). Always a known, real number —
+  // a direct manual entry, never derived from a cycle — so unlike monthly/annual linked
+  // items these never contribute to unknown_count. Recurring ('monthly') entries apply
+  // flatly to every month while status='active' (cancelling stops it from every month,
+  // past and future alike — a deliberate simplification; a cost that changed or stopped at
+  // a specific point in time should use a one-off entry instead). One-off entries apply only
+  // to the exact (year, month) they were logged for.
+  const recurringAdhoc = db
+    .prepare("SELECT id, name, value FROM car_adhoc_expenses WHERE car_id = ? AND recurrence = 'monthly' AND status = 'active' ORDER BY created_at")
+    .all(car.id);
+  const oneOffAdhoc = db
+    .prepare("SELECT id, name, value FROM car_adhoc_expenses WHERE car_id = ? AND recurrence = 'one_off' AND year = ? AND month = ? ORDER BY created_at")
+    .all(car.id, snapshot.year, snapshot.month);
+  const adhocBreakdown = [
+    ...recurringAdhoc.map((r) => ({ id: r.id, name: r.name, amount: r.value, recurrence: 'monthly' })),
+    ...oneOffAdhoc.map((r) => ({ id: r.id, name: r.name, amount: r.value, recurrence: 'one_off' })),
+  ];
+  const adhocTotal = adhocBreakdown.reduce((sum, item) => sum + item.amount, 0);
+
+  const totalCost = energyCost + monthlyTotal + annualTotal + adhocTotal;
   const unknownCount = monthlyUnknownCount + (energyIncomplete ? 1 : 0) + annualUnknownCount;
 
   return {
@@ -206,6 +227,8 @@ function computeCarMonthValues(car, snapshot, prevSnapshot, ctx) {
     monthly_expenses_unknown_count: monthlyUnknownCount,
     annual_expenses: annualBreakdown,
     annual_expenses_total: annualTotal,
+    adhoc_expenses: adhocBreakdown,
+    adhoc_expenses_total: adhocTotal,
     total_cost: totalCost,
     unknown_count: unknownCount,
   };
@@ -220,6 +243,7 @@ function summarizeGroup(months, year) {
     energy_cost: 0,
     monthly_expenses_total: 0,
     annual_expenses_total: 0,
+    adhoc_expenses_total: 0,
     total_cost: 0,
     snapshot_count: 0,
     unknown_count: 0,
@@ -229,6 +253,7 @@ function summarizeGroup(months, year) {
     base.energy_cost += m.energy_cost;
     base.monthly_expenses_total += m.monthly_expenses_total;
     base.annual_expenses_total += m.annual_expenses_total;
+    base.adhoc_expenses_total += m.adhoc_expenses_total ?? 0;
     base.total_cost += m.total_cost;
     base.snapshot_count += 1;
     base.unknown_count += m.unknown_count;
@@ -357,6 +382,69 @@ function validateCarMonthFields(body, existing, carId) {
   };
 }
 
+// recurrence is immutable once created (same delete-and-recreate convention as car_months'
+// year/month) — switching a recurring cost into a one-off (or vice versa) is a different
+// kind of record, not an edit of the same one. year/month only apply to 'one_off' entries;
+// status only applies to 'monthly' ones (a one-off entry that's no longer relevant is simply
+// deleted, so its status is always forced to 'active').
+function validateAdhocExpenseFields(body, existing) {
+  let recurrence = existing?.recurrence;
+  if (!existing) {
+    recurrence = body.recurrence;
+    if (!['monthly', 'one_off'].includes(recurrence)) {
+      return { error: 'recurrence must be "monthly" or "one_off"' };
+    }
+  } else if (body.recurrence !== undefined && body.recurrence !== existing.recurrence) {
+    return { error: 'recurrence cannot be changed; delete and recreate the expense' };
+  }
+
+  const name = body.name !== undefined ? String(body.name).trim() : existing?.name;
+  if (!name) return { error: 'name is required' };
+
+  let value = existing?.value;
+  if (body.value !== undefined) value = Number(body.value);
+  if (value == null || isNaN(value) || value < 0) {
+    return { error: 'value must be a non-negative number' };
+  }
+
+  let year = null;
+  let month = null;
+  if (recurrence === 'one_off') {
+    if (!existing) {
+      year = Number(body.year);
+      month = Number(body.month);
+    } else {
+      if (body.year !== undefined && Number(body.year) !== existing.year) {
+        return { error: 'year cannot be changed; delete and recreate the expense' };
+      }
+      if (body.month !== undefined && Number(body.month) !== existing.month) {
+        return { error: 'month cannot be changed; delete and recreate the expense' };
+      }
+      year = existing.year;
+      month = existing.month;
+    }
+    if (!Number.isInteger(year) || year < 1900 || year > 2999) {
+      return { error: 'year must be an integer between 1900 and 2999' };
+    }
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return { error: 'month must be an integer between 1 and 12' };
+    }
+  }
+
+  let status = 'active';
+  if (recurrence === 'monthly') {
+    status = existing?.status ?? 'active';
+    if (body.status !== undefined) {
+      if (!['active', 'cancelled'].includes(body.status)) {
+        return { error: 'status must be "active" or "cancelled"' };
+      }
+      status = body.status;
+    }
+  }
+
+  return { name, value, recurrence, year, month, status };
+}
+
 // ── Helpers shared across route handlers ───────────────────────────────────
 function loadCarMonthsWithValues(car, ctx) {
   const snapshots = db.prepare('SELECT * FROM car_months WHERE car_id = ? ORDER BY year, month').all(car.id);
@@ -461,8 +549,18 @@ router.get('/cars/:carId', (req, res) => {
   const linkedAnnualItems = db
     .prepare('SELECT id, name, value, num_installments FROM annual_expense_template_items WHERE dossier_id = ? AND car_id = ? ORDER BY position')
     .all(req.params.id, car.id);
+  const adhocExpenses = db
+    .prepare('SELECT * FROM car_adhoc_expenses WHERE car_id = ? ORDER BY recurrence, created_at')
+    .all(car.id);
 
-  res.json({ ...car, months, summary, linked_monthly_items: linkedMonthlyItems, linked_annual_items: linkedAnnualItems });
+  res.json({
+    ...car,
+    months,
+    summary,
+    linked_monthly_items: linkedMonthlyItems,
+    linked_annual_items: linkedAnnualItems,
+    adhoc_expenses: adhocExpenses,
+  });
 });
 
 router.put('/cars/:carId', (req, res) => {
@@ -582,6 +680,63 @@ router.delete('/cars/:carId/months/:carMonthId', (req, res) => {
   res.status(204).end();
 });
 
+// ── Routes: ad-hoc car expenses ─────────────────────────────────────────────
+
+router.post('/cars/:carId/adhoc-expenses', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const car = db.prepare('SELECT * FROM cars WHERE id = ? AND dossier_id = ?').get(req.params.carId, req.params.id);
+  if (!car) return res.status(404).json({ error: 'Car not found' });
+
+  const validated = validateAdhocExpenseFields(req.body, null);
+  if (validated.error) return res.status(400).json({ error: validated.error });
+
+  const id = uuidv4();
+  db.prepare(
+    `INSERT INTO car_adhoc_expenses (id, car_id, name, value, recurrence, status, year, month)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, car.id, validated.name, validated.value, validated.recurrence, validated.status, validated.year, validated.month);
+
+  const expense = db.prepare('SELECT * FROM car_adhoc_expenses WHERE id = ?').get(id);
+  console.log(
+    `[cars] Ad-hoc expense "${validated.name}" (${validated.recurrence}) created for car "${car.name}" (${car.id}) by user ${req.user.username}`
+  );
+  res.status(201).json(expense);
+});
+
+router.patch('/cars/:carId/adhoc-expenses/:expenseId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const car = db.prepare('SELECT * FROM cars WHERE id = ? AND dossier_id = ?').get(req.params.carId, req.params.id);
+  if (!car) return res.status(404).json({ error: 'Car not found' });
+  const expense = db.prepare('SELECT * FROM car_adhoc_expenses WHERE id = ? AND car_id = ?').get(req.params.expenseId, car.id);
+  if (!expense) return res.status(404).json({ error: 'Ad-hoc expense not found' });
+
+  const validated = validateAdhocExpenseFields(req.body, expense);
+  if (validated.error) return res.status(400).json({ error: validated.error });
+
+  db.prepare('UPDATE car_adhoc_expenses SET name = ?, value = ?, status = ? WHERE id = ?').run(
+    validated.name,
+    validated.value,
+    validated.status,
+    expense.id
+  );
+
+  const updated = db.prepare('SELECT * FROM car_adhoc_expenses WHERE id = ?').get(expense.id);
+  console.log(`[cars] Ad-hoc expense "${validated.name}" (${expense.id}) updated for car "${car.name}" (${car.id}) by user ${req.user.username}`);
+  res.json(updated);
+});
+
+router.delete('/cars/:carId/adhoc-expenses/:expenseId', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const car = db.prepare('SELECT * FROM cars WHERE id = ? AND dossier_id = ?').get(req.params.carId, req.params.id);
+  if (!car) return res.status(404).json({ error: 'Car not found' });
+  const expense = db.prepare('SELECT * FROM car_adhoc_expenses WHERE id = ? AND car_id = ?').get(req.params.expenseId, car.id);
+  if (!expense) return res.status(404).json({ error: 'Ad-hoc expense not found' });
+
+  db.prepare('DELETE FROM car_adhoc_expenses WHERE id = ?').run(expense.id);
+  console.log(`[cars] Ad-hoc expense "${expense.name}" (${expense.id}) deleted for car "${car.name}" (${car.id}) by user ${req.user.username}`);
+  res.status(204).end();
+});
+
 module.exports = router;
 // Shared with the AI Advisor context builder and tests
 module.exports.computeCarMonthValues = computeCarMonthValues;
@@ -590,3 +745,4 @@ module.exports.buildCarCostContext = buildCarCostContext;
 module.exports.summarizeCarMonths = summarizeCarMonths;
 module.exports.validateCarFields = validateCarFields;
 module.exports.validateCarMonthFields = validateCarMonthFields;
+module.exports.validateAdhocExpenseFields = validateAdhocExpenseFields;
