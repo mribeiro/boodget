@@ -2,16 +2,15 @@
 
 **Because handling your money shouldn't be scary.**
 
-🌐 **[Project site & manual](https://vibe-minds.github.io/capital-tracker/)** —
-overview, features, and a growing screenshot-driven user manual
-(source: [`landing/`](landing/), deployed via GitHub Pages). URL format
-assumes GitHub Pages is enabled for this repo (*Settings → Pages → Source:
-GitHub Actions*); verify once the `pages.yml` workflow first deploys.
+🌐 **[Project site & manual](https://mribeiro.github.io/boodget/)** —
+overview, features, and a screenshot-driven user manual covering every
+section of the app (source: [`landing/`](landing/), deployed via GitHub
+Pages on every push to `main`).
 
-boodget (this repository: `capital-tracker`) is a self-hosted personal finance
-application for tracking monthly capital, running budget cycles, chasing
-goals, and keeping an eye on loans, subscriptions, and annual bills — all
-from one dashboard, on infrastructure you control.
+boodget is a self-hosted personal finance application for tracking monthly
+capital, running budget cycles, chasing goals, and keeping an eye on loans,
+subscriptions, car costs, and annual bills — all from one dashboard, on
+infrastructure you control.
 
 It is built around a simple idea: you don't need to log every coffee
 purchase to be in control of your money. A monthly capital snapshot plus a
@@ -33,6 +32,7 @@ in the full guide for the reasoning behind that choice.
 | **Workbench** | A what-if scenario calculator for income vs. expenses vs. Must/Want/Save distributions. |
 | **Goals** | Target amount + date, auto-tracked progress from distributions, manual entries, or history. |
 | **Loans** | Draft (study) and active loans with amortization, scenario simulators, and expense-coverage checks. |
+| **Car Expenses** | Actual (not budgeted) monthly/yearly cost per vehicle — mileage-driven energy cost, tagged expenses, and ad-hoc costs someone else pays. |
 | **Subscriptions** | Recurring personal costs tracked against the distribution that funds them. |
 | **Emergency Fund** | A savings-buffer target derived from your recent average spend. |
 | **Glances** | An at-a-glance, colour-coded panel (Capital, Cycle, Next Expense, Goals) on every dossier. |
@@ -51,8 +51,8 @@ specs in **[ai-spec/](ai-spec/)**.
 ## Quick start
 
 ```bash
-git clone https://github.com/ViBE-MiNDS/capital-tracker
-cd capital-tracker
+git clone https://github.com/mribeiro/boodget
+cd boodget
 # edit SESSION_SECRET in docker-compose.yml before real use
 docker compose up --build -d
 ```
@@ -88,8 +88,23 @@ analytics, no cloud account required. You can export a full dossier to JSON
 at any time and re-import it (e.g. onto a fresh install), so nothing is
 locked in.
 
+## License
+
+boodget's source is licensed under **AGPL-3.0, subject to the "Commons
+Clause" License Condition** (see [`LICENSE`](LICENSE)) — a
+**source-available**, not permissively-licensed, project: anyone may run,
+study, and modify it, and any distributed modification (including one
+exposed as a network service) must have its source made available under the
+same license, but selling boodget or offering it as a paid hosted/managed
+service is not permitted. See
+[`landing/terms.html`](https://mribeiro.github.io/boodget/terms.html) for the
+plain-language explanation, and
+[`landing/privacy.html`](https://mribeiro.github.io/boodget/privacy.html)
+for how the software itself handles data.
+
 ## Project status
 
-Current version: **v0.1**. No automated test suite yet — see
-[CLAUDE.md](CLAUDE.md#no-test-suite) for the testing approach in the
-meantime.
+Current version: **v0.1**. Both packages have an automated test suite
+(Vitest) covering business-logic functions and API routes, run on every pull
+request via CI — see [CLAUDE.md](CLAUDE.md#testing) for conventions and how
+to run it locally.

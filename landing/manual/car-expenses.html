@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Car Expenses — Manual — boodget</title>
+  <meta name="description" content="Step-by-step guide to the Car Expenses section of boodget: mileage-driven energy cost, tagged expenses, and ad-hoc costs someone else pays." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/manual.css" />
+</head>
+<body>
+
+  <nav class="manual-nav">
+    <a class="manual-nav-logo" href="../index.html">boodget</a>
+    <div class="manual-nav-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html" class="active">Manual</a>
+      <a href="https://github.com/mribeiro/boodget" target="_blank" class="manual-nav-cta">GitHub →</a>
+    </div>
+  </nav>
+
+  <main class="manual-container">
+    <div class="manual-eyebrow">Manual · Car Expenses</div>
+    <h1 class="manual-title">Tracking what a car actually costs</h1>
+    <p class="manual-lede">Car Expenses tells you what a vehicle really costs — month by month and year by year — from three sources: the fuel/energy you log yourself, existing Monthly and Annual Expense items you tag to it, and ad-hoc costs someone else pays that never show up anywhere else in the dossier. Every figure is <strong>actual</strong> spend, never a budgeted estimate. This page walks through setting it up and reading the result, step by step.</p>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">1</span> Add a car</div>
+      <div class="manual-step-body">
+        <p>Give it a <strong>name</strong> and a required <strong>fuel type</strong> — electric, hybrid, or gas, which decides which snapshot fields matter later. <strong>License plate</strong>, <strong>make</strong>, and <strong>model</strong> are optional. <strong>Current mileage</strong> is the baseline for the car's first snapshot; every later snapshot uses the previous one's reading instead, so you only ever enter it once. A dossier can track several cars independently.</p>
+        <figure class="shot">
+          <img src="screenshots/car-03-new-car-form-desktop.png" alt="New Car dialog with Name, Make, Model, License plate, Fuel type dropdown set to Gas, and Current mileage fields" loading="lazy" />
+          <figcaption>Adding a car <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">2</span> The Car Expenses list</div>
+      <div class="manual-step-body">
+        <p>A summary strip totals the latest month's cost across every car, this year's cost so far, how many cars you're tracking, and kilometres driven this month. Each car below it shows as a row with its fuel type, monthly cost, kilometres driven, and current odometer reading — an amber badge appears when a car's latest month is still missing linked-expense data.</p>
+        <figure class="shot">
+          <img src="screenshots/car-01-list-desktop.png" alt="Car Expenses list with a summary strip (Latest month total, Cost this year, Cars, Km this month) and three car rows: Daily Driver (Gas), Weekend EV (Electric), and Family Hybrid (Hybrid)" loading="lazy" />
+          <figcaption>Car Expenses list with the summary strip <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/car-02-list-mobile.png" alt="The Car Expenses list stacked on a phone screen, with the collapsible summary strip above the car rows" loading="lazy" />
+          <figcaption>Car Expenses on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">3</span> Log a monthly snapshot for the real energy cost</div>
+      <div class="manual-step-body">
+        <p>Once a month, record the <strong>odometer reading</strong> plus the average consumption and price for that month — <strong>L/100km</strong> and <strong>cost per liter</strong> for a gas or hybrid car, <strong>kWh/100km</strong> and <strong>cost per kWh</strong> for an electric or hybrid one. A hybrid fills in both. Kilometres driven is worked out automatically from the previous snapshot's reading (or the car's starting mileage for the first one), and a live preview shows the resulting energy cost as you type. The four averages carry over from your last snapshot as an editable starting point, so most months you're only updating the odometer.</p>
+        <figure class="shot">
+          <img src="screenshots/car-04-snapshot-form-desktop.png" alt="New Snapshot dialog for a hybrid car with Month/Year, Mileage, Avg L per 100km and Cost per liter, Avg kWh per 100km and Cost per kWh fields, a carried-over-averages note, and a live estimated energy cost preview" loading="lazy" />
+          <figcaption>Logging a snapshot for a hybrid car — both fuel legs at once <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">4</span> Tag expenses so their real cost counts</div>
+      <div class="manual-step-body">
+        <p>Insurance, a car loan payment, road tax, a fuel or maintenance budget — if it's already a line in your Monthly or Annual Expense Template, tag it to the car from a <strong>Car</strong> column right there in Settings, instead of re-entering it. The tag is purely additive: the item keeps working everywhere else in the app exactly as before (cycles, budgets, Emergency Fund) — it's just a lens Car Expenses uses to pull in what actually got paid or spent, never the full budgeted amount. A Budget item that goes unused some months never inflates the car's cost.</p>
+        <figure class="shot">
+          <img src="screenshots/car-05-tag-expense-desktop.png" alt="Monthly Expense Template table with a Car column, showing Car Loan Payment and Transport rows tagged to Daily Driver while other rows are untagged" loading="lazy" />
+          <figcaption>Tagging Fixed and Budget expenses to a car <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">5</span> Log ad-hoc expenses for costs someone else pays</div>
+      <div class="manual-step-body">
+        <p>Some real costs of owning a car never have a home anywhere else in the dossier — a spouse covering the insurance or road tax out of their own, untracked money, for instance. Log those directly against the car as an <strong>ad-hoc expense</strong>: either a <strong>recurring monthly amount</strong> that applies every month while active, or a <strong>one-off</strong> amount for a specific month, like a lump-sum tax payment. Either way it's a real, known figure — folded straight into the car's total cost, never treated as a gap the way a missing linked-expense entry is.</p>
+        <figure class="shot">
+          <img src="screenshots/car-07-adhoc-modal-desktop.png" alt="New Ad-hoc Expense dialog with a Type dropdown set to Recurring monthly amount, Name, Monthly amount fields, and an Active toggle" loading="lazy" />
+          <figcaption>Logging a recurring ad-hoc expense <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/car-08-adhoc-mobile.png" alt="The Ad-hoc expenses section on a phone screen, listing a monthly Insurance entry and a one-off Road Tax entry alongside the Linked expenses section above it" loading="lazy" />
+          <figcaption>Ad-hoc expenses on a phone screen <span class="shot-viewport">Mobile 390×844</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="manual-step">
+      <div class="manual-step-title"><span class="manual-step-num">6</span> Read the full cost picture</div>
+      <div class="manual-step-body">
+        <p>A car's detail page adds up every source into one <strong>cost breakdown</strong> for the latest month — energy, tagged Monthly and Annual expenses, and ad-hoc expenses — alongside the linked-expense and ad-hoc lists themselves, a running yearly total, and an expandable monthly snapshots table going back as far as you've logged. If a calendar month has no expense cycle covering it yet, its linked-expense figures show as a muted <strong>—</strong> rather than a false €0,00 — the total is a floor for that month, not a final number, until a cycle catches up.</p>
+        <figure class="shot">
+          <img src="screenshots/car-06-detail-desktop.png" alt="Car detail page for Daily Driver with a hero stats row, a Cost breakdown card showing Energy, Monthly expenses, Annual expenses, and Ad-hoc expenses line groups totalling 350,94 euros, Linked expenses and Ad-hoc expenses cards on the right, Yearly totals, and an expandable Monthly snapshots table below" loading="lazy" />
+          <figcaption>Full cost breakdown for a car <span class="shot-viewport">Desktop 1440×900</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </main>
+
+  <footer class="manual-footer">
+    <div>boodget — because handling your money shouldn't be scary.</div>
+    <div style="margin-top:.5rem;"><a href="https://github.com/mribeiro/boodget" target="_blank">GitHub</a></div>
+  </footer>
+
+</body>
+</html>
