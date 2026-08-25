@@ -3083,13 +3083,19 @@ tr:hover td {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: grab;
   z-index: var(--z-chat-widget);
   transition: transform var(--transition-fast);
+  touch-action: none; /* dragging is handled entirely via pointer events, not native scroll/pan */
 }
 
 .ai-chat-fab:hover {
   transform: scale(1.06);
+}
+
+.ai-chat-fab.dragging {
+  cursor: grabbing;
+  transition: none;
 }
 
 .ai-chat-widget {
