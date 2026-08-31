@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
-const { fromIsoDate } = require('../utils/cycleDates');
+const { loadCycleWindows } = require('../utils/cycleWindows');
 
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
@@ -14,29 +14,8 @@ function canAccess(dossierId, userId) {
 }
 
 // ── Cycle-window resolution ─────────────────────────────────────────────────
-// A third inline copy of the "load every cycle, reconstruct actual_start/end, scan in
-// memory" idiom Loans (payment-status) and Annual Expenses (createAnnualPaymentsForCycle)
-// each already carry independently. Not extracted into utils/cycleDates.js, which is
-// deliberately DB-free — see migration 042's comment on why a DB-reading helper doesn't
-// belong there. A future unification across all three copies is tracked as a separate
-// tech-debt issue.
 function buildCarCostContext(dossierId) {
-  const cycles = db
-    .prepare(
-      `SELECT id, year, month, is_closed, cycle_start_day, actual_start_date, actual_end_date
-       FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month`
-    )
-    .all(dossierId)
-    .map((c) => ({
-      ...c,
-      start: c.actual_start_date
-        ? fromIsoDate(c.actual_start_date)
-        : new Date(c.year, c.month - 1, c.cycle_start_day ?? 25),
-      end: c.actual_end_date
-        ? fromIsoDate(c.actual_end_date)
-        : new Date(c.year, c.month, (c.cycle_start_day ?? 25) - 1),
-    }));
-  return { dossierId, cycles };
+  return { dossierId, cycles: loadCycleWindows(db, dossierId) };
 }
 
 // A cycle is named after the month it ends in (existing business rule), so "the cycle

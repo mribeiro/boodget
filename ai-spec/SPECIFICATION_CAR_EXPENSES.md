@@ -126,7 +126,7 @@ Only `section = 'expense'` items (Fixed and Budget) and annual template items ca
 
 ### 5.3 Resolving a calendar month to a cycle
 
-A cycle is **named after the month it ends in** (see the Expense Cycle key concept in `CLAUDE.md`) — so "the cycle representing calendar month M" is the cycle whose `actual_end_date` falls within M. Given a car snapshot's `(year, month)`, this is resolved by loading every cycle in the dossier once (reconstructing `actual_start_date`/`actual_end_date` from the legacy `cycle_start_day`-based formula for any row predating those columns, same fallback Loans' payment-status uses) and picking the one whose end lands in that calendar month. Two cycles can end in the same month only after a `PATCH /cycles { resolve_overlap: 'ignore' }`; the later-ending one wins, since it's the one that actually closes the month out.
+A cycle is **named after the month it ends in** (see the Expense Cycle key concept in `CLAUDE.md`) — so "the cycle representing calendar month M" is the cycle whose `actual_end_date` falls within M. Given a car snapshot's `(year, month)`, this is resolved by loading every cycle in the dossier once via `backend/src/utils/cycleWindows.js`'s `loadCycleWindows` (reconstructing `actual_start_date`/`actual_end_date` from the legacy `cycle_start_day`-based formula for any row predating those columns — the same fallback Loans' payment-status and Annual Expenses' `pull-annual-expenses` use, via that same shared module) and picking the one whose end lands in that calendar month (`findCycleForCalendarMonth`, kept local to `cars.js` as call-site-specific selection logic). Two cycles can end in the same month only after a `PATCH /cycles { resolve_overlap: 'ignore' }`; the later-ending one wins, since it's the one that actually closes the month out.
 
 If no cycle exists yet for a snapshot's calendar month, every linked item for that month is **unknown** (§5.6) — the month hasn't been budgeted at all yet, so nothing about it can be resolved.
 
@@ -304,4 +304,4 @@ Export version **17** (bumped from 16). The `cars[]` array (introduced version 1
 - No per-fill-up logging — averages are entered once per month, not derived from individual receipts.
 - No depreciation or resale-value tracking.
 - No maintenance scheduling/reminders.
-- The cycle-window-loading idiom (§5.3) is duplicated a third time here, alongside Loans' payment-status and Annual Expenses' payment-to-cycle linkage — each module carries its own copy rather than sharing a helper. Tracked as a follow-up tech-debt item.
+- ~~The cycle-window-loading idiom (§5.3) is duplicated a third time here...~~ Resolved: the DB-reading load step (`loadCycleWindows`/`reconstructCycleWindow`) now lives in `backend/src/utils/cycleWindows.js`, shared by Loans' payment-status, Annual Expenses' `pull-annual-expenses`, and this module; each caller still keeps its own small selection logic (e.g. `findCycleForCalendarMonth` here) on top.
