@@ -3,6 +3,7 @@ const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const { computeCycleStartDate, computeTheoreticalCycleEndDate, addDays, toIsoDate, fromIsoDate } = require('../utils/cycleDates');
+const { reconstructCycleWindow } = require('../utils/cycleWindows');
 const { isAllowedAiModel, DEFAULT_AI_MODEL } = require('./ai-advisor');
 
 function adjacentPeriod(year, month, offset) {
@@ -975,9 +976,7 @@ router.post('/cycles/:cycleId/pull-annual-expenses', (req, res) => {
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
   if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
 
-  const startDay = cycle.cycle_start_day ?? 25;
-  const cycleStartDate = cycle.actual_start_date ? fromIsoDate(cycle.actual_start_date) : new Date(cycle.year, cycle.month - 1, startDay);
-  const cycleEndDate = cycle.actual_end_date ? fromIsoDate(cycle.actual_end_date) : new Date(cycle.year, cycle.month, startDay - 1);
+  const { start: cycleStartDate, end: cycleEndDate } = reconstructCycleWindow(cycle);
 
   createAnnualPaymentsForCycle(req.params.id, req.params.cycleId, cycleStartDate, cycleEndDate);
   console.log(`[cycles] Pulled annual expenses for cycle ${cycle.year}/${cycle.month} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
