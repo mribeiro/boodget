@@ -3,6 +3,7 @@ const { buildTestApp } = require('../helpers/app');
 const {
   createUser,
   createDossier,
+  createAccount,
   createExpenseCycle,
   createCycleItem,
   createAnnualExpenseYear,
@@ -255,5 +256,139 @@ describe('PATCH /settings — ai_user_context length cap', () => {
       .patch(`/api/dossiers/${dossier.id}/settings`)
       .send({ ai_user_context: 'x'.repeat(4000) });
     expect(res.status).toBe(200);
+  });
+});
+
+describe('PATCH /settings — paperless_url change clears the stored token', () => {
+  function setup() {
+    const owner = createUser(db);
+    const dossier = createDossier(db, { creatorId: owner.id });
+    db.prepare("UPDATE dossiers SET paperless_url = 'https://paperless.example', paperless_token = 'SECRET' WHERE id = ?").run(dossier.id);
+    return { owner, dossier };
+  }
+  const tokenOf = (id) => db.prepare('SELECT paperless_token FROM dossiers WHERE id = ?').get(id).paperless_token;
+
+  it('clears the token when a shared user repoints the URL, so the secret is never sent to the new host', async () => {
+    const { dossier } = setup();
+    const guest = createUser(db);
+    db.prepare('INSERT INTO dossier_access (dossier_id, user_id) VALUES (?, ?)').run(dossier.id, guest.id);
+    const agent = await loggedInAgent(buildTestApp(), guest);
+
+    const res = await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ paperless_url: 'https://attacker.example' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.paperless_token_set).toBe(false);
+    expect(tokenOf(dossier.id)).toBeNull();
+  });
+
+  it('keeps the token when the URL is re-saved unchanged or the token is sent alongside the new URL', async () => {
+    const { owner, dossier } = setup();
+    const agent = await loggedInAgent(buildTestApp(), owner);
+
+    await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ paperless_url: 'https://paperless.example' });
+    expect(tokenOf(dossier.id)).toBe('SECRET');
+
+    await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ paperless_url: 'https://new.example', paperless_token: 'NEW' });
+    expect(tokenOf(dossier.id)).toBe('NEW');
+  });
+
+  it('keeps the token when an unrelated setting changes', async () => {
+    const { owner, dossier } = setup();
+    const agent = await loggedInAgent(buildTestApp(), owner);
+
+    await agent.patch(`/api/dossiers/${dossier.id}/settings`).send({ paperless_date_field_id: 3 });
+    expect(tokenOf(dossier.id)).toBe('SECRET');
+  });
+});
+
+describe('Template bulk-replace preserves fields the caller does not send (Workbench sync)', () => {
+  it('expense section keeps paperless_tag_id and exclude_from_emergency_fund when omitted, but honours explicit values', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const agent = await loggedInAgent(buildTestApp(), user);
+    await agent.post(`/api/dossiers/${dossier.id}/expense-template`).send({
+      section: 'expense', name: 'Electricity', type: 'Fixed', value: 60, day_of_payment: 5, paperless_tag_id: 7, exclude_from_emergency_fund: true,
+    });
+    await agent.post(`/api/dossiers/${dossier.id}/expense-template`).send({
+      section: 'expense', name: 'Water', type: 'Fixed', value: 20, day_of_payment: 8, paperless_tag_id: 9,
+    });
+
+    const res = await agent.post(`/api/dossiers/${dossier.id}/expense-template/bulk-replace`).send({
+      section: 'expense',
+      items: [
+        { name: 'Electricity', type: 'Fixed', value: 65, day_of_payment: 5, classification: 'must' },
+        { name: 'Water', type: 'Fixed', value: 20, day_of_payment: 8, paperless_tag_id: null },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    const electricity = res.body.find((i) => i.name === 'Electricity');
+    const water = res.body.find((i) => i.name === 'Water');
+    expect(electricity.value).toBe(65);
+    expect(electricity.paperless_tag_id).toBe(7);
+    expect(electricity.exclude_from_emergency_fund).toBe(1);
+    expect(water.paperless_tag_id).toBeNull();
+  });
+
+  it('distribution section keeps the funding account and the Annual Expenses distribution selection', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const account = createAccount(db, { dossierId: dossier.id });
+    const agent = await loggedInAgent(buildTestApp(), user);
+    const dist = (await agent.post(`/api/dossiers/${dossier.id}/expense-template`).send({
+      section: 'distribution', name: 'Annual fund', value: 100, account_id: account.id,
+    })).body;
+    await agent.put(`/api/dossiers/${dossier.id}/annual-expenses/distributions`).send({ distribution_template_ids: [dist.id] });
+
+    const res = await agent.post(`/api/dossiers/${dossier.id}/expense-template/bulk-replace`).send({
+      section: 'distribution',
+      items: [{ name: 'Annual fund', value: 120, must_amount: null, want_amount: null, save_amount: 120 }],
+    });
+
+    const newDist = res.body.find((i) => i.name === 'Annual fund');
+    expect(newDist.account_id).toBe(account.id);
+    const selected = (await agent.get(`/api/dossiers/${dossier.id}/annual-expenses/distributions`)).body;
+    expect(selected).toEqual([newDist.id]);
+  });
+
+  it('annual template keeps an item\'s installment schedule when the payload carries none', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const agent = await loggedInAgent(buildTestApp(), user);
+    await agent.post(`/api/dossiers/${dossier.id}/annual-expense-template`).send({
+      name: 'Insurance', value: 600, num_installments: 2, installments: [{ month: 3, day: 1 }, { month: 9, day: 15 }],
+    });
+
+    const res = await agent.post(`/api/dossiers/${dossier.id}/annual-expense-template/bulk-replace`).send({
+      items: [
+        { name: 'Insurance', value: 650, classification: 'must' },
+        { name: 'Road tax', value: 120, classification: 'must', day_of_payment: 10, month_of_payment: 5 },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    const insurance = res.body.find((i) => i.name === 'Insurance');
+    expect(insurance.value).toBe(650);
+    expect(insurance.num_installments).toBe(2);
+    expect(insurance.installments.map((i) => [i.month, i.day])).toEqual([[3, 1], [9, 15]]);
+    const roadTax = res.body.find((i) => i.name === 'Road tax');
+    expect(roadTax.installments.map((i) => [i.month, i.day])).toEqual([[5, 10]]);
+  });
+
+  it('annual template still honours an explicitly provided schedule for an existing item', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const agent = await loggedInAgent(buildTestApp(), user);
+    await agent.post(`/api/dossiers/${dossier.id}/annual-expense-template`).send({
+      name: 'Insurance', value: 600, num_installments: 2, installments: [{ month: 3, day: 1 }, { month: 9, day: 15 }],
+    });
+
+    const res = await agent.post(`/api/dossiers/${dossier.id}/annual-expense-template/bulk-replace`).send({
+      items: [{ name: 'Insurance', value: 600, num_installments: 1, installments: [{ month: 6, day: 1 }] }],
+    });
+
+    const insurance = res.body.find((i) => i.name === 'Insurance');
+    expect(insurance.num_installments).toBe(1);
+    expect(insurance.installments.map((i) => [i.month, i.day])).toEqual([[6, 1]]);
   });
 });

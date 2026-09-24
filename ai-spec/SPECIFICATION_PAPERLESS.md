@@ -56,6 +56,8 @@ The existing settings endpoints are extended:
 
 The `paperless_token` is stored in plain text in SQLite. This is acceptable for a self-hosted, single-user/small-team application. The token is **never returned to the frontend** — the `GET /settings` endpoint returns a boolean `paperless_token_set` (true/false) instead of the actual value. The `PATCH` endpoint accepts the token value for writing. Sending `null` clears it.
 
+**Changing `paperless_url` clears the stored token** unless a new `paperless_token` is sent in the same request (re-saving the same URL leaves it untouched). The token is sent as an `Authorization` header to whatever URL is configured, and shared users have edit rights on settings, so without this anyone with access to the dossier could repoint the URL at a host they control and capture the owner's token on the next fetch. The settings UI warns about this in the URL edit dialog and says so in the save toast.
+
 -----
 
 ## 3. Expense Template — Tag Mapping
@@ -88,7 +90,7 @@ The existing expense template endpoints are extended to accept and return `paper
 
 - `POST /api/dossiers/:id/expense-template` — accepts `paperless_tag_id`.
 - `PATCH /api/dossiers/:id/expense-template/:itemId` — accepts `paperless_tag_id`.
-- `POST /api/dossiers/:id/expense-template/bulk-replace` — each item may include `paperless_tag_id`.
+- `POST /api/dossiers/:id/expense-template/bulk-replace` — each item may include `paperless_tag_id`. Omitting the key keeps the previous same-name item's tag; an explicit `null` clears it.
 
 The existing cycle item endpoints are also extended:
 

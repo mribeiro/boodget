@@ -84,7 +84,8 @@ A simple web-based system to help users track their capital at the beginning of 
   - *(Note: an admin role concept is planned for a future iteration.)*
 
 ### 6.1 User Deletion
-- When a user is deleted, **all dossiers they created are also deleted**, including all associated months, snapshots, and accounts.
+- A user who still **owns (created) any dossier cannot be deleted** — `DELETE /api/users/:id` returns `409` naming how many dossiers they own. Deleting such a user used to cascade-delete every dossier they created (including ones shared with, and relied on by, other users), and since any user can reach this endpoint, that let one user irreversibly wipe another's data. The owner must delete their own dossiers first.
+- Deleting a user who owns no dossiers removes the user and their access grants to dossiers shared with them; those dossiers themselves are untouched.
 
 ---
 

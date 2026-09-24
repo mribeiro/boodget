@@ -64,7 +64,7 @@ The existing annual expense template endpoints are extended:
 
 - `POST /api/dossiers/:id/annual-expense-template` — now also accepts `num_installments` and `installments: [{ month, day }]`.
 - `PUT /api/dossiers/:id/annual-expense-template/:itemId` — now also accepts `num_installments` and `installments`.
-- `POST /api/dossiers/:id/annual-expense-template/bulk-replace` — each item may include `num_installments` and `installments`.
+- `POST /api/dossiers/:id/annual-expense-template/bulk-replace` — each item may include `num_installments` and `installments`. An item that carries no schedule at all (`installments`, `day_of_payment` and `month_of_payment` all absent) keeps the installment schedule — and, unless sent, the `num_installments` — of the previous template item with the same name, so a caller that only manages names/values (the Workbench's "Sync to template") can't erase schedules. An explicitly sent schedule always wins.
 - `GET /api/dossiers/:id/annual-expense-template` — response now includes `num_installments` and `installments` for each item.
 
 When `installments` is provided, the entire installments list for that item is replaced atomically (delete existing + insert new).
