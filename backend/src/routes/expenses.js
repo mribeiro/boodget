@@ -301,7 +301,18 @@ router.patch('/settings', (req, res) => {
   if (emergency_fund_months_multiplier !== undefined) { updates.push('emergency_fund_months_multiplier = ?'); params.push(emergency_fund_months_multiplier); }
   if (emergency_fund_cycles_to_average !== undefined) { updates.push('emergency_fund_cycles_to_average = ?'); params.push(emergency_fund_cycles_to_average); }
   if (paperless_url !== undefined) { updates.push('paperless_url = ?'); params.push(paperless_url || null); }
-  if (paperless_token !== undefined) { updates.push('paperless_token = ?'); params.push(paperless_token || null); }
+  if (paperless_token !== undefined) {
+    updates.push('paperless_token = ?'); params.push(paperless_token || null);
+  } else if (paperless_url !== undefined) {
+    // The stored token is sent as an Authorization header to whatever paperless_url holds, so
+    // repointing the URL without re-entering the token would let anyone with edit access to the
+    // dossier (shared users included) redirect the owner's secret to a host they control.
+    // Changing the URL therefore clears the token unless a new one arrives in the same request.
+    const current = db.prepare('SELECT paperless_url FROM dossiers WHERE id = ?').get(req.params.id);
+    if ((paperless_url || null) !== (current?.paperless_url ?? null)) {
+      updates.push('paperless_token = ?'); params.push(null);
+    }
+  }
   if (paperless_date_field_id !== undefined) { updates.push('paperless_date_field_id = ?'); params.push(paperless_date_field_id); }
   if (paperless_amount_field_id !== undefined) { updates.push('paperless_amount_field_id = ?'); params.push(paperless_amount_field_id); }
   if (expense_notification_days_before !== undefined) { updates.push('expense_notification_days_before = ?'); params.push(expense_notification_days_before); }
@@ -504,7 +515,7 @@ router.post('/expense-template/bulk-replace', (req, res) => {
     let linkedLoans = [];
     // Cars tagged onto expense-section items are captured by name too — car_id is NOT read
     // from the incoming payload (that would silently wipe every tag on any caller that
-    // doesn't send it, which is exactly the latent bug account_id already has here).
+    // doesn't send it — see previousByName below for the other unmanaged fields).
     let carTags = [];
     if (section === 'expense') {
       linkedLoans = db
@@ -527,7 +538,18 @@ router.post('/expense-template/bulk-replace', (req, res) => {
     // after reinsert, same approach as loans above.
     let linkedSubscriptions = [];
     let linkedGoalDistributions = [];
+    let linkedAnnualDistributions = [];
     if (section === 'distribution') {
+      // annual_expense_distributions is ON DELETE CASCADE too — without this, every bulk-replace
+      // of the distribution section silently unticked the Annual Expenses funding selection.
+      linkedAnnualDistributions = db
+        .prepare(
+          `SELECT eti.name as item_name
+           FROM annual_expense_distributions aed
+           JOIN expense_template_items eti ON eti.id = aed.distribution_template_id
+           WHERE aed.dossier_id = ? AND eti.dossier_id = ? AND eti.section = 'distribution'`
+        )
+        .all(req.params.id, req.params.id);
       linkedSubscriptions = db
         .prepare(
           `SELECT s.id as subscription_id, eti.name as item_name
@@ -546,14 +568,30 @@ router.post('/expense-template/bulk-replace', (req, res) => {
         .all(req.params.id, req.params.id);
     }
 
+    // Fields a caller doesn't manage (e.g. the Workbench's "Sync to template", which only knows
+    // name/value/type/day/classification/must-want-save) must survive the wipe below rather than
+    // be reset: an absent key (undefined) carries the previous same-name item's value forward,
+    // while an explicit value — null included — still wins. Same capture-by-name philosophy as
+    // the loan/car/subscription re-links in this handler.
+    const previousByName = new Map();
+    for (const row of db
+      .prepare('SELECT name, paperless_tag_id, exclude_from_emergency_fund, account_id FROM expense_template_items WHERE dossier_id = ? AND section = ? ORDER BY position')
+      .all(req.params.id, section)) {
+      if (!previousByName.has(row.name)) previousByName.set(row.name, row);
+    }
+
     db.prepare('DELETE FROM expense_template_items WHERE dossier_id = ? AND section = ?').run(req.params.id, section);
     const insert = db.prepare(
       'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, classification, must_amount, want_amount, save_amount, position, paperless_tag_id, exclude_from_emergency_fund, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     items.forEach((item, idx) => {
-      const tagId = section === 'expense' && item.type === 'Fixed' && item.paperless_tag_id != null ? Number(item.paperless_tag_id) : null;
-      const excludeFromEF = section === 'expense' && item.exclude_from_emergency_fund ? 1 : 0;
-      const accountId = section === 'distribution' && item.account_id != null ? item.account_id : null;
+      const previous = previousByName.get(String(item.name).trim());
+      const rawTagId = item.paperless_tag_id !== undefined ? item.paperless_tag_id : previous?.paperless_tag_id;
+      const rawExcludeFromEF = item.exclude_from_emergency_fund !== undefined ? item.exclude_from_emergency_fund : previous?.exclude_from_emergency_fund;
+      const rawAccountId = item.account_id !== undefined ? item.account_id : previous?.account_id;
+      const tagId = section === 'expense' && item.type === 'Fixed' && rawTagId != null ? Number(rawTagId) : null;
+      const excludeFromEF = section === 'expense' && rawExcludeFromEF ? 1 : 0;
+      const accountId = section === 'distribution' && rawAccountId != null ? rawAccountId : null;
       insert.run(
         uuidv4(),
         req.params.id,
@@ -601,7 +639,7 @@ router.post('/expense-template/bulk-replace', (req, res) => {
 
     // Re-link subscriptions and goal distributions by matching name on the freshly-inserted
     // distribution items. Renamed/dropped items stay unlinked (matches loan semantics above).
-    if (section === 'distribution' && (linkedSubscriptions.length > 0 || linkedGoalDistributions.length > 0)) {
+    if (section === 'distribution' && (linkedSubscriptions.length > 0 || linkedGoalDistributions.length > 0 || linkedAnnualDistributions.length > 0)) {
       const findByName = db.prepare(
         "SELECT id FROM expense_template_items WHERE dossier_id = ? AND section = 'distribution' AND name = ? LIMIT 1"
       );
@@ -619,6 +657,15 @@ router.post('/expense-template/bulk-replace', (req, res) => {
         for (const { goal_id, item_name } of linkedGoalDistributions) {
           const match = findByName.get(req.params.id, item_name);
           if (match) insertGoalDistribution.run(goal_id, match.id);
+        }
+      }
+      if (linkedAnnualDistributions.length > 0) {
+        const insertAnnualDistribution = db.prepare(
+          'INSERT OR IGNORE INTO annual_expense_distributions (dossier_id, distribution_template_id) VALUES (?, ?)'
+        );
+        for (const { item_name } of linkedAnnualDistributions) {
+          const match = findByName.get(req.params.id, item_name);
+          if (match) insertAnnualDistribution.run(req.params.id, match.id);
         }
       }
     }
@@ -1508,26 +1555,52 @@ router.post('/annual-expense-template/bulk-replace', (req, res) => {
       .prepare('SELECT name as item_name, car_id FROM annual_expense_template_items WHERE dossier_id = ? AND car_id IS NOT NULL')
       .all(req.params.id);
 
+    // An item that arrives with no schedule at all (installments, day_of_payment and
+    // month_of_payment all absent) carries its previous same-name item's schedule forward —
+    // otherwise a caller that only manages name/value/classification (the Workbench's "Sync to
+    // template") erased every installment, and years created afterwards generated no payments.
+    const previousByName = new Map();
+    for (const row of db
+      .prepare('SELECT id, name, day_of_payment, month_of_payment, num_installments FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+      .all(req.params.id)) {
+      if (previousByName.has(row.name)) continue;
+      previousByName.set(row.name, {
+        ...row,
+        installments: db
+          .prepare('SELECT installment_number, month, day FROM annual_expense_template_installments WHERE template_item_id = ? ORDER BY installment_number')
+          .all(row.id),
+      });
+    }
+
     db.prepare('DELETE FROM annual_expense_template_items WHERE dossier_id = ?').run(req.params.id);
     const insert = db.prepare(
       'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, day_of_payment, month_of_payment, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     const insertInst = db.prepare('INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)');
     items.forEach((item, idx) => {
+      const name = String(item.name).trim();
+      const scheduleProvided =
+        item.installments !== undefined || item.day_of_payment !== undefined || item.month_of_payment !== undefined;
+      const previous = scheduleProvided ? null : previousByName.get(name);
+      const dayOfPayment = previous ? previous.day_of_payment : item.day_of_payment;
+      const monthOfPayment = previous ? previous.month_of_payment : item.month_of_payment;
+      const installments = previous ? previous.installments : item.installments;
+      const rawNumInst = item.num_installments !== undefined ? item.num_installments : previous?.num_installments;
+
       const itemId = uuidv4();
-      const numInst = item.num_installments != null ? Math.max(1, Number(item.num_installments)) : 1;
+      const numInst = rawNumInst != null ? Math.max(1, Number(rawNumInst)) : 1;
       insert.run(
-        itemId, req.params.id, String(item.name).trim(), Number(item.value) || 0,
-        item.day_of_payment != null ? item.day_of_payment : null,
-        item.month_of_payment != null ? item.month_of_payment : null,
+        itemId, req.params.id, name, Number(item.value) || 0,
+        dayOfPayment != null ? dayOfPayment : null,
+        monthOfPayment != null ? monthOfPayment : null,
         item.classification || null, idx, numInst
       );
-      if (Array.isArray(item.installments)) {
-        item.installments.forEach((inst, iIdx) => {
+      if (Array.isArray(installments) && (installments.length > 0 || !previous)) {
+        installments.forEach((inst, iIdx) => {
           insertInst.run(uuidv4(), itemId, inst.installment_number ?? (iIdx + 1), inst.month, inst.day);
         });
-      } else if (item.day_of_payment != null && item.month_of_payment != null) {
-        insertInst.run(uuidv4(), itemId, 1, item.month_of_payment, item.day_of_payment);
+      } else if (dayOfPayment != null && monthOfPayment != null) {
+        insertInst.run(uuidv4(), itemId, 1, monthOfPayment, dayOfPayment);
       }
     });
 

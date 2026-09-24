@@ -443,13 +443,18 @@ export default function WorkbenchTab({ dossierId }) {
           return { ...prev, monthlyExpenses: rebuilt };
         });
       } else if (section === 'annual') {
-        const items = state.annualExpenses.map((e) => ({
-          name: e.name,
-          value: e.value,
-          classification: e.classification || null,
-          day_of_payment: adHocDayOverrides?.[e._id]?.day ?? null,
-          month_of_payment: adHocDayOverrides?.[e._id]?.month ?? null,
-        }));
+        // Only ad-hoc entries carry a payment day/month (collected by the sync modal). Template
+        // entries omit the keys entirely so the backend keeps their existing installment
+        // schedule — sending null here used to erase it.
+        const items = state.annualExpenses.map((e) => {
+          const override = adHocDayOverrides?.[e._id];
+          return {
+            name: e.name,
+            value: e.value,
+            classification: e.classification || null,
+            ...(override ? { day_of_payment: override.day, month_of_payment: override.month } : {}),
+          };
+        });
         await api.bulkReplaceAnnualExpenseTemplate(dossierId, items);
         const fresh = await api.getAnnualExpenseTemplate(dossierId);
         setAnnualTemplate(fresh);

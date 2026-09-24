@@ -247,7 +247,12 @@ function PaperlessSettings({ dossierId, settings, onChange, showToast }) {
     try {
       const updated = await api.updateDossierSettings(dossierId, { [modal.key]: value });
       onChange(updated);
-      showToast(raw === '' ? `${modal.label} cleared` : `${modal.label} saved`);
+      const tokenCleared = modal.key === 'paperless_url' && settings.paperless_token_set && !updated.paperless_token_set;
+      showToast(
+        tokenCleared
+          ? `${modal.label} saved — API token cleared, re-enter it`
+          : raw === '' ? `${modal.label} cleared` : `${modal.label} saved`
+      );
       closeModal();
     } catch (err) {
       setError(err.message);
@@ -314,6 +319,9 @@ function PaperlessSettings({ dossierId, settings, onChange, showToast }) {
             )}
           </div>
           <p className="hint">Leave blank to clear this field.</p>
+          {modal.key === 'paperless_url' && settings.paperless_token_set && (
+            <p className="hint">Changing the URL clears the saved API token, so it's never sent to a new host without being re-entered.</p>
+          )}
           {error && <div className="alert alert-error alert--modal">{error}</div>}
         </Modal>
       )}

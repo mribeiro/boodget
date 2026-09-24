@@ -51,6 +51,16 @@ router.delete('/:id', (req, res) => {
   }
   const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+  // dossiers.creator_id is ON DELETE CASCADE, so deleting a user who still owns dossiers would
+  // silently destroy every one of them — including dossiers shared with (and relied on by)
+  // other users. Any authenticated user can reach this endpoint, so refuse rather than cascade;
+  // the owner has to delete their own dossiers first.
+  const { owned } = db.prepare('SELECT COUNT(*) as owned FROM dossiers WHERE creator_id = ?').get(user.id);
+  if (owned > 0) {
+    return res.status(409).json({
+      error: `Cannot delete "${user.username}" — they still own ${owned} dossier${owned === 1 ? '' : 's'}. Deleting the user would permanently delete ${owned === 1 ? 'it' : 'them'} too; the owner must delete ${owned === 1 ? 'it' : 'them'} first.`,
+    });
+  }
   db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
   console.log(`[users] User deleted: ${user.username} (${user.id}) by ${req.user.username}`);
   res.status(204).end();

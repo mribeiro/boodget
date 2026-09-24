@@ -55,7 +55,7 @@ export default function UserManager() {
   function handleDelete(user) {
     setConfirmState({
       title: 'Delete user',
-      message: `Delete user "${user.username}"? All their dossiers will also be deleted.`,
+      message: `Delete user "${user.username}"? Users who still own dossiers can't be deleted — they must delete their dossiers first.`,
       confirmLabel: 'Delete',
       danger: true,
       onConfirm: async () => {

@@ -119,6 +119,8 @@ Each section is **collapsed by default**, showing only its summary row. The user
     - If the expense is **fixed**: the system requests the **day of payment inline**, before syncing. The user must enter this value per new fixed entry before the sync can proceed.
     - If the expense is **budget**: no day of payment is needed.
   - Classification (Must/Want) is written to the template.
+  - Template fields the Workbench doesn't manage — an expense's `paperless_tag_id` and `exclude_from_emergency_fund`, a distribution's funding `account_id` — are **carried forward by name** from the previous template item (the Workbench omits these keys, and `bulk-replace` treats an absent key as "keep the previous same-name item's value"). Distributions selected as Annual Expenses contributing distributions are re-linked by name the same way, as are loans, subscriptions, goal distributions and car tags. A renamed item starts fresh.
+  - For the Annual Expenses section, template-derived entries keep their existing installment schedule (`num_installments` + installments): the Workbench only sends a day/month for ad-hoc entries and omits the keys otherwise.
 - This action modifies the template.
 
 ### 5.6 Section Summary
