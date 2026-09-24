@@ -147,7 +147,7 @@ money_manager/
 
 | Layer | Technology |
 |---|---|
-| Backend runtime | Node.js 20 |
+| Backend runtime | Node.js 22 |
 | Backend framework | Express 4 |
 | Database | SQLite via `better-sqlite3` (synchronous API) |
 | Sessions | `express-session` (72-hour expiry, httpOnly, SameSite=lax) |
@@ -218,7 +218,7 @@ Change `SESSION_SECRET` in `docker-compose.yml` before real use.
 - **Production/Dev** (`deploy.yml`): builds Docker image with `GIT_COMMIT` arg, deploys via `docker compose up -d --force-recreate`. `-dev` suffix for `dev` branch.
 - **Preview** (`preview-deploy.yml`): branch slug → Traefik-routed container at `<slug>.preview.<PREVIEW_DOMAIN>`. Posts/updates PR comment with preview URL.
 - **Pages** (`pages.yml`): on push to `main` touching `landing/**` (or manual dispatch), uploads `landing/` as a Pages artifact and deploys it via `actions/deploy-pages`. Requires the repo's *Settings → Pages → Build and deployment → Source* to be set to "GitHub Actions" (one-time, done outside this repo).
-- **Test** (`test.yml`): on `pull_request` against `main`/`dev`, runs `backend-test` and `frontend-test` as two independent jobs on GitHub-hosted `ubuntu-latest` runners (Node 20, `npm ci` + `npm test`) — see `## Testing` below. Not (yet) wired up as a required status check in branch protection; that's a one-time manual step in the repo's GitHub Settings.
+- **Test** (`test.yml`): on `pull_request` against `main`/`dev`, runs `backend-test` and `frontend-test` as two independent jobs on GitHub-hosted `ubuntu-latest` runners (Node 22, `npm ci` + `npm test`) — see `## Testing` below. Not (yet) wired up as a required status check in branch protection; that's a one-time manual step in the repo's GitHub Settings.
 
 See `ai-spec/SPECIFICATION_PREVIEW_ENVIRONMENTS.md` for full preview environment details.
 
