@@ -58,6 +58,7 @@ money_manager/
 │   │   ├── middleware/auth.js
 │   │   ├── middleware/rate-limit.js
 │   │   ├── utils/cycleDates.js   # Weekend-adjusted cycle start/end date math, shared across routes/scheduler
+│   │   ├── utils/cycleWindows.js # DB-reading "load dossier's cycles + reconstruct actual windows" step, shared by loans/expenses/cars
 │   │   └── routes/
 │   │       ├── auth.js, setup.js, users.js
 │   │       ├── dossiers.js       # Dossier CRUD, sharing, import/export; mounts sub-routers

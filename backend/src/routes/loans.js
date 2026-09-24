@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
-const { toIsoDate, fromIsoDate } = require('../utils/cycleDates');
+const { toIsoDate } = require('../utils/cycleDates');
+const { loadCycleWindows, findCycleContainingDate } = require('../utils/cycleWindows');
 
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
@@ -607,24 +608,8 @@ router.get('/loans/:loanId/payment-status', (req, res) => {
   );
 
   // Cycles are loaded once and scanned in memory rather than queried per period — a 30-year
-  // mortgage would otherwise be hundreds of round trips. actual_start_date/actual_end_date
-  // are backfilled for every row by migration 039, but the recompute fallback matches what
-  // annual-expenses.js does and costs nothing.
-  const cycles = db
-    .prepare(
-      `SELECT id, year, month, is_closed, cycle_start_day, actual_start_date, actual_end_date
-       FROM expense_cycles WHERE dossier_id = ? ORDER BY year, month`
-    )
-    .all(req.params.id)
-    .map((c) => ({
-      ...c,
-      start: c.actual_start_date
-        ? fromIsoDate(c.actual_start_date)
-        : new Date(c.year, c.month - 1, c.cycle_start_day ?? 25),
-      end: c.actual_end_date
-        ? fromIsoDate(c.actual_end_date)
-        : new Date(c.year, c.month, (c.cycle_start_day ?? 25) - 1),
-    }));
+  // mortgage would otherwise be hundreds of round trips.
+  const cycles = loadCycleWindows(db, req.params.id);
 
   const findItemById = db.prepare(
     'SELECT id, paid, value FROM cycle_items WHERE cycle_id = ? AND template_item_id = ? LIMIT 1'
@@ -641,10 +626,7 @@ router.get('/loans/:loanId/payment-status', (req, res) => {
     const day = Math.min(loan.day_of_payment ?? 1, daysInMonth(year, month));
     const dueDate = new Date(year, month - 1, day);
 
-    // First match wins: cycles can genuinely overlap via PATCH /cycles { resolve_overlap:
-    // 'ignore' }, and a due date landing exactly on a cycle_start_day belongs to the cycle
-    // starting that day — the same inclusive-start rule annual-expense installments use.
-    const cycle = cycles.find((c) => dueDate >= c.start && dueDate <= c.end) ?? null;
+    const cycle = findCycleContainingDate(cycles, dueDate);
 
     let cycleItem = null;
     let matchedBy = null;
