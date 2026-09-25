@@ -200,6 +200,7 @@ Each distribution (template or cycle item) may optionally be linked to **one fun
 - Archiving an account (`SPECIFICATION.md` §8.3) is blocked while it's still linked as the funding account of any template or cycle-item distribution — the account must be unlinked from every distribution first.
 - Status (`done`/not done) is irrelevant to this feature — the account link is purely informational, to help the user know where to send money.
 - The **cycle view** shows a "Transfer per account" summary, rendered as a collapsible section below the Expenses/Distributions columns: the total value of distributions linked to each account, plus an "Unassigned" bucket for distributions with no account (shown only when non-zero). This lets the user see at a glance how much to transfer into each account before doing the actual bank transfers.
+- The cycle view's **Distributions list is grouped by destination account** (`groupDistributionsByAccount` in `frontend/src/utils/distributionGroups.js`): one group per linked account, in the accounts' own order (`position`), with an "Unassigned" group last. Each group header shows the account (`group_name — name`), its done count (`done/total`) and the group's total value; items keep their original order within a group. Since the header names the account, the rows themselves no longer carry a per-row account pill. When no distribution in the cycle is linked to an account, the list stays flat — no lone "Unassigned" header.
 
 ---
 

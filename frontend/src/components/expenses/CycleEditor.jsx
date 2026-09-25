@@ -11,6 +11,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { publishPageContext, clearPageContext } from '../../utils/pageContext';
+import { groupDistributionsByAccount } from '../../utils/distributionGroups';
 import {
   computeCycleStartDate, computeTheoreticalCycleEndDate,
   formatCycleLabel, formatDateRange, fromIsoDate,
@@ -612,7 +613,6 @@ export default function CycleEditor() {
             <DistributionsList
               distributions={distributions}
               accounts={accounts}
-              accountsById={accountsById}
               onToggleDone={handleToggleDone}
               onDelete={handleDeleteItem}
               onEdit={handleEditItem}
@@ -1358,18 +1358,19 @@ function BudgetExpensesList({ expenses, onUpdateSpent, onDelete, onEdit, readOnl
 
 // ── Distributions list ────────────────────────────────────────────────────────
 
-function DistributionsList({ distributions, accounts, accountsById, onToggleDone, onDelete, onEdit, readOnly }) {
+function DistributionsList({ distributions, accounts, onToggleDone, onDelete, onEdit, readOnly }) {
   const [editingItem, setEditingItem] = useState(null);
 
   if (distributions.length === 0) {
     return <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>No distributions yet.</p>;
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      {distributions.map((item) => {
-        const account = item.account_id != null ? accountsById.get(item.account_id) : null;
-        return (
+  const groups = groupDistributionsByAccount(distributions, accounts);
+  // Only show group headers when at least one distribution has a destination
+  // account — a list with nothing linked stays flat, with no lone "Unassigned" header.
+  const showHeaders = groups.some((g) => g.accountId != null);
+
+  const renderItem = (item) => (
         <div
           key={item.id}
           style={{
@@ -1402,25 +1403,6 @@ function DistributionsList({ distributions, accounts, accountsById, onToggleDone
             }}>
               {item.name}
             </span>
-            {account && (
-              <span
-                title={`Funded from ${account.group_name} — ${account.name}`}
-                style={{
-                  marginLeft: '0.4rem',
-                  fontSize: '0.65rem',
-                  padding: '0.1rem 0.4rem',
-                  borderRadius: '999px',
-                  background: 'var(--bg-muted, var(--bg-card))',
-                  color: 'var(--text-muted)',
-                  border: '1px solid var(--border-default)',
-                  fontWeight: 500,
-                  verticalAlign: 'middle',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {account.name}
-              </span>
-            )}
           </div>
           <span style={{
             fontSize: '0.875rem',
@@ -1448,8 +1430,37 @@ function DistributionsList({ distributions, accounts, accountsById, onToggleDone
             </>
           )}
         </div>
-        );
-      })}
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: showHeaders ? '0.9rem' : '0.4rem' }}>
+      {showHeaders
+        ? groups.map((group) => (
+          <div key={group.accountId ?? 'unassigned'} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '0.5rem',
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                padding: '0 0.25rem',
+              }}
+            >
+              <FontAwesomeIcon icon={faBuildingColumns} style={{ fontSize: '0.7rem', alignSelf: 'center' }} />
+              <span
+                title={group.label}
+                style={{ flex: 1, minWidth: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {group.label}
+              </span>
+              <span style={{ whiteSpace: 'nowrap' }}>{group.doneCount}/{group.items.length}</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(group.total)}</span>
+            </div>
+            {group.items.map(renderItem)}
+          </div>
+        ))
+        : distributions.map(renderItem)}
       {editingItem && (
         <EditDistributionModal
           item={editingItem}
