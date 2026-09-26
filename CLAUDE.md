@@ -361,7 +361,7 @@ DELETE /api/dossiers/:id/access/:userId
 
 GET    /api/dossiers/:id/accounts?includeArchived=true
 POST   /api/dossiers/:id/accounts   { group_name, name, type, money_category? }
-PUT    /api/dossiers/:id/accounts/reorder   { accountIds: [] }
+PUT    /api/dossiers/:id/accounts/reorder   { order: [] }   # account ids in the desired order
 PATCH  /api/dossiers/:id/accounts/:accountId  { name?, group_name?, money_category?, can_receive_transfers? }
 DELETE /api/dossiers/:id/accounts/:accountId  (archives, not deletes)
                                               # 409 if still linked as a distribution's funding account
@@ -385,7 +385,7 @@ PATCH  /api/dossiers/:id/settings   { cycle_start_day?, cycle_start_weekend_adju
 
 GET    /api/dossiers/:id/expense-template
 POST   /api/dossiers/:id/expense-template     { section, name, type?, value, day_of_payment?, classification?, must_amount?, want_amount?, save_amount?, car_id? }
-PATCH  /api/dossiers/:id/expense-template/:itemId  # car_id? (expense-section only; 400 on a distribution)
+PUT    /api/dossiers/:id/expense-template/:itemId  # car_id? (expense-section only; 400 on a distribution)
 DELETE /api/dossiers/:id/expense-template/:itemId
 POST   /api/dossiers/:id/expense-template/bulk-replace  { items: [] }  # absent paperless_tag_id/exclude_from_emergency_fund/account_id keys
                                                                    # carry the previous same-name item's value forward
@@ -443,7 +443,8 @@ POST   /api/dossiers/:id/cycles/:cycleId/income-items     { name, value }       
 PATCH  /api/dossiers/:id/cycles/:cycleId/income-items/:itemId  { name?, value? }  # 409 if cycle is closed
 DELETE /api/dossiers/:id/cycles/:cycleId/income-items/:itemId                     # 409 if cycle is closed
 POST   /api/dossiers/:id/cycles/:cycleId/items          { section, name, type?, value, day_of_payment? }  # 409 if cycle is closed
-PATCH  /api/dossiers/:id/cycles/:cycleId/items/:itemId  { value?, day_of_payment?, paid?, spent?, done? }  # 409 if cycle is closed
+PATCH  /api/dossiers/:id/cycles/:cycleId/items/:itemId  { value?, day_of_payment?, paid?, spent?, done? }  # 409 if cycle is closed; 400 on day outside 1–31
+                                                        # or a Budget max below its spent
 DELETE /api/dossiers/:id/cycles/:cycleId/items/:itemId  # 409 if cycle is closed
 POST   /api/dossiers/:id/cycles/:cycleId/paperless-apply  { items: [] }  # 409 if cycle is closed
 

@@ -92,6 +92,32 @@ function createAnnualPaymentsForCycle(dossierId, cycleId, cycleStartDate, cycleE
   }
 }
 
+// Request-body validators shared by the cycle/template handlers. They return an error message
+// for a 400, or null when the value is acceptable.
+const isNonEmptyString = (v) => typeof v === 'string' && v.trim() !== '';
+function periodError(year, month) {
+  const y = Number(year);
+  const m = Number(month);
+  if (year === '' || !Number.isInteger(y) || y < 1900 || y > 9999) return 'year must be an integer (1900–9999)';
+  if (month === '' || !Number.isInteger(m) || m < 1 || m > 12) return 'month must be an integer from 1 to 12';
+  return null;
+}
+function dayOfPaymentError(day) {
+  if (day === null) return null;
+  const d = Number(day);
+  return day === '' || !Number.isInteger(d) || d < 1 || d > 31 ? 'day_of_payment must be an integer from 1 to 31' : null;
+}
+
+// Day of month of a Paperless date custom field (`YYYY-MM-DD`, possibly followed by a time).
+// Read straight from the string: `new Date('2026-09-05').getDate()` parses as UTC midnight but
+// reads the day in the server's local zone, giving the 4th on any server west of UTC.
+function paperlessDayOfPayment(dateStr) {
+  const match = /^\d{4}-\d{2}-(\d{2})/.exec(dateStr ?? '');
+  if (!match) return null;
+  const day = Number(match[1]);
+  return day >= 1 && day <= 31 ? day : null;
+}
+
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
   if (!dossier) return false;
@@ -372,7 +398,7 @@ router.post('/expense-template', (req, res) => {
   if (!section || !['expense', 'distribution'].includes(section)) {
     return res.status(400).json({ error: 'section must be "expense" or "distribution"' });
   }
-  if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+  if (!isNonEmptyString(name)) return res.status(400).json({ error: 'name is required' });
   if (value == null || isNaN(Number(value)) || Number(value) < 0) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
   }
@@ -439,7 +465,10 @@ router.put('/expense-template/:itemId', (req, res) => {
   if (!item) return res.status(404).json({ error: 'Template item not found' });
 
   const { name, value, day_of_payment, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund, account_id } = req.body;
-  if (name !== undefined && !name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
+  if (name !== undefined && !isNonEmptyString(name)) return res.status(400).json({ error: 'name cannot be empty' });
+  if (day_of_payment !== undefined && dayOfPaymentError(day_of_payment)) {
+    return res.status(400).json({ error: dayOfPaymentError(day_of_payment) });
+  }
   if (value !== undefined && (isNaN(Number(value)) || Number(value) < 0)) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
   }
@@ -456,7 +485,7 @@ router.put('/expense-template/:itemId', (req, res) => {
 
   const newName = name !== undefined ? name.trim() : item.name;
   const newValue = value !== undefined ? Number(value) : item.value;
-  const newDop = day_of_payment !== undefined ? day_of_payment : item.day_of_payment;
+  const newDop = day_of_payment !== undefined ? (day_of_payment === null ? null : Number(day_of_payment)) : item.day_of_payment;
   const newClassification = classification !== undefined ? classification : item.classification;
   const newMustAmount = must_amount !== undefined ? (must_amount !== null ? Number(must_amount) : null) : item.must_amount;
   const newWantAmount = want_amount !== undefined ? (want_amount !== null ? Number(want_amount) : null) : item.want_amount;
@@ -766,7 +795,8 @@ router.post('/cycles', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const { year, month, income_lines, previous_balance } = req.body;
 
-  if (!year || !month) return res.status(400).json({ error: 'year and month are required' });
+  if (year == null || month == null) return res.status(400).json({ error: 'year and month are required' });
+  if (periodError(year, month)) return res.status(400).json({ error: periodError(year, month) });
   if (!Array.isArray(income_lines)) return res.status(400).json({ error: 'income_lines must be an array' });
   for (const line of income_lines) {
     if (!line || !String(line.name || '').trim()) {
@@ -900,6 +930,10 @@ router.patch('/cycles/:cycleId', (req, res) => {
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
   const { year, month, previous_balance, is_closed, final_real_balance, resolve_overlap } = req.body;
+  if (year !== undefined || month !== undefined) {
+    const err = periodError(year !== undefined ? year : cycle.year, month !== undefined ? month : cycle.month);
+    if (err) return res.status(400).json({ error: err });
+  }
 
   // If year/month are being changed, enforce uniqueness
   const newYear = year !== undefined ? Number(year) : cycle.year;
@@ -1089,7 +1123,7 @@ router.post('/cycles/:cycleId/items', (req, res) => {
   if (!section || !['expense', 'distribution'].includes(section)) {
     return res.status(400).json({ error: 'section must be "expense" or "distribution"' });
   }
-  if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+  if (!isNonEmptyString(name)) return res.status(400).json({ error: 'name is required' });
   if (value == null || isNaN(Number(value)) || Number(value) < 0) {
     return res.status(400).json({ error: 'value must be a non-negative number' });
   }
@@ -1158,6 +1192,10 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
 
   const { name, value, day_of_payment, paid, spent, done, paperless_tag_id, account_id } = req.body;
 
+  if (name !== undefined && !isNonEmptyString(name)) return res.status(400).json({ error: 'name cannot be empty' });
+  if (day_of_payment !== undefined && dayOfPaymentError(day_of_payment)) {
+    return res.status(400).json({ error: dayOfPaymentError(day_of_payment) });
+  }
   if (account_id !== undefined && account_id !== null) {
     const acc = db.prepare('SELECT can_receive_transfers FROM accounts WHERE id = ? AND dossier_id = ?').get(account_id, req.params.id);
     if (!acc) return res.status(400).json({ error: 'account_id does not belong to this dossier' });
@@ -1178,13 +1216,15 @@ router.patch('/cycles/:cycleId/items/:itemId', (req, res) => {
     if (isNaN(newSpent) || newSpent < 0) {
       return res.status(400).json({ error: 'spent must be a non-negative number' });
     }
-    if (item.type === 'Budget' && newSpent > newValue) {
-      return res.status(400).json({ error: 'Spent amount cannot exceed the budget maximum' });
-    }
+  }
+  // Checked whenever either side changes: lowering the maximum below what's already spent
+  // used to slip through because this only ran when `spent` itself was sent.
+  if (item.type === 'Budget' && (value !== undefined || spent !== undefined) && newSpent > newValue) {
+    return res.status(400).json({ error: 'Spent amount cannot exceed the budget maximum' });
   }
 
   const newName = name !== undefined ? name.trim() : item.name;
-  const newDop = day_of_payment !== undefined ? day_of_payment : item.day_of_payment;
+  const newDop = day_of_payment !== undefined ? (day_of_payment === null ? null : Number(day_of_payment)) : item.day_of_payment;
   const newPaid = paid !== undefined ? (paid ? 1 : 0) : item.paid;
   const newDone = done !== undefined ? (done ? 1 : 0) : item.done;
   const newTagId = paperless_tag_id !== undefined ? (paperless_tag_id !== null ? Number(paperless_tag_id) : null) : item.paperless_tag_id;
@@ -1385,7 +1425,7 @@ router.get('/cycles/:cycleId/paperless-fetch', async (req, res) => {
       }
 
       const dateStr = dateEntry ? String(dateEntry.value) : null;
-      const dayOfPayment = dateStr ? new Date(dateStr).getDate() : null;
+      const dayOfPayment = paperlessDayOfPayment(dateStr);
 
       console.log(`${prefix} doc id=${doc.id} title="${doc.title}" matched item="${ci.name}" amount=${parsedAmount} date=${dateStr}`);
 
@@ -1751,4 +1791,5 @@ router.delete('/workbench-snapshots/:snapshotId', (req, res) => {
 
 module.exports = router;
 module.exports.computeSummary = computeSummary;
+module.exports.paperlessDayOfPayment = paperlessDayOfPayment;
 module.exports.createAnnualPaymentsForCycle = createAnnualPaymentsForCycle;

@@ -320,7 +320,7 @@ export default function MonthEditor() {
                             <td data-label="Value">
                               {entry.prev_value != null && (
                                 <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginBottom: '0.2rem', textAlign: 'right' }}>
-                                  {entry.prev_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {formatNumber(entry.prev_value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                               )}
                               <input
@@ -343,7 +343,7 @@ export default function MonthEditor() {
                                 const sign = diff > 0 ? '+' : '';
                                 return (
                                   <div style={{ fontSize: '0.72rem', color, marginTop: '0.2rem', textAlign: 'right' }}>
-                                    {sign}{diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {sign}{formatNumber(diff, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </div>
                                 );
                               })()}

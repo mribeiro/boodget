@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
-import { parseDecimalInput } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import Checkbox from '../ui/Checkbox';
 
 const MONTH_NAMES = [
@@ -221,7 +221,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose, focusC
                         />
                         {d.name}
                         <span style={{ marginLeft: 'auto', color: 'var(--color-text-muted)' }}>
-                          {d.value.toLocaleString('en-US', { minimumFractionDigits: 2 })} €
+                          {formatNumber(d.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                         </span>
                       </label>
                     ))}
@@ -254,7 +254,7 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose, focusC
                         onChange={() => toggleAccount(a.id)}
                       />
                       {a.group_name} — {a.name}
-                      {a.archived && ' (archived — unselect to unlink)'}
+                      {a.archived ? ' (archived — unselect to unlink)' : null}
                     </label>
                   ))}
                 </div>
