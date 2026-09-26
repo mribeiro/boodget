@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
+const { idsNotInDossier } = require('../utils/ownedIds');
 const { v4: uuidv4 } = require('uuid');
 const { computeCycleStartDate, fromIsoDate } = require('../utils/cycleDates');
 
@@ -28,6 +29,32 @@ function remainingCycleMonthsInYear(calendarYear, cycleStartDay, weekendAdjustme
   return months;
 }
 
+// Payments of an installment that are recorded history — paid, or in a closed cycle — and so
+// must never be moved or deleted as a side effect of editing the installment's schedule.
+function lockedPayments(installmentId) {
+  return db
+    .prepare(
+      `SELECT p.id FROM annual_expense_payments p
+       JOIN expense_cycles c ON c.id = p.cycle_id
+       WHERE p.installment_id = ? AND (p.paid = 1 OR c.is_closed = 1)`
+    )
+    .all(installmentId);
+}
+
+// When an installment has payments in several cycles, the one the year view shows: the payment
+// in the cycle whose window contains the installment's date, else a paid one, else the one in
+// the earliest cycle.
+function pickInstallmentPayment(payments, instDate) {
+  if (payments.length <= 1) return payments[0] ?? null;
+  const covering = payments.find(
+    (p) => p.actual_start_date && p.actual_end_date &&
+      instDate >= fromIsoDate(p.actual_start_date) && instDate <= fromIsoDate(p.actual_end_date)
+  );
+  if (covering) return covering;
+  const byCycle = [...payments].sort((a, b) => a.cycle_year - b.cycle_year || a.cycle_month - b.cycle_month);
+  return byCycle.find((p) => p.paid) ?? byCycle[0];
+}
+
 // Build the full year status object
 function computeYearStatus(yearId, dossierId) {
   const year = db.prepare('SELECT * FROM annual_expense_years WHERE id = ?').get(yearId);
@@ -53,15 +80,32 @@ function computeYearStatus(yearId, dossierId) {
   const totalBudgeted = items.reduce((s, i) => s + (i.budgeted_value || 0), 0);
   const totalPaid = items.reduce((s, i) => s + (i.total_paid || 0), 0);
 
+  const paymentsForInstallment = db.prepare(`
+    SELECT p.id, p.cycle_id, p.real_value, p.paid, c.actual_start_date, c.actual_end_date, c.year AS cycle_year, c.month AS cycle_month
+    FROM annual_expense_payments p JOIN expense_cycles c ON c.id = p.cycle_id
+    WHERE p.installment_id = ?
+  `);
+
   // Get installments and payments for each item
   const itemsWithInstallments = items.map((item) => {
     const installments = db.prepare(`
-      SELECT ayii.*, p.id as payment_id, p.cycle_id, p.real_value as payment_real_value, p.paid as payment_paid
-      FROM annual_expense_year_installments ayii
-      LEFT JOIN annual_expense_payments p ON p.installment_id = ayii.id
-      WHERE ayii.year_item_id = ?
-      ORDER BY ayii.installment_number
-    `).all(item.id);
+      SELECT * FROM annual_expense_year_installments
+      WHERE year_item_id = ?
+      ORDER BY installment_number
+    `).all(item.id).map((inst) => {
+      // An installment can have payments in more than one cycle (overlapping cycles); joining
+      // them in listed the installment once per payment. Show one row, with one payment picked
+      // deterministically (see pickInstallmentPayment).
+      const payments = paymentsForInstallment.all(inst.id);
+      const payment = pickInstallmentPayment(payments, new Date(year.year, inst.month - 1, inst.day));
+      return {
+        ...inst,
+        payment_id: payment?.id ?? null,
+        cycle_id: payment?.cycle_id ?? null,
+        payment_real_value: payment?.real_value ?? null,
+        payment_paid: payment?.paid ?? 0,
+      };
+    });
 
     return {
       ...item,
@@ -117,9 +161,16 @@ function computeYearStatus(yearId, dossierId) {
     }
   }
 
-  // Contributing distributions: sum done distributions from cycles in this calendar year
+  // Contributing distributions: sum done distributions from cycles in this calendar year.
+  // Only ids that are this dossier's own distribution template items count — a link to
+  // another dossier's item (stored before PUT /annual-expenses/distributions validated ids)
+  // would otherwise leak that item's value and name into this year's figures.
   const selectedDistIds = db
-    .prepare('SELECT distribution_template_id FROM annual_expense_distributions WHERE dossier_id = ?')
+    .prepare(
+      `SELECT aed.distribution_template_id FROM annual_expense_distributions aed
+       JOIN expense_template_items eti ON eti.id = aed.distribution_template_id AND eti.dossier_id = aed.dossier_id
+       WHERE aed.dossier_id = ?`
+    )
     .all(dossierId).map((r) => r.distribution_template_id);
 
   const totalRaiseNeeded = Math.max(0, totalBudgeted - (year.carryover || 0));
@@ -453,6 +504,8 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
   const newClass = classification !== undefined ? classification : item.classification;
   const newNumInst = num_installments !== undefined ? Math.max(1, Number(num_installments)) : item.num_installments;
 
+  // Payments left where they were because they're recorded history (see below).
+  let keptInPlace = 0;
   const doUpdate = db.transaction(() => {
     db.prepare(
       'UPDATE annual_expense_year_items SET name = ?, budgeted_value = ?, classification = ?, num_installments = ? WHERE id = ?'
@@ -477,10 +530,21 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
       for (const e of existingInsts) existingByNum[e.installment_number] = e;
 
       const newNumbers = new Set(installments.map((inst, idx) => inst.installment_number ?? (idx + 1)));
-      for (const e of existingInsts) {
-        if (!newNumbers.has(e.installment_number)) {
-          db.prepare('DELETE FROM annual_expense_year_installments WHERE id = ?').run(e.id);
-        }
+      const removed = existingInsts.filter((e) => !newNumbers.has(e.installment_number));
+      // Removing an installment cascades its payments, so refuse while one of them is recorded
+      // history: paid, or in a closed (read-only) cycle.
+      const lockedRemoved = removed.filter((e) => lockedPayments(e.id).length > 0);
+      if (lockedRemoved.length > 0) {
+        const err = new Error(
+          `Installment${lockedRemoved.length === 1 ? '' : 's'} ${lockedRemoved.map((e) => e.installment_number).join(', ')} ` +
+            `can't be removed: ${lockedRemoved.length === 1 ? 'it has' : 'they have'} a paid payment or one in a closed cycle. ` +
+            'Untick the payment (reopening its cycle if needed) first.'
+        );
+        err.status = 409;
+        throw err;
+      }
+      for (const e of removed) {
+        db.prepare('DELETE FROM annual_expense_year_installments WHERE id = ?').run(e.id);
       }
 
       const updateInst = db.prepare('UPDATE annual_expense_year_installments SET month = ?, day = ? WHERE id = ?');
@@ -500,13 +564,11 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
       const yearRow = db.prepare('SELECT year FROM annual_expense_years WHERE id = ?').get(req.params.yearId);
       const dossierRow = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
       const startDay = dossierRow?.cycle_start_day ?? 25;
-      const allCycles = db.prepare('SELECT id, year, month, cycle_start_day, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
+      const allCycles = db.prepare('SELECT id, year, month, is_closed, cycle_start_day, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
 
       const updatedInsts = db.prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ?').all(req.params.itemId);
+      const closedCycleIds = new Set(allCycles.filter((c) => c.is_closed).map((c) => c.id));
       for (const inst of updatedInsts) {
-        const payment = db.prepare('SELECT * FROM annual_expense_payments WHERE installment_id = ?').get(inst.id);
-        if (!payment) continue;
-
         const instDate = new Date(yearRow.year, inst.month - 1, inst.day);
         let targetCycle = null;
         for (const cycle of allCycles) {
@@ -519,18 +581,39 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
           }
         }
 
-        if (targetCycle && targetCycle.id !== payment.cycle_id) {
-          db.prepare('UPDATE annual_expense_payments SET cycle_id = ? WHERE id = ?').run(targetCycle.id, payment.id);
-        } else if (!targetCycle) {
-          // No open cycle covers the new date; remove the payment (recreated when cycle is opened)
-          db.prepare('DELETE FROM annual_expense_payments WHERE id = ?').run(payment.id);
+        // An installment can hold payments in more than one cycle (overlapping cycles), so
+        // handle each one rather than just the first.
+        const payments = db.prepare('SELECT * FROM annual_expense_payments WHERE installment_id = ?').all(inst.id);
+        for (const payment of payments) {
+          if (targetCycle && targetCycle.id === payment.cycle_id) continue;
+
+          // Recorded history stays put: a paid payment, or any payment in a closed cycle, is
+          // never moved or deleted, and nothing is moved *into* a closed cycle — closed cycles
+          // are read-only, and shifting a payment would silently change their reconciled figures.
+          const locked = payment.paid || closedCycleIds.has(payment.cycle_id);
+          const targetClosed = targetCycle && closedCycleIds.has(targetCycle.id);
+          const targetTaken = targetCycle && payments.some((p) => p.id !== payment.id && p.cycle_id === targetCycle.id);
+          if (locked || targetClosed || targetTaken) {
+            keptInPlace += 1;
+          } else if (targetCycle) {
+            db.prepare('UPDATE annual_expense_payments SET cycle_id = ? WHERE id = ?').run(targetCycle.id, payment.id);
+          } else {
+            // No cycle covers the new date yet; drop the unpaid placeholder (recreated when that
+            // cycle is opened).
+            db.prepare('DELETE FROM annual_expense_payments WHERE id = ?').run(payment.id);
+          }
         }
       }
     }
   });
-  doUpdate();
+  try {
+    doUpdate();
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 
-  res.json(computeYearStatus(req.params.yearId, req.params.id));
+  res.json({ ...computeYearStatus(req.params.yearId, req.params.id), payments_kept_in_place: keptInPlace });
 });
 
 // DELETE /annual-years/:yearId/items/:itemId
@@ -639,13 +722,25 @@ router.post('/annual-years/:yearId/sync-to-template', (req, res) => {
   if (!yearRow) return res.status(404).json({ error: 'Annual expense year not found' });
 
   const doSync = db.transaction(() => {
+    // Year items carry no car tag or legacy single-date fields, so capture them from the
+    // current template by name before it's wiped and re-apply them to the same-name item —
+    // same capture-by-name mechanism as POST /annual-expense-template/bulk-replace.
+    const previousByName = new Map();
+    for (const row of db
+      .prepare('SELECT name, car_id, day_of_payment, month_of_payment FROM annual_expense_template_items WHERE dossier_id = ? ORDER BY position')
+      .all(req.params.id)) {
+      if (!previousByName.has(row.name)) previousByName.set(row.name, row);
+    }
+
     db.prepare('DELETE FROM annual_expense_template_items WHERE dossier_id = ?').run(req.params.id);
 
     const yearItems = db
       .prepare('SELECT * FROM annual_expense_year_items WHERE year_id = ? ORDER BY position')
       .all(req.params.yearId);
     const insertTi = db.prepare(
-      'INSERT INTO annual_expense_template_items (id, dossier_id, name, value, classification, position, num_installments) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      `INSERT INTO annual_expense_template_items
+         (id, dossier_id, name, value, classification, position, num_installments, car_id, day_of_payment, month_of_payment)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const insertTiInst = db.prepare(
       'INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
@@ -653,7 +748,11 @@ router.post('/annual-years/:yearId/sync-to-template', (req, res) => {
 
     for (const yi of yearItems) {
       const tiId = uuidv4();
-      insertTi.run(tiId, req.params.id, yi.name, yi.budgeted_value, yi.classification, yi.position, yi.num_installments);
+      const previous = previousByName.get(yi.name);
+      insertTi.run(
+        tiId, req.params.id, yi.name, yi.budgeted_value, yi.classification, yi.position, yi.num_installments,
+        previous?.car_id ?? null, previous?.day_of_payment ?? null, previous?.month_of_payment ?? null
+      );
 
       const yearInsts = db
         .prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ? ORDER BY installment_number')
@@ -749,6 +848,8 @@ router.put('/annual-expenses/accounts', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const { account_ids } = req.body;
   if (!Array.isArray(account_ids)) return res.status(400).json({ error: 'account_ids must be an array' });
+  const foreign = idsNotInDossier('accounts', req.params.id, account_ids);
+  if (foreign.length) return res.status(400).json({ error: `Unknown account id(s) for this dossier: ${foreign.join(', ')}` });
 
   const doReplace = db.transaction(() => {
     db.prepare('DELETE FROM annual_expense_accounts WHERE dossier_id = ?').run(req.params.id);
@@ -777,6 +878,10 @@ router.put('/annual-expenses/distributions', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const { distribution_template_ids } = req.body;
   if (!Array.isArray(distribution_template_ids)) return res.status(400).json({ error: 'distribution_template_ids must be an array' });
+  const foreign = idsNotInDossier('expense_template_items', req.params.id, distribution_template_ids, "AND section = 'distribution'");
+  if (foreign.length) {
+    return res.status(400).json({ error: `Unknown distribution id(s) for this dossier: ${foreign.join(', ')}` });
+  }
 
   const doReplace = db.transaction(() => {
     db.prepare('DELETE FROM annual_expense_distributions WHERE dossier_id = ?').run(req.params.id);
@@ -792,4 +897,5 @@ router.put('/annual-expenses/distributions', (req, res) => {
 module.exports = router;
 module.exports.remainingCycleMonthsInYear = remainingCycleMonthsInYear;
 module.exports.computeYearStatus = computeYearStatus;
+module.exports.pickInstallmentPayment = pickInstallmentPayment;
 module.exports.mergeYearFromTemplate = mergeYearFromTemplate;

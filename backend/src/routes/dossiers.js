@@ -30,6 +30,80 @@ function defaultLoanAnchor(endDate, dayOfPayment) {
 router.use('/:id/accounts', accountsRouter);
 router.use('/:id/months', monthsRouter);
 
+// Allowed values of every column the import writes that has a CHECK constraint. A hand-edited
+// file with anything else used to abort the whole import with a bare 500 from SQLite.
+const IMPORT_ENUMS = [
+  ['accounts', 'type', ['Risk Investment', 'Guaranteed Investment', 'Current Account']],
+  ['accounts', 'money_category', ['idle', 'active', 'stocks'], { optional: true }],
+  ['expense_template', 'section', ['expense', 'distribution']],
+  ['expense_template', 'type', ['Fixed', 'Budget'], { optional: true }],
+  ['expense_template', 'classification', ['must', 'want'], { optional: true }],
+  ['annual_expense_template', 'classification', ['must', 'want'], { optional: true }],
+  ['goals', 'contribution_mode', ['via_distributions', 'manual', 'ad_hoc']],
+  ['goals', 'extra_value_impact_mode', ['reduce_monthly_amount', 'anticipate_end_date'], { optional: true }],
+  ['loans', 'status', ['draft', 'active'], { optional: true }],
+  ['subscriptions', 'status', ['active', 'cancelled'], { optional: true }],
+  ['cars', 'fuel_type', ['electric', 'hybrid', 'gas']],
+];
+
+// Returns a message naming the first invalid entry of an export file, or null if it's valid.
+function validateImportData(data) {
+  const label = (entry, idx) => (entry && entry.name ? `"${entry.name}"` : `#${idx + 1}`);
+  for (const [section, field, allowed, { optional } = {}] of IMPORT_ENUMS) {
+    const list = data[section];
+    if (list != null && !Array.isArray(list)) return `${section} must be an array`;
+    for (const [idx, entry] of (list || []).entries()) {
+      const value = entry?.[field];
+      if (value == null && optional) continue;
+      if (!allowed.includes(value)) {
+        return `${section} ${label(entry, idx)}: invalid ${field} ${JSON.stringify(value ?? null)} (expected one of ${allowed.join(', ')})`;
+      }
+    }
+  }
+  for (const [ci, cycle] of (data.cycles || []).entries()) {
+    for (const [ii, item] of (cycle.items || []).entries()) {
+      if (!['expense', 'distribution'].includes(item?.section)) {
+        return `cycles #${ci + 1} item ${label(item, ii)}: invalid section ${JSON.stringify(item?.section ?? null)}`;
+      }
+      if (item.type != null && !['Fixed', 'Budget'].includes(item.type)) {
+        return `cycles #${ci + 1} item ${label(item, ii)}: invalid type ${JSON.stringify(item.type)}`;
+      }
+    }
+  }
+  for (const car of data.cars || []) {
+    for (const [ei, e] of (car.adhoc_expenses || []).entries()) {
+      if (e.recurrence != null && !['monthly', 'one_off'].includes(e.recurrence)) {
+        return `cars "${car.name}" ad-hoc expense ${label(e, ei)}: invalid recurrence ${JSON.stringify(e.recurrence)}`;
+      }
+      if (e.status != null && !['active', 'cancelled'].includes(e.status)) {
+        return `cars "${car.name}" ad-hoc expense ${label(e, ei)}: invalid status ${JSON.stringify(e.status)}`;
+      }
+    }
+  }
+  return null;
+}
+
+// Name → id map that keeps the *first* entry for a duplicated name (a later one used to
+// silently win), used only as the fallback when an export carries no id to re-link by.
+function firstByName(map, name, id) {
+  if (name != null && !(name in map)) map[name] = id;
+}
+
+// Normalises an exported item's installments to one entry per installment_number with a
+// `payments[]` array. Version 18+ exports already have that shape; older ones carry a single
+// `payment` per entry and, when an installment had payments in two cycles, listed it twice —
+// those duplicates are folded back into one installment here instead of being imported twice.
+function mergeExportedInstallments(installments) {
+  const byNumber = new Map();
+  for (const inst of installments || []) {
+    const payments = Array.isArray(inst.payments) ? inst.payments : inst.payment ? [inst.payment] : [];
+    const existing = byNumber.get(inst.installment_number);
+    if (existing) existing.payments.push(...payments);
+    else byNumber.set(inst.installment_number, { ...inst, payments: [...payments] });
+  }
+  return [...byNumber.values()];
+}
+
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
   if (!dossier) return null;
@@ -61,8 +135,10 @@ router.get('/', (req, res) => {
 // POST /api/dossiers/import
 router.post('/import', (req, res) => {
   const data = req.body;
-  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
+  if (!data || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(data.version)) return res.status(400).json({ error: 'Invalid export file' });
   if (!data.dossier?.name) return res.status(400).json({ error: 'Invalid export: missing dossier name' });
+  const invalid = validateImportData(data);
+  if (invalid) return res.status(400).json({ error: `Invalid export: ${invalid}` });
 
   const baseName = data.dossier.name.trim();
   let finalName = baseName;
@@ -110,11 +186,17 @@ router.post('/import', (req, res) => {
       insertAccount.run(newId, dossierId, a.group_name, a.name, a.type, moneyCategory, canReceiveTransfers, a.archived ? 1 : 0, a.position ?? 0);
     }
 
-    // Build account name→newId map for re-linking distributions, goals, and EF accounts
+    // References to accounts are re-linked by the exported account id (v18+). Older exports
+    // only carry names, which aren't unique (only group + name is), so fall back to the first
+    // account with that name.
     const accountNameToId = {};
-    for (const a of (data.accounts || [])) {
-      accountNameToId[a.name] = accountIdMap[a.id];
-    }
+    for (const a of (data.accounts || [])) firstByName(accountNameToId, a.name, accountIdMap[a.id]);
+    const resolveTemplate = (oldId, section, name) =>
+      (oldId != null && templateIdMap[oldId]) ||
+      (name != null ? (section === 'expense' ? expenseTemplateNameToId : templateNameToId)[name] : null) ||
+      null;
+    const resolveAccount = (oldId, name) =>
+      (oldId != null && accountIdMap[oldId]) || (name != null ? accountNameToId[name] : null) || null;
 
     // Cars (v16+) — imported before the expense/annual templates below, since their car_id
     // tags are re-linked by car name (same convention as account_name/linked_expense_name).
@@ -168,16 +250,21 @@ router.post('/import', (req, res) => {
     const insertMonth = db.prepare(
       'INSERT INTO months (id, dossier_id, year, month, filled, comment, filled_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
-    const insertSnapshot = db.prepare('INSERT INTO month_account_snapshot (month_id, account_id) VALUES (?, ?)');
+    const insertSnapshot = db.prepare('INSERT OR IGNORE INTO month_account_snapshot (month_id, account_id) VALUES (?, ?)');
     const insertEntry = db.prepare('INSERT INTO month_entries (month_id, account_id, value, comment) VALUES (?, ?, ?, ?)');
 
     for (const m of (data.months || [])) {
       const monthId = uuidv4();
       insertMonth.run(monthId, dossierId, m.year, m.month, m.filled ? 1 : 0, m.comment || null, m.filled_at || null);
+      // The month's account list is exported explicitly since v18 — an account can be part of
+      // a month without an entry. Older exports only have entries, which imply membership.
+      const snapshotIds = new Set([...(m.snapshot_account_ids || []), ...(m.entries || []).map((e) => e.account_id)]);
+      for (const oldId of snapshotIds) {
+        if (accountIdMap[oldId]) insertSnapshot.run(monthId, accountIdMap[oldId]);
+      }
       for (const e of (m.entries || [])) {
         const newAccountId = accountIdMap[e.account_id];
         if (!newAccountId) continue;
-        insertSnapshot.run(monthId, newAccountId);
         insertEntry.run(monthId, newAccountId, e.value ?? null, e.comment || null);
       }
     }
@@ -185,13 +272,17 @@ router.post('/import', (req, res) => {
     const insertTemplateItem = db.prepare(
       'INSERT INTO expense_template_items (id, dossier_id, section, name, type, value, day_of_payment, position, classification, must_amount, want_amount, save_amount, paperless_tag_id, exclude_from_emergency_fund, account_id, car_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
+    // Template items are re-linked by their exported id (v18+), falling back to (section, name)
+    // — first match wins — for older exports.
     const templateNameToId = {};
     const expenseTemplateNameToId = {};
+    const templateIdMap = {};
     for (const ti of (data.expense_template || [])) {
       const newId = uuidv4();
-      if (ti.section === 'distribution') templateNameToId[ti.name] = newId;
-      if (ti.section === 'expense') expenseTemplateNameToId[ti.name] = newId;
-      const accountId = ti.account_name ? (accountNameToId[ti.account_name] ?? null) : null;
+      if (ti.id != null) templateIdMap[ti.id] = newId;
+      if (ti.section === 'distribution') firstByName(templateNameToId, ti.name, newId);
+      if (ti.section === 'expense') firstByName(expenseTemplateNameToId, ti.name, newId);
+      const accountId = resolveAccount(ti.account_id, ti.account_name);
       const carId = ti.car_name ? (carNameToId[ti.car_name] ?? null) : null;
       insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0, accountId, carId);
     }
@@ -257,8 +348,8 @@ router.post('/import', (req, res) => {
       const actualEndDate = c.actual_end_date ?? toIsoDate(computeTheoreticalCycleEndDate(c.year, c.month, cycleStartDay, cycleWeekendAdjustment));
       insertCycle.run(cycleId, dossierId, c.year, c.month, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null, cycleStartDay, cycleWeekendAdjustment, actualStartDate, actualEndDate);
       for (const ci of (c.items || [])) {
-        const templateItemId = ci.section === 'expense' ? (expenseTemplateNameToId[ci.name] || null) : (templateNameToId[ci.name] || null);
-        const accountId = ci.account_name ? (accountNameToId[ci.account_name] ?? null) : null;
+        const templateItemId = resolveTemplate(ci.template_item_id, ci.section, ci.name);
+        const accountId = resolveAccount(ci.account_id, ci.account_name);
         insertCycleItem.run(uuidv4(), cycleId, templateItemId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0, ci.paperless_tag_id ?? null, ci.exclude_from_emergency_fund ? 1 : 0, accountId);
       }
       // income_items is version 14+. Versions <= 13 only carried a flat c.salary — synthesize
@@ -294,14 +385,14 @@ router.post('/import', (req, res) => {
         g.contribution_mode, g.manual_monthly_value ?? null,
         g.created_at || null
       );
-      for (const name of (g.account_names || [])) {
-        const accId = accountNameToId[name];
+      (g.account_names || []).forEach((name, i) => {
+        const accId = resolveAccount(g.account_ids?.[i], name);
         if (accId) insertGoalAccount.run(goalId, accId);
-      }
-      for (const name of (g.distribution_names || [])) {
-        const distId = templateNameToId[name];
+      });
+      (g.distribution_names || []).forEach((name, i) => {
+        const distId = resolveTemplate(g.distribution_ids?.[i], 'distribution', name);
         if (distId) insertGoalDist.run(goalId, distId);
-      }
+      });
       for (const cc of (g.cycle_contributions || [])) {
         const cycleId = cycleYMToId[`${cc.year}-${cc.month}`];
         if (cycleId) insertGoalCycleContrib.run(goalId, cycleId, cc.real_contribution ?? 0);
@@ -315,10 +406,10 @@ router.post('/import', (req, res) => {
     const insertEFAccount = db.prepare(
       'INSERT OR IGNORE INTO emergency_fund_accounts (dossier_id, account_id) VALUES (?, ?)'
     );
-    for (const name of (data.emergency_fund_accounts || [])) {
-      const accId = accountNameToId[name];
+    (data.emergency_fund_accounts || []).forEach((name, i) => {
+      const accId = resolveAccount(data.emergency_fund_account_ids?.[i], name);
       if (accId) insertEFAccount.run(dossierId, accId);
-    }
+    });
 
     // Emergency fund extra values
     const insertEFExtra = db.prepare(
@@ -351,14 +442,16 @@ router.post('/import', (req, res) => {
           const itemId = uuidv4();
           insertAnnualYearItem.run(itemId, yearId, item.name, item.budgeted_value ?? 0, item.classification ?? null, item.num_installments ?? 1, item.from_template ? 1 : 0, item.position ?? 0);
 
-          for (const inst of (item.installments || [])) {
+          for (const inst of mergeExportedInstallments(item.installments)) {
             const instId = uuidv4();
             insertAnnualYearInst.run(instId, itemId, inst.installment_number, inst.month, inst.day);
 
-            if (inst.payment) {
-              const cycleId = cycleYMToId[`${inst.payment.cycle_year}-${inst.payment.cycle_month}`];
-              if (cycleId) {
-                insertAnnualPayment.run(uuidv4(), instId, cycleId, inst.payment.real_value ?? 0, inst.payment.paid ? 1 : 0);
+            const seenCycles = new Set();
+            for (const payment of inst.payments) {
+              const cycleId = cycleYMToId[`${payment.cycle_year}-${payment.cycle_month}`];
+              if (cycleId && !seenCycles.has(cycleId)) {
+                seenCycles.add(cycleId);
+                insertAnnualPayment.run(uuidv4(), instId, cycleId, payment.real_value ?? 0, payment.paid ? 1 : 0);
               }
             }
           }
@@ -368,17 +461,17 @@ router.post('/import', (req, res) => {
 
     // Annual expense contributing accounts (re-linked by account name)
     const insertAEAccount = db.prepare('INSERT OR IGNORE INTO annual_expense_accounts (dossier_id, account_id) VALUES (?, ?)');
-    for (const name of (data.annual_expense_accounts || [])) {
-      const accId = accountNameToId[name];
+    (data.annual_expense_accounts || []).forEach((name, i) => {
+      const accId = resolveAccount(data.annual_expense_account_ids?.[i], name);
       if (accId) insertAEAccount.run(dossierId, accId);
-    }
+    });
 
     // Annual expense contributing distributions (re-linked by template item name)
     const insertAEDist = db.prepare('INSERT OR IGNORE INTO annual_expense_distributions (dossier_id, distribution_template_id) VALUES (?, ?)');
-    for (const name of (data.annual_expense_distributions || [])) {
-      const distId = templateNameToId[name];
+    (data.annual_expense_distributions || []).forEach((name, i) => {
+      const distId = resolveTemplate(data.annual_expense_distribution_ids?.[i], 'distribution', name);
       if (distId) insertAEDist.run(dossierId, distId);
-    }
+    });
 
     // Loans (v10+) — re-linked to the new Fixed expense template item by name, active only
     const insertLoan = db.prepare(
@@ -386,7 +479,9 @@ router.post('/import', (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const l of (data.loans || [])) {
-      const linkedItemId = l.status === 'active' && l.linked_expense_name ? (expenseTemplateNameToId[l.linked_expense_name] ?? null) : null;
+      const linkedItemId = l.status === 'active' && (l.linked_expense_id || l.linked_expense_name)
+        ? resolveTemplate(l.linked_expense_id, 'expense', l.linked_expense_name)
+        : null;
       const isDraft = l.status !== 'active';
       // balance_as_of (v15+). Older exports carry an undated balance, which under the
       // pre-anchor rules meant "what's owed right now" — so anchor it at the effective
@@ -420,7 +515,7 @@ router.post('/import', (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const s of (data.subscriptions || [])) {
-      const distId = s.distribution_name ? (templateNameToId[s.distribution_name] ?? null) : null;
+      const distId = s.distribution_id || s.distribution_name ? resolveTemplate(s.distribution_id, 'distribution', s.distribution_name) : null;
       insertSubscription.run(
         uuidv4(),
         dossierId,
@@ -434,7 +529,17 @@ router.post('/import', (req, res) => {
     }
   });
 
-  doImport();
+  try {
+    doImport();
+  } catch (err) {
+    // Validation above covers the known constraints; anything else is still the file's fault
+    // (a missing required value, a wrong type), so say what failed instead of a bare 500.
+    if (err && err.code && String(err.code).startsWith('SQLITE_CONSTRAINT')) {
+      console.log(`[dossiers] Import rejected for user ${req.user.username}: ${err.message}`);
+      return res.status(400).json({ error: `Invalid export: ${err.message}` });
+    }
+    throw err;
+  }
   console.log(`[dossiers] Imported dossier "${finalName}" (${dossierId}) for user ${req.user.username} (version ${data.version})`);
   res.status(201).json({ id: dossierId, name: finalName, creator_id: req.user.id, is_creator: 1, currency: data.dossier.currency || 'EUR' });
 });
@@ -479,7 +584,14 @@ router.get('/:id/export', (req, res) => {
     .all(req.params.id);
 
   const entriesByMonth = {};
+  const snapshotsByMonth = {};
   if (months.length > 0) {
+    const monthPh = months.map(() => '?').join(',');
+    for (const snap of db
+      .prepare(`SELECT month_id, account_id FROM month_account_snapshot WHERE month_id IN (${monthPh})`)
+      .all(...months.map((m) => m.id))) {
+      (snapshotsByMonth[snap.month_id] ||= []).push(snap.account_id);
+    }
     const ph = months.map(() => '?').join(',');
     const entries = db
       .prepare(`SELECT month_id, account_id, value, comment FROM month_entries WHERE month_id IN (${ph})`)
@@ -492,9 +604,9 @@ router.get('/:id/export', (req, res) => {
 
   const expenseTemplate = db
     .prepare(
-      `SELECT eti.section, eti.name, eti.type, eti.value, eti.day_of_payment, eti.position, eti.classification,
+      `SELECT eti.id, eti.section, eti.name, eti.type, eti.value, eti.day_of_payment, eti.position, eti.classification,
               eti.must_amount, eti.want_amount, eti.save_amount, eti.paperless_tag_id, eti.exclude_from_emergency_fund,
-              acc.name as account_name, car.name as car_name
+              eti.account_id, acc.name as account_name, car.name as car_name
        FROM expense_template_items eti
        LEFT JOIN accounts acc ON acc.id = eti.account_id
        LEFT JOIN cars car ON car.id = eti.car_id
@@ -542,8 +654,8 @@ router.get('/:id/export', (req, res) => {
     const ph = cycles.map(() => '?').join(',');
     const cycleItems = db
       .prepare(
-        `SELECT ci.cycle_id, ci.section, ci.name, ci.type, ci.value, ci.day_of_payment, ci.paid, ci.spent, ci.done,
-                ci.position, ci.paperless_tag_id, ci.exclude_from_emergency_fund, acc.name as account_name
+        `SELECT ci.cycle_id, ci.template_item_id, ci.section, ci.name, ci.type, ci.value, ci.day_of_payment, ci.paid, ci.spent, ci.done,
+                ci.position, ci.paperless_tag_id, ci.exclude_from_emergency_fund, ci.account_id, acc.name as account_name
          FROM cycle_items ci
          LEFT JOIN accounts acc ON acc.id = ci.account_id
          WHERE ci.cycle_id IN (${ph}) ORDER BY ci.section, ci.position, ci.created_at`
@@ -551,7 +663,7 @@ router.get('/:id/export', (req, res) => {
       .all(...cycles.map((c) => c.id));
     for (const ci of cycleItems) {
       if (!cycleItemsByCycleId[ci.cycle_id]) cycleItemsByCycleId[ci.cycle_id] = [];
-      cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position, paperless_tag_id: ci.paperless_tag_id, exclude_from_emergency_fund: ci.exclude_from_emergency_fund, account_name: ci.account_name });
+      cycleItemsByCycleId[ci.cycle_id].push({ section: ci.section, name: ci.name, type: ci.type, value: ci.value, day_of_payment: ci.day_of_payment, paid: ci.paid, spent: ci.spent, done: ci.done, position: ci.position, paperless_tag_id: ci.paperless_tag_id, exclude_from_emergency_fund: ci.exclude_from_emergency_fund, account_name: ci.account_name, account_id: ci.account_id, template_item_id: ci.template_item_id });
     }
 
     const incomeItems = db
@@ -570,12 +682,12 @@ router.get('/:id/export', (req, res) => {
     .all(req.params.id);
 
   const goalsExport = goalsRaw.map((g) => {
-    const accountNames = db
-      .prepare('SELECT a.name FROM goal_accounts ga JOIN accounts a ON a.id = ga.account_id WHERE ga.goal_id = ?')
-      .all(g.id).map((r) => r.name);
-    const distributionNames = db
-      .prepare('SELECT eti.name FROM goal_distributions gd JOIN expense_template_items eti ON eti.id = gd.distribution_template_item_id WHERE gd.goal_id = ?')
-      .all(g.id).map((r) => r.name);
+    const linkedAccounts = db
+      .prepare('SELECT a.id, a.name FROM goal_accounts ga JOIN accounts a ON a.id = ga.account_id WHERE ga.goal_id = ?')
+      .all(g.id);
+    const linkedDistributions = db
+      .prepare('SELECT eti.id, eti.name FROM goal_distributions gd JOIN expense_template_items eti ON eti.id = gd.distribution_template_item_id WHERE gd.goal_id = ?')
+      .all(g.id);
     const cycleContributions = db
       .prepare('SELECT ec.year, ec.month, gcc.real_contribution FROM goal_cycle_contributions gcc JOIN expense_cycles ec ON ec.id = gcc.cycle_id WHERE gcc.goal_id = ?')
       .all(g.id);
@@ -591,21 +703,23 @@ router.get('/:id/export', (req, res) => {
       contribution_mode: g.contribution_mode,
       manual_monthly_value: g.manual_monthly_value,
       created_at: g.created_at,
-      account_names: accountNames,
-      distribution_names: distributionNames,
+      // Names for readability and pre-v18 importers; ids (same order) are what v18 re-links by.
+      account_names: linkedAccounts.map((r) => r.name),
+      account_ids: linkedAccounts.map((r) => r.id),
+      distribution_names: linkedDistributions.map((r) => r.name),
+      distribution_ids: linkedDistributions.map((r) => r.id),
       cycle_contributions: cycleContributions,
       historical_contributions: historicalContributions,
     };
   });
 
-  const efAccountNames = db
+  const efAccounts = db
     .prepare(
-      `SELECT a.name FROM emergency_fund_accounts efa
-       JOIN accounts a ON a.id = efa.account_id
+      `SELECT a.id, a.name FROM emergency_fund_accounts efa
+       JOIN accounts a ON a.id = efa.account_id AND a.dossier_id = efa.dossier_id
        WHERE efa.dossier_id = ?`
     )
-    .all(req.params.id)
-    .map((r) => r.name);
+    .all(req.params.id);
 
   const efExtraValues = db
     .prepare(
@@ -627,9 +741,16 @@ router.get('/:id/export', (req, res) => {
       year: ay.year,
       carryover: ay.carryover,
       items: yearItems.map((item) => {
+        // One entry per installment, with all of its payments — an installment can have payments
+        // in two (overlapping) cycles, and joining payments in directly exported it twice.
         const insts = db
-          .prepare('SELECT ayii.*, p.id as pay_id, p.real_value as pay_real, p.paid as pay_paid, ec.year as cy, ec.month as cm FROM annual_expense_year_installments ayii LEFT JOIN annual_expense_payments p ON p.installment_id = ayii.id LEFT JOIN expense_cycles ec ON ec.id = p.cycle_id WHERE ayii.year_item_id = ? ORDER BY ayii.installment_number')
+          .prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ? ORDER BY installment_number')
           .all(item.id);
+        const paymentsOf = db.prepare(
+          `SELECT p.real_value, p.paid, ec.year AS cycle_year, ec.month AS cycle_month
+             FROM annual_expense_payments p JOIN expense_cycles ec ON ec.id = p.cycle_id
+            WHERE p.installment_id = ? ORDER BY ec.year, ec.month`
+        );
         return {
           name: item.name,
           budgeted_value: item.budgeted_value,
@@ -641,7 +762,7 @@ router.get('/:id/export', (req, res) => {
             installment_number: inst.installment_number,
             month: inst.month,
             day: inst.day,
-            payment: inst.pay_id ? { real_value: inst.pay_real, paid: !!inst.pay_paid, cycle_year: inst.cy, cycle_month: inst.cm } : null,
+            payments: paymentsOf.all(inst.id).map((p) => ({ ...p, paid: !!p.paid })),
           })),
         };
       }),
@@ -649,18 +770,18 @@ router.get('/:id/export', (req, res) => {
   });
 
   // Annual expense contributing accounts/distributions
-  const aeAccountNames = db
-    .prepare('SELECT a.name FROM annual_expense_accounts aea JOIN accounts a ON a.id = aea.account_id WHERE aea.dossier_id = ?')
-    .all(req.params.id).map((r) => r.name);
+  const aeAccounts = db
+    .prepare('SELECT a.id, a.name FROM annual_expense_accounts aea JOIN accounts a ON a.id = aea.account_id AND a.dossier_id = aea.dossier_id WHERE aea.dossier_id = ?')
+    .all(req.params.id);
 
-  const aeDistributionNames = db
-    .prepare('SELECT eti.name FROM annual_expense_distributions aed JOIN expense_template_items eti ON eti.id = aed.distribution_template_id WHERE aed.dossier_id = ?')
-    .all(req.params.id).map((r) => r.name);
+  const aeDistributions = db
+    .prepare('SELECT eti.id, eti.name FROM annual_expense_distributions aed JOIN expense_template_items eti ON eti.id = aed.distribution_template_id AND eti.dossier_id = aed.dossier_id WHERE aed.dossier_id = ?')
+    .all(req.params.id);
 
   const loansExport = db
     .prepare(
       `SELECT l.name, l.status, l.interest_rate, l.salary, l.principal, l.term_months, l.remaining_balance, l.end_date, l.day_of_payment, l.balance_as_of, l.created_at, l.down_payment, l.taeg, l.opening_fee,
-              eti.name as linked_expense_name
+              eti.name as linked_expense_name, l.expense_template_item_id as linked_expense_id
        FROM loans l
        LEFT JOIN expense_template_items eti ON eti.id = l.expense_template_item_id
        WHERE l.dossier_id = ? ORDER BY l.created_at`
@@ -670,7 +791,7 @@ router.get('/:id/export', (req, res) => {
   const subscriptionsExport = db
     .prepare(
       `SELECT s.name, s.monthly_cost, s.billing_day, s.status, s.created_at,
-              eti.name as distribution_name
+              eti.name as distribution_name, s.distribution_template_item_id as distribution_id
        FROM subscriptions s
        LEFT JOIN expense_template_items eti ON eti.id = s.distribution_template_item_id
        WHERE s.dossier_id = ? ORDER BY s.created_at`
@@ -708,7 +829,7 @@ router.get('/:id/export', (req, res) => {
   const filename = dossier.name.replace(/[^a-z0-9]/gi, '_') + '_export.json';
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.json({
-    version: 17,
+    version: 18,
     dossier: {
       name: dossier.name,
       currency: dossier.currency,
@@ -733,6 +854,7 @@ router.get('/:id/export', (req, res) => {
       comment: m.comment,
       filled_at: m.filled_at,
       entries: entriesByMonth[m.id] || [],
+      snapshot_account_ids: snapshotsByMonth[m.id] || [],
     })),
     expense_template: expenseTemplate,
     income_template: incomeTemplate,
@@ -752,11 +874,14 @@ router.get('/:id/export', (req, res) => {
       income_items: incomeItemsByCycleId[c.id] || [],
     })),
     goals: goalsExport,
-    emergency_fund_accounts: efAccountNames,
+    emergency_fund_accounts: efAccounts.map((r) => r.name),
+    emergency_fund_account_ids: efAccounts.map((r) => r.id),
     emergency_fund_extra_values: efExtraValues,
     annual_expense_years: annualExpenseYears,
-    annual_expense_accounts: aeAccountNames,
-    annual_expense_distributions: aeDistributionNames,
+    annual_expense_accounts: aeAccounts.map((r) => r.name),
+    annual_expense_account_ids: aeAccounts.map((r) => r.id),
+    annual_expense_distributions: aeDistributions.map((r) => r.name),
+    annual_expense_distribution_ids: aeDistributions.map((r) => r.id),
     loans: loansExport,
     subscriptions: subscriptionsExport,
     cars: carsExport,
@@ -841,3 +966,4 @@ router.use('/:id', subscriptionsRouter);
 router.use('/:id', carsRouter);
 
 module.exports = router;
+module.exports.mergeExportedInstallments = mergeExportedInstallments;

@@ -24,7 +24,7 @@ import useToast from '../ui/useToast';
 import KpiBlock from '../ui/KpiBlock';
 import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
-import { ItemFormModal } from '../annual-expenses/AnnualExpensesTab';
+import { ItemFormModal, keptPaymentsMessage } from '../annual-expenses/AnnualExpensesTab';
 import PaidAmount from '../annual-expenses/PaidAmount';
 
 // ── Budget progress bar ───────────────────────────────────────────────────────
@@ -658,7 +658,11 @@ export default function CycleEditor() {
           dossierId={dossierId}
           yearId={annualEditModal.yearId}
           item={annualEditModal.item}
-          onSave={async () => { setAnnualEditModal(null); await load(); }}
+          onSave={async (result) => {
+            setAnnualEditModal(null);
+            await load();
+            if (result?.payments_kept_in_place) showToast(keptPaymentsMessage(result.payments_kept_in_place));
+          }}
           onClose={() => setAnnualEditModal(null)}
         />
       )}

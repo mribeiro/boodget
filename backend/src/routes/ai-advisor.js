@@ -535,6 +535,9 @@ const AI_NOT_CONFIGURED_MESSAGE =
 // legitimately be bigger than a hand-typed note.
 const PAGE_CONTEXT_MAX_CHARS = 6000;
 
+// How long a stream may go without receiving any data before it's abandoned.
+const STREAM_IDLE_TIMEOUT_MS = 120000;
+
 async function callClaudeStream({ model, system, messages, maxTokens, outputFormat, apiKey, onDelta }) {
   if (!apiKey) {
     const err = new Error(AI_NOT_CONFIGURED_MESSAGE);
@@ -553,8 +556,17 @@ async function callClaudeStream({ model, system, messages, maxTokens, outputForm
     body.output_config = { format: outputFormat };
   }
 
+  // Idle timeout, not a total one: it's re-armed on every chunk received (keep-alive pings
+  // included), so a long analysis that keeps streaming is never cut off mid-way — only a
+  // connection that goes silent is. A fixed 3-minute total used to abort long Opus analyses
+  // after their tokens had already been billed.
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000);
+  let timeout = null;
+  const armIdleTimeout = () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => controller.abort(), STREAM_IDLE_TIMEOUT_MS);
+  };
+  armIdleTimeout();
   let resp;
   try {
     resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -595,6 +607,7 @@ async function callClaudeStream({ model, system, messages, maxTokens, outputForm
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      armIdleTimeout();
       buffer += decoder.decode(value, { stream: true });
       const frames = buffer.split('\n\n');
       buffer = frames.pop(); // last chunk may be incomplete — keep it for the next read
@@ -626,7 +639,11 @@ async function callClaudeStream({ model, system, messages, maxTokens, outputForm
     }
   } catch (e) {
     if (e.status) throw e;
-    const err = new Error('Lost connection to the Claude API while streaming');
+    const err = new Error(
+      controller.signal.aborted
+        ? `The Claude API stopped sending data for ${STREAM_IDLE_TIMEOUT_MS / 1000} seconds, so the request was abandoned. Please try again.`
+        : 'Lost connection to the Claude API while streaming'
+    );
     err.status = 502;
     throw err;
   } finally {
@@ -886,7 +903,7 @@ async function runAnalysisJob(job, config, dossierId, username) {
       model,
       system: ANALYSIS_SYSTEM_INTRO + context,
       messages: [{ role: 'user', content: 'Analyse this financial dossier and return the structured assessment.' }],
-      maxTokens: 8192,
+      maxTokens: 32000,
       outputFormat: { type: 'json_schema', schema: ANALYSIS_SCHEMA },
       apiKey: config.apiKey,
       onDelta: (chunk) => broadcastDelta(job, chunk),
@@ -944,7 +961,7 @@ async function runChatJob(job, config, dossierId, username, messages) {
       model,
       system: CHAT_SYSTEM_INTRO + context,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      maxTokens: 2048,
+      maxTokens: 8192,
       apiKey: config.apiKey,
       onDelta: (chunk) => broadcastDelta(job, chunk),
     });
@@ -1108,3 +1125,4 @@ module.exports.getAvailableModels = getAvailableModels;
 module.exports.refreshAvailableModels = refreshAvailableModels;
 module.exports.DEFAULT_AI_MODEL = DEFAULT_AI_MODEL;
 module.exports.MODEL_FAMILIES = MODEL_FAMILIES;
+module.exports.callClaudeStream = callClaudeStream;

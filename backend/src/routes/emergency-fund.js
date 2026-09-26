@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
+const { idsNotInDossier } = require('../utils/ownedIds');
 const { v4: uuidv4 } = require('uuid');
 
 function canAccess(dossierId, userId) {
@@ -28,6 +29,8 @@ router.put('/emergency-fund/accounts', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const { account_ids } = req.body;
   if (!Array.isArray(account_ids)) return res.status(400).json({ error: 'account_ids must be an array' });
+  const foreign = idsNotInDossier('accounts', req.params.id, account_ids);
+  if (foreign.length) return res.status(400).json({ error: `Unknown account id(s) for this dossier: ${foreign.join(', ')}` });
 
   db.transaction(() => {
     db.prepare('DELETE FROM emergency_fund_accounts WHERE dossier_id = ?').run(req.params.id);

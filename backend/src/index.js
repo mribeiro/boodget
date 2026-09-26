@@ -17,10 +17,8 @@ const { db, SQLiteSessionStore } = require('./db');
 const app = express();
 app.set('trust proxy', 1);
 
-// Raised above the default 100kb so a base64-encoded profile picture (resized client-side,
-// but still ~33% larger encoded than raw) fits comfortably under the 2MB decoded-size cap
-// enforced in routes/auth.js.
-app.use(express.json({ limit: '4mb' }));
+const { useJsonBodyParsers, jsonBodyErrorHandler } = require('./middleware/body');
+useJsonBodyParsers(app);
 
 app.use(
   session({
@@ -45,6 +43,7 @@ app.use('/api/users', apiLimiter, requireAuth, require('./routes/users'));
 app.use('/api/dossiers', apiLimiter, requireAuth, require('./routes/dossiers'));
 app.use('/api/push', apiLimiter, requireAuth, require('./routes/push'));
 app.use('/api/notifications', apiLimiter, requireAuth, require('./routes/notifications'));
+app.use('/api', jsonBodyErrorHandler);
 
 // Serve the built frontend when available (production, dev, ephemeral, etc.)
 const frontendDist = path.join(__dirname, '..', 'frontend-dist');

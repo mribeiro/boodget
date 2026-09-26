@@ -99,7 +99,7 @@ The following values are computed and displayed for each goal:
 |**Current accumulated value**    |Sum of the values of the selected accounts, taken from the **most recent filled Capital snapshot**. Zero if no accounts are selected. **Archived accounts are excluded** — an archived account is expected to hold no further funds going forward, so it stops contributing to progress as soon as it's archived, even though the link itself (`goal_accounts` row) is left in place until manually removed.|
 |**Total current progress**       |Same as current accumulated value. The extra value is already included in the account balance and is not added again.                                                                                                    |
 |**Remaining amount**             |max(0, Target value − Total current progress) — floored at 0 once progress reaches or overshoots the target                                                                                                             |
-|**Months remaining**             |Number of months from today to the target date                                                                                                                                                                           |
+|**Months remaining**             |Number of months from today to the target date; during the target month itself this is **1**, not 0 (that month is still usable)                                                                                          |
 |**Monthly value needed**         |max(0, Remaining amount ÷ Months remaining), adjusted by extra value if “Reduce Monthly Amount” is selected                                                                                                              |
 |**Expected monthly contribution**|Sum of selected distribution template values (“Via Distributions”) or fixed manual value (“Manual”)                                                                                                                      |
 |**Anticipated completion date**  |Not applicable for “Ad-hoc” mode. Months needed = ceil((Remaining amount − Extra value) ÷ Expected monthly contribution) — Extra value is only subtracted when impact mode “Anticipate End Date” is selected, otherwise 0. Displayed (today + months needed) only when this is strictly earlier than the target date, i.e. the goal is on pace to finish early — whether from “Anticipate End Date” or simply because the expected monthly contribution outpaces the monthly value needed.|
@@ -118,7 +118,7 @@ A goal is always in one of three states:
 |-------------|----------------------------------------------------------------------|
 |**Active**   |Default state; goal is in progress                                    |
 |**Completed**|Total current progress ≥ Target value                                 |
-|**Failed**   |Target date has been reached and Total current progress < Target value|
+|**Failed**   |Target month has ended (the current month is after `target_date`) and Total current progress < Target value. A goal is still **Active** throughout its target month.|
 
 ### State Transitions
 
@@ -134,7 +134,7 @@ A goal is always in one of three states:
 
 Each cycle contributes a real contribution value to the goal:
 
-- **”Via Distributions”:** sum of the values of selected distributions marked as `done` in that cycle, regardless of whether the cycle is open or closed. Matched by `template_item_id` FK when available, falling back to name matching for items copied before template linkage was enforced.
+- **”Via Distributions”:** sum of the values of selected distributions marked as `done` in that cycle, regardless of whether the cycle is open or closed. Matched by `template_item_id` FK when available, falling back to name matching for items with no link (ad-hoc, or copied before template linkage was enforced) **and** for items whose `template_item_id` no longer exists — an expense-template bulk-replace (e.g. the Workbench's "Sync to template") reinserts every item with a fresh id, which would otherwise orphan every earlier cycle's contributions.
 - **”Manual”:** the user manually enters the real contribution value for each cycle. This is done from the **goal detail page**, which lists all cycles and allows entering a value per cycle.
 - **”Ad-hoc”:** no per-cycle tracking. Progress is determined solely by the current value of the selected accounts in the most recent Capital snapshot.
 

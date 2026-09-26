@@ -70,7 +70,10 @@ function computeGoalValues(goal, dossierId) {
   const remainingAmount = Math.max(0, goal.target_value - totalCurrentProgress);
 
   const nowYM = currentYearMonth();
-  const monthsRemaining = monthsDiff(nowYM, goal.target_date);
+  // The target month itself is still usable: a goal due this month has one month left
+  // (not zero), so it isn't failed and still gets a monthly value needed.
+  const rawMonthsRemaining = monthsDiff(nowYM, goal.target_date);
+  const monthsRemaining = rawMonthsRemaining === 0 ? 1 : rawMonthsRemaining;
 
   // Expected monthly contribution
   let expectedMonthlyContribution = 0;
@@ -131,7 +134,7 @@ function computeGoalValues(goal, dossierId) {
   let state = 'active';
   if (totalCurrentProgress >= goal.target_value) {
     state = 'completed';
-  } else if (goal.target_date <= nowYM && totalCurrentProgress < goal.target_value) {
+  } else if (goal.target_date < nowYM && totalCurrentProgress < goal.target_value) {
     state = 'failed';
   }
 
@@ -232,9 +235,13 @@ function buildChartData(goal, dossierId, currentAccumulatedValue) {
              AND ci.done = 1
              AND (
                ci.template_item_id IN (${ph})
-               OR (ci.template_item_id IS NULL AND ci.name IN (
-                     SELECT name FROM expense_template_items WHERE id IN (${ph})
-                   ))
+               -- Name fallback for ad-hoc items and for items whose template id was orphaned
+               -- by an expense-template bulk-replace (which reinserts with fresh ids).
+               OR (
+                 (ci.template_item_id IS NULL
+                   OR NOT EXISTS (SELECT 1 FROM expense_template_items eti WHERE eti.id = ci.template_item_id))
+                 AND ci.name IN (SELECT name FROM expense_template_items WHERE id IN (${ph}))
+               )
              )`
         )
         .get(cycle.id, ...distTemplateIds, ...distTemplateIds);
@@ -281,7 +288,10 @@ function buildChartData(goal, dossierId, currentAccumulatedValue) {
   // (so a current value is known) and a target_date in the future.
   const hasAccounts = !!db.prepare('SELECT 1 FROM goal_accounts WHERE goal_id = ?').get(goal.id);
   const nowYM = currentYearMonth();
-  const monthsRemaining = monthsDiff(nowYM, goal.target_date);
+  // The target month itself is still usable: a goal due this month has one month left
+  // (not zero), so it isn't failed and still gets a monthly value needed.
+  const rawMonthsRemaining = monthsDiff(nowYM, goal.target_date);
+  const monthsRemaining = rawMonthsRemaining === 0 ? 1 : rawMonthsRemaining;
   if (hasAccounts && monthsRemaining > 0) {
     let projectedCumulative = currentAccumulatedValue || 0;
 

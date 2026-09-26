@@ -181,6 +181,23 @@ describe('computeGoalValues', () => {
     expect(computed.state).toBe('failed');
   });
 
+  it('treats the target month itself as still active, with one month left', () => {
+    const { dossier } = setup();
+    const acc = createAccount(db, { dossierId: dossier.id });
+    createMonth(db, { dossierId: dossier.id, year: 2026, month: 1, filled: 1, accountIds: [acc.id], values: { [acc.id]: 500 } });
+    const goal = createGoal(db, {
+      dossierId: dossier.id,
+      target_value: 1000,
+      target_date: '2026-01', // the current (faked) month
+      contribution_mode: 'ad_hoc',
+      accountIds: [acc.id],
+    });
+    const computed = computeGoalValues(goal, dossier.id);
+    expect(computed.state).toBe('active');
+    expect(computed.months_remaining).toBe(1);
+    expect(computed.monthly_value_needed).toBe(500);
+  });
+
   it('state is active when neither completed nor past the target date', () => {
     const { dossier } = setup();
     const goal = createGoal(db, { dossierId: dossier.id, target_value: 10000, target_date: '2099-01', contribution_mode: 'ad_hoc' });

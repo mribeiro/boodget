@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
+const { establishSession } = require('./auth');
 
 function validatePassword(password) {
   return (
@@ -44,8 +45,10 @@ router.post('/create-first-user', (req, res) => {
   // The first user is the instance's first administrator.
   db.prepare('INSERT INTO users (id, username, password_hash, is_admin) VALUES (?, ?, ?, 1)').run(id, username, hash);
 
-  req.session.userId = id;
-  res.status(201).json({ id, username, is_oidc: 0, is_admin: 1 });
+  establishSession(req, id, (err) => {
+    if (err) return res.status(500).json({ error: 'User created, but a session could not be started — please log in' });
+    res.status(201).json({ id, username, is_oidc: 0, is_admin: 1 });
+  });
 });
 
 module.exports = router;

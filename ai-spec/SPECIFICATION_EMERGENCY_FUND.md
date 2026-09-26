@@ -289,7 +289,7 @@ The existing settings endpoints are extended:
 
 ```
 GET    /api/dossiers/:id/emergency-fund/accounts
-PUT    /api/dossiers/:id/emergency-fund/accounts    { account_ids: [] }
+PUT    /api/dossiers/:id/emergency-fund/accounts    { account_ids: [] }   # 400 if any id isn't one of this dossier's accounts
 ```
 
 - `GET` returns the list of selected account IDs.

@@ -1053,6 +1053,34 @@ const migrations = [
       }
     },
   },
+  {
+    // Notification send times used to be a fixed UTC hour:minute (converted once, in the browser,
+    // when saved), so they drifted an hour at every DST change, and the scheduler only looked at
+    // users whose time matched the current minute exactly, so a restart during that minute lost
+    // the day (#328). `timezone` (IANA) makes send_hour/send_minute local time in that zone;
+    // NULL keeps the old UTC meaning until the user's settings page upgrades it.
+    // `last_evaluated_date` is the local date the user was last processed on, which lets a missed
+    // minute be caught up later that day and doubles as the claim that stops two overlapping
+    // scheduler runs from both sending.
+    id: '048_add_timezone_to_notification_settings',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(user_notification_settings)').all();
+      if (!cols.find((c) => c.name === 'timezone')) {
+        db.exec('ALTER TABLE user_notification_settings ADD COLUMN timezone TEXT');
+      }
+      if (!cols.find((c) => c.name === 'last_evaluated_date')) {
+        db.exec('ALTER TABLE user_notification_settings ADD COLUMN last_evaluated_date TEXT');
+      }
+      // Users whose (UTC) send time already passed today were already served by the old
+      // exact-minute scheduler — mark them done for today so the catch-up logic doesn't send
+      // them a second notification on the day this deploys.
+      const now = new Date();
+      db.prepare(
+        `UPDATE user_notification_settings SET last_evaluated_date = ?
+          WHERE last_evaluated_date IS NULL AND send_hour * 60 + send_minute <= ?`
+      ).run(now.toISOString().slice(0, 10), now.getUTCHours() * 60 + now.getUTCMinutes());
+    },
+  },
 ];
 
 for (const migration of migrations) {

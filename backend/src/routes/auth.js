@@ -41,6 +41,23 @@ function parseAvatarDataUrl(dataUrl) {
   return { mime, byteLength };
 }
 
+// Starts an authenticated session under a brand-new session id. Reusing the pre-login id would
+// let anyone who planted that id in the victim's browser (session fixation) ride the login.
+function establishSession(req, userId, callback) {
+  req.session.regenerate((err) => {
+    if (err) return callback(err);
+    req.session.userId = userId;
+    req.session.save(callback);
+  });
+}
+
+// Deletes every stored session of `userId` except `keepSid`. Returns how many were removed.
+function revokeOtherSessions(userId, keepSid) {
+  return db
+    .prepare("DELETE FROM sessions WHERE json_extract(sess, '$.userId') = ? AND sid != ?")
+    .run(userId, keepSid ?? '').changes;
+}
+
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT avatar FROM users WHERE id = ?').get(req.user.id);
@@ -69,14 +86,19 @@ router.post('/login', loginLimiter, (req, res) => {
     console.log(`[auth] Failed login attempt for username: ${username}`);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
-  req.session.userId = user.id;
-  console.log(`[auth] User logged in: ${user.username} (${user.id})`);
-  res.json({
-    id: user.id,
-    username: user.username,
-    is_oidc: user.is_oidc,
-    is_admin: user.is_admin,
-    avatar: user.avatar || null,
+  establishSession(req, user.id, (err) => {
+    if (err) {
+      console.error('[auth] Failed to establish session:', err);
+      return res.status(500).json({ error: 'Could not start a session' });
+    }
+    console.log(`[auth] User logged in: ${user.username} (${user.id})`);
+    res.json({
+      id: user.id,
+      username: user.username,
+      is_oidc: user.is_oidc,
+      is_admin: user.is_admin,
+      avatar: user.avatar || null,
+    });
   });
 });
 
@@ -109,7 +131,10 @@ router.post('/change-password', requireAuth, (req, res) => {
   }
   const hash = bcrypt.hashSync(newPassword, 12);
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.id);
-  console.log(`[auth] Password changed for user: ${req.user.username} (${req.user.id})`);
+  // A password change is often a response to a suspected compromise: sign out every other
+  // device, keeping only the session that made the change.
+  const revoked = revokeOtherSessions(req.user.id, req.sessionID);
+  console.log(`[auth] Password changed for user: ${req.user.username} (${req.user.id}); ${revoked} other session(s) signed out`);
   res.json({ ok: true });
 });
 
@@ -176,10 +201,15 @@ router.get('/oidc/callback', async (req, res) => {
     }
     const { user } = result;
 
-    req.session.userId = user.id;
-    console.log(`[auth] OIDC user logged in: ${user.username} (${user.id})`);
-    delete req.session.oidcState;
-    res.redirect('/');
+    // regenerate() also drops the one-time oidcState along with the old session.
+    establishSession(req, user.id, (err) => {
+      if (err) {
+        console.error('[auth] Failed to establish session:', err);
+        return res.redirect('/login?error=oidc');
+      }
+      console.log(`[auth] OIDC user logged in: ${user.username} (${user.id})`);
+      res.redirect('/');
+    });
   } catch (err) {
     console.error('OIDC callback error:', err);
     res.redirect('/login?error=oidc');
@@ -235,3 +265,4 @@ module.exports = router;
 module.exports.initOIDC = initOIDC;
 module.exports.parseAvatarDataUrl = parseAvatarDataUrl;
 module.exports.resolveOidcUser = resolveOidcUser;
+module.exports.establishSession = establishSession;

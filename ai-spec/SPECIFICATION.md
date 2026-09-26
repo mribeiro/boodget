@@ -56,6 +56,8 @@ A simple web-based system to help users track their capital at the beginning of 
 - **Usernames never change.**
 - Password recovery via a **bash script that runs inside the Docker container** (e.g. via `docker exec`). No SMTP/email flow.
 - Sessions expire after **72 hours**.
+- Every successful login (local, SSO, or the first-launch setup) starts a **new session id** (`req.session.regenerate`), so a session id planted in the browser before login is never the one that gets authenticated (session fixation).
+- Changing the password **signs out every other session** of that user (all their rows in the `sessions` table except the current one), since a password change is often a response to a suspected compromise.
 
 ### 4.2 OIDC Integration (optional / configurable)
 - The system must support OIDC as an authentication provider, using the **Authorization Code Flow**.

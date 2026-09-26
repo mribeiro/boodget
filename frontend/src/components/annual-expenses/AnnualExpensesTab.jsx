@@ -23,6 +23,12 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+// Shown after an installment date edit that left recorded payments (paid, or in a closed
+// cycle) in their original cycle instead of moving them.
+export function keptPaymentsMessage(count) {
+  return `Saved · ${count} recorded payment${count === 1 ? '' : 's'} kept ${count === 1 ? 'its' : 'their'} cycle`;
+}
+
 function fmt(v) {
   if (v == null) return '—';
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -323,6 +329,8 @@ export default function AnnualExpensesTab({ dossierId }) {
   function handleItemSaved(updatedYearData) {
     setYearData(updatedYearData);
     setItemModal(null);
+    const kept = updatedYearData?.payments_kept_in_place;
+    if (kept) showToast(keptPaymentsMessage(kept));
   }
 
   function handleDeleteItem(item) {

@@ -1,5 +1,6 @@
 const { db } = require('../db');
-const { sendPush } = require('./push');
+// Called as push.sendPush (not destructured) so tests can stub it.
+const push = require('./push');
 const { computeCycleStartDate, computeTheoreticalCycleEndDate, fromIsoDate } = require('../utils/cycleDates');
 
 function getCurrentCycleStartYearMonth(cycleStartDay, weekendAdjustment) {
@@ -41,26 +42,85 @@ function isRepeatDue(sentAtSqlite, now, intervalDays) {
   return today - sentDay >= intervalDays;
 }
 
-async function runNotificationScheduler() {
-  const now = new Date();
-  const currentHour = now.getUTCHours();
-  const currentMinute = now.getUTCMinutes();
+// The wall-clock date and time `now` reads as in `timeZone` (an IANA name). A null zone means
+// UTC — the meaning send_hour/send_minute had before time zones were stored.
+function localClock(now, timeZone) {
+  if (!timeZone) {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours(), minute: now.getUTCMinutes() };
+  }
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value])
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), minute: Number(parts.minute) };
+}
+
+// Whether a user is due for today's evaluation: their local send time has passed today and they
+// haven't been evaluated yet on their local today. "Has passed" rather than "is exactly now", so
+// a minute the scheduler missed (restart, deploy, a slow previous run) is caught up later that
+// day, and a send time skipped by a spring-forward DST change still fires.
+function isDueToday(settings, now) {
+  let clock;
+  try {
+    clock = localClock(now, settings.timezone);
+  } catch (e) {
+    clock = localClock(now, null); // an unknown zone name: fall back to UTC rather than never sending
+  }
+  const nowMinutes = clock.hour * 60 + clock.minute;
+  const sendMinutes = settings.send_hour * 60 + settings.send_minute;
+  return { due: nowMinutes >= sendMinutes && settings.last_evaluated_date !== clock.date, localDate: clock.date };
+}
+
+// Marks the user evaluated for `localDate`; false if another run already did. This is the claim
+// that keeps two overlapping runs from both processing (and notifying) the same user.
+function claimEvaluation(userId, localDate) {
+  return (
+    db
+      .prepare(
+        `UPDATE user_notification_settings SET last_evaluated_date = ?
+          WHERE user_id = ? AND (last_evaluated_date IS NULL OR last_evaluated_date <> ?)`
+      )
+      .run(localDate, userId, localDate).changes === 1
+  );
+}
+
+let running = false;
+
+// Runs every minute (node-cron). Runs don't overlap within this process: a run still busy
+// sending when the next minute ticks makes that tick a no-op.
+async function runNotificationScheduler(now = new Date()) {
+  if (running) return;
+  running = true;
+  try {
+    await evaluateDueUsers(now);
+  } finally {
+    running = false;
+  }
+}
+
+async function evaluateDueUsers(now) {
   const todayDay = now.getUTCDate();
 
   // Clean up log entries older than 90 days
   db.prepare("DELETE FROM notification_log WHERE sent_at < datetime('now', '-90 days')").run();
 
-  // Users with notifications enabled at the current UTC time
   const users = db
     .prepare(
       `SELECT u.id, u.username,
-         uns.enabled, uns.send_hour, uns.send_minute,
+         uns.enabled, uns.send_hour, uns.send_minute, uns.timezone, uns.last_evaluated_date,
          uns.repeat_enabled, uns.repeat_interval_days
        FROM users u
        JOIN user_notification_settings uns ON uns.user_id = u.id
-       WHERE uns.enabled = 1 AND uns.send_hour = ? AND uns.send_minute = ?`
+       WHERE uns.enabled = 1`
     )
-    .all(currentHour, currentMinute);
+    .all()
+    .filter((user) => {
+      const { due, localDate } = isDueToday(user, now);
+      return due && claimEvaluation(user.id, localDate);
+    });
 
   for (const user of users) {
     const subscriptions = db
@@ -273,7 +333,7 @@ async function runNotificationScheduler() {
 
         const failedEndpoints = [];
         for (const sub of subscriptions) {
-          const result = await sendPush(sub, {
+          const result = await push.sendPush(sub, {
             type: notif.type,
             title: notif.title,
             body: notif.body,
@@ -298,4 +358,4 @@ async function runNotificationScheduler() {
   }
 }
 
-module.exports = { runNotificationScheduler, isRepeatDue };
+module.exports = { runNotificationScheduler, isRepeatDue, isDueToday, localClock };

@@ -268,6 +268,8 @@ A new `user_notification_settings` table stores per-user notification preference
 | `enabled` | INTEGER NOT NULL | 1 | Master on/off toggle (1 = enabled) |
 | `send_hour` | INTEGER NOT NULL | 9 | Hour of day to send notifications (0–23) |
 | `send_minute` | INTEGER NOT NULL | 0 | Minute of hour (0–59) |
+| `timezone` | TEXT | NULL | IANA zone (e.g. `Europe/Lisbon`) that `send_hour`/`send_minute` are local time in. `NULL` = they are UTC (settings saved before zones were stored) |
+| `last_evaluated_date` | TEXT | NULL | `YYYY-MM-DD` (in the user's zone) the scheduler last processed this user on — drives catch-up and prevents double processing |
 | `repeat_enabled` | INTEGER NOT NULL | 0 | Whether to repeat notifications (1 = repeat) |
 | `repeat_interval_days` | INTEGER NOT NULL | 1 | Days between repeated notifications (1–7) |
 
@@ -287,9 +289,9 @@ Only dossiers present in this table generate notifications for the given user. B
 
 ```
 GET    /api/notifications/settings
-PATCH  /api/notifications/settings    { enabled?, send_hour?, send_minute?, repeat_enabled?, repeat_interval_days? }
-GET    /api/notifications/dossiers
-PUT    /api/notifications/dossiers    { dossier_ids: [] }
+PATCH  /api/notifications/settings    { enabled?, send_hour?, send_minute?, timezone?, repeat_enabled?, repeat_interval_days? }   # 400 on an unknown zone
+GET    /api/notifications/dossiers                   # only dossiers the user can still access
+PUT    /api/notifications/dossiers    { dossier_ids: [] }   # 400 if any id isn't a dossier the user can access
 ```
 
 - **GET settings**: returns the authenticated user's notification preferences. If no record exists, returns defaults.
@@ -432,8 +434,11 @@ The scheduler runs inside the Express process using `node-cron`. It executes onc
 ### 9.2 Scheduler Logic (per minute)
 
 ```
+if a previous run is still in progress (in this process) → do nothing this minute
 for each user with notifications enabled:
-  if current time does not match user's send_hour:send_minute → skip
+  local = now in the user's timezone (UTC if none)
+  if local time < send_hour:send_minute, or last_evaluated_date == local date → skip
+  claim: set last_evaluated_date = local date, only if it isn't already → skip if another run did
   for each dossier the user has opted into:
     evaluate all 5 notification conditions
     for each triggered condition:
@@ -443,11 +448,11 @@ for each user with notifications enabled:
         write to notification log
 ```
 
-The minute-level granularity means the scheduler checks `current_hour == send_hour AND current_minute == send_minute`. This gives a 1-minute window per day per user.
+A user is due once their local send time **has passed** today and they haven't been evaluated yet on their local today — not only in the exact minute. So a minute the scheduler missed (a restart or deploy, a slow previous run) is caught up later that same day, and a send time skipped by a spring-forward DST change still fires. The atomic `last_evaluated_date` claim, plus an in-process "already running" guard, keeps two overlapping runs from both processing (and notifying) the same user. Migration `048` marks users whose UTC send time had already passed on deploy day as evaluated for that day, so the catch-up doesn't re-send what the old exact-minute scheduler already sent.
 
 ### 9.3 Time Zone Handling
 
-The `send_hour` and `send_minute` are stored as **UTC**. The frontend is responsible for converting the user's local time to UTC before saving, and converting back to local time for display.
+`send_hour`/`send_minute` are stored as **local time** together with the user's IANA `timezone` (the browser's `Intl.DateTimeFormat().resolvedOptions().timeZone`), and the scheduler converts per day — so notifications keep arriving at the chosen wall-clock time across DST changes. They used to be converted to a fixed UTC time once, when saved, which shifted delivery by an hour at every DST change. A row with no `timezone` keeps that old UTC meaning; the settings page upgrades it once on load (re-saving the same wall-clock time it displays, plus the zone) — only for users who already have a settings row, since creating one would switch notifications on. If the browser can't name its zone, the page falls back to the old UTC conversion. An unknown zone name stored anyway is treated as UTC rather than never sending.
 
 ### 9.4 Failed Deliveries
 
@@ -537,7 +542,7 @@ A new page or section accessible from the user menu. Contains:
 
 #### Delivery Time
 - Label: "Send notifications at"
-- Time picker (hour and minute). Displayed in the user's local timezone, stored as UTC.
+- Time picker (hour and minute). Displayed and stored in the user's local time zone (shown next to the picker).
 
 #### Repetition
 - Label: "Repeat notifications while condition persists"
@@ -602,7 +607,9 @@ CREATE TABLE user_notification_settings (
   send_hour            INTEGER NOT NULL DEFAULT 9,
   send_minute          INTEGER NOT NULL DEFAULT 0,
   repeat_enabled       INTEGER NOT NULL DEFAULT 0,
-  repeat_interval_days INTEGER NOT NULL DEFAULT 1
+  repeat_interval_days INTEGER NOT NULL DEFAULT 1,
+  timezone             TEXT,   -- migration 048
+  last_evaluated_date  TEXT    -- migration 048
 );
 ```
 
@@ -810,7 +817,7 @@ The following local-time → UTC fixes were applied to `backend/src/notification
 | `snapshot_missing` block | `now.getMonth() + 1` | `now.getUTCMonth() + 1` |
 | expense `today` variable | `new Date(now.getFullYear(), now.getMonth(), now.getDate())` | `new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))` |
 
-These ensure all day-of-month threshold comparisons use UTC, consistent with the UTC-based scheduler trigger time (`send_hour`/`send_minute`).
+These ensure all day-of-month threshold comparisons use UTC, consistent with the UTC-based scheduler trigger time (`send_hour`/`send_minute`). (Since migration `048` the trigger time itself is zone-aware — §9.3 — while these day-of-month thresholds still compare UTC dates.)
 
 -----
 

@@ -102,3 +102,27 @@ describe('047_add_is_admin_to_users', () => {
     expect(before.map((r) => r.id)).toContain(extra.id);
   });
 });
+
+describe('048_add_timezone_to_notification_settings', () => {
+  const migration = migrations.find((m) => m.id === '048_add_timezone_to_notification_settings');
+  afterEach(() => vi.useRealTimers());
+
+  it("marks users whose UTC send time already passed today as done, so deploy day doesn't double-send", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    const early = createUser(db);
+    const late = createUser(db);
+    const insert = db.prepare(
+      'INSERT INTO user_notification_settings (user_id, send_hour, send_minute) VALUES (?, ?, ?)'
+    );
+    insert.run(early.id, 9, 0);
+    insert.run(late.id, 18, 30);
+
+    migration.up();
+
+    const lastEvaluated = (id) =>
+      db.prepare('SELECT last_evaluated_date FROM user_notification_settings WHERE user_id = ?').get(id).last_evaluated_date;
+    expect(lastEvaluated(early.id)).toBe('2026-07-15');
+    expect(lastEvaluated(late.id)).toBeNull();
+  });
+});
