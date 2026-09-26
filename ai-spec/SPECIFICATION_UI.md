@@ -661,6 +661,8 @@ showError(err.message);
 
 - Two variants: `success` (default — `--color-success`, `faCircleCheck`) and `error` (`--color-danger`, `faCircleExclamation`).
 - `position: fixed; bottom: 32px; right: 24px`, `z-index: var(--z-toast)` (400 — above `--z-modal`, so a toast fired from inside a modal is visible), `box-shadow: var(--shadow-modal)`, text `var(--text-on-dark)`.
+- Rendered through a portal into `<body>`. Rendered in place, it sat inside the page/tab wrapper, whose `fadeIn` animation (`fill-mode: both`) creates a stacking context, so its z-index never beat root-level fixed UI and the AI chat button covered the end of every message (#344).
+- Stays clear of the AI chat widget (`AiChatWidget.jsx`, also bottom-right): while the closed chat button is on screen the toast moves up to `bottom: 96px`, just above it; while the chat is pinned on desktop (`≥768px`) it moves left of the panel (`right: calc(var(--chat-widget-width) + 24px)`). The open popup starts at `bottom: 96px`, above the toast, so needs nothing. Both rules are pure CSS (`body:has(…)`), so dossiers with AI disabled keep the default position.
 - Enters by fading in and rising 12px (`opacity` + `transform`, `0.35s cubic-bezier(.22,1,.36,1)`); `prefers-reduced-motion` drops the translate.
 - Carries `role="status"` and `aria-live="polite"` so screen readers announce it.
 - Renders **nothing** until a message has been shown at least once. The message is deliberately retained while `visible` flips back to false so the exit transition can play.
