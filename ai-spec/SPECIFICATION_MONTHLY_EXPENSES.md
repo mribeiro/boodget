@@ -63,6 +63,7 @@ The date range always shows the full span (e.g. "Mar 25, 2025 – Apr 24, 2025")
 - There is **no reset** for a cycle — once opened, it cannot be reverted to an unopened state.
 - A cycle can be **deleted** unless it holds recorded history that lives outside it (see §3.6); deletion permanently removes the cycle and all its items.
 - A cycle's **period (year/month)** can be changed after creation, subject to the uniqueness constraint.
+- Request validation (all `400`): a cycle's `year` must be an integer (1900–9999) and `month` 1–12, on create and on a period change; a cycle item's or template item's `day_of_payment` must be an integer 1–31 (or `null` where the type allows it); `name` must be a non-empty string.
 
 ### 3.3 Opening a Cycle
 
@@ -148,7 +149,7 @@ Expenses are of two subtypes:
 - Has a **name** and a **maximum value**.
 - Tracks a single **accumulated spent value** (no transaction history).
 - The spent value can be updated at any time during the cycle.
-- The spent value **cannot exceed the maximum**.
+- The spent value **cannot exceed the maximum** — checked whenever either changes, so lowering the maximum below what's already spent is refused too (`400`).
 - The maximum can be **increased** at any time within the cycle.
 - Has no day of payment.
 - Has no paid/unpaid status.
