@@ -147,7 +147,7 @@ For each document in the Paperless response:
    - Strip any leading alphabetic prefix (regex: `/^[A-Za-z]*/`).
    - Parse the remainder as a float.
    - If parsing fails, skip this document and include a warning in the response.
-3. **Date extraction**: find the custom field entry where `field == paperless_date_field_id`. The value is a date string (`YYYY-MM-DD`). Extract the day of month as the proposed `day_of_payment`.
+3. **Date extraction**: find the custom field entry where `field == paperless_date_field_id`. The value is a date string (`YYYY-MM-DD`). Extract the day of month as the proposed `day_of_payment` — read straight from the string (`paperlessDayOfPayment`), never via `new Date(value).getDate()`, which parses the string as UTC midnight and so gives the previous day on a server west of UTC. A value that isn't `YYYY-MM-DD` yields no proposed day.
 
 ### 4.6 Aggregation
 
