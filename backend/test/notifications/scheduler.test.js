@@ -21,7 +21,7 @@ describe('isRepeatDue', () => {
   });
 });
 
-const { isDueToday, localClock, runNotificationScheduler } = require('../../src/notifications/scheduler');
+const { isDueToday, localClock, runNotificationScheduler, carSnapshotNotifications } = require('../../src/notifications/scheduler');
 
 describe('localClock', () => {
   it('reads the wall-clock time in the given zone, across DST', () => {
@@ -99,6 +99,72 @@ describe('runNotificationScheduler', () => {
     const logged = db.prepare('SELECT COUNT(*) AS n FROM notification_log WHERE user_id = ?').get(user.id).n;
     expect(logged).toBe(sentToUser); // one push subscription → one send per logged notification
     expect(db.prepare('SELECT last_evaluated_date FROM user_notification_settings WHERE user_id = ?').get(user.id).last_evaluated_date).toBe('2026-07-15');
+    send.mockRestore();
+  });
+});
+
+describe('carSnapshotNotifications', () => {
+  const { db } = require('../../src/db');
+  const { createUser, createDossier, createCar, createCarMonth } = require('../fixtures/builders');
+
+  function setup() {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id, name: 'Home' });
+    return dossier;
+  }
+
+  it("asks for last month's snapshot of every car still missing one", () => {
+    const dossier = setup();
+    const a = createCar(db, { dossierId: dossier.id, name: 'Daily' });
+    const b = createCar(db, { dossierId: dossier.id, name: 'EV' });
+    db.prepare("UPDATE cars SET created_at = '2026-05-10 10:00:00' WHERE id IN (?, ?)").run(a.id, b.id);
+    createCarMonth(db, { carId: b.id, year: 2026, month: 6 });
+
+    const notes = carSnapshotNotifications(dossier, '2026-07-01');
+    expect(notes).toEqual([{
+      type: 'car_snapshot_missing',
+      key: `car_snapshot:${a.id}:2026-06`,
+      title: 'Car snapshot missing',
+      body: "Home — record Daily's June snapshot",
+      url: `/dossiers/${dossier.id}/cars/${a.id}`,
+    }]);
+  });
+
+  it('wraps January back to December of the previous year', () => {
+    const dossier = setup();
+    const car = createCar(db, { dossierId: dossier.id });
+    db.prepare("UPDATE cars SET created_at = '2025-12-02 10:00:00' WHERE id = ?").run(car.id);
+    expect(carSnapshotNotifications(dossier, '2026-01-01').map((n) => n.key)).toEqual([`car_snapshot:${car.id}:2025-12`]);
+    createCarMonth(db, { carId: car.id, year: 2025, month: 12 });
+    expect(carSnapshotNotifications(dossier, '2026-01-03')).toEqual([]);
+  });
+
+  it("skips a car created this month, since it didn't exist last month", () => {
+    const dossier = setup();
+    const car = createCar(db, { dossierId: dossier.id });
+    db.prepare("UPDATE cars SET created_at = '2026-07-01 00:00:05' WHERE id = ?").run(car.id);
+    expect(carSnapshotNotifications(dossier, '2026-07-01')).toEqual([]);
+  });
+
+  it('is sent by the scheduler on the 1st, deep-linking to the car', async () => {
+    const push = require('../../src/notifications/push');
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id, name: 'Garage' });
+    const car = createCar(db, { dossierId: dossier.id, name: 'Wagon' });
+    db.prepare("UPDATE cars SET created_at = '2026-01-01 10:00:00' WHERE id = ?").run(car.id);
+    db.prepare(
+      `INSERT INTO user_notification_settings (user_id, enabled, send_hour, send_minute, timezone, repeat_enabled, repeat_interval_days)
+       VALUES (?, 1, 9, 0, 'Europe/Lisbon', 0, 1)`
+    ).run(user.id);
+    db.prepare('INSERT INTO dossier_notification_subscriptions (user_id, dossier_id) VALUES (?, ?)').run(user.id, dossier.id);
+    db.prepare("INSERT INTO push_subscriptions (user_id, endpoint, keys_p256dh, keys_auth) VALUES (?, 'https://push.example/car', 'k', 'a')").run(user.id);
+    const send = vi.spyOn(push, 'sendPush').mockResolvedValue({ success: true });
+
+    // 08:00Z on Oct 1 is 09:00 in Lisbon.
+    await runNotificationScheduler(new Date('2026-10-01T08:00:00Z'));
+    const carPushes = send.mock.calls.filter(([sub, payload]) => sub.user_id === user.id && payload.type === 'car_snapshot_missing');
+    expect(carPushes).toHaveLength(1);
+    expect(carPushes[0][1]).toMatchObject({ body: "Garage — record Wagon's September snapshot", url: `/dossiers/${dossier.id}/cars/${car.id}` });
     send.mockRestore();
   });
 });

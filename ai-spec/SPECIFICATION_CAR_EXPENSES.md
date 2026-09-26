@@ -70,6 +70,10 @@ When starting a new snapshot, the four average/price fields are prefilled from t
 
 The default period offered for a new snapshot is **the month right after the car's own most recent snapshot** (continuing its natural cadence), falling back to last calendar month only when the car has no snapshots yet — not an unconditional "last calendar month." Two cars can have a different number of recorded months (one may simply have started being tracked later), so always defaulting to "last calendar month" can silently land on a period that already exists for one car but not another; when that happens, the carry-forward lookup correctly resolves the baseline for the period actually selected, but that baseline can end up being several months further back than the car's true latest reading — or, if nothing exists before that colliding period, no baseline at all — which reads as "the averages didn't carry forward" even though the underlying lookup was never wrong for the period it was actually asked about.
 
+### 3.4 Monthly reminder (push notification)
+
+From the 1st of each month, a user who has push notifications enabled and has opted into the dossier gets a `car_snapshot_missing` push for every car in it that still has no snapshot for the month that just ended ("[Dossier] — record [Car]'s [Month] snapshot"; clicking opens the car's detail page). Cars created on or after the 1st of the current month are skipped. It's sent at the user's chosen notification time and follows the usual dedup/repeat rules — see `SPECIFICATION_PWA.md` §7.1/§8.3.
+
 -----
 
 ## 4. Energy Cost Formula
