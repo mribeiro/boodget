@@ -16,6 +16,31 @@ function utcToLocal(utcHour, utcMinute) {
   return { hour: utc.getHours(), minute: utc.getMinutes() };
 }
 
+// The browser's IANA time zone (e.g. "Europe/Lisbon"), or null if it can't tell.
+function browserTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Pure, exported for testing: the hour/minute to show in the picker. With a stored time zone
+// send_hour/send_minute already are local time; without one (settings saved before zones were
+// stored) they're UTC and are converted to this browser's current offset.
+export function displayedSendTime(settings, toLocal = utcToLocal) {
+  if (settings.timezone) return { hour: settings.send_hour, minute: settings.send_minute };
+  return toLocal(settings.send_hour, settings.send_minute);
+}
+
+// Pure, exported for testing: the PATCH body for a picked local time. Stored as local time plus
+// the zone, so the server keeps sending at that wall-clock time across DST changes; only if the
+// browser can't name its zone does it fall back to the old one-off UTC conversion.
+export function sendTimePatch(hour, minute, timeZone, toUTC = localToUTC) {
+  if (timeZone) return { send_hour: hour, send_minute: minute, timezone: timeZone };
+  return toUTC(hour, minute);
+}
+
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
@@ -68,9 +93,18 @@ export default function NotificationSettings() {
       setSubscriptions(subs);
       setDossiers(dos);
       setVapidInfo(vi);
-      const local = utcToLocal(s.send_hour, s.send_minute);
+      const local = displayedSendTime(s);
       setLocalHour(local.hour);
       setLocalMinute(local.minute);
+      // Settings saved before time zones were stored hold a fixed UTC time, which drifts an hour
+      // at every DST change. Re-save them once as local time + zone — same wall-clock time the
+      // user sees now. Only for an existing row (user_id present): creating one would switch
+      // notifications on for someone who never configured them.
+      const zone = browserTimeZone();
+      if (s.user_id && !s.timezone && zone) {
+        const upgraded = await api.updateNotificationSettings(sendTimePatch(local.hour, local.minute, zone));
+        setSettings(upgraded);
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -103,9 +137,8 @@ export default function NotificationSettings() {
   async function handleTimeChange(hour, minute) {
     setLocalHour(hour);
     setLocalMinute(minute);
-    const utc = localToUTC(hour, minute);
     try {
-      const updated = await api.updateNotificationSettings(utc);
+      const updated = await api.updateNotificationSettings(sendTimePatch(hour, minute, browserTimeZone()));
       setSettings(updated);
     } catch (err) {
       setError(err.message);
@@ -378,7 +411,9 @@ export default function NotificationSettings() {
             ))}
           </select>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            (your local time — stored as UTC {pad2(settings.send_hour)}:{pad2(settings.send_minute)})
+            {settings.timezone
+              ? `(your local time — ${settings.timezone})`
+              : `(your local time — stored as UTC ${pad2(settings.send_hour)}:${pad2(settings.send_minute)})`}
           </span>
         </div>
       </div>

@@ -32,7 +32,7 @@ describe('Dossier export/import — cars (v17)', () => {
     const agent = await loggedInAgent(app, user);
     const res = await agent.get(`/api/dossiers/${dossier.id}/export`);
     expect(res.status).toBe(200);
-    expect(res.body.version).toBe(17);
+    expect(res.body.version).toBe(18);
     expect(res.body.cars).toHaveLength(1);
     expect(res.body.cars[0].name).toBe('Daily Driver');
     expect(res.body.cars[0].months).toHaveLength(1);

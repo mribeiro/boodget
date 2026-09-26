@@ -521,7 +521,8 @@ PATCH  /api/dossiers/:id/annual-years/:yearId/items/:itemId      { name?, budget
 DELETE /api/dossiers/:id/annual-years/:yearId/items/:itemId
 ```
 
-- When `installments` is provided on PATCH, the entire installments list is replaced atomically. Payment records linked to removed installments are deleted.
+- When `installments` is provided on PATCH, the entire installments list is replaced atomically (installments are updated in place by `installment_number`, so their payments survive). Payment records linked to removed installments are deleted — except that removing an installment is **refused with `409`** while any of its payments is recorded history (paid, or in a closed cycle); the user must untick it first (reopening its cycle if needed).
+- Changing an installment's date moves each of its payments to the cycle that now covers the new date, or drops it when no cycle does (it's recreated when that cycle is opened). Recorded history is never moved or dropped this way: a **paid** payment, or any payment in a **closed** cycle, stays in its original cycle, and nothing is moved **into** a closed cycle (closed cycles are read-only). The response carries `payments_kept_in_place` (how many were left where they were); the UI shows a "Saved · N recorded payment(s) kept their cycle" toast when it's non-zero.
 - DELETE removes the item, its installments, and all linked payment records.
 
 ### 12.3 Sync Operations
@@ -532,7 +533,7 @@ POST   /api/dossiers/:id/annual-years/:yearId/sync-to-template
 ```
 
 - `sync-from-template`: a non-destructive **merge**, not a full reset. For each current template item, matched to a year item by name: if no template-derived (`from_template = 1`) year item with that name exists, it's added; if one exists and has no installment with a *paid* payment yet, it's replaced with a fresh copy of the template item (its unpaid payment records, if any, are dropped along with it — same as before this item was touched); if one exists and has at least one paid installment, it's a "locked" item and is left completely untouched, protecting its recorded history. Year items no longer present in the template, and ad-hoc items, are never touched or deleted by this endpoint. Returns the updated year plus a `merge_summary: { added, refreshed, skipped_locked }` (arrays of item names) describing what happened. This is what fixes the December-cycle-auto-creates-next-year's-instance-from-a-stale-template problem: once the template is finished, re-running this merges in the missed changes instead of requiring a destructive full reset.
-- `sync-to-template`: replaces the entire annual expense template with the year's items. Returns the updated template.
+- `sync-to-template`: replaces the entire annual expense template with the year's items. Returns the updated template. Each new template item keeps the `car_id` tag (and legacy `day_of_payment`/`month_of_payment`) of the previous template item with the same name — year items don't carry them, so without this every car's annual costs dropped out of Car Expenses.
 
 ### 12.4 Payments
 
@@ -550,7 +551,7 @@ Changing a year item's `budgeted_value` or `num_installments` (`PATCH .../items/
 
 ```
 GET    /api/dossiers/:id/annual-expenses/accounts
-PUT    /api/dossiers/:id/annual-expenses/accounts    { account_ids: [] }
+PUT    /api/dossiers/:id/annual-expenses/accounts    { account_ids: [] }   # 400 if any id isn't one of this dossier's accounts
 ```
 
 Same pattern as Emergency Fund accounts. `PUT` replaces the entire selection atomically.
@@ -559,7 +560,8 @@ Same pattern as Emergency Fund accounts. `PUT` replaces the entire selection ato
 
 ```
 GET    /api/dossiers/:id/annual-expenses/distributions
-PUT    /api/dossiers/:id/annual-expenses/distributions    { distribution_template_ids: [] }
+PUT    /api/dossiers/:id/annual-expenses/distributions    { distribution_template_ids: [] }   # 400 if any id isn't this dossier's distribution template item
+# (the year status also ignores any stored link that isn't, so foreign values never leak into it)
 ```
 
 Same pattern. `PUT` replaces the entire selection atomically.
@@ -630,9 +632,9 @@ The frontend derives the following computed fields client-side (not returned by 
 The dossier export format must be extended to include:
 
 - **Template**: `num_installments` and `installments` for each annual expense template item.
-- **Years**: list of annual expense years, each with items, installments, and payment records (linked by cycle year/month for re-linking on import).
-- **Contributing accounts**: list of account **names** (for re-linking on import).
-- **Contributing distributions**: list of distribution **names** (for re-linking on import).
+- **Years**: list of annual expense years, each with items, installments, and payment records (linked by cycle year/month for re-linking on import). Since version 18 each installment appears **once**, with a `payments[]` array (one entry per cycle it has a payment in); before that each installment carried a single `payment`, and an installment with payments in two (overlapping) cycles was listed twice.
+- **Contributing accounts**: list of account **names**, plus (version 18+) `annual_expense_account_ids` — the exported account ids in the same order, which is what import re-links by.
+- **Contributing distributions**: list of distribution **names**, plus (version 18+) `annual_expense_distribution_ids`.
 
 ### 13.2 Import
 
@@ -640,10 +642,12 @@ On import:
 
 - Template installments are restored.
 - Annual expense years are recreated with their items and installments.
-- Payment records are re-linked to cycles by matching `(year, month)`. If the cycle does not exist on import, the payment record is skipped.
-- Contributing accounts and distributions are re-linked by name.
+- Payment records are re-linked to cycles by matching `(year, month)`. If the cycle does not exist on import, the payment record is skipped. Older exports that listed one installment twice (same `installment_number` within an item) are folded back into a single installment holding both payments.
+- Contributing accounts and distributions are re-linked by exported id (version 18+), else by name — first match wins when names repeat.
 
-The export format version must be bumped to **7** (or the next available version). Import continues to accept all previous versions.
+The export format version was bumped to **7** for this feature (currently **18**). Import continues to accept all previous versions.
+
+In the year view (`computeYearStatus`) an installment with payments in several cycles is likewise shown once; the payment it shows is the one in the cycle whose window contains the installment's date, else a paid one, else the one in the earliest cycle.
 
 -----
 

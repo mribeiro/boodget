@@ -2,26 +2,41 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 
+function isValidTimeZone(timeZone) {
+  if (typeof timeZone !== 'string' || !timeZone) return false;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // GET /api/notifications/settings
 router.get('/settings', (req, res) => {
   const settings = db
     .prepare('SELECT * FROM user_notification_settings WHERE user_id = ?')
     .get(req.user.id);
   if (!settings) {
-    return res.json({ enabled: 1, send_hour: 9, send_minute: 0, repeat_enabled: 0, repeat_interval_days: 1 });
+    return res.json({ enabled: 1, send_hour: 9, send_minute: 0, timezone: null, repeat_enabled: 0, repeat_interval_days: 1 });
   }
   res.json(settings);
 });
 
 // PATCH /api/notifications/settings
 router.patch('/settings', (req, res) => {
-  const { enabled, send_hour, send_minute, repeat_enabled, repeat_interval_days } = req.body;
+  const { enabled, send_hour, send_minute, timezone, repeat_enabled, repeat_interval_days } = req.body;
 
   if (send_hour !== undefined && (!Number.isInteger(send_hour) || send_hour < 0 || send_hour > 23)) {
     return res.status(400).json({ error: 'send_hour must be 0–23' });
   }
   if (send_minute !== undefined && (!Number.isInteger(send_minute) || send_minute < 0 || send_minute > 59)) {
     return res.status(400).json({ error: 'send_minute must be 0–59' });
+  }
+  // send_hour/send_minute are local time in `timezone` (an IANA name such as "Europe/Lisbon");
+  // with no timezone they're UTC, as they were before zones were stored.
+  if (timezone !== undefined && timezone !== null && !isValidTimeZone(timezone)) {
+    return res.status(400).json({ error: 'timezone must be an IANA time zone name, e.g. "Europe/Lisbon"' });
   }
   if (
     repeat_interval_days !== undefined &&
@@ -36,13 +51,14 @@ router.patch('/settings', (req, res) => {
 
   if (!existing) {
     db.prepare(`
-      INSERT INTO user_notification_settings (user_id, enabled, send_hour, send_minute, repeat_enabled, repeat_interval_days)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO user_notification_settings (user_id, enabled, send_hour, send_minute, timezone, repeat_enabled, repeat_interval_days)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
       req.user.id,
       enabled !== undefined ? (enabled ? 1 : 0) : 1,
       send_hour ?? 9,
       send_minute ?? 0,
+      timezone ?? null,
       repeat_enabled !== undefined ? (repeat_enabled ? 1 : 0) : 0,
       repeat_interval_days ?? 1
     );
@@ -52,6 +68,7 @@ router.patch('/settings', (req, res) => {
     if (enabled !== undefined) { updates.push('enabled = ?'); params.push(enabled ? 1 : 0); }
     if (send_hour !== undefined) { updates.push('send_hour = ?'); params.push(send_hour); }
     if (send_minute !== undefined) { updates.push('send_minute = ?'); params.push(send_minute); }
+    if (timezone !== undefined) { updates.push('timezone = ?'); params.push(timezone); }
     if (repeat_enabled !== undefined) { updates.push('repeat_enabled = ?'); params.push(repeat_enabled ? 1 : 0); }
     if (repeat_interval_days !== undefined) { updates.push('repeat_interval_days = ?'); params.push(repeat_interval_days); }
     if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
@@ -67,8 +84,16 @@ router.patch('/settings', (req, res) => {
 
 // GET /api/notifications/dossiers
 router.get('/dossiers', (req, res) => {
+  // Only dossiers the user can still access — an opt-in left behind by a revoked share would
+  // otherwise be sent back on the next PUT and rejected.
   const rows = db
-    .prepare('SELECT dossier_id FROM dossier_notification_subscriptions WHERE user_id = ?')
+    .prepare(
+      `SELECT dns.dossier_id FROM dossier_notification_subscriptions dns
+       JOIN dossiers d ON d.id = dns.dossier_id
+       WHERE dns.user_id = ?
+         AND (d.creator_id = dns.user_id
+              OR EXISTS (SELECT 1 FROM dossier_access da WHERE da.dossier_id = d.id AND da.user_id = dns.user_id))`
+    )
     .all(req.user.id);
   res.json(rows.map((r) => r.dossier_id));
 });
@@ -77,6 +102,17 @@ router.get('/dossiers', (req, res) => {
 router.put('/dossiers', (req, res) => {
   const { dossier_ids } = req.body;
   if (!Array.isArray(dossier_ids)) return res.status(400).json({ error: 'dossier_ids must be an array' });
+  const accessible = new Set(
+    db
+      .prepare(
+        `SELECT id FROM dossiers WHERE creator_id = ?
+         UNION SELECT dossier_id FROM dossier_access WHERE user_id = ?`
+      )
+      .all(req.user.id, req.user.id)
+      .map((r) => r.id)
+  );
+  const foreign = [...new Set(dossier_ids)].filter((id) => !accessible.has(id));
+  if (foreign.length) return res.status(400).json({ error: `Unknown dossier id(s): ${foreign.join(', ')}` });
 
   const del = db.prepare('DELETE FROM dossier_notification_subscriptions WHERE user_id = ?');
   const ins = db.prepare(
