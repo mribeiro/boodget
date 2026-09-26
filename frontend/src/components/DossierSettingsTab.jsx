@@ -25,7 +25,7 @@ import SettingRow from './ui/SettingRow';
 import SettingsCard from './ui/SettingsCard';
 import Toast from './ui/Toast';
 import useToast from './ui/useToast';
-import { parseDecimalInput, formatNumber } from '../utils/numbers';
+import { parseDecimalInput, formatNumber, parseRateInput } from '../utils/numbers';
 import { useAiAvailableModels, modelSelectOptions } from '../utils/aiModels';
 
 function formatEur(value) {
@@ -138,7 +138,8 @@ function LoanSettings({ dossierId, settings, onChange, showToast }) {
   }
 
   async function handleSave() {
-    const v = draft.trim() === '' ? null : parseDecimalInput(draft);
+    const parse = editingField === 'loans_max_salary_pct' ? parseRateInput : parseDecimalInput;
+    const v = draft.trim() === '' ? null : parse(draft);
     if (editingField === 'loans_max_salary_pct' && v != null && (isNaN(v) || v < 0 || v > 100)) {
       setError('Must be empty or a number between 0 and 100');
       return;

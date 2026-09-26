@@ -1,5 +1,5 @@
 const { db } = require('../../src/db');
-const { parseAvatarDataUrl } = require('../../src/routes/auth');
+const { parseAvatarDataUrl, resolveOidcUser } = require('../../src/routes/auth');
 const { buildTestApp } = require('../helpers/app');
 const { createUser, loginAs } = require('../fixtures/builders');
 const supertest = require('supertest');
@@ -94,5 +94,57 @@ describe('DELETE /api/auth/avatar', () => {
 
     const meRes = await agent.get('/api/auth/me');
     expect(meRes.body.avatar).toBeNull();
+  });
+});
+
+describe('resolveOidcUser', () => {
+  const ISSUER = 'https://idp.example.com';
+
+  it('refuses an SSO login whose username matches a local account', () => {
+    const local = createUser(db, { username: 'oidc-victim' });
+
+    const result = resolveOidcUser({ issuer: ISSUER, subject: 'attacker-sub', username: 'oidc-victim' });
+
+    expect(result.error).toMatch(/local account/);
+    expect(result.user).toBeUndefined();
+    const row = db.prepare('SELECT is_oidc, oidc_subject FROM users WHERE id = ?').get(local.id);
+    expect(row).toEqual({ is_oidc: 0, oidc_subject: null });
+  });
+
+  it('creates a new SSO user bound to its issuer and subject', () => {
+    const { user } = resolveOidcUser({ issuer: ISSUER, subject: 'sub-new', username: 'fresh-sso' });
+
+    const row = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    expect(row).toMatchObject({ username: 'fresh-sso', is_oidc: 1, is_admin: 0, oidc_issuer: ISSUER, oidc_subject: 'sub-new' });
+  });
+
+  it('finds a bound user by subject even after their username changes at the IdP', () => {
+    const { user } = resolveOidcUser({ issuer: ISSUER, subject: 'sub-stable', username: 'before-rename' });
+
+    const again = resolveOidcUser({ issuer: ISSUER, subject: 'sub-stable', username: 'after-rename' });
+
+    expect(again.user.id).toBe(user.id);
+  });
+
+  it('refuses a different subject claiming an already-bound SSO username', () => {
+    resolveOidcUser({ issuer: ISSUER, subject: 'sub-owner', username: 'taken-sso' });
+
+    const result = resolveOidcUser({ issuer: ISSUER, subject: 'sub-intruder', username: 'taken-sso' });
+
+    expect(result.error).toMatch(/different SSO identity/);
+  });
+
+  it('binds a pre-existing unbound SSO user on their next login', () => {
+    const legacy = createUser(db, { username: 'legacy-sso', is_oidc: true });
+
+    const { user } = resolveOidcUser({ issuer: ISSUER, subject: 'sub-legacy', username: 'legacy-sso' });
+
+    expect(user.id).toBe(legacy.id);
+    const row = db.prepare('SELECT oidc_issuer, oidc_subject FROM users WHERE id = ?').get(legacy.id);
+    expect(row).toEqual({ oidc_issuer: ISSUER, oidc_subject: 'sub-legacy' });
+  });
+
+  it('refuses a login with no subject', () => {
+    expect(resolveOidcUser({ issuer: ISSUER, subject: undefined, username: 'x' }).error).toBeTruthy();
   });
 });

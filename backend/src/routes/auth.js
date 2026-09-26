@@ -44,7 +44,13 @@ function parseAvatarDataUrl(dataUrl) {
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT avatar FROM users WHERE id = ?').get(req.user.id);
-  res.json({ id: req.user.id, username: req.user.username, is_oidc: req.user.is_oidc, avatar: user?.avatar || null });
+  res.json({
+    id: req.user.id,
+    username: req.user.username,
+    is_oidc: req.user.is_oidc,
+    is_admin: req.user.is_admin,
+    avatar: user?.avatar || null,
+  });
 });
 
 // POST /api/auth/login
@@ -65,7 +71,13 @@ router.post('/login', loginLimiter, (req, res) => {
   }
   req.session.userId = user.id;
   console.log(`[auth] User logged in: ${user.username} (${user.id})`);
-  res.json({ id: user.id, username: user.username, is_oidc: user.is_oidc, avatar: user.avatar || null });
+  res.json({
+    id: user.id,
+    username: user.username,
+    is_oidc: user.is_oidc,
+    is_admin: user.is_admin,
+    avatar: user.avatar || null,
+  });
 });
 
 // POST /api/auth/logout
@@ -152,15 +164,17 @@ router.get('/oidc/callback', async (req, res) => {
       state: req.session.oidcState,
     });
     const userinfo = await oidcClient.userinfo(tokenSet);
-    const username = userinfo.preferred_username || userinfo.sub;
-
-    let user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-    if (!user) {
-      const id = uuidv4();
-      db.prepare('INSERT INTO users (id, username, is_oidc) VALUES (?, ?, 1)').run(id, username);
-      user = { id, username, is_oidc: 1 };
-      console.log(`[auth] New OIDC user auto-created: ${username} (${id})`);
+    const result = resolveOidcUser({
+      issuer: oidcClient.issuer.issuer,
+      subject: userinfo.sub,
+      username: userinfo.preferred_username || userinfo.sub,
+    });
+    if (result.error) {
+      console.log(`[auth] OIDC login refused: ${result.error}`);
+      delete req.session.oidcState;
+      return res.redirect('/login?error=oidc_conflict');
     }
+    const { user } = result;
 
     req.session.userId = user.id;
     console.log(`[auth] OIDC user logged in: ${user.username} (${user.id})`);
@@ -171,6 +185,39 @@ router.get('/oidc/callback', async (req, res) => {
     res.redirect('/login?error=oidc');
   }
 });
+
+// Finds (or creates) the local user for an OIDC identity. Users are matched on the IdP's
+// immutable (issuer, sub) pair — never on the username alone, which many IdPs let the user
+// pick, and which would otherwise sign an SSO user in as any local account sharing that name.
+// Returns { user } or { error } (the login must be refused).
+function resolveOidcUser({ issuer, subject, username }) {
+  if (!subject) return { error: 'identity provider returned no subject' };
+  const bound = db
+    .prepare('SELECT * FROM users WHERE oidc_issuer = ? AND oidc_subject = ?')
+    .get(issuer, subject);
+  if (bound) return { user: bound };
+
+  const byName = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  if (byName) {
+    if (!byName.is_oidc) {
+      return { error: `"${username}" is a local account; SSO logins never take over local accounts` };
+    }
+    if (byName.oidc_subject) {
+      return { error: `"${username}" is already bound to a different SSO identity` };
+    }
+    // An OIDC user created before identities were recorded (migration 046): bind it now.
+    db.prepare('UPDATE users SET oidc_issuer = ?, oidc_subject = ? WHERE id = ?').run(issuer, subject, byName.id);
+    console.log(`[auth] OIDC identity bound to existing SSO user: ${byName.username} (${byName.id})`);
+    return { user: { ...byName, oidc_issuer: issuer, oidc_subject: subject } };
+  }
+
+  const id = uuidv4();
+  db.prepare(
+    'INSERT INTO users (id, username, is_oidc, oidc_issuer, oidc_subject) VALUES (?, ?, 1, ?, ?)'
+  ).run(id, username, issuer, subject);
+  console.log(`[auth] New OIDC user auto-created: ${username} (${id})`);
+  return { user: { id, username, is_oidc: 1 } };
+}
 
 async function initOIDC() {
   const { Issuer } = require('openid-client');
@@ -187,3 +234,4 @@ async function initOIDC() {
 module.exports = router;
 module.exports.initOIDC = initOIDC;
 module.exports.parseAvatarDataUrl = parseAvatarDataUrl;
+module.exports.resolveOidcUser = resolveOidcUser;

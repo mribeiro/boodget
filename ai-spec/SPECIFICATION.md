@@ -62,9 +62,12 @@ A simple web-based system to help users track their capital at the beginning of 
 - OIDC is configured via **environment variables**.
 - When OIDC is enabled, **local authentication continues to work in parallel**.
 - When an OIDC user logs in:
-  - Matching to an existing local account is done **by username** (`preferred_username` claim).
-  - If a match is found, the existing local account is loaded.
-  - If no match is found, a new account is automatically created.
+  - The user is matched on the provider's **immutable identity** — the issuer URL plus the `sub` claim, stored as `users.oidc_issuer`/`users.oidc_subject` — never on the username alone. Many providers let users choose `preferred_username`, so matching by name let an SSO login sign in as any local account sharing that name.
+  - If no user is bound to that identity yet:
+    - no user has that username (`preferred_username`, falling back to `sub`) → a new SSO account is created and bound to the identity;
+    - an SSO user created before identities were recorded has that username and no identity yet → it is bound on this login (one-time backfill);
+    - a **local** account, or an SSO account already bound to a different identity, has that username → the login is **refused** (`/login?error=oidc_conflict`). Linking an SSO identity to an existing local account is never implicit.
+  - A bound user keeps their app username even if their `preferred_username` later changes at the provider.
 - OIDC users **cannot change their password** within the app (managed externally by the OIDC provider).
 
 ---
@@ -79,12 +82,13 @@ A simple web-based system to help users track their capital at the beginning of 
 ## 6. Users
 
 - The system supports **multiple users**.
-- Any existing user can **create** or **delete** other users.
-- There are **no roles or permission levels** — all users have the same permissions.
-  - *(Note: an admin role concept is planned for a future iteration.)*
+- There is a single role flag, **administrator** (`users.is_admin`). Only administrators can **create** users, **delete** users, or grant/revoke the administrator role (`POST`/`DELETE`/`PATCH /api/users`, `403` otherwise). Every user can still **list** users (dossier sharing needs it).
+  - The user created by the first-launch setup wizard is an administrator. On upgrade, migration `047` makes the oldest local user the first administrator; new users (including auto-created SSO users) are not administrators.
+  - An administrator cannot revoke their own role, so at least one administrator always remains.
+  - Administrators have no extra rights over dossiers — dossier access is unchanged (§7). Finer-grained permission tiers remain out of scope.
 
 ### 6.1 User Deletion
-- A user who still **owns (created) any dossier cannot be deleted** — `DELETE /api/users/:id` returns `409` naming how many dossiers they own. Deleting such a user used to cascade-delete every dossier they created (including ones shared with, and relied on by, other users), and since any user can reach this endpoint, that let one user irreversibly wipe another's data. The owner must delete their own dossiers first.
+- A user who still **owns (created) any dossier cannot be deleted** — `DELETE /api/users/:id` returns `409` naming how many dossiers they own. Deleting such a user used to cascade-delete every dossier they created (including ones shared with, and relied on by, other users), irreversibly wiping data. The owner must delete their own dossiers first.
 - Deleting a user who owns no dossiers removes the user and their access grants to dossiers shared with them; those dossiers themselves are untouched.
 
 ---

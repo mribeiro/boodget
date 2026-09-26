@@ -999,6 +999,31 @@ router.patch('/cycles/:cycleId', (req, res) => {
   res.json(updated);
 });
 
+// Records that cascade-delete with a cycle and can't be recreated: annual payments marked paid
+// (with their real_value) and non-zero manual goal contributions.
+function findCycleDeleteBlockers(cycleId) {
+  const paidAnnual = db
+    .prepare(
+      `SELECT p.id, yi.name, p.real_value
+         FROM annual_expense_payments p
+         JOIN annual_expense_year_installments inst ON inst.id = p.installment_id
+         JOIN annual_expense_year_items yi ON yi.id = inst.year_item_id
+        WHERE p.cycle_id = ? AND p.paid = 1
+        ORDER BY yi.name`
+    )
+    .all(cycleId);
+  const contributions = db
+    .prepare(
+      `SELECT g.id, g.name, gcc.real_contribution
+         FROM goal_cycle_contributions gcc
+         JOIN goals g ON g.id = gcc.goal_id
+        WHERE gcc.cycle_id = ? AND gcc.real_contribution <> 0
+        ORDER BY g.name`
+    )
+    .all(cycleId);
+  return { paidAnnual, contributions };
+}
+
 // DELETE /cycles/:cycleId
 router.delete('/cycles/:cycleId', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
@@ -1007,9 +1032,30 @@ router.delete('/cycles/:cycleId', (req, res) => {
     .get(req.params.cycleId, req.params.id);
   if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
 
-  db.prepare('DELETE FROM cycle_items WHERE cycle_id = ?').run(req.params.cycleId);
-  db.prepare('DELETE FROM cycle_income_items WHERE cycle_id = ?').run(req.params.cycleId);
-  db.prepare('DELETE FROM expense_cycles WHERE id = ?').run(req.params.cycleId);
+  // annual_expense_payments and goal_cycle_contributions both cascade from expense_cycles, so
+  // deleting the cycle would silently erase recorded payment history and goal contributions
+  // that feed other screens (annual year totals, goal progress, car costs). Refuse while any
+  // such record exists instead — same approach as blocking account archival while linked.
+  const { paidAnnual, contributions } = findCycleDeleteBlockers(cycle.id);
+  if (paidAnnual.length || contributions.length) {
+    const parts = [];
+    if (paidAnnual.length) {
+      parts.push(`${paidAnnual.length} paid annual expense payment${paidAnnual.length === 1 ? '' : 's'} (${paidAnnual.map((p) => p.name).join(', ')})`);
+    }
+    if (contributions.length) {
+      parts.push(`recorded contributions to ${contributions.length} goal${contributions.length === 1 ? '' : 's'} (${contributions.map((c) => c.name).join(', ')})`);
+    }
+    return res.status(409).json({
+      error: `This cycle can't be deleted: it holds ${parts.join(' and ')}. Deleting it would erase that history. Untick those payments and clear those contributions first.`,
+      blockers: { paid_annual_payments: paidAnnual, goal_contributions: contributions },
+    });
+  }
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM cycle_items WHERE cycle_id = ?').run(req.params.cycleId);
+    db.prepare('DELETE FROM cycle_income_items WHERE cycle_id = ?').run(req.params.cycleId);
+    db.prepare('DELETE FROM expense_cycles WHERE id = ?').run(req.params.cycleId);
+  })();
   console.log(`[cycles] Deleted cycle ${cycle.year}/${cycle.month} (${req.params.cycleId}) in dossier ${req.params.id} by user ${req.user.username}`);
   res.status(204).end();
 });

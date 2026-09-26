@@ -540,7 +540,11 @@ POST   /api/dossiers/:id/annual-years/:yearId/sync-to-template
 PATCH  /api/dossiers/:id/annual-expense-payments/:paymentId    { real_value?, paid? }
 ```
 
-Payments are created automatically when a cycle is created (see Section 5.1). This endpoint only updates existing payment records.
+Payments are created automatically when a cycle is created (see Section 5.1). This endpoint only updates existing payment records. Either field may be sent alone or both together (`400` if neither); `real_value` must be a non-negative number (`400` otherwise). `409` while the payment's cycle is closed. Returns `{ id, paid, real_value }`.
+
+In the UI, a payment's amount is shown as the per-installment estimate while unpaid; once ticked paid, it becomes the payment's `real_value`, editable inline (click the amount → type → Enter/blur saves, Escape cancels) in both the cycle editor's Annual Expenses rows and the year detail's item/installment rows. When the recorded amount differs from the estimate, a muted "est. X €" line shows the estimate underneath.
+
+Changing a year item's `budgeted_value` or `num_installments` (`PATCH .../items/:itemId`) refreshes `real_value` on that item's **unpaid** payments to the new per-installment estimate, so they don't keep a stale one; paid payments keep the amount actually recorded.
 
 ### 12.5 Contributing Accounts
 

@@ -36,6 +36,7 @@ export const api = {
   getUsers: () => request('GET', '/users'),
   createUser: (data) => request('POST', '/users', data),
   deleteUser: (id) => request('DELETE', `/users/${id}`),
+  updateUser: (id, data) => request('PATCH', `/users/${id}`, data),
 
   // Dossiers
   getDossiers: () => request('GET', '/dossiers'),

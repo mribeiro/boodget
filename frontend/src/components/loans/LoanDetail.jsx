@@ -8,7 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
 import { publishPageContext, clearPageContext } from '../../utils/pageContext';
-import { parseDecimalInput, formatNumber } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber, parseRateInput } from '../../utils/numbers';
 import {
   scenarioDownpayment, scenarioTargetPayment, scenarioRateChange, endDateFromMonthsLeft,
   computeAmortizationSchedule, groupScheduleByYear, effectiveCurrentPeriod,
@@ -228,7 +228,7 @@ export default function LoanDetail() {
       ? scenarioTargetPayment(simBalance, loan.interest_rate, simMonthsLeft, targetPaymentValue)
       : null;
 
-  const newInterestRateValue = parseDecimalInput(newInterestRate);
+  const newInterestRateValue = parseRateInput(newInterestRate);
   const rateChangeScenario =
     !isNaN(newInterestRateValue) && newInterestRateValue >= 0
       ? scenarioRateChange(simBalance, loan.interest_rate, simMonthsLeft, newInterestRateValue)

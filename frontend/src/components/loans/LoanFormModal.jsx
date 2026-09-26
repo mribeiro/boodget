@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
-import { parseDecimalInput, formatNumber } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber, parseRateInput } from '../../utils/numbers';
 import Checkbox from '../ui/Checkbox';
 import { computeMonthlyPayment, computeMonthsLeft, computeTermFromAnchor, effectiveCurrentPeriod } from '../../utils/loanMath';
 
@@ -99,15 +99,15 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
   const previewTermFromAnchor = status === 'active' ? computeTermFromAnchor(balanceAsOf, endDate) : null;
 
   const previewPayment = status === 'draft'
-    ? computeMonthlyPayment(effectiveDraftPrincipal, parseDecimalInput(interestRate), Number(termMonths))
-    : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseDecimalInput(interestRate), previewTermFromAnchor);
+    ? computeMonthlyPayment(effectiveDraftPrincipal, parseRateInput(interestRate), Number(termMonths))
+    : computeMonthlyPayment(parseDecimalInput(remainingBalance), parseRateInput(interestRate), previewTermFromAnchor);
 
   // A rate change rewrites the whole plan, including months already paid. Re-anchoring is
   // the honest fix, but it has to be the user's deliberate call — silently moving the
   // anchor forward while keeping an old balance figure would corrupt the balance outright.
   const rateChangedOnPastAnchor =
     status === 'active' && isEdit && loan?.balance_as_of &&
-    parseDecimalInput(interestRate) !== loan.interest_rate &&
+    parseRateInput(interestRate) !== loan.interest_rate &&
     (loan.payments_made ?? 0) > 0;
 
   const hasDraftTerm = status === 'draft' && Number.isInteger(Number(termMonths)) && Number(termMonths) > 0;
@@ -129,7 +129,7 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
     setError('');
     if (!name.trim()) { setError('Name is required'); return; }
 
-    const rate = parseDecimalInput(interestRate);
+    const rate = parseRateInput(interestRate);
     if (isNaN(rate) || rate < 0 || rate > 100) { setError('Interest rate must be between 0 and 100'); return; }
 
     const salaryValue = salary === '' ? null : parseDecimalInput(salary);
@@ -158,7 +158,7 @@ export default function LoanFormModal({ dossierId, loan, onSave, onClose }) {
       const t = Number(termMonths);
       if (!Number.isInteger(t) || t < 1) { setError('Term must be a whole number of months (≥ 1)'); return; }
 
-      const taegValue = taeg === '' ? null : parseDecimalInput(taeg);
+      const taegValue = taeg === '' ? null : parseRateInput(taeg);
       if (taegValue != null && (isNaN(taegValue) || taegValue < 0)) { setError('TAEG must be a non-negative number'); return; }
 
       const openingFeeValue = openingFee === '' ? null : parseDecimalInput(openingFee);

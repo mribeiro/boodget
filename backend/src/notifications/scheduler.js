@@ -26,9 +26,19 @@ function checkShouldSend(user, dossierId, eventType, eventKey) {
     .get(user.id, dossierId, eventType, eventKey);
   if (!existing) return true;
   if (!user.repeat_enabled) return false;
-  const sentAt = new Date(existing.sent_at + 'Z');
-  const daysSince = (Date.now() - sentAt.getTime()) / (1000 * 60 * 60 * 24);
-  return daysSince >= user.repeat_interval_days;
+  return isRepeatDue(existing.sent_at, new Date(), user.repeat_interval_days);
+}
+
+// Whether a repeat is due, counted in whole UTC calendar days. The scheduler evaluates each
+// user once a day at the same minute, and the log row is stamped a moment *after* that day's
+// check (once the pushes went out), so comparing elapsed milliseconds lands just short of
+// N days at the next check and slips every repeat by a day (#323).
+function isRepeatDue(sentAtSqlite, now, intervalDays) {
+  const sentAt = new Date(sentAtSqlite.replace(' ', 'T') + 'Z');
+  const DAY_MS = 1000 * 60 * 60 * 24;
+  const sentDay = Math.floor(sentAt.getTime() / DAY_MS);
+  const today = Math.floor(now.getTime() / DAY_MS);
+  return today - sentDay >= intervalDays;
 }
 
 async function runNotificationScheduler() {
@@ -288,4 +298,4 @@ async function runNotificationScheduler() {
   }
 }
 
-module.exports = { runNotificationScheduler };
+module.exports = { runNotificationScheduler, isRepeatDue };
