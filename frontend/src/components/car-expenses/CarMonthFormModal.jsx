@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
-import { parseDecimalInput, formatNumber } from '../../utils/numbers';
+import { parseDecimalInput, formatNumber, parseRateInput } from '../../utils/numbers';
 import { computeEnergyCost } from '../../utils/carMath';
 
 const MONTH_NAMES = [
@@ -95,15 +95,15 @@ export default function CarMonthFormModal({ dossierId, car, months, snapshot, on
   const preview = computeEnergyCost({
     fuelType: car.fuel_type,
     kmDriven,
-    avgLPer100km: avgL === '' ? null : parseDecimalInput(avgL),
-    costPerL: costL === '' ? null : parseDecimalInput(costL),
-    avgKwhPer100km: avgKwh === '' ? null : parseDecimalInput(avgKwh),
-    costPerKwh: costKwh === '' ? null : parseDecimalInput(costKwh),
+    avgLPer100km: avgL === '' ? null : parseRateInput(avgL),
+    costPerL: costL === '' ? null : parseRateInput(costL),
+    avgKwhPer100km: avgKwh === '' ? null : parseRateInput(avgKwh),
+    costPerKwh: costKwh === '' ? null : parseRateInput(costKwh),
   });
 
   function parseOptional(value, label) {
     if (value === '') return { value: null };
-    const parsed = parseDecimalInput(value);
+    const parsed = parseRateInput(value);
     if (isNaN(parsed) || parsed < 0) return { error: `${label} must be a non-negative number` };
     return { value: parsed };
   }

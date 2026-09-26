@@ -12,6 +12,7 @@ import { api } from '../../services/api';
 import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import ConfirmModal from '../ConfirmModal';
 import Checkbox from '../ui/Checkbox';
+import PaidAmount from './PaidAmount';
 import KpiStrip from '../ui/KpiStrip';
 import Toast from '../ui/Toast';
 import useToast from '../ui/useToast';
@@ -645,9 +646,14 @@ export default function AnnualExpensesTab({ dossierId }) {
                           </span>
                         )}
                       </div>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
-                        {fmt(item.budgeted_value)}
-                      </span>
+                      <PaidAmount
+                        payment={inst0?.payment}
+                        expectedValue={item.budgeted_value}
+                        onSave={async (real_value) => {
+                          await api.updateAnnualPayment(dossierId, inst0.payment.id, { real_value });
+                          await loadYearData(selectedYearId);
+                        }}
+                      />
                       <button style={iconBtnStyle} onClick={() => setItemModal(item)} title="Edit">
                         <FontAwesomeIcon icon={faPencil} />
                       </button>
@@ -712,9 +718,14 @@ export default function AnnualExpensesTab({ dossierId }) {
                                   {MONTH_NAMES[inst.month - 1]} {inst.day}
                                 </span>
                               </div>
-                              <span style={{ fontSize: '0.875rem', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
-                                {fmt(inst.expected_value)}
-                              </span>
+                              <PaidAmount
+                                payment={inst.payment}
+                                expectedValue={inst.expected_value}
+                                onSave={async (real_value) => {
+                                  await api.updateAnnualPayment(dossierId, inst.payment.id, { real_value });
+                                  await loadYearData(selectedYearId);
+                                }}
+                              />
                             </div>
                           );
                         })}

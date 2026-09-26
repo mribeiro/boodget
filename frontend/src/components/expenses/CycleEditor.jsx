@@ -25,6 +25,7 @@ import KpiBlock from '../ui/KpiBlock';
 import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import { ItemFormModal } from '../annual-expenses/AnnualExpensesTab';
+import PaidAmount from '../annual-expenses/PaidAmount';
 
 // ── Budget progress bar ───────────────────────────────────────────────────────
 
@@ -273,7 +274,7 @@ export default function CycleEditor() {
     const label = formatCycleLabel(end);
     setConfirmState({
       title: 'Delete cycle',
-      message: `Permanently delete the ${label} cycle and all its items? This cannot be undone.`,
+      message: `Permanently delete the ${label} cycle and all its items? This cannot be undone. A cycle holding paid annual expenses or recorded goal contributions can't be deleted until those are cleared.`,
       confirmLabel: 'Delete',
       danger: true,
       onConfirm: async () => {
@@ -1136,8 +1137,16 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
                   {typeLabel}
                 </span>
               </div>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: p.paid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
-                {fmt(expectedValue)}
+              <span style={{ color: p.paid ? 'var(--text-muted)' : 'var(--text-primary)', transition: 'color 0.25s ease' }}>
+                <PaidAmount
+                  payment={p}
+                  expectedValue={expectedValue}
+                  disabled={readOnly}
+                  onSave={async (real_value) => {
+                    await api.updateAnnualPayment(dossierId, p.id, { real_value });
+                    onAnnualPaymentUpdated();
+                  }}
+                />
               </span>
               {!readOnly && (
                 <>

@@ -458,6 +458,15 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
       'UPDATE annual_expense_year_items SET name = ?, budgeted_value = ?, classification = ?, num_installments = ? WHERE id = ?'
     ).run(newName, newBv, newClass, newNumInst, req.params.itemId);
 
+    // Unpaid payments still hold the per-installment estimate as their real_value, so refresh
+    // it when the estimate changes. Paid ones hold the amount actually paid — left alone.
+    if (newBv !== item.budgeted_value || newNumInst !== item.num_installments) {
+      db.prepare(
+        `UPDATE annual_expense_payments SET real_value = ?
+          WHERE paid = 0 AND installment_id IN (SELECT id FROM annual_expense_year_installments WHERE year_item_id = ?)`
+      ).run(newBv / (newNumInst || 1), req.params.itemId);
+    }
+
     if (Array.isArray(installments)) {
       // Update installments in-place by installment_number to preserve IDs and cascade payments.
       // Only delete installments that are no longer in the new list.
@@ -700,14 +709,28 @@ router.patch('/annual-expense-payments/:paymentId', (req, res) => {
     if (cycle?.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
   }
 
-  const { paid } = req.body;
-  if (paid === undefined) return res.status(400).json({ error: 'paid is required' });
+  const { paid, real_value } = req.body;
+  if (paid === undefined && real_value === undefined) {
+    return res.status(400).json({ error: 'paid or real_value is required' });
+  }
+  if (real_value !== undefined) {
+    const n = Number(real_value);
+    if (real_value === null || real_value === '' || !Number.isFinite(n) || n < 0) {
+      return res.status(400).json({ error: 'real_value must be a non-negative number' });
+    }
+  }
 
-  db.prepare('UPDATE annual_expense_payments SET paid = ? WHERE id = ?')
-    .run(paid ? 1 : 0, req.params.paymentId);
+  db.transaction(() => {
+    if (paid !== undefined) {
+      db.prepare('UPDATE annual_expense_payments SET paid = ? WHERE id = ?').run(paid ? 1 : 0, req.params.paymentId);
+    }
+    if (real_value !== undefined) {
+      db.prepare('UPDATE annual_expense_payments SET real_value = ? WHERE id = ?').run(Number(real_value), req.params.paymentId);
+    }
+  })();
 
   const updated = db.prepare('SELECT * FROM annual_expense_payments WHERE id = ?').get(req.params.paymentId);
-  res.json({ id: updated.id, paid: !!updated.paid });
+  res.json({ id: updated.id, paid: !!updated.paid, real_value: updated.real_value });
 });
 
 // ── Contributing Accounts ────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserPlus, faTrash, faXmark, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faUserPlus, faTrash, faXmark, faChevronRight, faUserShield } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
 import ConfirmModal from './ConfirmModal';
@@ -9,6 +9,7 @@ import useToast from './ui/useToast';
 
 export default function UserManager() {
   const { user: currentUser } = useContext(AuthContext);
+  const isAdmin = !!currentUser.is_admin;
   const [users, setUsers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ username: '', password: '', confirm: '' });
@@ -71,24 +72,54 @@ export default function UserManager() {
     });
   }
 
+  function handleToggleAdmin(user) {
+    const grant = !user.is_admin;
+    setConfirmState({
+      title: grant ? 'Make administrator' : 'Remove administrator',
+      message: grant
+        ? `Make "${user.username}" an administrator? Administrators can create and delete users and grant this role to others.`
+        : `Remove "${user.username}"'s administrator role? They will no longer be able to manage users.`,
+      confirmLabel: grant ? 'Make admin' : 'Remove admin',
+      danger: !grant,
+      onConfirm: async () => {
+        setError('');
+        try {
+          const updated = await api.updateUser(user.id, { is_admin: grant });
+          setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, is_admin: updated.is_admin } : u)));
+          showToast(grant ? 'Administrator added' : 'Administrator removed');
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
+  }
+
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
     <div>
       <div className="page-header">
         <h1>Users</h1>
-        <div className="page-header-actions">
-          <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
-            {showForm
-              ? <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
-              : <><FontAwesomeIcon icon={faUserPlus} style={{ marginRight: '0.4rem' }} />Add user</>}
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="page-header-actions">
+            <button className="btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
+              {showForm
+                ? <><FontAwesomeIcon icon={faXmark} style={{ marginRight: '0.4rem' }} />Cancel</>
+                : <><FontAwesomeIcon icon={faUserPlus} style={{ marginRight: '0.4rem' }} />Add user</>}
+            </button>
+          </div>
+        )}
       </div>
+
+      {!isAdmin && (
+        <p className="text-sm" style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>
+          Only administrators can add, remove or promote users.
+        </p>
+      )}
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {showForm && (
+      {isAdmin && showForm && (
         <div className="card card--flat" style={{ marginBottom: 'var(--space-5)', maxWidth: 480 }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border-default)' }}>
             Create user
@@ -161,6 +192,9 @@ export default function UserManager() {
                     {u.id === currentUser.id && (
                       <span className="badge badge-brand" style={{ marginLeft: 8 }}>You</span>
                     )}
+                    {!!u.is_admin && (
+                      <span className="badge badge-warning" style={{ marginLeft: 8 }}>Admin</span>
+                    )}
                   </span>
                   <span className="mobile-card-inline-value">
                     <span className="badge badge-neutral">{u.is_oidc ? 'SSO' : 'Local'}</span>
@@ -178,14 +212,20 @@ export default function UserManager() {
                   })}
                 </td>
                 <td data-label="" className="mobile-detail">
-                  {u.id !== currentUser.id && (
-                    <button
-                      className="btn-ghost btn-sm"
-                      style={{ color: 'var(--color-danger)' }}
-                      onClick={() => handleDelete(u)}
-                    >
-                      <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
-                    </button>
+                  {isAdmin && u.id !== currentUser.id && (
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <button className="btn-ghost btn-sm" onClick={() => handleToggleAdmin(u)}>
+                        <FontAwesomeIcon icon={faUserShield} style={{ marginRight: '0.35rem' }} />
+                        {u.is_admin ? 'Remove admin' : 'Make admin'}
+                      </button>
+                      <button
+                        className="btn-ghost btn-sm"
+                        style={{ color: 'var(--color-danger)' }}
+                        onClick={() => handleDelete(u)}
+                      >
+                        <FontAwesomeIcon icon={faTrash} style={{ marginRight: '0.35rem' }} />Delete
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>

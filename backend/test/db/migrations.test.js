@@ -72,3 +72,33 @@ describe('042_add_balance_as_of_to_loans', () => {
     expect(db.prepare('SELECT balance_as_of FROM loans WHERE id = ?').get(loan.id).balance_as_of).toBe('2024-01');
   });
 });
+
+describe('047_add_is_admin_to_users', () => {
+  const migration = migrations.find((m) => m.id === '047_add_is_admin_to_users');
+
+  it('promotes the oldest local user when no admin exists, and nobody else', () => {
+    db.prepare('UPDATE users SET is_admin = 0').run();
+    db.prepare("UPDATE users SET created_at = '2030-01-01 00:00:00'").run();
+    const sso = createUser(db, { is_oidc: true });
+    const first = createUser(db);
+    const second = createUser(db);
+    db.prepare("UPDATE users SET created_at = '2020-01-01 00:00:00' WHERE id = ?").run(sso.id);
+    db.prepare("UPDATE users SET created_at = '2021-01-01 00:00:00' WHERE id = ?").run(first.id);
+    db.prepare("UPDATE users SET created_at = '2022-01-01 00:00:00' WHERE id = ?").run(second.id);
+
+    migration.up();
+
+    const admins = db.prepare('SELECT id FROM users WHERE is_admin = 1').all().map((r) => r.id);
+    expect(admins).toEqual([first.id]);
+  });
+
+  it('leaves existing admins alone when re-run', () => {
+    const extra = createUser(db, { is_admin: true });
+    const before = db.prepare('SELECT id FROM users WHERE is_admin = 1 ORDER BY id').all();
+
+    migration.up();
+
+    expect(db.prepare('SELECT id FROM users WHERE is_admin = 1 ORDER BY id').all()).toEqual(before);
+    expect(before.map((r) => r.id)).toContain(extra.id);
+  });
+});

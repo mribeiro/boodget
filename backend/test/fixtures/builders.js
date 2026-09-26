@@ -21,11 +21,12 @@ function createUser(db, overrides = {}) {
   // Cost factor 4 (vs. the app's production 12) — correctness of bcrypt hashing isn't what's
   // under test here, only that login round-trips; a low cost keeps the suite fast.
   const passwordHash = overrides.password_hash || bcrypt.hashSync(password, 4);
-  db.prepare('INSERT INTO users (id, username, password_hash, is_oidc) VALUES (?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO users (id, username, password_hash, is_oidc, is_admin) VALUES (?, ?, ?, ?, ?)').run(
     id,
     username,
     passwordHash,
-    overrides.is_oidc ? 1 : 0
+    overrides.is_oidc ? 1 : 0,
+    overrides.is_admin ? 1 : 0
   );
   return { id, username, password };
 }

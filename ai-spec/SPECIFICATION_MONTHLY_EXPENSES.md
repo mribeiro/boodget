@@ -61,7 +61,7 @@ The date range always shows the full span (e.g. "Mar 25, 2025 – Apr 24, 2025")
 - The same `(year, month)` start period **cannot be created twice** within a dossier (UNIQUE constraint).
 - Cycles are displayed in **reverse chronological order** in the list (newest first).
 - There is **no reset** for a cycle — once opened, it cannot be reverted to an unopened state.
-- A cycle can be **deleted** at any time; deletion permanently removes the cycle and all its items.
+- A cycle can be **deleted** unless it holds recorded history that lives outside it (see §3.6); deletion permanently removes the cycle and all its items.
 - A cycle's **period (year/month)** can be changed after creation, subject to the uniqueness constraint.
 
 ### 3.3 Opening a Cycle
@@ -96,7 +96,8 @@ Both the income lines and the previous balance can be **updated at any time** wh
 ### 3.6 Deleting a Cycle
 
 - Any cycle can be **permanently deleted** from the cycle editor.
-- Deletion removes the cycle and all its items (`cycle_items`). This action is irreversible.
+- Deletion removes the cycle and all its items (`cycle_items`, `cycle_income_items`) in one transaction. This action is irreversible.
+- Deletion is **refused with `409`** while the cycle holds records other features rely on, which would otherwise cascade away with it: any **annual expense payment marked paid** (its recorded `real_value` feeds the annual year's "Amount paid so far", Car Expenses and the AI Advisor), or any **non-zero manual goal contribution** (`goal_cycle_contributions`, which feeds goal progress). The error names the items/goals, and the response carries `blockers: { paid_annual_payments[], goal_contributions[] }`. The user must untick those payments and clear those contributions first. Unpaid annual payments and zero contributions are just placeholders and are deleted with the cycle. The cycle editor's delete confirmation mentions this and shows the `409` message if hit.
 - Users must confirm before deletion (confirmation dialog).
 
 ---

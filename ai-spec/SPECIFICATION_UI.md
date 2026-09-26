@@ -548,7 +548,12 @@ The chevron stroke (`#64748b`) is a fixed value shared by both themes (an inline
 
 #### Currency / decimal inputs
 
-Currency (money) inputs must accept **both `.` and `,`** as the decimal separator. They are rendered as `type="text"` with `inputMode="decimal"` (not `type="number"`, which rejects `,` and is locale-dependent). The raw string is held in component state and parsed on submit/compute with `parseDecimalInput()` from `frontend/src/utils/numbers.js` (`Number(String(str).replace(',', '.'))`). Do **not** add `step` / `min` / `max` numeric attributes to these text inputs.
+Currency (money) inputs must accept amounts typed the way the app displays them (`1.234,56`) as well as plain dot-decimal input. They are rendered as `type="text"` with `inputMode="decimal"` (not `type="number"`, which rejects `,` and is locale-dependent). The raw string is held in component state and parsed on submit/compute with `parseDecimalInput()` from `frontend/src/utils/numbers.js`:
+- with a `,`: `,` is the decimal separator and any `.` must be valid thousands grouping (`1.500,50` → 1500.5, `1500,5` → 1500.5; `1.23,4` → NaN);
+- with only `.`: a correctly grouped string is thousands (`1.500` → 1500, `1.234.567`), anything else is a decimal point (`12.5`, `0.75`, `0.500` → 0.5);
+- surrounding/inner spaces and a leading `-` are allowed.
+
+Before this, `1.500` silently parsed as 1,5 €. Inputs whose values routinely carry three decimals — interest rates/TAEG, per-unit prices and consumption (`€/l`, `€/kWh`, `l/100km`, `kWh/100km`), percentages — use `parseRateInput()` instead, which reads `.` or `,` as the decimal separator and never as thousands (`3.125` → 3.125). Do **not** add `step` / `min` / `max` numeric attributes to these text inputs.
 
 For inputs that drive live calculations (e.g. the Workbench), use the `MoneyInput` helper in `WorkbenchTab.jsx`: it buffers the raw text locally (so an in-progress trailing separator survives re-renders) while emitting parsed numbers to the parent. Integer-only fields (day-of-month, year, installment count, settings thresholds) remain `type="number"` with `inputMode="numeric"`.
 

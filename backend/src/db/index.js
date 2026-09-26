@@ -1015,6 +1015,44 @@ const migrations = [
       `);
     },
   },
+  {
+    // OIDC users used to be matched by username alone, so an SSO login whose
+    // preferred_username equalled a local user's name signed in as that local user (#320).
+    // Users are now matched on the IdP's immutable (issuer, sub) pair instead. Existing OIDC
+    // rows start NULL and are bound to their identity on their next login.
+    id: '046_add_oidc_identity_to_users',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(users)').all();
+      if (!cols.find((c) => c.name === 'oidc_issuer')) {
+        db.exec('ALTER TABLE users ADD COLUMN oidc_issuer TEXT');
+      }
+      if (!cols.find((c) => c.name === 'oidc_subject')) {
+        db.exec('ALTER TABLE users ADD COLUMN oidc_subject TEXT');
+      }
+      db.exec(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc_identity ON users(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL'
+      );
+    },
+  },
+  {
+    // User management (POST/DELETE/PATCH /api/users) is admin-only (#325). The oldest local
+    // user — normally whoever ran /setup — becomes the first admin.
+    id: '047_add_is_admin_to_users',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(users)').all();
+      if (!cols.find((c) => c.name === 'is_admin')) {
+        db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+      }
+      const { admins } = db.prepare('SELECT COUNT(*) AS admins FROM users WHERE is_admin = 1').get();
+      if (admins === 0) {
+        db.prepare(
+          `UPDATE users SET is_admin = 1 WHERE id = (
+             SELECT id FROM users WHERE COALESCE(is_oidc, 0) = 0 ORDER BY created_at ASC, rowid ASC LIMIT 1
+           )`
+        ).run();
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

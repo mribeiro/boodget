@@ -328,7 +328,7 @@ module.exports = function seed() {
     const userId = uuidv4();
     const passwordHash = bcrypt.hashSync('Preview@Capital2024!', 10);
     db.prepare(
-      'INSERT INTO users (id, username, password_hash, is_oidc) VALUES (?, ?, ?, 0)'
+      'INSERT INTO users (id, username, password_hash, is_oidc, is_admin) VALUES (?, ?, ?, 0, 1)'
     ).run(userId, 'preview', passwordHash);
 
     // ══════════════════════════════════════════════════════════════════════

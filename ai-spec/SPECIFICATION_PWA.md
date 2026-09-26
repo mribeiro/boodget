@@ -415,7 +415,7 @@ Before sending a notification:
 2. If **no entry** exists → send and log.
 3. If an entry exists:
    - If the user has **repeat disabled** → skip (already sent once).
-   - If the user has **repeat enabled** → check if `sent_at` is older than `repeat_interval_days` days ago. If yes → send and log a new entry. If no → skip.
+   - If the user has **repeat enabled** → check whether at least `repeat_interval_days` **UTC calendar days** separate the day of `sent_at` from today (`isRepeatDue` in `scheduler.js`). If yes → send and log a new entry. If no → skip. Counting calendar days rather than elapsed time matters: the check runs once a day at the same minute and the log row is stamped a moment after it, so an elapsed-time comparison always fell just short and slipped every repeat by a day.
 
 ### 8.5 Log Cleanup
 

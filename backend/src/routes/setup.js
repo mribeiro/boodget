@@ -41,10 +41,11 @@ router.post('/create-first-user', (req, res) => {
 
   const id = uuidv4();
   const hash = bcrypt.hashSync(password, 12);
-  db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)').run(id, username, hash);
+  // The first user is the instance's first administrator.
+  db.prepare('INSERT INTO users (id, username, password_hash, is_admin) VALUES (?, ?, ?, 1)').run(id, username, hash);
 
   req.session.userId = id;
-  res.status(201).json({ id, username, is_oidc: 0 });
+  res.status(201).json({ id, username, is_oidc: 0, is_admin: 1 });
 });
 
 module.exports = router;

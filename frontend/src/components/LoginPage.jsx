@@ -18,6 +18,8 @@ export default function LoginPage({ onLogin }) {
     }).catch(() => {});
     if (searchParams.get('error') === 'oidc') {
       setError('SSO login failed. Please try again.');
+    } else if (searchParams.get('error') === 'oidc_conflict') {
+      setError('Your SSO username is already taken by another account. Ask an administrator to resolve it.');
     }
   }, []);
 

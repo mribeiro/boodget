@@ -1,4 +1,4 @@
-import { parseDecimalInput, formatNumber } from './numbers';
+import { parseDecimalInput, parseRateInput, formatNumber } from './numbers';
 
 describe('parseDecimalInput', () => {
   it('returns NaN for an empty string', () => {
@@ -21,12 +21,49 @@ describe('parseDecimalInput', () => {
     expect(parseDecimalInput('42')).toBe(42);
   });
 
-  // Current behavior, not a target for fixing: only the *first* comma is replaced, so a
-  // thousands-separated comma-decimal string like "1,234.5" does not parse as 1234.5 — the
-  // comma becomes a second dot alongside the real decimal dot, and Number(...) on a
-  // two-dot string is NaN.
-  it('does not correctly parse a thousands-separator + decimal-dot string (documented as-is)', () => {
+  it('reads a correctly grouped dot as the thousands separator, the way amounts are displayed', () => {
+    expect(parseDecimalInput('1.500')).toBe(1500);
+    expect(parseDecimalInput('12.000')).toBe(12000);
+    expect(parseDecimalInput('1.234.567')).toBe(1234567);
+  });
+
+  it('parses thousands dots together with a decimal comma', () => {
+    expect(parseDecimalInput('1.500,50')).toBe(1500.5);
+    expect(parseDecimalInput('1.234.567,8')).toBe(1234567.8);
+    expect(parseDecimalInput('1500,50')).toBe(1500.5);
+  });
+
+  it('keeps reading a dot as a decimal point when it is not a thousands grouping', () => {
+    expect(parseDecimalInput('12.5')).toBe(12.5);
+    expect(parseDecimalInput('0.75')).toBe(0.75);
+    expect(parseDecimalInput('0.500')).toBe(0.5);
+    expect(parseDecimalInput('1500.50')).toBe(1500.5);
+  });
+
+  it('handles a sign, surrounding spaces and a trailing comma while typing', () => {
+    expect(parseDecimalInput('-1.500,5')).toBe(-1500.5);
+    expect(parseDecimalInput(' 1 500 ')).toBe(1500);
+    expect(parseDecimalInput('1.500,')).toBe(1500);
+  });
+
+  it('rejects strings that are ambiguous or malformed', () => {
+    expect(parseDecimalInput('1,2,3')).toBeNaN();
+    expect(parseDecimalInput('1.23,4')).toBeNaN();
     expect(parseDecimalInput('1,234.5')).toBeNaN();
+    expect(parseDecimalInput('abc')).toBeNaN();
+  });
+});
+
+describe('parseRateInput', () => {
+  it('reads a dot or comma as the decimal separator, never as thousands', () => {
+    expect(parseRateInput('3.125')).toBe(3.125);
+    expect(parseRateInput('1,759')).toBe(1.759);
+    expect(parseRateInput('4')).toBe(4);
+  });
+
+  it('returns NaN for empty input', () => {
+    expect(parseRateInput('')).toBeNaN();
+    expect(parseRateInput(null)).toBeNaN();
   });
 });
 

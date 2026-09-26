@@ -9,6 +9,7 @@ const {
   createAnnualExpenseYear,
   createAnnualExpenseYearItem,
   createAnnualExpensePayment,
+  createGoal,
 } = require('../fixtures/builders');
 const supertest = require('supertest');
 
@@ -390,5 +391,62 @@ describe('Template bulk-replace preserves fields the caller does not send (Workb
     const insurance = res.body.find((i) => i.name === 'Insurance');
     expect(insurance.num_installments).toBe(1);
     expect(insurance.installments.map((i) => [i.month, i.day])).toEqual([[6, 1]]);
+  });
+});
+
+describe('DELETE /cycles/:cycleId (history guard)', () => {
+  async function setup() {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 1 });
+    createCycleItem(db, { cycleId: cycle.id, section: 'expense', name: 'Rent', type: 'Fixed', value: 800 });
+    const agent = await loggedInAgent(buildTestApp(), user);
+    return { dossier, cycle, agent };
+  }
+
+  function annualPayment(dossier, cycle, paid) {
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2026 });
+    const item = createAnnualExpenseYearItem(db, { yearId: year.id, name: 'Car insurance' });
+    return createAnnualExpensePayment(db, { installmentId: item.installmentIds[0], cycleId: cycle.id, real_value: 310, paid });
+  }
+
+  it('refuses to delete a cycle holding a paid annual payment, keeping everything intact', async () => {
+    const { dossier, cycle, agent } = await setup();
+    const payment = annualPayment(dossier, cycle, true);
+
+    const res = await agent.delete(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/1 paid annual expense payment \(Car insurance\)/);
+    expect(res.body.blockers.paid_annual_payments).toHaveLength(1);
+    expect(db.prepare('SELECT id FROM expense_cycles WHERE id = ?').get(cycle.id)).toBeTruthy();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM cycle_items WHERE cycle_id = ?').get(cycle.id).n).toBe(1);
+    expect(db.prepare('SELECT real_value FROM annual_expense_payments WHERE id = ?').get(payment.id).real_value).toBe(310);
+  });
+
+  it('refuses to delete a cycle holding a recorded goal contribution', async () => {
+    const { dossier, cycle, agent } = await setup();
+    const goal = createGoal(db, { dossierId: dossier.id, name: 'Holiday', contribution_mode: 'manual' });
+    db.prepare('INSERT INTO goal_cycle_contributions (goal_id, cycle_id, real_contribution) VALUES (?, ?, ?)').run(goal.id, cycle.id, 150);
+
+    const res = await agent.delete(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/1 goal \(Holiday\)/);
+    expect(db.prepare('SELECT real_contribution FROM goal_cycle_contributions WHERE cycle_id = ?').get(cycle.id).real_contribution).toBe(150);
+  });
+
+  it('still deletes a cycle whose annual payments are unpaid and goal contributions are zero', async () => {
+    const { dossier, cycle, agent } = await setup();
+    annualPayment(dossier, cycle, false);
+    const goal = createGoal(db, { dossierId: dossier.id, contribution_mode: 'manual' });
+    db.prepare('INSERT INTO goal_cycle_contributions (goal_id, cycle_id, real_contribution) VALUES (?, ?, 0)').run(goal.id, cycle.id);
+
+    const res = await agent.delete(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`);
+
+    expect(res.status).toBe(204);
+    expect(db.prepare('SELECT id FROM expense_cycles WHERE id = ?').get(cycle.id)).toBeUndefined();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM cycle_items WHERE cycle_id = ?').get(cycle.id).n).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM annual_expense_payments WHERE cycle_id = ?').get(cycle.id).n).toBe(0);
   });
 });
