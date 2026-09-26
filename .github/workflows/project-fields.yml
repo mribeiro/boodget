@@ -1,0 +1,54 @@
+name: Sync project fields
+
+# Mirrors each issue's type and criticality labels (CLAUDE.md → "GitHub Issue Conventions")
+# into the Type / Criticality fields of the owner's Projects board, adding the issue to the
+# board if needed. Logic lives in .github/scripts/sync-project-fields.js.
+#
+# Requires the PROJECT_TOKEN repository secret: a classic personal access token with the
+# `project` scope. The workflow's own GITHUB_TOKEN can't write to a user-owned project.
+# Optional repository variables: PROJECT_TITLE (default "Boodget's main board") or
+# PROJECT_NUMBER, and PROJECT_OWNER (default: the repository owner).
+
+on:
+  issues:
+    types: [opened, reopened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      state:
+        description: Which issues to backfill
+        type: choice
+        options: [open, closed, all]
+        default: open
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: project-fields-${{ github.event.issue.number || 'backfill' }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      HAS_PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN != '' }}
+    steps:
+      - name: Skip when PROJECT_TOKEN isn't configured
+        if: env.HAS_PROJECT_TOKEN != 'true'
+        run: echo "::notice::PROJECT_TOKEN secret is not set — skipping project field sync."
+      - uses: actions/checkout@v4
+        if: env.HAS_PROJECT_TOKEN == 'true'
+        with:
+          sparse-checkout: .github/scripts
+      - uses: actions/github-script@v7
+        if: env.HAS_PROJECT_TOKEN == 'true'
+        env:
+          PROJECT_TITLE: ${{ vars.PROJECT_TITLE }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const run = require('./.github/scripts/sync-project-fields.js');
+            await run({ github, context, core });

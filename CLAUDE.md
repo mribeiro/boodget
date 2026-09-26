@@ -138,7 +138,8 @@ money_manager/
 ├── .github/workflows/
 │   ├── deploy.yml            # CI/CD: build + deploy to self-hosted runner
 │   ├── preview-deploy.yml    # Ephemeral preview environments for feature branches
-│   └── pages.yml             # Deploys landing/ to GitHub Pages on push to main
+│   ├── pages.yml             # Deploys landing/ to GitHub Pages on push to main
+│   └── project-fields.yml    # Mirrors issue type/criticality labels into the Projects board's fields
 ├── docker-compose.yml        # Production deployment (SQLite persisted to ./data/)
 └── .devcontainer/
 ```
@@ -182,7 +183,7 @@ Every issue filed in `mribeiro/boodget` (by an AI assistant or otherwise) must c
    - `trivial` — a UI-only issue or something with light user impact (includes most code-hygiene/tech-debt items).
 3. **`opened by claude`** — always applied, marking the issue as filed by an AI assistant.
 
-Label names are case-insensitive in GitHub, so reuse the exact lowercase strings above rather than creating capitalized variants that would silently collide with (or duplicate) the canonical ones.
+These labels are the source of truth for the project board: `project-fields.yml` copies the type and criticality labels into the board's Type/Criticality fields, so set the labels rather than editing those fields by hand. Label names are case-insensitive in GitHub, so reuse the exact lowercase strings above rather than creating capitalized variants that would silently collide with (or duplicate) the canonical ones.
 
 ### Running Locally (Dev Container)
 
@@ -218,6 +219,7 @@ Change `SESSION_SECRET` in `docker-compose.yml` before real use.
 - **Production/Dev** (`deploy.yml`): builds Docker image with `GIT_COMMIT` arg, deploys via `docker compose up -d --force-recreate`. `-dev` suffix for `dev` branch.
 - **Preview** (`preview-deploy.yml`): branch slug → Traefik-routed container at `<slug>.preview.<PREVIEW_DOMAIN>`. Posts/updates PR comment with preview URL.
 - **Pages** (`pages.yml`): on push to `main` touching `landing/**` (or manual dispatch), uploads `landing/` as a Pages artifact and deploys it via `actions/deploy-pages`. Requires the repo's *Settings → Pages → Build and deployment → Source* to be set to "GitHub Actions" (one-time, done outside this repo).
+- **Project fields** (`project-fields.yml`): on issue `opened`/`reopened`/`labeled`/`unlabeled` (and manual `workflow_dispatch`, which backfills every open/closed/all issue), mirrors the issue's type and criticality labels (see GitHub Issue Conventions) into the single-select **Type** and **Criticality** fields of the owner's "Boodget's main board" Projects (v2) board, adding the issue to the board first if needed. Logic lives in `.github/scripts/sync-project-fields.js` (label → option matched case-insensitively by name; a field is only cleared when a label is removed, so values set by hand on the board otherwise stay; unknown options log a warning). Needs the `PROJECT_TOKEN` repository secret — a classic PAT with the `project` scope, since the workflow's `GITHUB_TOKEN` can't write to a user-owned project; without it the job skips with a notice. Optional repository variables `PROJECT_TITLE`/`PROJECT_NUMBER`/`PROJECT_OWNER` override which board is targeted.
 - **Test** (`test.yml`): on `pull_request` against `main`/`dev`, runs `backend-test` and `frontend-test` as two independent jobs on GitHub-hosted `ubuntu-latest` runners (Node 22, `npm ci` + `npm test`) — see `## Testing` below. Not (yet) wired up as a required status check in branch protection; that's a one-time manual step in the repo's GitHub Settings.
 
 See `ai-spec/SPECIFICATION_PREVIEW_ENVIRONMENTS.md` for full preview environment details.
