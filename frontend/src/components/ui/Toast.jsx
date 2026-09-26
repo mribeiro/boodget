@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCircleCheck, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 
@@ -19,11 +20,15 @@ const VARIANTS = {
  * Renders nothing until a message has been shown at least once — the message is
  * deliberately retained while `visible` flips back to false so the exit
  * transition can play out.
+ *
+ * Portalled to <body>: a toast rendered in place sits inside the page/tab
+ * wrapper, whose fadeIn animation (fill-mode both) creates a stacking context,
+ * so its z-index never beat root-level fixed UI like the AI chat button.
  */
 export default function Toast({ message, visible, variant = 'success' }) {
   if (!message) return null;
   const { icon, className } = VARIANTS[variant] ?? VARIANTS.success;
-  return (
+  return createPortal(
     <div
       className={`toast ${className}${visible ? ' toast--visible' : ''}`}
       role="status"
@@ -31,6 +36,7 @@ export default function Toast({ message, visible, variant = 'success' }) {
     >
       <FontAwesomeIcon icon={icon} style={{ fontSize: 14 }} />
       {message}
-    </div>
+    </div>,
+    document.body
   );
 }

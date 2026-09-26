@@ -2293,6 +2293,14 @@ tr:hover td {
   transform: translateY(0);
 }
 
+/* Keep clear of the AI chat widget (AiChatWidget.jsx), which also lives bottom-right:
+   sit above the closed chat button (24px offset + 56px button + 16px gap), and to the left of
+   the chat panel when it's pinned on desktop. The open popup starts 96px up, above the toast. */
+body:has(.ai-chat-fab) .toast { bottom: 96px; }
+@media (min-width: 768px) {
+  body:has(.ai-chat-widget.pinned) .toast { right: calc(var(--chat-widget-width) + 24px); }
+}
+
 .toast--success { background: var(--color-success); }
 .toast--error   { background: var(--color-danger); }
 
