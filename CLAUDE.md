@@ -175,6 +175,10 @@ money_manager/
 
 When creating a new branch for a piece of work, give it a short, meaningful, descriptive name reflecting the feature or fix being developed (e.g. `add-stocks-money-category`, `fix-emergency-fund-rounding`) rather than a generic or auto-generated name.
 
+### Pull Request Scope
+
+New features and bug fixes must go into **separate pull requests** — never bundle a fix into a feature PR or a feature into a fix PR, even when both are small or requested in the same conversation. Each gets its own branch and PR, so it can be reviewed, reverted, and released on its own. Likewise, two unrelated features go into two PRs. When already working on a branch whose open PR covers something else, start a new branch for the new piece of work (if the environment pins a single branch name, finish/merge the current PR first or ask which to use, rather than stacking the new work onto it).
+
 ### GitHub Issue Conventions
 
 Every issue filed in `mribeiro/boodget` (by an AI assistant or otherwise) must carry three labels, all lowercase:
