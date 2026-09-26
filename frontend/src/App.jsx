@@ -17,6 +17,7 @@ import GoalDetail from './components/goals/GoalDetail';
 import LoanDetail from './components/loans/LoanDetail';
 import CarDetail from './components/car-expenses/CarDetail';
 import NotificationSettings from './pages/NotificationSettings';
+import Backups from './pages/Backups';
 import UpdateBanner from './components/ui/UpdateBanner';
 
 export const AuthContext = createContext(null);
@@ -137,6 +138,7 @@ function AppRoutes() {
           <Route path="/change-password" element={<PasswordChange />} />
           <Route path="/profile-picture" element={<AvatarUpload />} />
           <Route path="/notifications" element={<NotificationSettings />} />
+          <Route path="/backups" element={<Backups />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>

@@ -43,6 +43,7 @@ app.use('/api/users', apiLimiter, requireAuth, require('./routes/users'));
 app.use('/api/dossiers', apiLimiter, requireAuth, require('./routes/dossiers'));
 app.use('/api/push', apiLimiter, requireAuth, require('./routes/push'));
 app.use('/api/notifications', apiLimiter, requireAuth, require('./routes/notifications'));
+app.use('/api/backups', apiLimiter, requireAuth, require('./routes/backups'));
 app.use('/api', jsonBodyErrorHandler);
 
 // Serve the built frontend when available (production, dev, ephemeral, etc.)
@@ -88,6 +89,8 @@ async function start() {
       );
     });
     console.log('[push] Notification scheduler started');
+
+    require('./backups').startBackupScheduler(cron);
   });
 }
 

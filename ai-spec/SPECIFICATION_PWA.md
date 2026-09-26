@@ -346,6 +346,8 @@ The warning thresholds for `cycle_not_closed`, `cycle_not_opened`, and `snapshot
 
 `cycle_not_opened` is bounded above by `cycle_start_day` (mirroring the Glances `inCycleEndMonth` guard in `CycleGlance.jsx`) so that once the active cycle rolls over, the check doesn't keep firing for the rest of the calendar month against the cycle *after* next.
 
+Separately from these per-dossier events, a failed scheduled database backup sends a `backup_failed` push to every administrator's devices — see `SPECIFICATION_BACKUPS.md` §3.
+
 ### 7.2 Determining the "Current Cycle"
 
 The current cycle for notification purposes uses the same logic as Glances (Section 4.1 of `SPECIFICATION_GLANCES.md`): the cycle whose date range covers today, computed using the dossier's *current* `cycle_start_day` (forward-looking, since the cycle may not exist yet). Once that cycle is found, `prevCycle`'s naming and `currentCycle`'s payment-day math (Section 7.3) both switch to using each cycle's own stored `cycle_start_day` (see `SPECIFICATION_MONTHLY_EXPENSES.md` §3.1), not the dossier's live setting.
