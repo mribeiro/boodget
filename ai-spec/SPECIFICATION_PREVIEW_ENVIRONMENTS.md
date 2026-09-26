@@ -305,7 +305,7 @@ preview-index/
 
 ### 6.3 Dockerfile
 
-- Base: `node:20-alpine`
+- Base: `node:22-alpine`
 - Must install `curl` (needed to query the Docker socket)
 - No `package.json` needed (no dependencies)
 - Copies `server.js` and runs it with `node server.js`
