@@ -40,6 +40,7 @@ function buildTestApp() {
   app.use('/api/dossiers', requireAuth, require('../../src/routes/dossiers'));
   app.use('/api/push', requireAuth, require('../../src/routes/push'));
   app.use('/api/notifications', requireAuth, require('../../src/routes/notifications'));
+  app.use('/api/backups', requireAuth, require('../../src/routes/backups'));
   app.use('/api', jsonBodyErrorHandler);
 
   return app;

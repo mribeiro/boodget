@@ -38,6 +38,11 @@ export const api = {
   deleteUser: (id) => request('DELETE', `/users/${id}`),
   updateUser: (id, data) => request('PATCH', `/users/${id}`, data),
 
+  // Backups (admin only)
+  getBackups: () => request('GET', '/backups'),
+  createBackup: () => request('POST', '/backups'),
+  backupDownloadUrl: (name) => `${BASE}/backups/${encodeURIComponent(name)}/download`,
+
   // Dossiers
   getDossiers: () => request('GET', '/dossiers'),
   createDossier: (data) => request('POST', '/dossiers', data),

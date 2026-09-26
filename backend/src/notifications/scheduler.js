@@ -87,6 +87,34 @@ function claimEvaluation(userId, localDate) {
   );
 }
 
+// From the 1st of each month (the user's local date), one reminder per car in the dossier that
+// has no snapshot for the month that just ended. A car created on or after the 1st of the current
+// month didn't exist during that month, so it isn't asked for one. Keyed per car and month, so the
+// usual dedup/repeat rules decide whether it's re-sent on later days while still missing.
+function carSnapshotNotifications(dossier, localDate) {
+  const [curYear, curMonth] = localDate.split('-').map(Number);
+  let year = curYear;
+  let month = curMonth - 1;
+  if (month === 0) { month = 12; year--; }
+  const monthStart = `${localDate.slice(0, 7)}-01`;
+  const cars = db
+    .prepare(
+      `SELECT c.id, c.name FROM cars c
+        WHERE c.dossier_id = ? AND c.created_at < ?
+          AND NOT EXISTS (SELECT 1 FROM car_months cm WHERE cm.car_id = c.id AND cm.year = ? AND cm.month = ?)
+        ORDER BY c.created_at ASC`
+    )
+    .all(dossier.id, monthStart, year, month);
+  const monthName = new Date(year, month - 1, 1).toLocaleString('en', { month: 'long' });
+  return cars.map((car) => ({
+    type: 'car_snapshot_missing',
+    key: `car_snapshot:${car.id}:${year}-${String(month).padStart(2, '0')}`,
+    title: 'Car snapshot missing',
+    body: `${dossier.name} — record ${car.name}'s ${monthName} snapshot`,
+    url: `/dossiers/${dossier.id}/cars/${car.id}`,
+  }));
+}
+
 let running = false;
 
 // Runs every minute (node-cron). Runs don't overlap within this process: a run still busy
@@ -119,6 +147,7 @@ async function evaluateDueUsers(now) {
     .all()
     .filter((user) => {
       const { due, localDate } = isDueToday(user, now);
+      user.localDate = localDate;
       return due && claimEvaluation(user.id, localDate);
     });
 
@@ -173,6 +202,9 @@ async function evaluateDueUsers(now) {
           });
         }
       }
+
+      // --- car_snapshot_missing ---
+      notifications.push(...carSnapshotNotifications(dossier, user.localDate));
 
       // --- cycle_not_closed ---
       const prevCloseWarnDay = dossier.previous_cycle_close_warning_day || 25;
@@ -358,4 +390,4 @@ async function evaluateDueUsers(now) {
   }
 }
 
-module.exports = { runNotificationScheduler, isRepeatDue, isDueToday, localClock };
+module.exports = { runNotificationScheduler, isRepeatDue, isDueToday, localClock, carSnapshotNotifications };

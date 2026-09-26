@@ -329,7 +329,7 @@ The existing `GET /api/dossiers/:id/settings` and `PATCH /api/dossiers/:id/setti
 
 ### 7.1 Event Types
 
-Five notification types are supported:
+Six notification types are supported:
 
 | Event ID | Trigger | Title | Body example |
 |----------|---------|-------|-------------|
@@ -338,10 +338,15 @@ Five notification types are supported:
 | `cycle_not_closed` | Today's day-of-month ≥ `previous_cycle_close_warning_day` and the previous cycle is not closed | "Cycle not closed" | "[Dossier] — The [Month] cycle has not been closed yet" |
 | `cycle_not_opened` | Today's day-of-month is in `[next_cycle_warning_day, cycle_start_day)` and the next cycle has not been opened | "Cycle not opened" | "[Dossier] — The [Month] cycle has not been opened yet" |
 | `snapshot_missing` | Today's day-of-month ≥ `capital_snapshot_warning_day` and no filled snapshot exists for the current month | "Snapshot missing" | "[Dossier] — [Month] capital snapshot not yet recorded" |
+| `car_snapshot_missing` | From the 1st of each month (the user's local date), per car in the dossier with no `car_months` row for the month that just ended; cars created on or after the 1st of the current month are skipped (they didn't exist last month). Clicking opens the car's detail page (`/dossiers/{id}/cars/{carId}`) | "Car snapshot missing" | "[Dossier] — record [Car]'s [Month] snapshot" |
 
 The warning thresholds for `cycle_not_closed`, `cycle_not_opened`, and `snapshot_missing` are the **same values** already used by Glances (`previous_cycle_close_warning_day`, `next_cycle_warning_day`, `capital_snapshot_warning_day`). No new thresholds are introduced for these.
 
+`car_snapshot_missing` has no configurable threshold: it's always "from the 1st", since a car snapshot records a whole calendar month and can only be complete once that month has ended. It's one notification per car (not per dossier), and like every other event it's sent once and then only re-sent under the user's repeat setting while the snapshot is still missing (`carSnapshotNotifications` in `scheduler.js`).
+
 `cycle_not_opened` is bounded above by `cycle_start_day` (mirroring the Glances `inCycleEndMonth` guard in `CycleGlance.jsx`) so that once the active cycle rolls over, the check doesn't keep firing for the rest of the calendar month against the cycle *after* next.
+
+Separately from these per-dossier events, a failed scheduled database backup sends a `backup_failed` push to every administrator's devices — see `SPECIFICATION_BACKUPS.md` §3.
 
 ### 7.2 Determining the "Current Cycle"
 
@@ -391,7 +396,7 @@ A new `notification_log` table:
 | `id` | INTEGER PRIMARY KEY | Auto-increment |
 | `user_id` | INTEGER NOT NULL | FK to `users` |
 | `dossier_id` | INTEGER NOT NULL | FK to `dossiers` |
-| `event_type` | TEXT NOT NULL | One of the five event IDs |
+| `event_type` | TEXT NOT NULL | One of the six event IDs |
 | `event_key` | TEXT NOT NULL | Unique identifier for the specific event instance (see below) |
 | `sent_at` | TEXT NOT NULL | ISO 8601 timestamp of when the notification was sent |
 
@@ -406,6 +411,7 @@ The `event_key` uniquely identifies a specific event instance so the system can 
 | `cycle_not_closed` | `cycle:{year}-{month}:close` | `cycle:2026-03:close` |
 | `cycle_not_opened` | `cycle:{year}-{month}:open` | `cycle:2026-04:open` |
 | `snapshot_missing` | `snapshot:{year}-{month}` | `snapshot:2026-03` |
+| `car_snapshot_missing` | `car_snapshot:{carId}:{year}-{month}` (the month the snapshot is for) | `car_snapshot:car-1:2026-03` |
 
 For annual expense payments, the event key uses `payment:{paymentId}` instead of `item:{itemId}`.
 
@@ -440,7 +446,7 @@ for each user with notifications enabled:
   if local time < send_hour:send_minute, or last_evaluated_date == local date → skip
   claim: set last_evaluated_date = local date, only if it isn't already → skip if another run did
   for each dossier the user has opted into:
-    evaluate all 5 notification conditions
+    evaluate all 6 notification conditions
     for each triggered condition:
       check deduplication log
       if should send:
@@ -826,7 +832,7 @@ These ensure all day-of-month threshold comparisons use UTC, consistent with the
 - Offline data access (reading/writing without backend connectivity)
 - Email or SMS notifications
 - Grouping or digest of multiple notifications into a single message
-- Per-event-type opt-in (all 5 event types are always active when notifications are enabled)
+- Per-event-type opt-in (all 6 event types are always active when notifications are enabled)
 - Notification history page in the UI (the log is internal only)
 - Annual expense installment upcoming/overdue notifications as separate event types (they are merged with monthly expense notifications)
 - Custom notification sounds

@@ -1134,4 +1134,4 @@ sessionCleanupTimer.unref();
 // `migrations` is exported so individual migrations can be unit-tested against a
 // hand-built pre-migration state — a fresh test DB has every migration already applied,
 // so a backfill's behaviour is otherwise unreachable from a test.
-module.exports = { db, SQLiteSessionStore, migrations };
+module.exports = { db, SQLiteSessionStore, migrations, DB_PATH };

@@ -22,6 +22,7 @@ import {
   faShieldHeart,
   faWandMagicSparkles,
   faGear,
+  faDatabase,
 } from '@fortawesome/free-solid-svg-icons';
 
 const NAV_ITEMS = [
@@ -233,6 +234,16 @@ export default function Sidebar({ mobileOpen, onClose, collapsed, onCollapseChan
           <span className="sidebar-nav-icon"><FontAwesomeIcon icon={faUser} /></span>
           <span className="sidebar-nav-label">Users</span>
         </button>
+        {!!user?.is_admin && (
+          <button
+            className={`sidebar-nav-item${location.pathname === '/backups' ? ' active' : ''}`}
+            data-tooltip="Backups"
+            onClick={() => navToPath('/backups')}
+          >
+            <span className="sidebar-nav-icon"><FontAwesomeIcon icon={faDatabase} /></span>
+            <span className="sidebar-nav-label">Backups</span>
+          </button>
+        )}
       </div>
 
       {/* Collapse toggle */}
