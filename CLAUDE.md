@@ -93,7 +93,7 @@ money_manager/
 │   ├── src/
 │   │   ├── main.jsx, App.jsx     # Entry, AuthContext/AppContext, routing
 │   │   ├── services/api.js       # Fetch-based API client wrapper
-│   │   ├── utils/numbers.js, loanMath.js, carMath.js, cycleDates.js, distributionGroups.js  # formatNumber/parseDecimalInput/parseRateInput, loan amortization math, car energy-cost math, weekend-adjusted cycle date math, cycle distributions grouped by destination account
+│   │   ├── utils/numbers.js, loanMath.js, carMath.js, cycleDates.js, distributionGroups.js, cycleCounts.js  # formatNumber/parseDecimalInput/parseRateInput, loan amortization math, car energy-cost math, weekend-adjusted cycle date math, cycle distributions grouped by destination account, Fixed Expenses paid/total count (Fixed items + annual installments)
 │   │   ├── pages/
 │   │   │   ├── NotificationSettings.jsx
 │   │   │   └── Backups.jsx          # Admin-only backup status, list, download, back up now
