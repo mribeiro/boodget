@@ -26,6 +26,7 @@ import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import { ItemFormModal, keptPaymentsMessage } from '../annual-expenses/AnnualExpensesTab';
 import PaidAmount from '../annual-expenses/PaidAmount';
+import { fixedExpensesPaidCount } from '../../utils/cycleCounts';
 
 // ── Budget progress bar ───────────────────────────────────────────────────────
 
@@ -396,7 +397,7 @@ export default function CycleEditor() {
 
   const fixedExpenses = expenses.filter((e) => e.type === 'Fixed');
   const budgetExpenses = expenses.filter((e) => e.type === 'Budget');
-  const paidFixed = fixedExpenses.filter((e) => e.paid).length;
+  const fixedCount = fixedExpensesPaidCount(fixedExpenses, cycle.annual_payments ?? []);
   const doneDist = distributions.filter((d) => d.done).length;
 
   return (
@@ -552,7 +553,7 @@ export default function CycleEditor() {
             title="Fixed Expenses"
             icon={faReceipt}
             accent="var(--color-danger)"
-            count={`${paidFixed}/${fixedExpenses.length + (cycle.annual_payments?.length ?? 0)}`}
+            count={`${fixedCount.paid}/${fixedCount.total}`}
             collapsed={expensesCollapsed}
             onToggle={() => setExpensesCollapsed((v) => !v)}
           >
