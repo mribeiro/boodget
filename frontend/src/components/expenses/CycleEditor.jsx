@@ -14,7 +14,7 @@ import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { groupDistributionsByAccount } from '../../utils/distributionGroups';
 import {
   computeCycleStartDate, computeTheoreticalCycleEndDate,
-  formatCycleLabel, formatDateRange, fromIsoDate,
+  formatCycleLabel, formatDateRange, fromIsoDate, dayInCycleWindow,
 } from '../../utils/cycleDates';
 import ConfirmModal from '../ConfirmModal';
 import Modal from '../ui/Modal';
@@ -26,7 +26,7 @@ import KpiStrip from '../ui/KpiStrip';
 import CollapsibleSection from '../ui/CollapsibleSection';
 import { ItemFormModal, keptPaymentsMessage } from '../annual-expenses/AnnualExpensesTab';
 import PaidAmount from '../annual-expenses/PaidAmount';
-import { fixedExpensesPaidCount } from '../../utils/cycleCounts';
+import { fixedExpensesPaidCount, budgetsBadge } from '../../utils/cycleCounts';
 
 // ── Budget progress bar ───────────────────────────────────────────────────────
 
@@ -84,16 +84,18 @@ function transferableAccounts(accounts, currentAccountId) {
   return accounts.filter((a) => a.can_receive_transfers || a.id === currentAccountId);
 }
 
-function sortExpenses(expenses, cycleStartDay) {
-  const start = cycleStartDay ?? 25;
-  const firstHalf = expenses
-    .filter((e) => e.type === 'Fixed' && e.day_of_payment >= start)
-    .sort((a, b) => a.day_of_payment - b.day_of_payment);
-  const secondHalf = expenses
-    .filter((e) => e.type === 'Fixed' && e.day_of_payment < start)
-    .sort((a, b) => a.day_of_payment - b.day_of_payment);
+// Fixed expenses in the order they really fall within the cycle's own stored window, so a
+// weekend-shifted start keeps its first days first (#364); Budget items always last.
+function sortExpenses(expenses, cycle) {
+  const startDay = cycle.cycle_start_day ?? 25;
+  const { start, end } = cycleActualDates(cycle);
+  const fixed = expenses
+    .filter((e) => e.type === 'Fixed')
+    .map((e) => ({ e, date: dayInCycleWindow(e.day_of_payment ?? 1, start, end, startDay) }))
+    .sort((a, b) => a.date - b.date)
+    .map(({ e }) => e);
   const budget = expenses.filter((e) => e.type === 'Budget');
-  return [...firstHalf, ...secondHalf, ...budget];
+  return [...fixed, ...budget];
 }
 
 // ── Transfer per account summary ──────────────────────────────────────────────
@@ -339,14 +341,12 @@ export default function CycleEditor() {
     }
   }
 
+  // Errors propagate to PaperlessFetchModal, which shows them inside the dialog — the
+  // page banner would sit behind the still-open overlay (#367).
   async function handleApplyPaperless(items) {
-    try {
-      await api.applyPaperlessDocuments(dossierId, cycleId, items);
-      setPaperlessModal(null);
-      await load();
-    } catch (err) {
-      setError(err.message);
-    }
+    await api.applyPaperlessDocuments(dossierId, cycleId, items);
+    setPaperlessModal(null);
+    await load();
   }
 
   function handlePullAnnualExpenses() {
@@ -385,10 +385,7 @@ export default function CycleEditor() {
   if (!cycle) return <div className="loading">Loading…</div>;
 
   const readOnly = !!cycle.is_closed;
-  const expenses = sortExpenses(
-    cycle.items.filter((i) => i.section === 'expense'),
-    cycle.cycle_start_day
-  );
+  const expenses = sortExpenses(cycle.items.filter((i) => i.section === 'expense'), cycle);
   const distributions = cycle.items.filter((i) => i.section === 'distribution');
   const paperlessActive = !!(paperlessSettings?.paperless_url && paperlessSettings?.paperless_token_set && paperlessSettings?.paperless_date_field_id && paperlessSettings?.paperless_amount_field_id);
   const accountsById = new Map(accounts.map((a) => [a.id, a]));
@@ -561,6 +558,7 @@ export default function CycleEditor() {
               expenses={expenses.filter((e) => e.type === 'Fixed')}
               annualPayments={cycle.annual_payments ?? []}
               cycleStartDay={cycle.cycle_start_day ?? 25}
+              cycleWindow={cycleActualDates(cycle)}
               paperlessActive={paperlessActive}
               onTogglePaid={handleTogglePaid}
               onUpdateSpent={handleUpdateSpent}
@@ -568,6 +566,7 @@ export default function CycleEditor() {
               onEdit={handleEditItem}
               dossierId={dossierId}
               onAnnualPaymentUpdated={load}
+              onError={setError}
               onAnnualEdit={handleAnnualEdit}
               onAnnualDelete={handleAnnualDelete}
               onlyFixed
@@ -586,7 +585,7 @@ export default function CycleEditor() {
               title="Budgets"
               icon={faWallet}
               accent="var(--color-warning)"
-              count={`${budgetExpenses.filter((e) => e.spent >= e.value).length}/${budgetExpenses.length}`}
+              count={budgetsBadge(budgetExpenses)}
               collapsed={budgetsCollapsed}
               onToggle={() => setBudgetsCollapsed((v) => !v)}
             >
@@ -968,28 +967,21 @@ function EditIncomeModal({ dossierId, cycleId, cycle, onSaved, onClose }) {
     }
     setSaving(true);
     try {
-      if (!readOnly) {
-        const originalById = new Map((cycle.income_items || []).map((i) => [i.id, i]));
-        const currentIds = new Set(lines.map((l) => l.id));
-        for (const original of (cycle.income_items || [])) {
-          if (!currentIds.has(original.id)) {
-            await api.deleteCycleIncomeItem(dossierId, cycleId, original.id);
-          }
-        }
-        for (const line of lines) {
-          const name = line.name.trim();
-          const value = parseDecimalInput(line.value);
-          if (line.id.startsWith('new-')) {
-            await api.createCycleIncomeItem(dossierId, cycleId, { name, value });
-          } else {
-            const original = originalById.get(line.id);
-            if (original && (original.name !== name || original.value !== value)) {
-              await api.updateCycleIncomeItem(dossierId, cycleId, line.id, { name, value });
-            }
-          }
-        }
+      if (readOnly) {
+        // A closed cycle's lines are locked, but its previous balance stays editable.
+        await api.updateCycle(dossierId, cycleId, { previous_balance: prevBalanceValue });
+      } else {
+        // One request, one transaction: lines and previous balance save together or not at
+        // all, so a failure can't leave the cycle half-updated (#368).
+        await api.replaceCycleIncomeItems(dossierId, cycleId, {
+          items: lines.map((line) => ({
+            id: line.id.startsWith('new-') ? undefined : line.id,
+            name: line.name.trim(),
+            value: parseDecimalInput(line.value),
+          })),
+          previous_balance: prevBalanceValue,
+        });
       }
-      await api.updateCycle(dossierId, cycleId, { previous_balance: prevBalanceValue });
       await onSaved();
     } catch (err) {
       setError(err.message);
@@ -1063,7 +1055,7 @@ function EditIncomeModal({ dossierId, cycleId, cycle, onSaved, onClose }) {
 
 // ── Fixed Expenses list ───────────────────────────────────────────────────────
 
-function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit, onlyFixed, readOnly }) {
+function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, cycleWindow, paperlessActive, onTogglePaid, onUpdateSpent, onDelete, onEdit, dossierId, onAnnualPaymentUpdated, onAnnualDelete, onAnnualEdit, onlyFixed, readOnly, onError }) {
   const [editingItem, setEditingItem] = useState(null);
 
   async function handleAnnualTogglePaid(p) {
@@ -1072,7 +1064,7 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
       await api.updateAnnualPayment(dossierId, p.id, { paid: p.paid ? false : true });
       onAnnualPaymentUpdated();
     } catch (e) {
-      console.error('Failed to toggle annual payment:', e);
+      onError?.(e.message);
     }
   }
 
@@ -1080,14 +1072,17 @@ function ExpensesList({ expenses, annualPayments = [], cycleStartDay = 25, paper
   const fixedExpenses = expenses.filter((e) => e.type === 'Fixed');
   const budgetExpenses = onlyFixed ? [] : expenses.filter((e) => e.type === 'Budget');
 
-  const fixedAndAnnual = [...fixedExpenses, ...annualItems].sort((a, b) => {
-    const aDay = a._annual ? (a.day ?? 0) : (a.day_of_payment ?? 0);
-    const bDay = b._annual ? (b.day ?? 0) : (b.day_of_payment ?? 0);
-    const aLate = aDay < cycleStartDay ? 1 : 0;
-    const bLate = bDay < cycleStartDay ? 1 : 0;
-    if (aLate !== bLate) return aLate - bLate;
-    return aDay - bDay;
-  });
+  // Fixed items and annual installments interleaved by their real date in the cycle (#364):
+  // an installment carries its own calendar date, a Fixed item resolves its day of payment
+  // inside the cycle's window.
+  const dateOf = (item) =>
+    item._annual
+      ? new Date(item.expense_year, item.month - 1, item.day)
+      : dayInCycleWindow(item.day_of_payment ?? 1, cycleWindow.start, cycleWindow.end, cycleStartDay);
+  const fixedAndAnnual = [...fixedExpenses, ...annualItems]
+    .map((item) => ({ item, date: dateOf(item) }))
+    .sort((a, b) => a.date - b.date)
+    .map(({ item }) => item);
 
   const allItems = [...fixedAndAnnual, ...budgetExpenses];
 
@@ -1591,16 +1586,23 @@ function AddCycleItemModal({ section, accounts = [], onSave, onClose }) {
 
 function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
   const [applying, setApplying] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleApply() {
+    setError('');
     setApplying(true);
     const items = results.map((r) => ({
       cycle_item_id: r.cycle_item_id,
       value: r.proposed_value,
       day_of_payment: r.proposed_day_of_payment,
     }));
-    await onApply(items);
-    setApplying(false);
+    try {
+      await onApply(items);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setApplying(false);
+    }
   }
 
   return (
@@ -1611,6 +1613,7 @@ function PaperlessFetchModal({ results, warnings, onApply, onClose }) {
           <button className="close-btn" onClick={onClose}><FontAwesomeIcon icon={faXmark} /></button>
         </div>
         <div className="modal-body">
+          {error && <div className="alert alert-error">{error}</div>}
           {results.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               No matching documents found in Paperless-ngx for this cycle's date range.

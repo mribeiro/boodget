@@ -1305,6 +1305,65 @@ router.post('/cycles/:cycleId/income-items', (req, res) => {
   res.status(201).json(item);
 });
 
+// PUT /cycles/:cycleId/income-items — replaces the cycle's income lines (and, optionally, its
+// previous balance) in one transaction, which is what the cycle editor's Income dialog saves.
+// Sending the lines one request at a time could leave a cycle half-updated when one failed,
+// and retrying then duplicated the lines already created (#368). Lines with an `id` must be
+// this cycle's own and keep their template link; lines without one are new ad-hoc lines;
+// existing lines left out are deleted. Positions follow the array order.
+router.put('/cycles/:cycleId/income-items', (req, res) => {
+  if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
+  const cycle = db
+    .prepare('SELECT * FROM expense_cycles WHERE id = ? AND dossier_id = ?')
+    .get(req.params.cycleId, req.params.id);
+  if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
+  if (cycle.is_closed) return res.status(409).json({ error: 'Cycle is closed. Reopen it to make changes.' });
+
+  const { items, previous_balance } = req.body;
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
+  if (previous_balance !== undefined && !isFiniteAmount(previous_balance)) {
+    return res.status(400).json({ error: 'previous_balance must be a number' });
+  }
+  const existing = new Map(
+    db.prepare('SELECT * FROM cycle_income_items WHERE cycle_id = ?').all(req.params.cycleId).map((i) => [i.id, i])
+  );
+  const seen = new Set();
+  const lines = [];
+  for (const item of items) {
+    const name = item && item.name != null ? String(item.name).trim() : '';
+    if (!name) return res.status(400).json({ error: 'Each income line requires a name' });
+    if (!isFiniteAmount(item.value) || Number(item.value) < 0) {
+      return res.status(400).json({ error: 'Each income line value must be a non-negative number' });
+    }
+    if (item.id != null) {
+      if (!existing.has(item.id)) return res.status(400).json({ error: 'Income line not found in this cycle' });
+      if (seen.has(item.id)) return res.status(400).json({ error: 'Income line listed twice' });
+      seen.add(item.id);
+    }
+    lines.push({ id: item.id ?? null, name, value: Number(item.value) });
+  }
+
+  const deleteLine = db.prepare('DELETE FROM cycle_income_items WHERE id = ?');
+  const updateLine = db.prepare('UPDATE cycle_income_items SET name = ?, value = ?, position = ? WHERE id = ?');
+  const insertLine = db.prepare(
+    'INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position) VALUES (?, ?, NULL, ?, ?, ?)'
+  );
+  db.transaction(() => {
+    for (const id of existing.keys()) if (!seen.has(id)) deleteLine.run(id);
+    lines.forEach((line, position) => {
+      if (line.id) updateLine.run(line.name, line.value, position, line.id);
+      else insertLine.run(uuidv4(), req.params.cycleId, line.name, line.value, position);
+    });
+    if (previous_balance !== undefined) {
+      db.prepare('UPDATE expense_cycles SET previous_balance = ? WHERE id = ?').run(Number(previous_balance), cycle.id);
+    }
+  })();
+
+  res.json(
+    db.prepare('SELECT * FROM cycle_income_items WHERE cycle_id = ? ORDER BY position, created_at').all(req.params.cycleId)
+  );
+});
+
 // PATCH /cycles/:cycleId/income-items/:itemId
 router.patch('/cycles/:cycleId/income-items/:itemId', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });

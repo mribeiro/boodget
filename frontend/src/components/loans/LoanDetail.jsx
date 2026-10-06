@@ -316,7 +316,7 @@ export default function LoanDetail() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span className={`badge badge-${isActive ? 'brand' : 'neutral'}`}>{isActive ? 'Active' : 'Draft'}</span>
           {loan.is_matured && <span className="badge badge-danger">Matured</span>}
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% {isActive ? 'APR' : 'TAN'}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{loan.interest_rate}% TAN</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
           {loan.total_interest != null && (

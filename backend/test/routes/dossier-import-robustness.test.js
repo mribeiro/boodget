@@ -61,6 +61,31 @@ describe('dossier import robustness (#330)', () => {
     expect(linked.value).toBe(100);
   });
 
+  it('imports an older export whose items are named after Object.prototype members (#381)', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const tpl = createExpenseTemplateItem(db, { dossierId: dossier.id, section: 'expense', name: 'constructor', value: 42 });
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 1 });
+    createCycleItem(db, { cycleId: cycle.id, section: 'expense', name: 'constructor', value: 42, template_item_id: tpl.id });
+    const agent = await agentFor(user);
+    const exported = (await agent.get(`/api/dossiers/${dossier.id}/export`)).body;
+    // Pre-v18 exports carry no ids, so the import falls back to the name maps.
+    exported.version = 17;
+    for (const ti of exported.expense_template) delete ti.id;
+    for (const c of exported.cycles) for (const it of c.items) delete it.template_item_id;
+
+    const res = await agent.post('/api/dossiers/import').send(exported);
+
+    expect(res.status).toBe(201);
+    const linked = db.prepare(
+      `SELECT eti.name FROM cycle_items ci
+         JOIN expense_cycles c ON c.id = ci.cycle_id
+         JOIN expense_template_items eti ON eti.id = ci.template_item_id
+        WHERE c.dossier_id = ?`
+    ).get(res.body.id);
+    expect(linked.name).toBe('constructor');
+  });
+
   it("keeps a month's snapshot account that has no entry", async () => {
     const user = createUser(db);
     const dossier = createDossier(db, { creatorId: user.id });

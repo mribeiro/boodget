@@ -292,7 +292,7 @@ If no documents were found, the modal shows: "No matching documents found in Pap
 
 #### Actions
 
-- **Apply** (primary button): calls the `paperless-apply` endpoint with all proposed values, closes the modal, and reloads the cycle data.
+- **Apply** (primary button): calls the `paperless-apply` endpoint with all proposed values, closes the modal, and reloads the cycle data. If the call fails (e.g. `409` because the cycle was closed in another tab), the modal stays open and shows the error inside it — the page's own error banner would sit hidden behind the overlay (#367).
 - **Cancel** (secondary button): closes the modal without changes.
 
 -----

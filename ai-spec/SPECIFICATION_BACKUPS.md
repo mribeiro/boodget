@@ -20,9 +20,9 @@ Configuration is env-only (an operator concern, like `DB_PATH`); the admin page 
 ## 3. Taking a backup (`backend/src/backups/index.js`, `runBackup`)
 
 1. Write a consistent online copy with better-sqlite3's `db.backup()` (SQLite's backup API — safe while the app is serving requests) to a hidden temp name `.boodget-<stamp>.db.partial`.
-2. Open the copy read-only and run `PRAGMA integrity_check`; anything but `ok` fails the backup.
+2. Open the copy, switch it to a rollback journal (`PRAGMA journal_mode = DELETE`) and run `PRAGMA integrity_check`; anything but `ok` fails the backup. The live DB runs in WAL mode and `db.backup()` carries that over; a read-only connection used to leave a `-wal`/`-shm` pair next to every copy that nothing removed (#379), whereas this way each backup is one self-contained file.
 3. `chmod 0600` (the file holds password hashes, sessions and API keys), then rename to `boodget-YYYY-MM-DD_HHMMSS.db` (UTC). A copy that failed any step is deleted — a partial file never carries a final name.
-4. Prune: delete all but the `BACKUP_KEEP` newest `boodget-*.db` files (name order = age order), plus any leftover `.partial` from an interrupted run. Other files in the folder are never touched.
+4. Prune: delete all but the `BACKUP_KEEP` newest `boodget-*.db` files (name order = age order), plus any leftover `.partial` (and its `-wal`/`-shm` sidecars) from an interrupted run. Other files in the folder are never touched.
 5. Record the outcome in `app_settings` under `backup_last_run` (`{ ok, at, trigger: 'scheduled'|'manual', by, file, size, error }`) — failures too.
 
 Only one backup runs at a time per process; a second request while one is running gets `409`.
@@ -40,9 +40,9 @@ POST /api/backups                    # back up now → 201 last-run object; 409 
 
 A **Backups** entry in the sidebar's bottom block, shown to admins only. The page shows:
 
-- A status banner: red when the last run failed (with the error), amber when scheduled backups are on but the newest copy is more than 8 days old (a weekly run was missed), amber when there are no backups yet (`backupHealth` in `utils/backups.js`).
+- A status banner: red when the last run failed (with the error), amber when scheduled backups are on but the newest copy is older than the schedule's own interval plus a day's grace — 2 days for a daily `BACKUP_CRON`, 8 for a weekly one, 32 for a monthly one or any shape `describeSchedule` doesn't read (`scheduleIntervalDays`); a fixed 8-day threshold used to flag a monthly schedule for most of every month (#379), amber when there are no backups yet (`backupHealth` in `utils/backups.js`).
 - Read-only config: schedule in plain English (`describeSchedule` — "Weekly on Sunday at 03:00 (server time)"), retention, folder, last run (OK/Failed badge, when, scheduled or manual-by-whom).
-- The list of backups (date, file name, size). There is **no download** (#372): a backup is the whole database — every user's dossiers, password hashes, sessions and the write-only secrets (`ai_api_key`, `paperless_token`) — so serving it would give any admin what the admin flag deliberately doesn't ("grants nothing over dossiers"). Copies leave the machine through the operator's tooling reading `BACKUP_DIR` on the host; the page says so.
+- The list of backups (date, file name, size — formatted with the app's separators via `formatNumber`, e.g. `1.536,0 MB`). There is **no download** (#372): a backup is the whole database — every user's dossiers, password hashes, sessions and the write-only secrets (`ai_api_key`, `paperless_token`) — so serving it would give any admin what the admin flag deliberately doesn't ("grants nothing over dossiers"). Copies leave the machine through the operator's tooling reading `BACKUP_DIR` on the host; the page says so.
 - A "Back up now" button in the page header.
 - Restore instructions (below).
 

@@ -114,12 +114,8 @@ export const api = {
     request('PATCH', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`, data),
   deleteCycleItem: (dossierId, cycleId, itemId) =>
     request('DELETE', `/dossiers/${dossierId}/cycles/${cycleId}/items/${itemId}`),
-  createCycleIncomeItem: (dossierId, cycleId, data) =>
-    request('POST', `/dossiers/${dossierId}/cycles/${cycleId}/income-items`, data),
-  updateCycleIncomeItem: (dossierId, cycleId, itemId, data) =>
-    request('PATCH', `/dossiers/${dossierId}/cycles/${cycleId}/income-items/${itemId}`, data),
-  deleteCycleIncomeItem: (dossierId, cycleId, itemId) =>
-    request('DELETE', `/dossiers/${dossierId}/cycles/${cycleId}/income-items/${itemId}`),
+  replaceCycleIncomeItems: (dossierId, cycleId, data) =>
+    request('PUT', `/dossiers/${dossierId}/cycles/${cycleId}/income-items`, data),
   pullAnnualExpensesForCycle: (dossierId, cycleId) =>
     request('POST', `/dossiers/${dossierId}/cycles/${cycleId}/pull-annual-expenses`),
 

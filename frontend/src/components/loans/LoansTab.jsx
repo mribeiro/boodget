@@ -192,7 +192,7 @@ export default function LoansTab({ dossierId }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 600, fontSize: 15 }}>{loan.name}</span>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  {loan.interest_rate}% {loan.status === 'active' ? 'APR' : 'TAN'}
+                  {loan.interest_rate}% TAN
                 </span>
                 <span style={{ flex: 1 }} />
                 <span className={`badge badge-${loan.status === 'active' ? 'brand' : 'neutral'}`}>

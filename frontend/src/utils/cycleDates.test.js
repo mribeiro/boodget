@@ -4,6 +4,7 @@ import {
   computeTheoreticalCycleEndDate,
   cycleYearMonth,
   currentCycleYearMonth,
+  dayInCycleWindow,
   formatCycleLabel,
   toIsoDate,
   fromIsoDate,
@@ -93,5 +94,40 @@ describe('currentCycleYearMonth (#362)', () => {
   it('prefers the earliest cycle when two overlap', () => {
     const july = { year: 2026, month: 7, actual_start_date: '2026-07-20', actual_end_date: '2026-08-24' };
     expect(currentCycleYearMonth(new Date(2026, 6, 22), [july, june], 25, 'none')).toEqual({ year: 2026, month: 6 });
+  });
+});
+
+describe('dayInCycleWindow (#364)', () => {
+  // Nominal start Sun 25 Jan 2026, shifted to Fri 23 Jan; ends Tue 24 Feb.
+  const start = new Date(2026, 0, 23);
+  const end = new Date(2026, 1, 24);
+
+  it('places the shifted-in 23rd and 24th at the start of the cycle', () => {
+    expect(dayInCycleWindow(23, start, end, 25)).toEqual(new Date(2026, 0, 23));
+    expect(dayInCycleWindow(24, start, end, 25)).toEqual(new Date(2026, 0, 24));
+  });
+
+  it('places early days in the following month', () => {
+    expect(dayInCycleWindow(5, start, end, 25)).toEqual(new Date(2026, 1, 5));
+  });
+
+  it('sorts a weekend-shifted cycle by its real dates', () => {
+    const days = [5, 23, 28, 24];
+    const sorted = [...days].sort((a, b) => dayInCycleWindow(a, start, end, 25) - dayInCycleWindow(b, start, end, 25));
+    expect(sorted).toEqual([23, 24, 28, 5]);
+  });
+
+  it('clamps a day past the month end to its last day', () => {
+    const s = new Date(2026, 0, 31);
+    const e = new Date(2026, 1, 27);
+    expect(dayInCycleWindow(31, s, e, 31)).toEqual(new Date(2026, 0, 31));
+    expect(dayInCycleWindow(29, new Date(2026, 1, 1), new Date(2026, 1, 28), 1)).toEqual(new Date(2026, 1, 28));
+  });
+
+  it('falls back to the day-of-month split when no occurrence is in the window', () => {
+    const s = new Date(2026, 0, 25);
+    const e = new Date(2026, 0, 26);
+    expect(dayInCycleWindow(27, s, e, 25)).toEqual(new Date(2026, 0, 27));
+    expect(dayInCycleWindow(3, s, e, 25)).toEqual(new Date(2026, 1, 3));
   });
 });

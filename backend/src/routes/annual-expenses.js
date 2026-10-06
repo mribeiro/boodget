@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { idsNotInDossier } = require('../utils/ownedIds');
+const { loadCycleWindows, findCycleContainingDate } = require('../utils/cycleWindows');
 const { v4: uuidv4 } = require('uuid');
 const { computeCycleStartDate, fromIsoDate } = require('../utils/cycleDates');
 
@@ -562,28 +563,23 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
         }
       });
 
-      // Re-assign payments to the correct cycle after date changes. Each cycle's own
-      // stored actual_start_date/actual_end_date is used, not the dossier's current
-      // setting, so existing cycles aren't reshaped by a later change to that setting.
+      // Re-assign payments to the correct cycle after date changes. Each cycle's own stored
+      // window is used (shared loadCycleWindows/findCycleContainingDate, so overlapping cycles
+      // resolve in (year, month) order exactly like Loans' payment status — #382), never the
+      // dossier's current setting, so existing cycles aren't reshaped by a later change to it.
       const yearRow = db.prepare('SELECT year FROM annual_expense_years WHERE id = ?').get(req.params.yearId);
-      const dossierRow = db.prepare('SELECT cycle_start_day FROM dossiers WHERE id = ?').get(req.params.id);
-      const startDay = dossierRow?.cycle_start_day ?? 25;
-      const allCycles = db.prepare('SELECT id, year, month, is_closed, cycle_start_day, actual_start_date, actual_end_date FROM expense_cycles WHERE dossier_id = ?').all(req.params.id);
+      const allCycles = loadCycleWindows(db, req.params.id);
 
       const updatedInsts = db.prepare('SELECT * FROM annual_expense_year_installments WHERE year_item_id = ?').all(req.params.itemId);
       const closedCycleIds = new Set(allCycles.filter((c) => c.is_closed).map((c) => c.id));
       for (const inst of updatedInsts) {
         const instDate = new Date(yearRow.year, inst.month - 1, inst.day);
-        let targetCycle = null;
-        for (const cycle of allCycles) {
-          const cStartDay = cycle.cycle_start_day ?? startDay;
-          const cycleStart = cycle.actual_start_date ? fromIsoDate(cycle.actual_start_date) : new Date(cycle.year, cycle.month - 1, cStartDay);
-          const cycleEnd = cycle.actual_end_date ? fromIsoDate(cycle.actual_end_date) : new Date(cycle.year, cycle.month, cStartDay - 1);
-          if (instDate >= cycleStart && instDate <= cycleEnd) {
-            targetCycle = cycle;
-            break;
-          }
-        }
+        const targetCycle = findCycleContainingDate(allCycles, instDate);
+        // Only a payment this save would have moved counts as "kept in place": the form resends
+        // every installment, so counting each locked payment already sitting outside its date's
+        // cycle repeated the toast on every later save, even a plain rename (#382).
+        const before = existingByNum[inst.installment_number];
+        const dateChanged = !!before && (before.month !== inst.month || before.day !== inst.day);
 
         // An installment can hold payments in more than one cycle (overlapping cycles), so
         // handle each one rather than just the first.
@@ -598,7 +594,7 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
           const targetClosed = targetCycle && closedCycleIds.has(targetCycle.id);
           const targetTaken = targetCycle && payments.some((p) => p.id !== payment.id && p.cycle_id === targetCycle.id);
           if (locked || targetClosed || targetTaken) {
-            keptInPlace += 1;
+            if (dateChanged) keptInPlace += 1;
           } else if (targetCycle) {
             db.prepare('UPDATE annual_expense_payments SET cycle_id = ? WHERE id = ?').run(targetCycle.id, payment.id);
             // Keep the in-memory list current, so a later payment of the same installment sees
