@@ -1,4 +1,4 @@
-import { describeSchedule, formatBytes, backupHealth } from './backups';
+import { describeSchedule, formatBytes, backupHealth, scheduleIntervalDays } from './backups';
 
 describe('describeSchedule', () => {
   it('reads weekly, daily and monthly shapes', () => {
@@ -18,6 +18,10 @@ describe('formatBytes', () => {
     expect(formatBytes(1536)).toBe('1,5 KB');
     expect(formatBytes(3 * 1024 * 1024)).toBe('3,0 MB');
   });
+
+  it('uses a thousands separator (#379)', () => {
+    expect(formatBytes(1536 * 1024 * 1024)).toBe('1.536,0 MB');
+  });
 });
 
 describe('backupHealth', () => {
@@ -30,8 +34,22 @@ describe('backupHealth', () => {
 
   it('flags a missed weekly run only while scheduling is on', () => {
     const old = [{ created_at: '2026-09-10T03:00:00Z' }];
-    expect(backupHealth({ enabled: true, last_run: { ok: true }, backups: old }, now)).toBe('stale');
-    expect(backupHealth({ enabled: false, last_run: { ok: true }, backups: old }, now)).toBe('ok');
+    expect(backupHealth({ enabled: true, schedule: '0 3 * * 0', last_run: { ok: true }, backups: old }, now)).toBe('stale');
+    expect(backupHealth({ enabled: false, schedule: '0 3 * * 0', last_run: { ok: true }, backups: old }, now)).toBe('ok');
+  });
+
+  it('measures staleness against the schedule (#379)', () => {
+    const old = [{ created_at: '2026-09-10T03:00:00Z' }]; // 17 days before `now`
+    expect(backupHealth({ enabled: true, schedule: '0 4 1 * *', last_run: { ok: true }, backups: old }, now)).toBe('ok');
+    const yesterdayMorning = [{ created_at: '2026-09-25T03:00:00Z' }];
+    expect(backupHealth({ enabled: true, schedule: '0 3 * * *', last_run: { ok: true }, backups: yesterdayMorning }, now)).toBe('stale');
+  });
+
+  it('reads the interval of each schedule shape', () => {
+    expect(scheduleIntervalDays('0 3 * * 0')).toBe(7);
+    expect(scheduleIntervalDays('0 3 * * *')).toBe(1);
+    expect(scheduleIntervalDays('0 4 1 * *')).toBe(31);
+    expect(scheduleIntervalDays('*/15 * * * *')).toBe(31);
   });
 
   it('reports none and ok', () => {

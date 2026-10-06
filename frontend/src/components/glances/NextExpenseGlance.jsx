@@ -35,6 +35,8 @@ function relativeDayLabel(diffDays) {
 }
 
 export default function NextExpenseGlance({ currentCycleDetail, settings, today, onClick, onMarkPaid }) {
+  // Before any early return: the hook count must not change between renders (#365).
+  const [marking, setMarking] = useState(false);
   const cycleStartDay = settings.cycle_start_day ?? 25;
 
   if (!currentCycleDetail) {
@@ -136,7 +138,6 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
   const isOverdue = diffDays < 0;
   const next2 = candidates[1] ?? null;
   const next2Diff = next2 ? Math.round((next2.date - todayMidnight) / (1000 * 60 * 60 * 24)) : null;
-  const [marking, setMarking] = useState(false);
 
   async function handleMarkPaid(e) {
     e.stopPropagation();

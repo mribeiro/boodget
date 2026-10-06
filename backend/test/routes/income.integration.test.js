@@ -245,3 +245,59 @@ describe('Export/import round-trip — income lines', () => {
     expect(importedTemplate.body[0].name).toBe('Stock savings');
   });
 });
+
+describe('PUT /cycles/:cycleId/income-items (#368)', () => {
+  async function prepare() {
+    const { user, dossier } = setup();
+    const agent = await loggedInAgent(buildTestApp(), user);
+    const tpl = createIncomeTemplateItem(db, { dossierId: dossier.id, name: 'Salary', default_value: 2000 });
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 3, previous_balance: 10 });
+    const salary = createCycleIncomeItem(db, { cycleId: cycle.id, template_item_id: tpl.id, name: 'Salary', value: 2000, position: 0 });
+    const bonus = createCycleIncomeItem(db, { cycleId: cycle.id, name: 'Bonus', value: 300, position: 1 });
+    const url = `/api/dossiers/${dossier.id}/cycles/${cycle.id}/income-items`;
+    const lines = () => db.prepare('SELECT * FROM cycle_income_items WHERE cycle_id = ? ORDER BY position').all(cycle.id);
+    const prevBalance = () => db.prepare('SELECT previous_balance FROM expense_cycles WHERE id = ?').get(cycle.id).previous_balance;
+    return { agent, cycle, salary, bonus, url, lines, prevBalance };
+  }
+
+  it('updates, adds and removes lines and sets the previous balance together', async () => {
+    const { agent, salary, url, lines, prevBalance } = await prepare();
+
+    const res = await agent.put(url).send({
+      items: [{ id: salary.id, name: 'Salary', value: 2100 }, { name: 'Extra', value: 50 }],
+      previous_balance: 99.5,
+    });
+
+    expect(res.status).toBe(200);
+    expect(lines().map((l) => [l.name, l.value, l.position])).toEqual([['Salary', 2100, 0], ['Extra', 50, 1]]);
+    expect(lines()[0].template_item_id).toBe(salary.template_item_id);
+    expect(lines()[1].template_item_id).toBeNull();
+    expect(prevBalance()).toBe(99.5);
+  });
+
+  it('changes nothing when one line is invalid', async () => {
+    const { agent, salary, bonus, url, lines, prevBalance } = await prepare();
+
+    const res = await agent.put(url).send({
+      items: [{ id: salary.id, name: 'Salary', value: 2100 }, { name: 'Extra', value: 'abc' }],
+      previous_balance: 99,
+    });
+
+    expect(res.status).toBe(400);
+    expect(lines().map((l) => l.id)).toEqual([salary.id, bonus.id]);
+    expect(lines()[0].value).toBe(2000);
+    expect(prevBalance()).toBe(10);
+  });
+
+  it("refuses another cycle's line and a blank previous balance", async () => {
+    const { agent, url } = await prepare();
+    expect((await agent.put(url).send({ items: [{ id: 'not-mine', name: 'X', value: 1 }] })).status).toBe(400);
+    expect((await agent.put(url).send({ items: [], previous_balance: null })).status).toBe(400);
+  });
+
+  it('is refused on a closed cycle', async () => {
+    const { agent, cycle, url } = await prepare();
+    db.prepare('UPDATE expense_cycles SET is_closed = 1, final_real_balance = 0 WHERE id = ?').run(cycle.id);
+    expect((await agent.put(url).send({ items: [] })).status).toBe(409);
+  });
+});

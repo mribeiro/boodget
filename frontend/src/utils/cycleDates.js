@@ -73,6 +73,21 @@ export function currentCycleYearMonth(today, cycles, cycleStartDay, weekendAdjus
   return cycleYearMonth(today, cycleStartDay, weekendAdjustment);
 }
 
+// The real calendar date a day-of-month payment falls on inside a cycle's stored window
+// (actual_start_date–actual_end_date): whichever of the start month's or the following month's
+// occurrence lands inside it. A weekend-shifted start (Fri 23rd for a nominal Sun 25th) makes
+// the 23rd/24th the cycle's *first* days, which a plain "day ≥ start day" split sorts last
+// (#364). Days past a month's end clamp to its last day, as template → cycle copies do. Falls
+// back to that day-of-month split when neither occurrence lands inside the window.
+export function dayInCycleWindow(day, windowStart, windowEnd, cycleStartDay = 25) {
+  const at = (y, m) => new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()));
+  const first = at(windowStart.getFullYear(), windowStart.getMonth());
+  const second = at(windowStart.getFullYear(), windowStart.getMonth() + 1);
+  if (first >= windowStart && first <= windowEnd) return first;
+  if (second >= windowStart && second <= windowEnd) return second;
+  return day >= cycleStartDay ? first : second;
+}
+
 export function nextYearMonth(year, month) {
   return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
 }

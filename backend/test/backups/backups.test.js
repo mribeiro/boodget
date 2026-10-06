@@ -54,6 +54,28 @@ describe('runBackup', () => {
     expect(fs.readdirSync(dir)).toEqual([result.file]); // no partial file left behind
   });
 
+  it('leaves a single self-contained file when the live database runs in WAL mode (#379)', async () => {
+    // The test DB is in-memory; back up a real WAL-mode file instead, as production does.
+    const srcDir = fs.mkdtempSync(path.join(os.tmpdir(), 'boodget-wal-src-'));
+    const src = new Database(path.join(srcDir, 'live.db'));
+    src.pragma('journal_mode = WAL');
+    src.exec("CREATE TABLE t (x); INSERT INTO t VALUES (1)");
+    const spy = vi.spyOn(db, 'backup').mockImplementation((dest) => src.backup(dest));
+    try {
+      const result = await backups.runBackup({ now: new Date('2026-09-27T03:00:00Z') });
+
+      expect(fs.readdirSync(dir)).toEqual([result.file]);
+      const copy = new Database(path.join(dir, result.file), { readonly: true });
+      expect(copy.pragma('journal_mode', { simple: true })).toBe('delete');
+      expect(copy.prepare('SELECT x FROM t').get().x).toBe(1);
+      copy.close();
+    } finally {
+      spy.mockRestore();
+      src.close();
+      fs.rmSync(srcDir, { recursive: true, force: true });
+    }
+  });
+
   it('keeps only the newest N backups', async () => {
     process.env.BACKUP_KEEP = '2';
     for (const day of ['01', '08', '15']) {
@@ -82,6 +104,8 @@ describe('runBackup', () => {
   it('ignores stray files and cleans up an interrupted partial copy when pruning', () => {
     fs.writeFileSync(path.join(dir, 'notes.txt'), '');
     fs.writeFileSync(path.join(dir, '.boodget-2026-09-01_030000.db.partial'), '');
+    fs.writeFileSync(path.join(dir, '.boodget-2026-09-01_030000.db.partial-wal'), '');
+    fs.writeFileSync(path.join(dir, '.boodget-2026-09-01_030000.db.partial-shm'), '');
     fs.writeFileSync(path.join(dir, 'boodget-2026-09-01_030000.db'), '');
     backups.pruneBackups(dir, 12);
     expect(fs.readdirSync(dir).sort()).toEqual(['boodget-2026-09-01_030000.db', 'notes.txt']);

@@ -11,7 +11,8 @@ const push = require('../notifications/push');
 // operator's own tooling (Kopia, restic, a NAS mount...) pointed at BACKUP_DIR.
 
 const FILE_RE = /^boodget-\d{4}-\d{2}-\d{2}_\d{6}\.db$/;
-const PARTIAL_RE = /^\.boodget-.*\.partial$/;
+// The partial copy plus the -wal/-shm sidecars SQLite may leave next to it (#379).
+const PARTIAL_RE = /^\.boodget-.*\.partial(-wal|-shm)?$/;
 const LAST_RUN_KEY = 'backup_last_run';
 const DEFAULT_CRON = '0 3 * * 0'; // Sundays at 03:00, server time
 
@@ -92,9 +93,13 @@ async function runBackup({ trigger = 'scheduled', by = null, now = new Date(), c
   try {
     fs.mkdirSync(config.dir, { recursive: true, mode: 0o700 });
     await db.backup(tmp);
-    const copy = new Database(tmp, { readonly: true, fileMustExist: true });
+    // db.backup() copies the live DB's WAL mode along. A read-only connection can't clean up
+    // the -wal/-shm files it creates, so two stray files piled up per backup (#379); switching
+    // the copy to a rollback journal makes it a single self-contained file, sidecars removed.
+    const copy = new Database(tmp, { fileMustExist: true });
     let check;
     try {
+      copy.pragma('journal_mode = DELETE');
       check = copy.pragma('integrity_check', { simple: true });
     } finally {
       copy.close();
@@ -110,7 +115,9 @@ async function runBackup({ trigger = 'scheduled', by = null, now = new Date(), c
     console.log(`[backup] Created ${name} (${size} bytes, ${trigger}${by ? ` by ${by}` : ''})${pruned.length ? `; pruned ${pruned.length}` : ''}`);
     return result;
   } catch (err) {
-    try { fs.rmSync(tmp, { force: true }); } catch { /* best effort */ }
+    for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) {
+      try { fs.rmSync(f, { force: true }); } catch { /* best effort */ }
+    }
     recordLastRun({ ok: false, at: now.toISOString(), trigger, by, file: null, size: null, error: err.message });
     console.error(`[backup] Failed (${trigger}): ${err.message}`);
     throw err;

@@ -85,6 +85,8 @@ function validateImportData(data) {
 
 // Name → id map that keeps the *first* entry for a duplicated name (a later one used to
 // silently win), used only as the fallback when an export carries no id to re-link by.
+// Every import lookup map is Object.create(null), so a name such as "constructor" is an
+// ordinary key rather than an inherited Object.prototype member (#381).
 function firstByName(map, name, id) {
   if (name != null && !(name in map)) map[name] = id;
 }
@@ -173,7 +175,7 @@ router.post('/import', (req, res) => {
       data.dossier.loans_max_salary_pct ?? null
     );
 
-    const accountIdMap = {};
+    const accountIdMap = Object.create(null);
     const insertAccount = db.prepare(
       'INSERT INTO accounts (id, dossier_id, group_name, name, type, money_category, can_receive_transfers, archived, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
@@ -189,7 +191,7 @@ router.post('/import', (req, res) => {
     // References to accounts are re-linked by the exported account id (v18+). Older exports
     // only carry names, which aren't unique (only group + name is), so fall back to the first
     // account with that name.
-    const accountNameToId = {};
+    const accountNameToId = Object.create(null);
     for (const a of (data.accounts || [])) firstByName(accountNameToId, a.name, accountIdMap[a.id]);
     const resolveTemplate = (oldId, section, name) =>
       (oldId != null && templateIdMap[oldId]) ||
@@ -200,7 +202,7 @@ router.post('/import', (req, res) => {
 
     // Cars (v16+) — imported before the expense/annual templates below, since their car_id
     // tags are re-linked by car name (same convention as account_name/linked_expense_name).
-    const carNameToId = {};
+    const carNameToId = Object.create(null);
     const insertCar = db.prepare(
       `INSERT INTO cars (id, dossier_id, name, license_plate, make, model, fuel_type, initial_mileage_km, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -274,9 +276,9 @@ router.post('/import', (req, res) => {
     );
     // Template items are re-linked by their exported id (v18+), falling back to (section, name)
     // — first match wins — for older exports.
-    const templateNameToId = {};
-    const expenseTemplateNameToId = {};
-    const templateIdMap = {};
+    const templateNameToId = Object.create(null);
+    const expenseTemplateNameToId = Object.create(null);
+    const templateIdMap = Object.create(null);
     for (const ti of (data.expense_template || [])) {
       const newId = uuidv4();
       if (ti.id != null) templateIdMap[ti.id] = newId;
@@ -291,7 +293,7 @@ router.post('/import', (req, res) => {
     const insertIncomeTemplateItem = db.prepare(
       'INSERT INTO income_template_items (id, dossier_id, name, default_value, position) VALUES (?, ?, ?, ?, ?)'
     );
-    const incomeTemplateNameToId = {};
+    const incomeTemplateNameToId = Object.create(null);
     (data.income_template || []).forEach((iti, idx) => {
       const itiId = uuidv4();
       incomeTemplateNameToId[iti.name] = itiId;
@@ -304,7 +306,7 @@ router.post('/import', (req, res) => {
     const insertAnnualTemplateInstallment = db.prepare(
       'INSERT INTO annual_expense_template_installments (id, template_item_id, installment_number, month, day) VALUES (?, ?, ?, ?, ?)'
     );
-    const annualTemplateNameToId = {};
+    const annualTemplateNameToId = Object.create(null);
     for (const ti of (data.annual_expense_template || [])) {
       const tiId = uuidv4();
       annualTemplateNameToId[ti.name] = tiId;
@@ -332,7 +334,7 @@ router.post('/import', (req, res) => {
     const insertCycleIncomeItem = db.prepare(
       'INSERT INTO cycle_income_items (id, cycle_id, template_item_id, name, value, position) VALUES (?, ?, ?, ?, ?, ?)'
     );
-    const cycleYMToId = {};
+    const cycleYMToId = Object.create(null);
     for (const c of (data.cycles || [])) {
       const cycleId = uuidv4();
       cycleYMToId[`${c.year}-${c.month}`] = cycleId;

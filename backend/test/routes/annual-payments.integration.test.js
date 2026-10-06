@@ -141,6 +141,29 @@ describe('PATCH /annual-years/:yearId/items/:itemId (installment date edits vs. 
     expect(paymentRow().cycle_id).toBe(jan.id);
   });
 
+  it('reports a kept payment only on the save that would have moved it (#382)', async () => {
+    const { jan, url, agent, paymentRow } = await setup({ paid: true });
+    expect((await agent.patch(url).send(moveFirstTo(3, 1))).body.payments_kept_in_place).toBe(1);
+
+    // The form resends every installment unchanged on a later edit, e.g. a rename.
+    const res = await agent.patch(url).send({ name: 'Home insurance', ...moveFirstTo(3, 1) });
+
+    expect(res.body.payments_kept_in_place).toBe(0);
+    expect(paymentRow().cycle_id).toBe(jan.id);
+  });
+
+  it('resolves overlapping cycles in (year, month) order, like Loans (#382)', async () => {
+    const { feb, url, agent, paymentRow } = await setup();
+    // A cycle created later (higher rowid) for an earlier period, overlapping Feb's window.
+    const early = createExpenseCycle(db, {
+      dossierId: feb.dossier_id, year: 2025, month: 12, actual_start_date: '2025-12-25', actual_end_date: '2026-03-10',
+    });
+
+    await agent.patch(url).send(moveFirstTo(3, 1));
+
+    expect(paymentRow().cycle_id).toBe(early.id);
+  });
+
   it('never moves a payment out of a closed cycle', async () => {
     const { jan, url, agent, paymentRow } = await setup({ janClosed: true });
     const res = await agent.patch(url).send(moveFirstTo(3, 1));
