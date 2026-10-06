@@ -17,9 +17,6 @@ const { db, SQLiteSessionStore } = require('./db');
 const app = express();
 app.set('trust proxy', 1);
 
-const { useJsonBodyParsers, jsonBodyErrorHandler } = require('./middleware/body');
-useJsonBodyParsers(app);
-
 app.use(
   session({
     store: new SQLiteSessionStore(),
@@ -34,17 +31,9 @@ app.use(
   })
 );
 
-const requireAuth = require('./middleware/auth');
 const { apiLimiter } = require('./middleware/rate-limit');
-
-app.use('/api/setup', apiLimiter, require('./routes/setup'));
-app.use('/api/auth', apiLimiter, require('./routes/auth'));
-app.use('/api/users', apiLimiter, requireAuth, require('./routes/users'));
-app.use('/api/dossiers', apiLimiter, requireAuth, require('./routes/dossiers'));
-app.use('/api/push', apiLimiter, requireAuth, require('./routes/push'));
-app.use('/api/notifications', apiLimiter, requireAuth, require('./routes/notifications'));
-app.use('/api/backups', apiLimiter, requireAuth, require('./routes/backups'));
-app.use('/api', jsonBodyErrorHandler);
+// Rate limiter → auth → JSON parser, per router (see api.js, #371).
+require('./api').mountApi(app);
 
 // Serve the built frontend when available (production, dev, ephemeral, etc.)
 const frontendDist = path.join(__dirname, '..', 'frontend-dist');
