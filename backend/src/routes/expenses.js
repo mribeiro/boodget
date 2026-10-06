@@ -95,6 +95,10 @@ function createAnnualPaymentsForCycle(dossierId, cycleId, cycleStartDate, cycleE
 // Request-body validators shared by the cycle/template handlers. They return an error message
 // for a 400, or null when the value is acceptable.
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim() !== '';
+// A money amount sent as a number or numeric string — not null, '', a boolean or NaN, which
+// Number() would quietly turn into 0 or NaN.
+const isFiniteAmount = (v) =>
+  (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(Number(v));
 function periodError(year, month) {
   const y = Number(year);
   const m = Number(month);
@@ -990,9 +994,23 @@ router.patch('/cycles/:cycleId', (req, res) => {
     }
   }
 
+  // Both balances must be real numbers when sent. Number(null) and Number('') are 0, so a blank
+  // "Previous balance" used to be saved as 0 € and `{ is_closed: true, final_real_balance: null }`
+  // closed a cycle with a recorded 0 €; non-numeric text failed with a raw 500 (#354).
+  if (previous_balance !== undefined && !isFiniteAmount(previous_balance)) {
+    return res.status(400).json({ error: 'previous_balance must be a number' });
+  }
+  // null is still accepted for final_real_balance (it means "not recorded"); closing without one is
+  // rejected just below.
+  if (final_real_balance !== undefined && final_real_balance !== null && !isFiniteAmount(final_real_balance)) {
+    return res.status(400).json({ error: 'final_real_balance must be a number' });
+  }
+
   const newPrevBalance = previous_balance !== undefined ? Number(previous_balance) : cycle.previous_balance;
   const newIsClosed = is_closed !== undefined ? (is_closed ? 1 : 0) : cycle.is_closed;
-  let newFinalRealBalance = final_real_balance !== undefined ? Number(final_real_balance) : cycle.final_real_balance;
+  let newFinalRealBalance = final_real_balance !== undefined
+    ? (final_real_balance === null ? null : Number(final_real_balance))
+    : cycle.final_real_balance;
 
   // Reopening invalidates the previously-recorded final balance: clear it so a stale
   // figure can't linger as if it still reflected a cycle whose items are editable again.

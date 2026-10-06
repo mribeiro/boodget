@@ -1,5 +1,4 @@
 const express = require('express');
-const path = require('path');
 const backups = require('../backups');
 
 const router = express.Router();
@@ -33,14 +32,9 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/backups/:name/download
-router.get('/:name/download', (req, res) => {
-  const { name } = req.params;
-  if (!backups.FILE_RE.test(name)) return res.status(400).json({ error: 'Invalid backup name' });
-  const { dir } = backups.getConfig();
-  if (!backups.listBackups(dir).some((b) => b.name === name)) return res.status(404).json({ error: 'Backup not found' });
-  console.log(`[backup] ${name} downloaded by ${req.user.username}`);
-  res.download(path.join(dir, name), name);
-});
+// No download endpoint, on purpose (#372): a backup is the whole database — every user's
+// dossiers plus the write-only secrets (dossiers.ai_api_key, paperless_token) — and the admin flag
+// grants nothing over dossiers. Copies leave the machine through the operator's own tooling
+// reading BACKUP_DIR on the host, where filesystem access is the real trust boundary.
 
 module.exports = router;

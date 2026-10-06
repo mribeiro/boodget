@@ -99,7 +99,7 @@ describe('/api/backups', () => {
     expect((await agent.post('/api/backups')).status).toBe(403);
   });
 
-  it('backs up on demand, lists and downloads', async () => {
+  it('backs up on demand and lists', async () => {
     const admin = createUser(db, { is_admin: true });
     const agent = request.agent(app);
     await loginAs(agent, admin);
@@ -111,21 +111,15 @@ describe('/api/backups', () => {
     const list = await agent.get('/api/backups');
     expect(list.body).toMatchObject({ keep: 12, dir, last_run: { file: created.body.file } });
     expect(list.body.backups.map((b) => b.name)).toEqual([created.body.file]);
-
-    const download = await agent.get(`/api/backups/${created.body.file}/download`).buffer(true).parse((res, cb) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => cb(null, Buffer.concat(chunks)));
-    });
-    expect(download.status).toBe(200);
-    expect(download.body.subarray(0, 15).toString()).toBe('SQLite format 3');
   });
 
-  it('refuses names outside the backup pattern and unknown backups', async () => {
+  it('offers no way to download a backup, even to an admin (#372)', async () => {
     const admin = createUser(db, { is_admin: true });
     const agent = request.agent(app);
     await loginAs(agent, admin);
-    expect((await agent.get('/api/backups/..%2Fcapital-tracker.db/download')).status).toBe(400);
-    expect((await agent.get('/api/backups/boodget-2020-01-01_000000.db/download')).status).toBe(404);
+    const { body } = await agent.post('/api/backups');
+    const res = await agent.get(`/api/backups/${body.file}/download`);
+    expect(res.status).toBe(404);
+    expect(res.headers['content-type']).not.toMatch(/octet-stream|sqlite/);
   });
 });

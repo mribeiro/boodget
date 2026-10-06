@@ -61,3 +61,22 @@ describe('POST /months/:monthId/reset', () => {
     expect(entry.comment).toBeNull();
   });
 });
+
+describe('PUT /months/:monthId (entry values, #355)', () => {
+  it('rejects a value that is not a number, and saves nothing', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const account = createAccount(db, { dossierId: dossier.id, name: 'Main' });
+    const agent = await loggedInAgent(buildTestApp(), user);
+    const month = (await agent.post(`/api/dossiers/${dossier.id}/months`).send({ year: 2026, month: 2 })).body;
+    const url = `/api/dossiers/${dossier.id}/months/${month.id}`;
+
+    const bad = await agent.put(url).send({ entries: [{ accountId: account.id, value: '50€' }] });
+    expect(bad.status).toBe(400);
+    expect(db.prepare('SELECT filled FROM months WHERE id = ?').get(month.id).filled).toBe(0);
+
+    const ok = await agent.put(url).send({ entries: [{ accountId: account.id, value: 50 }, ] });
+    expect(ok.status).toBe(200);
+    expect(db.prepare('SELECT value FROM month_entries WHERE month_id = ? AND account_id = ?').get(month.id, account.id).value).toBe(50);
+  });
+});

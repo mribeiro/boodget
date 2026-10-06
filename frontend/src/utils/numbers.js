@@ -31,6 +31,13 @@ export function parseDecimalInput(str) {
   return Number(`${sign}${s}`);
 }
 
+// True when the user typed something that isn't an amount ("50€", "1,234.56", "12a"). Blank
+// is not unparseable — it means "no value". Forms use this to refuse a save instead of letting
+// NaN reach the API, where JSON turns it into null (#355).
+export function isUnparseableAmount(str) {
+  return str != null && String(str).trim() !== '' && isNaN(parseDecimalInput(str));
+}
+
 // Parses a plain decimal (rates, percentages, per-unit prices): "." or "," is the decimal
 // separator and there is no thousands grouping, so "3.125" is 3.125, not 3125.
 export function parseRateInput(str) {

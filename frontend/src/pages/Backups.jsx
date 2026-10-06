@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faDatabase, faDownload, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faDatabase, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../services/api';
 import { AuthContext } from '../App';
 import Toast from '../components/ui/Toast';
@@ -118,12 +118,11 @@ export default function Backups() {
                 <tr>
                   <th>Backup</th>
                   <th style={{ textAlign: 'right' }}>Size</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {data.backups.length === 0 && (
-                  <tr><td colSpan={3} style={{ color: 'var(--text-muted)', textAlign: 'center' }}>No backups yet</td></tr>
+                  <tr><td colSpan={2} style={{ color: 'var(--text-muted)', textAlign: 'center' }}>No backups yet</td></tr>
                 )}
                 {data.backups.map((b) => (
                   <tr key={b.name}>
@@ -132,11 +131,6 @@ export default function Backups() {
                       <div className="text-sm" style={{ color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{b.name}</div>
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatBytes(b.size)}</td>
-                    <td style={{ textAlign: 'right', width: 1 }}>
-                      <a className="btn-ghost btn-sm" href={api.backupDownloadUrl(b.name)} download title="Download" style={{ whiteSpace: 'nowrap' }}>
-                        <FontAwesomeIcon icon={faDownload} />
-                      </a>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -144,8 +138,10 @@ export default function Backups() {
           </div>
 
           <p className="text-sm" style={{ color: 'var(--text-muted)', marginTop: 'var(--space-4)' }}>
-            To restore: stop the app, replace the database file with a backup (renamed to the
-            database's file name), then start it again.
+            Backups can't be downloaded here: each one is the whole database, including other
+            users' dossiers and stored API keys. Copy them from the backup folder on the server
+            (e.g. with Kopia). To restore: stop the app, replace the database file with a backup
+            (renamed to the database's file name), then start it again.
           </p>
         </>
       )}

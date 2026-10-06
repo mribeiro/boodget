@@ -34,7 +34,6 @@ Only one backup runs at a time per process; a second request while one is runnin
 ```
 GET  /api/backups                    # { enabled, schedule, keep, dir, running, last_run, backups: [{ name, size, created_at }] } newest first
 POST /api/backups                    # back up now → 201 last-run object; 409 if one is running; 500 { error } on failure
-GET  /api/backups/:name/download     # the file; 400 unless the name matches boodget-YYYY-MM-DD_HHMMSS.db, 404 if absent
 ```
 
 ## 5. Admin UI (`frontend/src/pages/Backups.jsx`, route `/backups`)
@@ -43,7 +42,7 @@ A **Backups** entry in the sidebar's bottom block, shown to admins only. The pag
 
 - A status banner: red when the last run failed (with the error), amber when scheduled backups are on but the newest copy is more than 8 days old (a weekly run was missed), amber when there are no backups yet (`backupHealth` in `utils/backups.js`).
 - Read-only config: schedule in plain English (`describeSchedule` — "Weekly on Sunday at 03:00 (server time)"), retention, folder, last run (OK/Failed badge, when, scheduled or manual-by-whom).
-- The list of backups (date, file name, size) with a download button each.
+- The list of backups (date, file name, size). There is **no download** (#372): a backup is the whole database — every user's dossiers, password hashes, sessions and the write-only secrets (`ai_api_key`, `paperless_token`) — so serving it would give any admin what the admin flag deliberately doesn't ("grants nothing over dossiers"). Copies leave the machine through the operator's tooling reading `BACKUP_DIR` on the host; the page says so.
 - A "Back up now" button in the page header.
 - Restore instructions (below).
 

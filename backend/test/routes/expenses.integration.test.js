@@ -234,6 +234,41 @@ describe('PATCH /cycles/:cycleId — reopen clears final_real_balance', () => {
   });
 });
 
+describe('PATCH /cycles/:cycleId — balance validation (#354)', () => {
+  async function setup() {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const agent = await loggedInAgent(buildTestApp(), user);
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 1, previous_balance: 230 });
+    const url = `/api/dossiers/${dossier.id}/cycles/${cycle.id}`;
+    const row = () => db.prepare('SELECT previous_balance, is_closed, final_real_balance FROM expense_cycles WHERE id = ?').get(cycle.id);
+    return { agent, url, row };
+  }
+
+  it.each([null, '', 'abc', true])('rejects previous_balance %j instead of saving 0', async (value) => {
+    const { agent, url, row } = await setup();
+    const res = await agent.patch(url).send({ previous_balance: value });
+    expect(res.status).toBe(400);
+    expect(row().previous_balance).toBe(230);
+  });
+
+  it('accepts a numeric previous_balance, including a numeric string and 0', async () => {
+    const { agent, url, row } = await setup();
+    expect((await agent.patch(url).send({ previous_balance: '150.5' })).status).toBe(200);
+    expect(row().previous_balance).toBe(150.5);
+    expect((await agent.patch(url).send({ previous_balance: 0 })).status).toBe(200);
+    expect(row().previous_balance).toBe(0);
+  });
+
+  it('does not close a cycle with a null or invalid final balance', async () => {
+    const { agent, url, row } = await setup();
+    expect((await agent.patch(url).send({ is_closed: true, final_real_balance: null })).status).toBe(400);
+    expect((await agent.patch(url).send({ is_closed: true, final_real_balance: 'abc' })).status).toBe(400);
+    expect((await agent.patch(url).send({ is_closed: true, final_real_balance: '' })).status).toBe(400);
+    expect(row()).toEqual({ previous_balance: 230, is_closed: 0, final_real_balance: null });
+  });
+});
+
 describe('PATCH /settings — ai_user_context length cap', () => {
   it('rejects ai_user_context over 4000 characters', async () => {
     const user = createUser(db);

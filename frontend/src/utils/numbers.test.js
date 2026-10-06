@@ -1,4 +1,5 @@
-import { parseDecimalInput, parseRateInput, formatNumber } from './numbers';
+import {
+  isUnparseableAmount, parseDecimalInput, parseRateInput, formatNumber } from './numbers';
 
 describe('parseDecimalInput', () => {
   it('returns NaN for an empty string', () => {
@@ -82,5 +83,14 @@ describe('formatNumber', () => {
 
   it('swaps a large integer thousands separator with no fractional part', () => {
     expect(formatNumber(1234)).toBe('1.234');
+  });
+});
+
+describe('isUnparseableAmount (#355)', () => {
+  it('flags text that is not an amount', () => {
+    for (const v of ['50€', '€ 50', '1,234.56', '12a', '1,2,3']) expect(isUnparseableAmount(v)).toBe(true);
+  });
+  it('accepts amounts and blanks', () => {
+    for (const v of ['', '  ', null, undefined, '1.234,56', '1 234,56', '12.5', '-3', '0']) expect(isUnparseableAmount(v)).toBe(false);
   });
 });
