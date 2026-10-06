@@ -176,6 +176,10 @@ router.put('/:monthId', (req, res) => {
   if (!month) return res.status(404).json({ error: 'Month not found' });
 
   const { entries = [], comment } = req.body;
+  // Each value is a number or null (empty). Anything else used to be stored as-is (#355).
+  if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' });
+  const badEntry = entries.find((e) => e && e.value != null && (typeof e.value !== 'number' || !Number.isFinite(e.value)));
+  if (badEntry) return res.status(400).json({ error: 'Each entry value must be a number or null' });
 
   const now = new Date();
   const currentYear = now.getFullYear();

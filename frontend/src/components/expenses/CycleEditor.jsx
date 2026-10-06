@@ -953,6 +953,10 @@ function EditIncomeModal({ dossierId, cycleId, cycle, onSaved, onClose }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    // Checked first, before any income line is saved: a blank or garbled previous balance used
+    // to reach the server as null and be stored as 0 € (#354).
+    const prevBalanceValue = parseDecimalInput(prevBalance);
+    if (isNaN(prevBalanceValue)) { setError('Previous balance must be a number'); return; }
     if (!readOnly) {
       for (const line of lines) {
         if (!line.name.trim()) { setError('Each income line requires a name'); return; }
@@ -985,7 +989,7 @@ function EditIncomeModal({ dossierId, cycleId, cycle, onSaved, onClose }) {
           }
         }
       }
-      await api.updateCycle(dossierId, cycleId, { previous_balance: parseDecimalInput(prevBalance) });
+      await api.updateCycle(dossierId, cycleId, { previous_balance: prevBalanceValue });
       await onSaved();
     } catch (err) {
       setError(err.message);

@@ -6,7 +6,7 @@ import { api } from '../services/api';
 import { publishPageContext, clearPageContext } from '../utils/pageContext';
 import ConfirmModal from './ConfirmModal';
 import KpiStrip from './ui/KpiStrip';
-import { parseDecimalInput, formatNumber } from '../utils/numbers';
+import { parseDecimalInput, formatNumber, isUnparseableAmount } from '../utils/numbers';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -67,6 +67,17 @@ export default function MonthEditor() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    // A value that isn't an amount ("50€", "1,234.56") used to be sent as null and saved as an
+    // empty account, with the month still marked Filled (#355). Refuse the save and say which.
+    const unreadable = (monthData?.entries || []).filter((entry) => isUnparseableAmount(values[entry.id]));
+    if (unreadable.length > 0) {
+      setError(
+        `Can't read the value for ${unreadable.map((e) => e.name).join(', ')}. ` +
+        'Use digits only, with "," for decimals — e.g. 1.234,56.'
+      );
+      window.scrollTo(0, 0);
+      return;
+    }
     setSaving(true);
     try {
       const entries = (monthData?.entries || []).map((entry) => ({
@@ -328,6 +339,8 @@ export default function MonthEditor() {
                                 placeholder="0.00"
                                 className="value-input"
                                 data-value-idx={entryIndexMap[entry.id]}
+                                aria-invalid={isUnparseableAmount(values[entry.id]) || undefined}
+                                style={isUnparseableAmount(values[entry.id]) ? { borderColor: 'var(--color-danger)', boxShadow: '0 0 0 1px var(--color-danger)' } : undefined}
                                 value={values[entry.id] ?? ''}
                                 onChange={(e) =>
                                   setValues((v) => ({ ...v, [entry.id]: e.target.value }))
@@ -337,7 +350,7 @@ export default function MonthEditor() {
                               {(() => {
                                 if (entry.prev_value == null) return null;
                                 const current = values[entry.id] !== '' ? parseDecimalInput(values[entry.id]) : null;
-                                if (current == null) return null;
+                                if (current == null || isNaN(current)) return null;
                                 const diff = current - entry.prev_value;
                                 const color = diff > 0 ? 'var(--color-success, #16a34a)' : diff < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)';
                                 const sign = diff > 0 ? '+' : '';

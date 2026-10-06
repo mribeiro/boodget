@@ -43,7 +43,6 @@ export const api = {
   // Backups (admin only)
   getBackups: () => request('GET', '/backups'),
   createBackup: () => request('POST', '/backups'),
-  backupDownloadUrl: (name) => `${BASE}/backups/${encodeURIComponent(name)}/download`,
 
   // Dossiers
   getDossiers: () => request('GET', '/dossiers'),

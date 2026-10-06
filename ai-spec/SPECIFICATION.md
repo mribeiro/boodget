@@ -180,6 +180,7 @@ When a month is opened, the user:
 
 ### 9.4 Submitting
 - On submit, data is saved and can later be **viewed**, **edited**, or **reset**.
+- A value that can't be read as an amount (e.g. `50€`, `1,234.56`) is never saved as empty: its field is outlined in red while typing, and Save is refused with a message naming the account(s). The API also answers `400` for an entry value that isn't a number or `null` (#355).
 - **Reset** clears all values and all comments (per account and snapshot-level), returning the month to an unfilled state — exactly as if it had just been created.
 - After reset, archived accounts that existed when the month was created **remain visible and editable**.
 

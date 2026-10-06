@@ -76,7 +76,7 @@ When a cycle is opened, the user must provide:
 
 If the immediately preceding cycle exists and is closed, the **Previous balance** field is prefilled with that cycle's final real balance as an editable suggestion — the user can accept it or type over it; nothing is enforced. No suggestion is offered if the previous cycle doesn't exist, is still open, or hasn't had a final real balance recorded.
 
-Both the income lines and the previous balance can be **updated at any time** while the cycle is open (see §3.4 for what stays editable once closed).
+Both the income lines and the previous balance can be **updated at any time** while the cycle is open (see §3.4 for what stays editable once closed). The previous balance must be a number: `PATCH /cycles/:cycleId` answers `400` for a `null`, blank or non-numeric `previous_balance` (and for a non-numeric `final_real_balance`; closing still requires one), and the Income dialog refuses to save a blank one — it used to be stored as 0 € (#354).
 
 ### 3.4 Closing a Cycle
 
