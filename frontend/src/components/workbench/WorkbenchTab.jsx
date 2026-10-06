@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFolderOpen, faCopy, faTrash, faChevronRight, faChevronDown, faMoneyBillWave, faReceipt, faCalendarDays, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { api } from '../../services/api';
+import { computeGlobalSummary } from '../../utils/workbenchSummary';
 import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 import ConfirmModal from '../ConfirmModal';
@@ -109,27 +110,6 @@ function stateToSnapshotData(state) {
 }
 
 // ── Global Summary Computation ───────────────────────────────────────────────
-
-function computeGlobalSummary(state) {
-  const totalIncome = sum(state.income, (e) => e.value);
-
-  const monthlyMust = sum(state.monthlyExpenses.filter((e) => e.classification === 'must'), (e) => e.value);
-  const monthlyWant = sum(state.monthlyExpenses.filter((e) => e.classification === 'want'), (e) => e.value);
-
-  const annualMustAvg = sum(state.annualExpenses.filter((e) => e.classification === 'must'), (e) => e.value / 12);
-  const annualWantAvg = sum(state.annualExpenses.filter((e) => e.classification === 'want'), (e) => e.value / 12);
-
-  const distMust = sum(state.distributions, (e) => e.must_amount || 0);
-  const distWant = sum(state.distributions, (e) => e.want_amount || 0);
-  const distSave = sum(state.distributions, (e) => e.save_amount || 0);
-
-  const totalMust = monthlyMust + annualMustAvg + distMust;
-  const totalWant = monthlyWant + annualWantAvg + distWant;
-  const totalSave = distSave;
-  const leftover = totalIncome - totalMust - totalWant - totalSave;
-
-  return { totalIncome, totalMust, totalWant, totalSave, leftover };
-}
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
@@ -529,6 +509,7 @@ export default function WorkbenchTab({ dossierId }) {
             { label: 'Must', value: fmt(summary.totalMust), icon: faReceipt },
             { label: 'Want', value: fmt(summary.totalWant), icon: faCalendarDays },
             { label: 'Save', value: fmt(summary.totalSave), icon: faWallet },
+            summary.totalUnclassified > 0 ? { label: 'Unclassified', value: fmt(summary.totalUnclassified), icon: faReceipt, highlight: 'warning' } : null,
             { label: 'Leftover', value: fmt(summary.leftover), highlight: summary.leftover >= 0 ? 'success' : 'danger', large: true },
           ]} />
 
@@ -768,6 +749,7 @@ function MonthlyExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom
   const totalAll = sum(entries, (e) => e.value);
   const totalMust = sum(entries.filter((e) => e.classification === 'must'), (e) => e.value);
   const totalWant = sum(entries.filter((e) => e.classification === 'want'), (e) => e.value);
+  const totalUnclassified = totalAll - totalMust - totalWant;
 
   async function doSyncTo(dayOverrides) {
     setSyncing(true);
@@ -818,6 +800,7 @@ function MonthlyExpensesSection({ entries, onAdd, onUpdate, onRemove, onSyncFrom
           { label: 'Total monthly expenses', value: totalAll },
           { label: 'Total Must', value: totalMust },
           { label: 'Total Want', value: totalWant },
+          ...(totalUnclassified > 0.005 ? [{ label: 'Unclassified', value: totalUnclassified }] : []),
         ]} />
       </div>
       {showAdd && (
@@ -865,6 +848,7 @@ function AnnualExpensesSection({ entries, annualDeductible, onChangeDeductible, 
   const totalAnnual = sum(entries, (e) => e.value);
   const totalMustAnnual = sum(entries.filter((e) => e.classification === 'must'), (e) => e.value);
   const totalWantAnnual = sum(entries.filter((e) => e.classification === 'want'), (e) => e.value);
+  const totalUnclassifiedAnnual = sum(entries.filter((e) => e.classification !== 'must' && e.classification !== 'want'), (e) => e.value);
   const totalMonthlyAvg = totalAnnual / 12;
   const totalMustAvg = totalMustAnnual / 12;
   const totalWantAvg = totalWantAnnual / 12;
@@ -931,6 +915,7 @@ function AnnualExpensesSection({ entries, annualDeductible, onChangeDeductible, 
           { label: 'Total annual', value: totalAnnual },
           { label: 'Must (annual)', value: totalMustAnnual },
           { label: 'Want (annual)', value: totalWantAnnual },
+          ...(totalUnclassifiedAnnual > 0.005 ? [{ label: 'Unclassified (annual)', value: totalUnclassifiedAnnual }] : []),
           { label: 'Monthly avg', value: totalMonthlyAvg },
           { label: 'Must avg/mo', value: totalMustAvg },
           { label: 'Want avg/mo', value: totalWantAvg },

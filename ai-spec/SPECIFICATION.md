@@ -90,7 +90,7 @@ A simple web-based system to help users track their capital at the beginning of 
 
 - The system supports **multiple users**.
 - There is a single role flag, **administrator** (`users.is_admin`). Only administrators can **create** users, **delete** users, or grant/revoke the administrator role (`POST`/`DELETE`/`PATCH /api/users`, `403` otherwise). Every user can still **list** users (dossier sharing needs it).
-  - The user created by the first-launch setup wizard is an administrator. On upgrade, migration `047` makes the oldest local user the first administrator; new users (including auto-created SSO users) are not administrators.
+  - The user created by the first-launch setup wizard is an administrator. On upgrade, migration `047` makes the oldest local user the first administrator, and migration `049` then promotes the oldest user of any kind if there is still none (an instance where every remaining user signs in with SSO, #378); new users (including auto-created SSO users) are not administrators.
   - An administrator cannot revoke their own role, so at least one administrator always remains.
   - Administrators have no extra rights over dossiers — dossier access is unchanged (§7). Finer-grained permission tiers remain out of scope.
 

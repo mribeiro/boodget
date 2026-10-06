@@ -436,6 +436,18 @@ describe('DELETE /cycles/:cycleId (history guard)', () => {
     expect(db.prepare('SELECT real_contribution FROM goal_cycle_contributions WHERE cycle_id = ?').get(cycle.id).real_contribution).toBe(150);
   });
 
+  it('ignores leftover contributions of a goal no longer in manual mode (#374)', async () => {
+    const { dossier, cycle, agent } = await setup();
+    const goal = createGoal(db, { dossierId: dossier.id, name: 'Holiday', contribution_mode: 'manual' });
+    db.prepare('INSERT INTO goal_cycle_contributions (goal_id, cycle_id, real_contribution) VALUES (?, ?, ?)').run(goal.id, cycle.id, 150);
+    // Switched to ad hoc: the row stays, but nothing reads it and it can no longer be edited.
+    expect((await agent.put(`/api/dossiers/${dossier.id}/goals/${goal.id}`).send({ contribution_mode: 'ad_hoc' })).status).toBe(200);
+
+    const res = await agent.delete(`/api/dossiers/${dossier.id}/cycles/${cycle.id}`);
+
+    expect(res.status).toBe(204);
+  });
+
   it('still deletes a cycle whose annual payments are unpaid and goal contributions are zero', async () => {
     const { dossier, cycle, agent } = await setup();
     annualPayment(dossier, cycle, false);

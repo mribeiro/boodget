@@ -3,6 +3,7 @@ import {
   computeCycleStartDate,
   computeTheoreticalCycleEndDate,
   cycleYearMonth,
+  currentCycleYearMonth,
   formatCycleLabel,
   toIsoDate,
   fromIsoDate,
@@ -65,5 +66,32 @@ describe('toIsoDate / fromIsoDate round-trip', () => {
     const iso = toIsoDate(original);
     expect(iso).toBe('2026-01-01');
     expect(fromIsoDate(iso)).toEqual(original);
+  });
+});
+
+describe('currentCycleYearMonth (#362)', () => {
+  const june = { year: 2026, month: 6, actual_start_date: '2026-06-25', actual_end_date: '2026-07-24' };
+
+  it('picks the stored cycle covering today, whatever the live start day says', () => {
+    // Start day since changed to 1: the formula alone would say July.
+    expect(currentCycleYearMonth(new Date(2026, 6, 10), [june], 1, 'none')).toEqual({ year: 2026, month: 6 });
+    expect(currentCycleYearMonth(new Date(2026, 6, 24, 18), [june], 1, 'none')).toEqual({ year: 2026, month: 6 });
+  });
+
+  it('falls back to the live-settings prediction when no stored cycle covers today', () => {
+    expect(currentCycleYearMonth(new Date(2026, 6, 25), [june], 25, 'none')).toEqual({ year: 2026, month: 7 });
+    expect(currentCycleYearMonth(new Date(2026, 6, 10), [], 25, 'none')).toEqual({ year: 2026, month: 6 });
+  });
+
+  it('rebuilds a missing stored window from the cycle’s own start day (default 25), not the live one', () => {
+    const legacy = { year: 2026, month: 6, cycle_start_day: 25 };
+    expect(currentCycleYearMonth(new Date(2026, 6, 10), [legacy], 1, 'none')).toEqual({ year: 2026, month: 6 });
+    const bare = { year: 2026, month: 6 };
+    expect(currentCycleYearMonth(new Date(2026, 6, 10), [bare], 1, 'none')).toEqual({ year: 2026, month: 6 });
+  });
+
+  it('prefers the earliest cycle when two overlap', () => {
+    const july = { year: 2026, month: 7, actual_start_date: '2026-07-20', actual_end_date: '2026-08-24' };
+    expect(currentCycleYearMonth(new Date(2026, 6, 22), [july, june], 25, 'none')).toEqual({ year: 2026, month: 6 });
   });
 });

@@ -350,7 +350,7 @@ Separately from these per-dossier events, a failed scheduled database backup sen
 
 ### 7.2 Determining the "Current Cycle"
 
-The current cycle for notification purposes uses the same logic as Glances (Section 4.1 of `SPECIFICATION_GLANCES.md`): the cycle whose date range covers today, computed using the dossier's *current* `cycle_start_day` (forward-looking, since the cycle may not exist yet). Once that cycle is found, `prevCycle`'s naming and `currentCycle`'s payment-day math (Section 7.3) both switch to using each cycle's own stored `cycle_start_day` (see `SPECIFICATION_MONTHLY_EXPENSES.md` §3.1), not the dossier's live setting.
+The current cycle for notification purposes uses the same logic as Glances (Section 4.1 of `SPECIFICATION_GLANCES.md`): the **stored** cycle whose own window covers the user's local today (`resolveCurrentCycle` in `scheduler.js`, via `loadCycleWindows`/`findCycleContainingDate`), so a later change to the dossier's `cycle_start_day` can't point the checks at the wrong cycle (#362). Only when no stored cycle covers today is the period predicted from the dossier's *current* `cycle_start_day` (forward-looking, since that cycle doesn't exist yet) — it then has no current cycle, only a period for the "not opened" / "not closed" checks. Once that cycle is found, `prevCycle`'s naming and `currentCycle`'s payment-day math (Section 7.3) both switch to using each cycle's own stored `cycle_start_day` (see `SPECIFICATION_MONTHLY_EXPENSES.md` §3.1), not the dossier's live setting.
 
 ### 7.3 Expense Detection
 
@@ -423,7 +423,7 @@ Before sending a notification:
 2. If **no entry** exists → send and log.
 3. If an entry exists:
    - If the user has **repeat disabled** → skip (already sent once).
-   - If the user has **repeat enabled** → check whether at least `repeat_interval_days` **UTC calendar days** separate the day of `sent_at` from today (`isRepeatDue` in `scheduler.js`). If yes → send and log a new entry. If no → skip. Counting calendar days rather than elapsed time matters: the check runs once a day at the same minute and the log row is stamped a moment after it, so an elapsed-time comparison always fell just short and slipped every repeat by a day.
+   - If the user has **repeat enabled** → check whether at least `repeat_interval_days` **calendar days in the user's own time zone** (UTC when none is stored) separate the day of `sent_at` from today (`isRepeatDue` in `scheduler.js`). The user's zone, not UTC: users are evaluated once per *local* day, and two consecutive local days can fall on the same UTC date (a DST change, a catch-up across UTC midnight), which used to skip a daily repeat (#376). If yes → send and log a new entry. If no → skip. Counting calendar days rather than elapsed time matters: the check runs once a day at the same minute and the log row is stamped a moment after it, so an elapsed-time comparison always fell just short and slipped every repeat by a day.
 
 ### 8.5 Log Cleanup
 
@@ -823,7 +823,7 @@ The following local-time → UTC fixes were applied to `backend/src/notification
 | `snapshot_missing` block | `now.getMonth() + 1` | `now.getUTCMonth() + 1` |
 | expense `today` variable | `new Date(now.getFullYear(), now.getMonth(), now.getDate())` | `new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))` |
 
-These ensure all day-of-month threshold comparisons use UTC, consistent with the UTC-based scheduler trigger time (`send_hour`/`send_minute`). (Since migration `048` the trigger time itself is zone-aware — §9.3 — while these day-of-month thresholds still compare UTC dates.)
+These ensure all day-of-month threshold comparisons use UTC, consistent with the UTC-based scheduler trigger time (`send_hour`/`send_minute`). **Superseded (#361):** since migration `048` the trigger time is zone-aware (§9.3), so every date check — the warning-day thresholds, which month's snapshot is missing, which cycle is current, and the `diffDays` behind "due today / in N days / was due on" — now runs on the **user's local date** (`user.localDate`, the day being evaluated), not the UTC date, which near midnight could differ by a day. Day differences are rounded (both sides are local midnights), not floored.
 
 -----
 

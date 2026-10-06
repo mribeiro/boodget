@@ -241,4 +241,22 @@ describe('buildChartData', () => {
     const lastRealPoint = [...chart].reverse().find((p) => p.real_cumulative != null && !p.is_projected);
     expect(lastRealPoint.real_cumulative).toBe(currentAccumulatedValue);
   });
+
+  it('projects up to the target month and never past it (#377)', () => {
+    const { dossier } = setup();
+    const account = createAccount(db, { dossierId: dossier.id });
+    const projectedPeriods = (targetDate) => {
+      const goal = createGoal(db, {
+        dossierId: dossier.id, contribution_mode: 'manual', manual_monthly_value: 100, target_value: 5000, target_date: targetDate,
+      });
+      db.prepare('INSERT INTO goal_accounts (goal_id, account_id) VALUES (?, ?)').run(goal.id, account.id);
+      return buildChartData(goal, dossier.id, 250)
+        .filter((p) => p.is_projected)
+        .map((p) => `${p.year}-${String(p.month).padStart(2, '0')}`);
+    };
+
+    // Today is Jan 2026: a goal due this month gets the current point only.
+    expect(projectedPeriods('2026-01')).toEqual(['2026-01']);
+    expect(projectedPeriods('2026-03')).toEqual(['2026-01', '2026-02', '2026-03']);
+  });
 });

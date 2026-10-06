@@ -1034,7 +1034,9 @@ router.patch('/cycles/:cycleId', (req, res) => {
 });
 
 // Records that cascade-delete with a cycle and can't be recreated: annual payments marked paid
-// (with their real_value) and non-zero manual goal contributions.
+// (with their real_value) and non-zero manual goal contributions. Only goals currently in manual
+// mode count: switching a goal to another mode keeps its old rows, which nothing reads any more
+// and which can't be edited (the endpoint is manual-only), so they mustn't block deletion (#374).
 function findCycleDeleteBlockers(cycleId) {
   const paidAnnual = db
     .prepare(
@@ -1051,7 +1053,7 @@ function findCycleDeleteBlockers(cycleId) {
       `SELECT g.id, g.name, gcc.real_contribution
          FROM goal_cycle_contributions gcc
          JOIN goals g ON g.id = gcc.goal_id
-        WHERE gcc.cycle_id = ? AND gcc.real_contribution <> 0
+        WHERE gcc.cycle_id = ? AND gcc.real_contribution <> 0 AND g.contribution_mode = 'manual'
         ORDER BY g.name`
     )
     .all(cycleId);

@@ -4,7 +4,7 @@ import { faCalendarDays } from '@fortawesome/free-solid-svg-icons';
 import { GlanceCard } from './CapitalGlance';
 import { formatNumber } from '../../utils/numbers';
 import {
-  cycleYearMonth, prevYearMonth, nextYearMonth,
+  currentCycleYearMonth, prevYearMonth, nextYearMonth,
   computeTheoreticalCycleEndDate, formatCycleLabel, fromIsoDate,
 } from '../../utils/cycleDates';
 
@@ -31,7 +31,7 @@ export default function CycleGlance({ dossierId, cyclesList, currentCycleDetail,
   const prevCloseWarningDay = settings.previous_cycle_close_warning_day ?? 25;
   const todayDay = today.getDate();
 
-  const current = cycleYearMonth(today, cycleStartDay, weekendAdjustment);
+  const current = currentCycleYearMonth(today, cyclesList, cycleStartDay, weekendAdjustment);
   const prev = prevYearMonth(current.year, current.month);
   const next = nextYearMonth(current.year, current.month);
 

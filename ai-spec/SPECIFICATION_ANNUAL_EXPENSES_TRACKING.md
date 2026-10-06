@@ -541,7 +541,7 @@ POST   /api/dossiers/:id/annual-years/:yearId/sync-to-template
 PATCH  /api/dossiers/:id/annual-expense-payments/:paymentId    { real_value?, paid? }
 ```
 
-Payments are created automatically when a cycle is created (see Section 5.1). This endpoint only updates existing payment records. Either field may be sent alone or both together (`400` if neither); `real_value` must be a non-negative number (`400` otherwise). `409` while the payment's cycle is closed. Returns `{ id, paid, real_value }`.
+Payments are created automatically when a cycle is created (see Section 5.1). This endpoint only updates existing payment records. Either field may be sent alone or both together (`400` if neither); `real_value` must be a non-negative number (`400` otherwise). `409` while the payment's cycle is closed. Returns `{ id, paid, real_value }`. The year detail's installment `payment` objects carry `cycle_is_closed`, so the Annual Expenses tab disables the paid checkbox and the amount edit for such payments (tooltip: "Its cycle is closed — reopen the cycle to change this payment") instead of letting a click fail silently; any other toggle failure is shown in the tab's error banner (#359).
 
 In the UI, a payment's amount is shown as the per-installment estimate while unpaid; once ticked paid, it becomes the payment's `real_value`, editable inline (click the amount → type → Enter/blur saves, Escape cancels) in both the cycle editor's Annual Expenses rows and the year detail's item/installment rows. When the recorded amount differs from the estimate, a muted "est. X €" line shows the estimate underneath.
 

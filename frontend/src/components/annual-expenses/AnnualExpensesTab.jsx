@@ -18,6 +18,8 @@ import Toast from '../ui/Toast';
 import useToast from '../ui/useToast';
 import { parseDecimalInput, formatNumber } from '../../utils/numbers';
 
+const CLOSED_CYCLE_HINT = 'Its cycle is closed — reopen the cycle to change this payment';
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -238,6 +240,17 @@ export default function AnnualExpensesTab({ dossierId }) {
       setError(e.message);
     }
   }, [dossierId]);
+
+  // A failed toggle used to be an unhandled rejection: the box just didn't change (#359).
+  async function togglePaymentPaid(payment) {
+    setError('');
+    try {
+      await api.updateAnnualPayment(dossierId, payment.id, { paid: !payment.paid });
+      await loadYearData(selectedYearId);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -638,11 +651,9 @@ export default function AnnualExpensesTab({ dossierId }) {
                     <div key={item.id} style={{ ...rowStyle, opacity: paid ? 0.6 : 1, marginBottom: 4 }}>
                       <Checkbox
                         checked={paid}
-                        disabled={!inst0?.payment}
-                        onChange={async () => {
-                          await api.updateAnnualPayment(dossierId, inst0.payment.id, { paid: !paid });
-                          await loadYearData(selectedYearId);
-                        }}
+                        disabled={!inst0?.payment || inst0.payment.cycle_is_closed}
+                        title={inst0?.payment?.cycle_is_closed ? CLOSED_CYCLE_HINT : undefined}
+                        onChange={() => togglePaymentPaid(inst0.payment)}
                       />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 500, textDecoration: paid ? 'line-through' : 'none' }}>
@@ -657,6 +668,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                       <PaidAmount
                         payment={inst0?.payment}
                         expectedValue={item.budgeted_value}
+                        disabled={!!inst0?.payment?.cycle_is_closed}
                         onSave={async (real_value) => {
                           await api.updateAnnualPayment(dossierId, inst0.payment.id, { real_value });
                           await loadYearData(selectedYearId);
@@ -709,11 +721,9 @@ export default function AnnualExpensesTab({ dossierId }) {
                             <div key={inst.id} style={{ ...rowStyle, opacity: paid ? 0.6 : 1 }}>
                               <Checkbox
                                 checked={paid}
-                                disabled={!inst.payment}
-                                onChange={async () => {
-                                  await api.updateAnnualPayment(dossierId, inst.payment.id, { paid: !paid });
-                                  await loadYearData(selectedYearId);
-                                }}
+                                disabled={!inst.payment || inst.payment.cycle_is_closed}
+                                title={inst.payment?.cycle_is_closed ? CLOSED_CYCLE_HINT : undefined}
+                                onChange={() => togglePaymentPaid(inst.payment)}
                               />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <span style={{ fontWeight: 500, textDecoration: paid ? 'line-through' : 'none' }}>
@@ -729,6 +739,7 @@ export default function AnnualExpensesTab({ dossierId }) {
                               <PaidAmount
                                 payment={inst.payment}
                                 expectedValue={inst.expected_value}
+                                disabled={!!inst.payment?.cycle_is_closed}
                                 onSave={async (real_value) => {
                                   await api.updateAnnualPayment(dossierId, inst.payment.id, { real_value });
                                   await loadYearData(selectedYearId);

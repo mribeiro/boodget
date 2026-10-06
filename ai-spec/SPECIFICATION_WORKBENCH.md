@@ -240,13 +240,16 @@ A dedicated summary section aggregates values across all sections. All monetary 
 | Total Must | Monthly Expenses (Must) + Annual Expenses (Must monthly avg) + Distributions (Must) |
 | Total Want | Monthly Expenses (Want) + Annual Expenses (Want monthly avg) + Distributions (Want) |
 | Total Save | Distributions (Save) only |
-| Leftover | Total Income − Total Must − Total Want − Total Save |
+| Total Unclassified | Monthly Expenses with no classification + Annual Expenses with no classification (monthly avg). Shown as an extra "Unclassified" KPI only when > 0 |
+| Leftover | Total Income − Total Must − Total Want − Total Save − Total Unclassified |
 | % Must | Total Must / Total Income |
 | % Want | Total Want / Total Income |
 | % Save | Total Save / Total Income |
 | % Leftover | Leftover / Total Income |
 
 > Annual expenses contribute their **monthly average (value / 12)** to the global summary totals.
+
+> Classification is optional, but an unclassified expense still costs money: it's counted as **Unclassified** and taken off the leftover (it used to fall out of every total, overstating the leftover — #357). The Monthly/Annual section summaries add an "Unclassified" row when there is any. The calculation lives in `computeGlobalSummary` (`frontend/src/utils/workbenchSummary.js`), mirrored server-side by `summarizeWorkbenchData` for the AI Advisor.
 
 ---
 

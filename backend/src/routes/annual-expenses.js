@@ -81,7 +81,7 @@ function computeYearStatus(yearId, dossierId) {
   const totalPaid = items.reduce((s, i) => s + (i.total_paid || 0), 0);
 
   const paymentsForInstallment = db.prepare(`
-    SELECT p.id, p.cycle_id, p.real_value, p.paid, c.actual_start_date, c.actual_end_date, c.year AS cycle_year, c.month AS cycle_month
+    SELECT p.id, p.cycle_id, p.real_value, p.paid, c.is_closed AS cycle_is_closed, c.actual_start_date, c.actual_end_date, c.year AS cycle_year, c.month AS cycle_month
     FROM annual_expense_payments p JOIN expense_cycles c ON c.id = p.cycle_id
     WHERE p.installment_id = ?
   `);
@@ -104,6 +104,7 @@ function computeYearStatus(yearId, dossierId) {
         cycle_id: payment?.cycle_id ?? null,
         payment_real_value: payment?.real_value ?? null,
         payment_paid: payment?.paid ?? 0,
+        payment_cycle_is_closed: payment?.cycle_is_closed ?? 0,
       };
     });
 
@@ -121,6 +122,9 @@ function computeYearStatus(yearId, dossierId) {
           cycle_id: inst.cycle_id,
           real_value: inst.payment_real_value,
           paid: !!inst.payment_paid,
+          // Its cycle is closed, so the payment is read-only (PATCH returns 409) — the year view
+          // locks its controls instead of letting a click fail silently (#359).
+          cycle_is_closed: !!inst.payment_cycle_is_closed,
         } : null,
       })),
     };
@@ -597,6 +601,10 @@ router.patch('/annual-years/:yearId/items/:itemId', (req, res) => {
             keptInPlace += 1;
           } else if (targetCycle) {
             db.prepare('UPDATE annual_expense_payments SET cycle_id = ? WHERE id = ?').run(targetCycle.id, payment.id);
+            // Keep the in-memory list current, so a later payment of the same installment sees
+            // the target as taken instead of also being moved there (UNIQUE(installment_id,
+            // cycle_id) would reject it and fail the whole save — #375).
+            payment.cycle_id = targetCycle.id;
           } else {
             // No cycle covers the new date yet; drop the unpaid placeholder (recreated when that
             // cycle is opened).

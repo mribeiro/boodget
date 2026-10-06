@@ -103,6 +103,29 @@ describe('047_add_is_admin_to_users', () => {
   });
 });
 
+describe('049_ensure_an_admin_exists (#378)', () => {
+  const migration = migrations.find((m) => m.id === '049_ensure_an_admin_exists');
+
+  it('promotes the oldest user even when every user signs in with SSO', () => {
+    db.prepare('DELETE FROM users').run();
+    const older = createUser(db, { is_oidc: true });
+    const newer = createUser(db, { is_oidc: true });
+    db.prepare("UPDATE users SET created_at = '2020-01-01 00:00:00' WHERE id = ?").run(older.id);
+    db.prepare("UPDATE users SET created_at = '2021-01-01 00:00:00' WHERE id = ?").run(newer.id);
+
+    migration.up();
+
+    expect(db.prepare('SELECT id FROM users WHERE is_admin = 1').all().map((r) => r.id)).toEqual([older.id]);
+  });
+
+  it('does nothing when an admin already exists', () => {
+    const before = db.prepare('SELECT id FROM users WHERE is_admin = 1 ORDER BY id').all();
+    createUser(db);
+    migration.up();
+    expect(db.prepare('SELECT id FROM users WHERE is_admin = 1 ORDER BY id').all()).toEqual(before);
+  });
+});
+
 describe('048_add_timezone_to_notification_settings', () => {
   const migration = migrations.find((m) => m.id === '048_add_timezone_to_notification_settings');
   afterEach(() => vi.useRealTimers());

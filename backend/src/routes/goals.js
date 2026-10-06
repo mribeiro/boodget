@@ -2,6 +2,21 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { db } = require('../db');
 const { v4: uuidv4 } = require('uuid');
+const { idsNotInDossier } = require('../utils/ownedIds');
+
+// Goals link accounts and distribution template items by id; refuse ids from another dossier
+// rather than storing links that would let this dossier read that one's figures (#373).
+function foreignLinkError(dossierId, accountIds, distributionIds) {
+  if (accountIds !== undefined && !Array.isArray(accountIds)) return 'account_ids must be an array';
+  if (distributionIds !== undefined && !Array.isArray(distributionIds)) return 'distribution_template_ids must be an array';
+  const foreignAccounts = Array.isArray(accountIds) ? idsNotInDossier('accounts', dossierId, accountIds) : [];
+  if (foreignAccounts.length) return `Unknown account id(s) for this dossier: ${foreignAccounts.join(', ')}`;
+  const foreignDists = Array.isArray(distributionIds)
+    ? idsNotInDossier('expense_template_items', dossierId, distributionIds, "AND section = 'distribution'")
+    : [];
+  if (foreignDists.length) return `Unknown distribution id(s) for this dossier: ${foreignDists.join(', ')}`;
+  return null;
+}
 
 function canAccess(dossierId, userId) {
   const dossier = db.prepare('SELECT creator_id FROM dossiers WHERE id = ?').get(dossierId);
@@ -311,8 +326,10 @@ function buildChartData(goal, dossierId, currentAccumulatedValue) {
       });
     }
 
+    // Stop at the target month: for a goal due this month that's no future point at all
+    // (the 1-month floor above is for the monthly-value maths, not the chart — #377).
     const [ny, nm] = nowYM.split('-').map(Number);
-    for (let i = 1; i <= monthsRemaining; i++) {
+    for (let i = 1; i <= rawMonthsRemaining; i++) {
       projectedCumulative += expectedMonthlyContribution;
       const d = new Date(ny, nm - 1 + i, 1);
       chartData.push({
@@ -389,6 +406,8 @@ router.post('/goals', (req, res) => {
   if (contribution_mode === 'manual' && (manual_monthly_value == null || isNaN(Number(manual_monthly_value)))) {
     return res.status(400).json({ error: 'manual_monthly_value is required for manual contribution mode' });
   }
+  const linkError = foreignLinkError(req.params.id, account_ids, distribution_template_ids);
+  if (linkError) return res.status(400).json({ error: linkError });
 
   const id = uuidv4();
   const create = db.transaction(() => {
@@ -535,6 +554,8 @@ router.put('/goals/:goalId', (req, res) => {
   if (newContributionMode === 'manual' && (newManualMonthlyValue == null || isNaN(newManualMonthlyValue))) {
     return res.status(400).json({ error: 'manual_monthly_value is required for manual contribution mode' });
   }
+  const linkError = foreignLinkError(req.params.id, account_ids, distribution_template_ids);
+  if (linkError) return res.status(400).json({ error: linkError });
 
   const update = db.transaction(() => {
     db.prepare(

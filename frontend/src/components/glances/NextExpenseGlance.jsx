@@ -90,8 +90,9 @@ export default function NextExpenseGlance({ currentCycleDetail, settings, today,
       type: 'annual',
       name: p.name,
       // unpaidAnnual is filtered to `!p.paid` above, so real_value (only meaningful once paid) is
-      // never the right figure here — always show the budgeted amount for a still-unpaid installment.
-      value: p.budgeted_value,
+      // never the right figure here — show this installment's share of the budgeted amount, as the
+      // cycle editor does, not the whole item's yearly budget (#356).
+      value: (p.budgeted_value ?? 0) / (p.num_installments || 1),
       date: getAnnualPaymentDate(p),
       day: p.day,
       installmentNumber: p.installment_number,

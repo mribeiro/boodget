@@ -61,6 +61,22 @@ describe('computeYearStatus', () => {
     expect(status.items[0].installments[0].expected_value).toBe(100);
   });
 
+  it("flags a payment whose cycle is closed, so the year view can lock it (#359)", () => {
+    const { dossier } = setup();
+    const open = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 1 });
+    const closed = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 4, is_closed: true, final_real_balance: 0 });
+    const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2026 });
+    const item = createAnnualExpenseYearItem(db, {
+      yearId: year.id, budgeted_value: 200, num_installments: 2, installments: [{ month: 1, day: 30 }, { month: 4, day: 30 }],
+    });
+    createAnnualExpensePayment(db, { installmentId: item.installmentIds[0], cycleId: open.id, real_value: 100 });
+    createAnnualExpensePayment(db, { installmentId: item.installmentIds[1], cycleId: closed.id, real_value: 100 });
+
+    const [first, second] = computeYearStatus(year.id, dossier.id).items[0].installments;
+    expect(first.payment.cycle_is_closed).toBe(false);
+    expect(second.payment.cycle_is_closed).toBe(true);
+  });
+
   it('clamps total_raise_needed to 0 when carryover exceeds total_budgeted', () => {
     const { dossier } = setup();
     const year = createAnnualExpenseYear(db, { dossierId: dossier.id, year: 2026, carryover: 5000 });
