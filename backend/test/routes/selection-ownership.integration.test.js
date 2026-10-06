@@ -57,6 +57,28 @@ describe('selection endpoints reject foreign ids', () => {
     expect((await agent.put(url).send({ distribution_template_ids: [myDist.id] })).status).toBe(200);
   });
 
+  it('POST and PUT /goals (#373)', async () => {
+    const { mine, myAccount, theirAccount, myDist, theirDist, myExpense, agent } = await setup();
+    const base = { name: 'G', target_value: 1000, target_date: '2030-12', contribution_mode: 'via_distributions' };
+    const url = `/api/dossiers/${mine.id}/goals`;
+
+    const foreignAcc = await agent.post(url).send({ ...base, account_ids: [theirAccount.id] });
+    expect(foreignAcc.status).toBe(400);
+    expect(foreignAcc.body.error).toContain(theirAccount.id);
+    expect((await agent.post(url).send({ ...base, distribution_template_ids: [theirDist.id] })).status).toBe(400);
+    expect((await agent.post(url).send({ ...base, distribution_template_ids: [myExpense.id] })).status).toBe(400);
+    expect(count('goals', mine.id)).toBe(0);
+
+    const ok = await agent.post(url).send({ ...base, account_ids: [myAccount.id], distribution_template_ids: [myDist.id] });
+    expect(ok.status).toBe(201);
+
+    const put = `${url}/${ok.body.id}`;
+    expect((await agent.put(put).send({ account_ids: [theirAccount.id] })).status).toBe(400);
+    expect((await agent.put(put).send({ distribution_template_ids: [theirDist.id] })).status).toBe(400);
+    const links = db.prepare('SELECT account_id FROM goal_accounts WHERE goal_id = ?').all(ok.body.id).map((r) => r.account_id);
+    expect(links).toEqual([myAccount.id]); // the rejected PUTs changed nothing
+  });
+
   it('PUT /api/notifications/dossiers', async () => {
     const { mine, theirs, agent } = await setup();
 

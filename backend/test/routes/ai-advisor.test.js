@@ -56,6 +56,19 @@ describe('summarizeWorkbenchData', () => {
     expect(summary.total_want).toBe(200 + 50 + 50);
     expect(summary.total_save).toBe(300);
     expect(summary.leftover).toBe(3000 - (800 + 100 + 100) - (200 + 50 + 50) - 300);
+    expect(summary.total_unclassified).toBe(0);
+  });
+
+  it('takes unclassified expenses off the leftover (#357)', () => {
+    const summary = summarizeWorkbenchData({
+      income: [{ value: 3000 }],
+      monthlyExpenses: [{ classification: 'must', value: 800 }, { classification: null, value: 150 }],
+      annualExpenses: [{ value: 120 }],
+      distributions: [],
+    });
+    expect(summary.total_must).toBe(800);
+    expect(summary.total_unclassified).toBe(160);
+    expect(summary.leftover).toBe(3000 - 800 - 160);
   });
 
   it('handles an empty/missing data shape without throwing', () => {

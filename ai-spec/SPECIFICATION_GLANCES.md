@@ -94,7 +94,9 @@ Shows:
 
 ### 4.1 Determining the current cycle
 
-The current cycle is the one whose date range covers today, computed using the dossier's *current* `cycle_start_day` setting (a genuinely forward-looking lookup, since the cycle for the current period may not exist yet):
+The current cycle is the **stored** cycle whose own date range (`actual_start_date`–`actual_end_date`) covers today (`currentCycleYearMonth` in `frontend/src/utils/cycleDates.js`, used by `GlancesPanel` and `CycleGlance`). Its own dates — snapshotted when it was opened — decide, never the dossier's live setting, so changing `cycle_start_day` later can't make the Glances point at the wrong cycle or report "No cycle is currently open" while one covers today (#362). When overlapping cycles both cover today, the earliest `(year, month)` wins, as in the backend's `findCycleContainingDate`; a row without stored dates (only seed data) falls back to its own `cycle_start_day`, default 25.
+
+Only when **no** stored cycle covers today — the cycle for the current period hasn't been opened yet — is the period predicted from the dossier's *current* settings (`cycleYearMonth`, a genuinely forward-looking lookup), which then drives the "not opened" warnings:
 
 - A cycle for month M covers from `cycle_start_day` of M-1 to `cycle_start_day - 1` of M.
 - Example: `cycle_start_day = 25`, today = 14 March → current cycle = March cycle (25 Feb → 24 Mar).
@@ -154,7 +156,7 @@ The next expense is the first unpaid fixed expense ordered by **cycle day** (as 
 Shows:
 - **Title**: "Next Expense"
 - **Expense name** (annual payments also show installment counter and "Annual" badge)
-- **Value** (€, shown to the cent — unlike the Capital and Current Cycle cards, which round to the nearest euro)
+- **Value** (€, shown to the cent — unlike the Capital and Current Cycle cards, which round to the nearest euro). For an annual payment it's that installment's share of the item's budget (`budgeted_value / num_installments`, the same figure the cycle editor shows), not the whole yearly budget (#356).
 - **When**: days until payment as a relative count, e.g. "in 3 days"; the calendar date suffix ("in 3 days (Mar 10)") is appended only at `≥768px` (`.next-expense-date-suffix`, same breakpoint as the card grid's mobile/desktop switch) — below that the narrower two-column mobile card grid doesn't have room for it. If the payment day is today: "Today (Mar N)" (date always shown, both viewports). If the payment day has already passed in the current cycle but the expense is still unpaid: just the date, "Mar N" (no "Overdue" prefix, always shown) — the card turning amber already signals the overdue state.
 - **Mark as paid button**: when the expense is overdue, a "Mark as paid" shortcut button appears on its own row below the value/when row. Clicking it marks the item as paid in place (via `PATCH /cycles/:cycleId/items/:itemId` for monthly items, or `PATCH /annual-expense-payments/:paymentId` for annual items) and refreshes the card immediately — without navigating away.
 - **Next-next preview**: when the expense is **not** overdue and a second unpaid item exists in the same ordered list, a 3rd line previews it — "[name] · [relative day count]" (e.g. "Electricity · in 5 days"; "Today"/"Overdue" for the edge cases), truncating with an ellipsis rather than wrapping. Only shown when not overdue, since the overdue state uses that row for the "Mark as paid" button instead.

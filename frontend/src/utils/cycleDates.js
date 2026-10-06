@@ -49,6 +49,30 @@ export function cycleYearMonth(today, cycleStartDay, weekendAdjustment) {
   return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 }
 
+// The (year, month) of the cycle "today" is in: the stored cycle whose own window
+// (actual_start_date–actual_end_date) covers today, so changing the dossier's start-day setting
+// later can't point at the wrong cycle (#362). Only when no stored cycle covers today — the
+// cycle hasn't been opened yet — does the live-settings prediction decide. Cycles can overlap
+// (an "ignore" period move); like the backend, the earliest (year, month) wins.
+export function currentCycleYearMonth(today, cycles, cycleStartDay, weekendAdjustment) {
+  const iso = toIsoDate(today);
+  // A row without stored dates (only seed data has none) falls back to its own start day —
+  // never the live setting this is meant to be independent of — defaulting to 25, exactly like
+  // the backend's reconstructCycleWindow and the cycle editor.
+  const windowOf = (c) => {
+    const startDay = c.cycle_start_day ?? 25;
+    return {
+      start: c.actual_start_date || toIsoDate(new Date(c.year, c.month - 1, startDay)),
+      end: c.actual_end_date || toIsoDate(new Date(c.year, c.month, startDay - 1)),
+    };
+  };
+  const covering = [...(cycles || [])]
+    .filter((c) => { const w = windowOf(c); return w.start <= iso && iso <= w.end; })
+    .sort((a, b) => a.year - b.year || a.month - b.month)[0];
+  if (covering) return { year: covering.year, month: covering.month };
+  return cycleYearMonth(today, cycleStartDay, weekendAdjustment);
+}
+
 export function nextYearMonth(year, month) {
   return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
 }

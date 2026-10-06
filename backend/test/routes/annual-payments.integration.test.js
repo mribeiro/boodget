@@ -167,6 +167,22 @@ describe('PATCH /annual-years/:yearId/items/:itemId (installment date edits vs. 
     expect(paymentRow()).toBeUndefined();
   });
 
+  it('does not crash when an installment holds payments in two cycles that both move (#375)', async () => {
+    // Overlapping cycles can leave one installment with an unpaid payment in two cycles. Moving
+    // its date into a third cycle used to move both there, breaking UNIQUE(installment_id, cycle_id).
+    const { jan, feb, url, agent, paymentRow } = await setup();
+    const { installment_id: installmentId } = paymentRow();
+    db.prepare("INSERT INTO annual_expense_payments (id, installment_id, cycle_id, real_value, paid) VALUES ('dup', ?, ?, 300, 0)").run(installmentId, feb.id);
+    const mar = createExpenseCycle(db, { dossierId: jan.dossier_id, year: 2026, month: 3 });
+
+    const res = await agent.patch(url).send(moveFirstTo(4, 1));
+
+    expect(res.status).toBe(200);
+    const cycles = db.prepare('SELECT cycle_id FROM annual_expense_payments WHERE installment_id = ?').all(installmentId).map((r) => r.cycle_id);
+    expect(cycles.filter((c) => c === mar.id)).toHaveLength(1);
+    expect(cycles).toHaveLength(2);
+  });
+
   it('refuses to remove an installment holding a paid payment', async () => {
     const { url, agent, paymentRow } = await setup({ paid: true });
     const res = await agent.patch(url).send({ num_installments: 1, installments: [{ installment_number: 2, month: 7, day: 30 }] });

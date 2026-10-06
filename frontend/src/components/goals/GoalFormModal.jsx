@@ -89,6 +89,16 @@ export default function GoalFormModal({ dossierId, goal, onSave, onClose, focusC
       setError('Target value must be a positive number');
       return;
     }
+    // An amount that doesn't parse is an error, never "no value": the extra value used to be
+    // silently cleared, and a bad manual amount reached the server as null (#358).
+    if (contributionMode === 'manual') {
+      const manual = parseDecimalInput(manualMonthlyValue);
+      if (isNaN(manual) || manual < 0) { setError('Monthly contribution must be a non-negative number'); return; }
+    }
+    if (extraValue !== '' && extraValue != null) {
+      const extra = parseDecimalInput(extraValue);
+      if (isNaN(extra) || extra < 0) { setError('Extra value must be a non-negative number'); return; }
+    }
     const hasExtra = extraValue !== '' && extraValue != null && parseDecimalInput(extraValue) > 0;
     const payload = {
       name: name.trim(),

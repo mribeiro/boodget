@@ -1081,6 +1081,24 @@ const migrations = [
       ).run(now.toISOString().slice(0, 10), now.getUTCHours() * 60 + now.getUTCMinutes());
     },
   },
+  {
+    // 047 only promoted a local user, so an instance where every remaining user signs in with
+    // SSO (the local setup user deleted back when anyone could delete users) was left with no
+    // admin and no way to create one (#378). If there's still no admin, promote the oldest user
+    // of any kind. A no-op everywhere 047 found someone, and once an admin exists the app never
+    // lets the last one go (an admin can't revoke their own role or delete themselves).
+    id: '049_ensure_an_admin_exists',
+    up() {
+      const { admins } = db.prepare('SELECT COUNT(*) AS admins FROM users WHERE is_admin = 1').get();
+      if (admins === 0) {
+        db.prepare(
+          `UPDATE users SET is_admin = 1 WHERE id = (
+             SELECT id FROM users ORDER BY created_at ASC, rowid ASC LIMIT 1
+           )`
+        ).run();
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {

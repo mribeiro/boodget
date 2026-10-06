@@ -2,13 +2,15 @@ const { db } = require('../db');
 // Called as push.sendPush (not destructured) so tests can stub it.
 const push = require('./push');
 const { computeCycleStartDate, computeTheoreticalCycleEndDate, fromIsoDate } = require('../utils/cycleDates');
+const { loadCycleWindows, findCycleContainingDate } = require('../utils/cycleWindows');
 
-function getCurrentCycleStartYearMonth(cycleStartDay, weekendAdjustment) {
-  const now = new Date();
-  const todayDay = now.getUTCDate();
-  const todayMonth = now.getUTCMonth() + 1;
-  const todayYear = now.getUTCFullYear();
-  const today = new Date(todayYear, todayMonth - 1, todayDay);
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+// Which (year, month) cycle `today` falls in under the dossier's live settings. Only a
+// fallback for when no stored cycle covers today (e.g. "the next cycle isn't open yet").
+function cycleYearMonthFor(today, cycleStartDay, weekendAdjustment) {
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth() + 1;
   const thisMonthStart = computeCycleStartDate(todayYear, todayMonth, cycleStartDay, weekendAdjustment);
   if (today >= thisMonthStart) {
     return { year: todayYear, month: todayMonth };
@@ -19,7 +21,23 @@ function getCurrentCycleStartYearMonth(cycleStartDay, weekendAdjustment) {
   return { year, month };
 }
 
-function checkShouldSend(user, dossierId, eventType, eventKey) {
+// The current cycle is the stored one whose own (weekend-adjusted, snapshotted) window covers
+// today, so a later change to the dossier's start-day setting can't point at the wrong one
+// (#362). Only when none covers today does the live-settings formula decide which period is
+// "current" — that cycle doesn't exist yet, so `cycle` is null.
+function resolveCurrentCycle(dossierId, today, cycleStartDay, weekendAdjustment) {
+  const covering = findCycleContainingDate(loadCycleWindows(db, dossierId), today);
+  if (covering) {
+    return {
+      year: covering.year,
+      month: covering.month,
+      cycle: db.prepare('SELECT * FROM expense_cycles WHERE id = ?').get(covering.id),
+    };
+  }
+  return { ...cycleYearMonthFor(today, cycleStartDay, weekendAdjustment), cycle: null };
+}
+
+function checkShouldSend(user, dossierId, eventType, eventKey, now) {
   const existing = db
     .prepare(
       'SELECT sent_at FROM notification_log WHERE user_id = ? AND dossier_id = ? AND event_type = ? AND event_key = ? ORDER BY sent_at DESC LIMIT 1'
@@ -27,19 +45,23 @@ function checkShouldSend(user, dossierId, eventType, eventKey) {
     .get(user.id, dossierId, eventType, eventKey);
   if (!existing) return true;
   if (!user.repeat_enabled) return false;
-  return isRepeatDue(existing.sent_at, new Date(), user.repeat_interval_days);
+  return isRepeatDue(existing.sent_at, now, user.repeat_interval_days, user.timezone);
 }
 
-// Whether a repeat is due, counted in whole UTC calendar days. The scheduler evaluates each
-// user once a day at the same minute, and the log row is stamped a moment *after* that day's
-// check (once the pushes went out), so comparing elapsed milliseconds lands just short of
-// N days at the next check and slips every repeat by a day (#323).
-function isRepeatDue(sentAtSqlite, now, intervalDays) {
+// Whether a repeat is due, counted in whole calendar days of the user's own time zone (UTC when
+// none is stored). Calendar days, not elapsed time: the scheduler evaluates each user once a
+// day and the log row is stamped a moment *after* that day's check, so an elapsed-time
+// comparison lands just short of N days and slips every repeat by a day (#323). The user's
+// zone, not UTC: users are evaluated once per *local* day, and two consecutive local days can
+// share a UTC date (a DST change, a catch-up across UTC midnight), which skipped a daily
+// repeat (#376).
+function isRepeatDue(sentAtSqlite, now, intervalDays, timeZone = null) {
   const sentAt = new Date(sentAtSqlite.replace(' ', 'T') + 'Z');
-  const DAY_MS = 1000 * 60 * 60 * 24;
-  const sentDay = Math.floor(sentAt.getTime() / DAY_MS);
-  const today = Math.floor(now.getTime() / DAY_MS);
-  return today - sentDay >= intervalDays;
+  const dayNumber = (instant) => {
+    const [y, m, d] = safeLocalClock(instant, timeZone).date.split('-').map(Number);
+    return Date.UTC(y, m - 1, d) / DAY_MS;
+  };
+  return dayNumber(now) - dayNumber(sentAt) >= intervalDays;
 }
 
 // The wall-clock date and time `now` reads as in `timeZone` (an IANA name). A null zone means
@@ -62,13 +84,18 @@ function localClock(now, timeZone) {
 // haven't been evaluated yet on their local today. "Has passed" rather than "is exactly now", so
 // a minute the scheduler missed (restart, deploy, a slow previous run) is caught up later that
 // day, and a send time skipped by a spring-forward DST change still fires.
-function isDueToday(settings, now) {
-  let clock;
+// localClock, but an unknown zone name falls back to UTC rather than throwing (and so never
+// sending).
+function safeLocalClock(now, timeZone) {
   try {
-    clock = localClock(now, settings.timezone);
+    return localClock(now, timeZone);
   } catch (e) {
-    clock = localClock(now, null); // an unknown zone name: fall back to UTC rather than never sending
+    return localClock(now, null);
   }
+}
+
+function isDueToday(settings, now) {
+  const clock = safeLocalClock(now, settings.timezone);
   const nowMinutes = clock.hour * 60 + clock.minute;
   const sendMinutes = settings.send_hour * 60 + settings.send_minute;
   return { due: nowMinutes >= sendMinutes && settings.last_evaluated_date !== clock.date, localDate: clock.date };
@@ -130,8 +157,6 @@ async function runNotificationScheduler(now = new Date()) {
 }
 
 async function evaluateDueUsers(now) {
-  const todayDay = now.getUTCDate();
-
   // Clean up log entries older than 90 days
   db.prepare("DELETE FROM notification_log WHERE sent_at < datetime('now', '-90 days')").run();
 
@@ -161,6 +186,11 @@ async function evaluateDueUsers(now) {
       .prepare('SELECT dossier_id FROM dossier_notification_subscriptions WHERE user_id = ?')
       .all(user.id);
 
+    // Every date check below runs on the user's own local date (#361): the day they're being
+    // evaluated for, which near midnight can differ from the UTC date.
+    const [localYear, localMonth, todayDay] = user.localDate.split('-').map(Number);
+    const today = new Date(localYear, localMonth - 1, todayDay);
+
     for (const { dossier_id: dossierId } of dossierRows) {
       const dossier = db.prepare('SELECT * FROM dossiers WHERE id = ?').get(dossierId);
       if (!dossier) continue;
@@ -176,18 +206,16 @@ async function evaluateDueUsers(now) {
       const weekendAdjustment = dossier.cycle_start_weekend_adjustment || 'none';
       const expenseNotifyDaysBefore = dossier.expense_notification_days_before ?? 1;
 
-      const { year: curYear, month: curMonth } = getCurrentCycleStartYearMonth(cycleStartDay, weekendAdjustment);
-      const currentCycle = db
-        .prepare('SELECT * FROM expense_cycles WHERE dossier_id = ? AND year = ? AND month = ?')
-        .get(dossierId, curYear, curMonth);
+      const { year: curYear, month: curMonth, cycle: currentCycle } =
+        resolveCurrentCycle(dossierId, today, cycleStartDay, weekendAdjustment);
 
       const notifications = [];
 
       // --- snapshot_missing ---
       const snapshotWarnDay = dossier.capital_snapshot_warning_day || 7;
       if (todayDay >= snapshotWarnDay) {
-        const calYear = now.getUTCFullYear();
-        const calMonth = now.getUTCMonth() + 1;
+        const calYear = localYear;
+        const calMonth = localMonth;
         const filled = db
           .prepare('SELECT id FROM months WHERE dossier_id = ? AND year = ? AND month = ? AND filled = 1')
           .get(dossierId, calYear, calMonth);
@@ -257,7 +285,6 @@ async function evaluateDueUsers(now) {
       // --- expense_upcoming / expense_overdue ---
       if (currentCycle) {
         const symbol = (dossier.currency || 'EUR') === 'EUR' ? '€' : (dossier.currency || 'EUR');
-        const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
         // Monthly fixed expenses
         const unpaidItems = db
@@ -294,7 +321,7 @@ async function evaluateDueUsers(now) {
           } else {
             payDate = payDay >= activeCycleStartDay ? candidateThisMonth : candidateNextMonth;
           }
-          const diffDays = Math.floor((payDate - today) / (1000 * 60 * 60 * 24));
+          const diffDays = Math.round((payDate - today) / DAY_MS);
 
           if (diffDays < 0) {
             const payStr = payDate.toLocaleString('en', { month: 'short', day: 'numeric' });
@@ -334,7 +361,7 @@ async function evaluateDueUsers(now) {
 
         for (const payment of unpaidPayments) {
           const payDate = new Date(payment.annual_year, payment.inst_month - 1, payment.inst_day);
-          const diffDays = Math.floor((payDate - today) / (1000 * 60 * 60 * 24));
+          const diffDays = Math.round((payDate - today) / DAY_MS);
           const installLabel = `(${payment.installment_number}/${payment.num_installments})`;
 
           if (diffDays < 0) {
@@ -361,7 +388,7 @@ async function evaluateDueUsers(now) {
 
       // Send deduplicated notifications
       for (const notif of notifications) {
-        if (!checkShouldSend(user, dossierId, notif.type, notif.key)) continue;
+        if (!checkShouldSend(user, dossierId, notif.type, notif.key, now)) continue;
 
         const failedEndpoints = [];
         for (const sub of subscriptions) {

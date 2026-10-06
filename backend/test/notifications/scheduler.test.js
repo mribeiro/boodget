@@ -168,3 +168,71 @@ describe('carSnapshotNotifications', () => {
     send.mockRestore();
   });
 });
+
+describe('isRepeatDue in the user’s time zone (#376)', () => {
+  it('counts local calendar days, so a DST change does not skip a daily repeat', () => {
+    // Sat 7 Mar 19:30 EST was logged at 00:30 UTC on the 8th; Sun 8 Mar 19:30 EDT is 23:30 UTC the
+    // same UTC day — a new local day, so the daily repeat is due.
+    expect(isRepeatDue('2026-03-08 00:30:00', new Date('2026-03-08T23:30:00Z'), 1, 'America/New_York')).toBe(true);
+    // Without a zone, UTC days (the old behaviour, still used for settings with no zone).
+    expect(isRepeatDue('2026-03-08 00:30:00', new Date('2026-03-08T23:30:00Z'), 1, null)).toBe(false);
+  });
+
+  it('is not due again within the same local day', () => {
+    expect(isRepeatDue('2026-03-08 00:30:00', new Date('2026-03-08T02:00:00Z'), 1, 'America/New_York')).toBe(false);
+  });
+
+  it('falls back to UTC for an unknown zone', () => {
+    expect(isRepeatDue('2026-03-08 00:30:00', new Date('2026-03-09T00:30:00Z'), 1, 'Not/AZone')).toBe(true);
+  });
+});
+
+describe('scheduler date checks', () => {
+  const { db } = require('../../src/db');
+  const { createUser, createDossier, createExpenseCycle, createCycleItem } = require('../fixtures/builders');
+  const push = require('../../src/notifications/push');
+
+  function subscribe(user, dossier, { timezone, hour, minute = 0 }) {
+    db.prepare(
+      `INSERT INTO user_notification_settings (user_id, enabled, send_hour, send_minute, timezone, repeat_enabled, repeat_interval_days)
+       VALUES (?, 1, ?, ?, ?, 0, 1)`
+    ).run(user.id, hour, minute, timezone);
+    db.prepare('INSERT INTO dossier_notification_subscriptions (user_id, dossier_id) VALUES (?, ?)').run(user.id, dossier.id);
+    db.prepare("INSERT INTO push_subscriptions (user_id, endpoint, keys_p256dh, keys_auth) VALUES (?, ?, 'k', 'a')").run(user.id, `https://push.example/${user.id}`);
+  }
+
+  async function expensePushes(user, now) {
+    const send = vi.spyOn(push, 'sendPush').mockResolvedValue({ success: true });
+    await runNotificationScheduler(now);
+    const bodies = send.mock.calls
+      .filter(([sub, p]) => sub.user_id === user.id && p.type.startsWith('expense_'))
+      .map(([, p]) => p.body);
+    send.mockRestore();
+    return bodies;
+  }
+
+  it('uses the user’s local date, not the UTC date (#361)', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id, name: 'Home' });
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 6 }); // Jun 25 – Jul 24
+    createCycleItem(db, { cycleId: cycle.id, name: 'Rent', type: 'Fixed', value: 50, day_of_payment: 16 });
+    subscribe(user, dossier, { timezone: 'America/New_York', hour: 21 });
+
+    // 01:00 UTC on Jul 16 is still 21:00 on Jul 15 in New York: Rent is due tomorrow, not today.
+    const bodies = await expensePushes(user, new Date('2026-07-16T01:00:00Z'));
+    expect(bodies).toEqual(['Home — Rent: €50.00 due in 1 day']);
+  });
+
+  it('finds the current cycle by its stored dates after the start-day setting changed (#362)', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id, name: 'Home' });
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 6 }); // Jun 25 – Jul 24
+    createCycleItem(db, { cycleId: cycle.id, name: 'Gym', type: 'Fixed', value: 30, day_of_payment: 11 });
+    // Changed afterwards: the live formula now calls July 10 part of the (non-existent) July cycle.
+    db.prepare('UPDATE dossiers SET cycle_start_day = 1 WHERE id = ?').run(dossier.id);
+    subscribe(user, dossier, { timezone: 'Europe/Lisbon', hour: 9 });
+
+    const bodies = await expensePushes(user, new Date('2026-07-10T08:00:00Z'));
+    expect(bodies).toEqual(['Home — Gym: €30.00 due in 1 day']);
+  });
+});

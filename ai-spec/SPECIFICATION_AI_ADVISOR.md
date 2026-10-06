@@ -68,7 +68,7 @@ The frontend renders it via `CostLabel.jsx` as `~$ 0,0234 · 12.345 in / 890 out
 - Emergency-fund status (reuses `computeEmergencyFundStatus`, extracted from the `/emergency-fund/status` handler and exported from `routes/emergency-fund.js`; `contributing_accounts` stripped).
 - Last 3 annual expense years (carryover, total budgeted, total paid).
 - **Annual expense template** — the recurring definition (insurance, car tax, etc.) that annual expense years are instantiated from: `{name, value, classification, num_installments}` per item (exact installment day/month dropped — not analytically relevant), plus a `total_monthly_avg` (`sum(value)/12`) so the model can sanity-check a given year's budgeted total against the recurring baseline.
-- **Workbench** — up to the 3 most recently updated saved snapshots (ephemeral what-if scenarios, not real transactions): `{name, updated_at, total_income, total_must, total_want, total_save, leftover}`, computed server-side by `summarizeWorkbenchData()` (a port of the frontend's `computeGlobalSummary()` in `WorkbenchTab.jsx`) from the snapshot's stored line items — raw income/expense/distribution rows are never included, only the aggregated totals.
+- **Workbench** — up to the 3 most recently updated saved snapshots (ephemeral what-if scenarios, not real transactions): `{name, updated_at, total_income, total_must, total_want, total_save, total_unclassified, leftover}`, computed server-side by `summarizeWorkbenchData()` (a port of the frontend's `computeGlobalSummary()` in `utils/workbenchSummary.js`; unclassified expenses are reported separately and taken off the leftover) from the snapshot's stored line items — raw income/expense/distribution rows are never included, only the aggregated totals.
 
 ## User context
 

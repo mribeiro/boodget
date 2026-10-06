@@ -20,7 +20,7 @@ The Goals section allows users to define financial objectives with a target valu
 
 ### 2.1 Fields
 
-When creating or editing a goal, the user provides:
+When creating or editing a goal, the user provides the fields below. Linked accounts and distributions must belong to the goal's own dossier — `POST`/`PUT /goals` answer `400` naming any foreign id (#373, the same rule #329 applied to the other selection endpoints). The form refuses an amount it can't parse ("Monthly contribution / Extra value must be a non-negative number") rather than sending it as empty — an unparseable extra value used to be silently cleared (#358).
 
 |Field                          |Description                                                                                                                                                                                                                                                                                                                               |
 |-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -185,7 +185,7 @@ The chart allows the user to visually compare actual progress against the origin
 
 ### 8.3 Future Trend Line
 
-When the goal has at least one linked account (so a current value is known) and the target date has not yet passed, the chart also shows a **Projected** line (`projected_cumulative`, dashed) extending from the current month to the target date. It starts at the current accumulated value (`current_accumulated_value`) and increases by the expected monthly contribution for each month until the target date, showing where the goal balance is trending towards. If no cycle/historical data points exist yet, a single anchor point for the current month is added so the projected line has a starting point. Because Real cumulative (Section 7.3) is anchored to end at this same `current_accumulated_value`, the Projected line is always a seamless continuation of Real rather than a disconnected jump.
+When the goal has at least one linked account (so a current value is known) and the target date has not yet passed, the chart also shows a **Projected** line (`projected_cumulative`, dashed) extending from the current month to the target date. It starts at the current accumulated value (`current_accumulated_value`) and increases by the expected monthly contribution for each month until the target date — and never past it: a goal due this month gets only the current-month anchor point (#377; the 1-month floor that keeps such a goal active applies to the monthly-value maths, not the chart) — showing where the goal balance is trending towards. If no cycle/historical data points exist yet, a single anchor point for the current month is added so the projected line has a starting point. Because Real cumulative (Section 7.3) is anchored to end at this same `current_accumulated_value`, the Projected line is always a seamless continuation of Real rather than a disconnected jump.
 
 ### 8.4 Anticipated Completion Milestone
 
