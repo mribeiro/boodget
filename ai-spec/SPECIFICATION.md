@@ -58,6 +58,7 @@ A simple web-based system to help users track their capital at the beginning of 
 - Sessions expire after **72 hours**.
 - Every successful login (local, SSO, or the first-launch setup) starts a **new session id** (`req.session.regenerate`), so a session id planted in the browser before login is never the one that gets authenticated (session fixation).
 - Changing the password **signs out every other session** of that user (all their rows in the `sessions` table except the current one), since a password change is often a response to a suspected compromise.
+- Request bodies are only parsed once a request has passed the rate limiter and, for every route that needs a signed-in user, authentication (#371). Before sign-in (first-launch setup, login) a body is capped at 16KB; signed-in requests at 4MB, a dossier import at 25MB. Compressed request bodies are refused (`415`) rather than inflated, so a small anonymous upload can't make the server unpack and parse megabytes of JSON.
 
 ### 4.2 OIDC Integration (optional / configurable)
 - The system must support OIDC as an authentication provider, using the **Authorization Code Flow**.
