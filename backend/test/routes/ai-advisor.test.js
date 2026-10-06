@@ -174,7 +174,11 @@ describe('buildDossierContext trimming caps', () => {
     expect(carCtx.linked_expense_items).toEqual(['Insurance']);
     expect(carCtx.latest_month.period).toBe('2025-03');
     expect(carCtx.latest_month.total_cost).toBeGreaterThan(0);
-    expect(carCtx.monthly_series).toHaveLength(1);
+    // The series runs to the previous calendar month; months since the March 2025 snapshot
+    // have none, so they're flagged rather than left out (#360).
+    expect(carCtx.monthly_series).toHaveLength(12);
+    expect(carCtx.monthly_series.every((m) => m.no_snapshot)).toBe(true);
+    expect(carCtx.months_without_snapshot_12m).toBe(12);
     // Raw per-snapshot averages/prices are dropped — only the derived cost is sent.
     expect(carCtx.avg_l_per_100km).toBeUndefined();
     expect(carCtx.cost_per_l).toBeUndefined();

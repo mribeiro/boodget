@@ -18,6 +18,11 @@ function formatKm(value) {
   return formatNumber(value, { maximumFractionDigits: 0 }) + ' km';
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 const FUEL_LABELS = { electric: 'Electric', hybrid: 'Hybrid', gas: 'Gas' };
 const FUEL_ICONS = { electric: faBolt, hybrid: faCarBattery, gas: faGasPump };
 
@@ -53,9 +58,17 @@ export default function CarExpensesTab({ dossierId }) {
 
   if (loading) return <div className="loading">Loading…</div>;
 
-  const totalLatestMonthCost = cars.reduce((sum, c) => sum + (c.latest_month?.total_cost || 0), 0);
+  // Every car contributes the same month — the previous calendar month, the last complete
+  // one — instead of each car's own latest snapshot, which mixed e.g. June and September (#360).
+  const now = new Date();
+  const prevMonthName = MONTH_NAMES[(now.getMonth() + 11) % 12];
+  const totalPrevMonthCost = cars.reduce((sum, c) => sum + (c.previous_month?.total_cost || 0), 0);
   const totalYtdCost = cars.reduce((sum, c) => sum + (c.ytd_total_cost || 0), 0);
-  const totalKmThisMonth = cars.reduce((sum, c) => sum + (c.latest_month?.km_driven || 0), 0);
+  const totalKmPrevMonth = cars.reduce((sum, c) => sum + (c.previous_month?.km_driven || 0), 0);
+  const missingPrevSnapshot = cars.filter((c) => c.previous_month && !c.previous_month.has_snapshot).length;
+  const missingNote = missingPrevSnapshot > 0
+    ? `${missingPrevSnapshot} car${missingPrevSnapshot === 1 ? '' : 's'} without a ${prevMonthName} snapshot`
+    : undefined;
 
   return (
     <div>
@@ -70,10 +83,10 @@ export default function CarExpensesTab({ dossierId }) {
 
       {cars.length > 0 && (
         <KpiStrip defaultOpen style={{ marginBottom: 'var(--space-5)' }} items={[
-          { label: 'Latest month total', value: formatEur(totalLatestMonthCost), large: true },
+          { label: `${prevMonthName} total`, value: formatEur(totalPrevMonthCost), large: true, note: missingNote && `${missingNote} — no fuel/electricity counted for it` },
           { label: 'Cost this year', value: formatEur(totalYtdCost) },
           { label: 'Cars', value: String(cars.length) },
-          { label: 'Km this month', value: formatKm(totalKmThisMonth) },
+          { label: `Km in ${prevMonthName}`, value: formatKm(totalKmPrevMonth), note: missingNote },
         ]} />
       )}
 
