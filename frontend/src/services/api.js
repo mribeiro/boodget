@@ -29,6 +29,8 @@ export const api = {
   logout: () => request('POST', '/auth/logout'),
   changePassword: (data) => request('POST', '/auth/change-password', data),
   getOidcConfig: () => request('GET', '/auth/oidc/config'),
+  startOidcLink: () => request('POST', '/auth/oidc/link'),
+  unlinkOidc: () => request('DELETE', '/auth/oidc/link'),
   uploadAvatar: (image) => request('POST', '/auth/avatar', { image }),
   deleteAvatar: () => request('DELETE', '/auth/avatar'),
 

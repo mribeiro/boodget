@@ -60,13 +60,14 @@ function revokeOtherSessions(userId, keepSid) {
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT avatar FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT avatar, oidc_subject FROM users WHERE id = ?').get(req.user.id);
   res.json({
     id: req.user.id,
     username: req.user.username,
     is_oidc: req.user.is_oidc,
     is_admin: req.user.is_admin,
     avatar: user?.avatar || null,
+    oidc_linked: !!user?.oidc_subject,
   });
 });
 
@@ -98,6 +99,7 @@ router.post('/login', loginLimiter, (req, res) => {
       is_oidc: user.is_oidc,
       is_admin: user.is_admin,
       avatar: user.avatar || null,
+      oidc_linked: !!user.oidc_subject,
     });
   });
 });
@@ -176,6 +178,7 @@ router.get('/oidc/start', (req, res) => {
   const { generators } = require('openid-client');
   const state = generators.state();
   req.session.oidcState = state;
+  delete req.session.oidcLinkUserId; // a sign-in, not an abandoned link flow
   const url = oidcClient.authorizationUrl({ scope: 'openid profile', state });
   res.redirect(url);
 });
@@ -183,12 +186,34 @@ router.get('/oidc/start', (req, res) => {
 // GET /api/auth/oidc/callback
 router.get('/oidc/callback', async (req, res) => {
   if (!oidcClient) return res.status(400).json({ error: 'OIDC is not configured' });
+  const linkUserId = req.session.oidcLinkUserId;
   try {
     const params = oidcClient.callbackParams(req);
     const tokenSet = await oidcClient.callback(process.env.OIDC_REDIRECT_URI, params, {
       state: req.session.oidcState,
     });
     const userinfo = await oidcClient.userinfo(tokenSet);
+
+    // A link flow started by a signed-in local user (POST /oidc/link): attach the identity to
+    // that account instead of signing anyone in. The session is left as is.
+    if (linkUserId) {
+      delete req.session.oidcState;
+      delete req.session.oidcLinkUserId;
+      if (req.session.userId !== linkUserId) {
+        return res.redirect('/sso-account?error=session');
+      }
+      const linked = linkOidcIdentity({
+        userId: linkUserId,
+        issuer: oidcClient.issuer.issuer,
+        subject: userinfo.sub,
+      });
+      if (linked.error) {
+        console.log(`[auth] OIDC link refused for user ${linkUserId}: ${linked.error}`);
+        return res.redirect(`/sso-account?error=${linked.code}`);
+      }
+      return res.redirect('/sso-account?linked=1');
+    }
+
     const result = resolveOidcUser({
       issuer: oidcClient.issuer.issuer,
       subject: userinfo.sub,
@@ -212,9 +237,62 @@ router.get('/oidc/callback', async (req, res) => {
     });
   } catch (err) {
     console.error('OIDC callback error:', err);
+    if (linkUserId) {
+      delete req.session.oidcLinkUserId;
+      return res.redirect('/sso-account?error=oidc');
+    }
     res.redirect('/login?error=oidc');
   }
 });
+
+// POST /api/auth/oidc/link — starts the SSO flow to link an identity to the signed-in local
+// account. A POST (not a GET redirect) so another site can't start it in the user's browser;
+// the client navigates to the returned URL itself.
+router.post('/oidc/link', requireAuth, (req, res) => {
+  if (!oidcClient) return res.status(400).json({ error: 'OIDC is not configured' });
+  if (req.user.is_oidc) {
+    return res.status(400).json({ error: 'SSO accounts are already linked to their identity' });
+  }
+  const { generators } = require('openid-client');
+  const state = generators.state();
+  req.session.oidcState = state;
+  req.session.oidcLinkUserId = req.user.id;
+  req.session.save((err) => {
+    if (err) return res.status(500).json({ error: 'Could not start SSO linking' });
+    res.json({ url: oidcClient.authorizationUrl({ scope: 'openid profile', state }) });
+  });
+});
+
+// DELETE /api/auth/oidc/link — removes the SSO identity from a local account. SSO-only
+// accounts can't unlink: they'd be left with no way to sign in.
+router.delete('/oidc/link', requireAuth, (req, res) => {
+  if (req.user.is_oidc) {
+    return res.status(400).json({ error: 'SSO accounts cannot unlink their identity' });
+  }
+  db.prepare('UPDATE users SET oidc_issuer = NULL, oidc_subject = NULL WHERE id = ?').run(req.user.id);
+  console.log(`[auth] OIDC identity unlinked from user: ${req.user.username} (${req.user.id})`);
+  res.status(204).end();
+});
+
+// Attaches an OIDC identity to an existing local account, on that account's own explicit
+// request. The account stays local (password login and password change keep working); SSO
+// logins with this identity then sign in as it via resolveOidcUser's identity match.
+// Returns { ok: true } or { error, code }.
+function linkOidcIdentity({ userId, issuer, subject }) {
+  if (!subject) return { error: 'identity provider returned no subject', code: 'oidc' };
+  const user = db.prepare('SELECT id, username, is_oidc, oidc_issuer, oidc_subject FROM users WHERE id = ?').get(userId);
+  if (!user) return { error: 'user not found', code: 'session' };
+  if (user.is_oidc) return { error: 'SSO accounts cannot link another identity', code: 'sso_account' };
+  if (user.oidc_issuer === issuer && user.oidc_subject === subject) return { ok: true };
+  const owner = db
+    .prepare('SELECT id FROM users WHERE oidc_issuer = ? AND oidc_subject = ?')
+    .get(issuer, subject);
+  if (owner) return { error: 'identity is already linked to another account', code: 'taken' };
+  if (user.oidc_subject) return { error: 'account is already linked to a different identity', code: 'already_linked' };
+  db.prepare('UPDATE users SET oidc_issuer = ?, oidc_subject = ? WHERE id = ?').run(issuer, subject, userId);
+  console.log(`[auth] OIDC identity linked to local user: ${user.username} (${user.id})`);
+  return { ok: true };
+}
 
 // Finds (or creates) the local user for an OIDC identity. Users are matched on the IdP's
 // immutable (issuer, sub) pair — never on the username alone, which many IdPs let the user
@@ -265,4 +343,5 @@ module.exports = router;
 module.exports.initOIDC = initOIDC;
 module.exports.parseAvatarDataUrl = parseAvatarDataUrl;
 module.exports.resolveOidcUser = resolveOidcUser;
+module.exports.linkOidcIdentity = linkOidcIdentity;
 module.exports.establishSession = establishSession;

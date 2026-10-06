@@ -24,7 +24,12 @@ export default function Navbar({ onHamburger }) {
   const location = useLocation();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [oidcEnabled, setOidcEnabled] = useState(false);
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    api.getOidcConfig().then((cfg) => setOidcEnabled(cfg.enabled)).catch(() => {});
+  }, []);
 
   const appEnv = window.__APP_ENV__;
   const navbarBg =
@@ -128,6 +133,14 @@ export default function Navbar({ onHamburger }) {
                   onClick={() => { navigate('/change-password'); setDropdownOpen(false); }}
                 >
                   Change Password
+                </button>
+              )}
+              {oidcEnabled && !user?.is_oidc && (
+                <button
+                  className="user-dropdown-item"
+                  onClick={() => { navigate('/sso-account'); setDropdownOpen(false); }}
+                >
+                  Single Sign-On
                 </button>
               )}
               <button

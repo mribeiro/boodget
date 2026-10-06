@@ -13,6 +13,7 @@ import CycleEditor from './components/expenses/CycleEditor';
 import UserManager from './components/UserManager';
 import PasswordChange from './components/PasswordChange';
 import AvatarUpload from './components/AvatarUpload';
+import SsoAccount from './components/SsoAccount';
 import GoalDetail from './components/goals/GoalDetail';
 import LoanDetail from './components/loans/LoanDetail';
 import CarDetail from './components/car-expenses/CarDetail';
@@ -137,6 +138,7 @@ function AppRoutes() {
           <Route path="/users" element={<UserManager />} />
           <Route path="/change-password" element={<PasswordChange />} />
           <Route path="/profile-picture" element={<AvatarUpload />} />
+          <Route path="/sso-account" element={<SsoAccount />} />
           <Route path="/notifications" element={<NotificationSettings />} />
           <Route path="/backups" element={<Backups />} />
           <Route path="*" element={<Navigate to="/" replace />} />
