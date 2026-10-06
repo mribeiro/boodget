@@ -398,7 +398,7 @@ Notifications and Users are **not** part of this scrollable list — they live i
 1. Environment badge (if `dev` or `ephemeral`): pill badge (see Section 6.1).
 1. Git SHA: 12 px, `var(--text-muted)`, e.g. `a1b2c3d`.
 1. Theme toggle button (see Section 4.2).
-1. User menu: avatar circle with user’s initials, clicking opens a small dropdown with “Change Password” and “Logout”.
+1. User menu: avatar circle with user’s initials, clicking opens a small dropdown with “Change Password” and “Logout”. Local users also see “Single Sign-On” when OIDC is enabled, opening `/sso-account` (`SsoAccount.jsx`): a card with the provider name, a Linked/Not linked badge, and a “Link <provider>” button (redirects through the provider) or an “Unlink” button (behind a `ConfirmModal`); the result of the round trip arrives as `?linked=1`/`?error=<code>` and is shown as an alert, then stripped from the URL.
 
 ### 5.4 Page body
 

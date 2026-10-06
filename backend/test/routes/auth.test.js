@@ -1,5 +1,5 @@
 const { db } = require('../../src/db');
-const { parseAvatarDataUrl, resolveOidcUser } = require('../../src/routes/auth');
+const { parseAvatarDataUrl, resolveOidcUser, linkOidcIdentity } = require('../../src/routes/auth');
 const { buildTestApp } = require('../helpers/app');
 const { createUser, loginAs } = require('../fixtures/builders');
 const supertest = require('supertest');
@@ -146,5 +146,86 @@ describe('resolveOidcUser', () => {
 
   it('refuses a login with no subject', () => {
     expect(resolveOidcUser({ issuer: ISSUER, subject: undefined, username: 'x' }).error).toBeTruthy();
+  });
+});
+
+describe('linkOidcIdentity', () => {
+  const ISSUER = 'https://idp.example.com';
+
+  it('links an identity to a local account, which SSO logins then sign in as', () => {
+    const local = createUser(db, { username: 'link-same-name' });
+
+    expect(linkOidcIdentity({ userId: local.id, issuer: ISSUER, subject: 'sub-link' })).toEqual({ ok: true });
+
+    const row = db.prepare('SELECT is_oidc, oidc_issuer, oidc_subject FROM users WHERE id = ?').get(local.id);
+    expect(row).toEqual({ is_oidc: 0, oidc_issuer: ISSUER, oidc_subject: 'sub-link' });
+    // The same-name conflict that used to refuse this login now resolves to the linked account.
+    const { user } = resolveOidcUser({ issuer: ISSUER, subject: 'sub-link', username: 'link-same-name' });
+    expect(user.id).toBe(local.id);
+  });
+
+  it('is a no-op when the account is already linked to that same identity', () => {
+    const local = createUser(db);
+    linkOidcIdentity({ userId: local.id, issuer: ISSUER, subject: 'sub-again' });
+
+    expect(linkOidcIdentity({ userId: local.id, issuer: ISSUER, subject: 'sub-again' })).toEqual({ ok: true });
+  });
+
+  it('refuses an identity already bound to another account', () => {
+    resolveOidcUser({ issuer: ISSUER, subject: 'sub-owned', username: 'owner-sso' });
+    const local = createUser(db);
+
+    expect(linkOidcIdentity({ userId: local.id, issuer: ISSUER, subject: 'sub-owned' }).code).toBe('taken');
+    expect(db.prepare('SELECT oidc_subject FROM users WHERE id = ?').get(local.id).oidc_subject).toBeNull();
+  });
+
+  it('refuses replacing a different identity the account is already linked to', () => {
+    const local = createUser(db);
+    linkOidcIdentity({ userId: local.id, issuer: ISSUER, subject: 'sub-first' });
+
+    expect(linkOidcIdentity({ userId: local.id, issuer: ISSUER, subject: 'sub-second' }).code).toBe('already_linked');
+    expect(db.prepare('SELECT oidc_subject FROM users WHERE id = ?').get(local.id).oidc_subject).toBe('sub-first');
+  });
+
+  it('refuses SSO accounts and a missing subject', () => {
+    const sso = createUser(db, { is_oidc: true });
+    const local = createUser(db);
+
+    expect(linkOidcIdentity({ userId: sso.id, issuer: ISSUER, subject: 'sub-x' }).code).toBe('sso_account');
+    expect(linkOidcIdentity({ userId: local.id, issuer: ISSUER, subject: undefined }).error).toBeTruthy();
+  });
+});
+
+describe('SSO link endpoints', () => {
+  it('reports oidc_linked from /me and login, and unlinks via DELETE /oidc/link', async () => {
+    const user = createUser(db);
+    linkOidcIdentity({ userId: user.id, issuer: 'https://idp.example.com', subject: 'sub-endpoint' });
+    const app = buildTestApp();
+    const agent = supertest.agent(app);
+
+    const loginRes = await agent.post('/api/auth/login').send({ username: user.username, password: user.password });
+    expect(loginRes.body.oidc_linked).toBe(true);
+
+    const delRes = await agent.delete('/api/auth/oidc/link');
+    expect(delRes.status).toBe(204);
+    expect((await agent.get('/api/auth/me')).body.oidc_linked).toBe(false);
+  });
+
+  it('refuses unlinking an SSO-only account, which would leave it unable to sign in', async () => {
+    const user = createUser(db, { is_oidc: true });
+    db.prepare("UPDATE users SET oidc_issuer = 'https://idp.example.com', oidc_subject = 'sub-only' WHERE id = ?").run(user.id);
+    const agent = supertest.agent(buildTestApp());
+    await loginAs(agent, user);
+
+    expect((await agent.delete('/api/auth/oidc/link')).status).toBe(400);
+    expect(db.prepare('SELECT oidc_subject FROM users WHERE id = ?').get(user.id).oidc_subject).toBe('sub-only');
+  });
+
+  it('answers 400 to POST /oidc/link when OIDC is not configured', async () => {
+    const user = createUser(db);
+    const agent = supertest.agent(buildTestApp());
+    await loginAs(agent, user);
+
+    expect((await agent.post('/api/auth/oidc/link')).status).toBe(400);
   });
 });

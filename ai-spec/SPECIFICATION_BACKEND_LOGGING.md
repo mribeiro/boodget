@@ -42,7 +42,7 @@ Rules:
 | Category | File | Events |
 |---|---|---|
 | `[db]` | `db/index.js` | DB open (path), each migration applied, expired session cleanup |
-| `[auth]` | `routes/auth.js` | Login success, login failure (username only — never log passwords), logout, password change, OIDC user auto-creation, login rate limit exceeded (username, IP) |
+| `[auth]` | `routes/auth.js` | Login success, login failure (username only — never log passwords), logout, password change, OIDC user auto-creation, OIDC identity linked to/unlinked from a local account (and refused links), login rate limit exceeded (username, IP) |
 | `[users]` | `routes/users.js` | User created, user deleted |
 | `[dossiers]` | `routes/dossiers.js` | Dossier created, imported, exported, deleted; access granted, access revoked |
 | `[accounts]` | `routes/accounts.js` | Account created, account archived |

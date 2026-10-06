@@ -69,6 +69,11 @@ A simple web-based system to help users track their capital at the beginning of 
     - no user has that username (`preferred_username`, falling back to `sub`) → a new SSO account is created and bound to the identity;
     - an SSO user created before identities were recorded has that username and no identity yet → it is bound on this login (one-time backfill);
     - a **local** account, or an SSO account already bound to a different identity, has that username → the login is **refused** (`/login?error=oidc_conflict`). Linking an SSO identity to an existing local account is never implicit.
+- **Linking SSO to a local account** is explicit and initiated by the signed-in local user (user menu → **Single Sign-On**, `/sso-account`, shown only when OIDC is enabled):
+  - `POST /api/auth/oidc/link` stores `oidcState` plus `oidcLinkUserId` in the session and returns the provider's authorization URL as JSON (a POST, so another site can't start the flow in the user's browser; the client navigates itself). The shared callback sees `oidcLinkUserId`, checks it still matches the session's user, and records the identity on that account (`linkOidcIdentity`) instead of signing anyone in, then redirects to `/sso-account?linked=1` or `?error=<code>` (`taken` — identity already bound to another account; `already_linked` — this account is bound to a different identity; `sso_account`; `session`; `oidc`).
+  - The account **stays local** (`is_oidc = 0`): password login and password change keep working, and SSO logins with that identity now sign in as it through the normal identity match — which is how a local user whose SSO username equals their local one gets past the `oidc_conflict` refusal.
+  - `DELETE /api/auth/oidc/link` clears the identity from a local account. SSO-only accounts (`is_oidc = 1`) can neither link nor unlink (400): unlinking would leave them unable to sign in.
+  - `GET /auth/me` and `POST /auth/login` return `oidc_linked` (whether an identity is recorded). The `oidc_conflict` login error points the user at this flow.
   - A bound user keeps their app username even if their `preferred_username` later changes at the provider.
 - OIDC users **cannot change their password** within the app (managed externally by the OIDC provider).
 
