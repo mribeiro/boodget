@@ -33,6 +33,7 @@ function findCycleForCalendarMonth(cycles, year, month) {
 // the derived figures for that month. Never mutates/persists — merged onto the row by the
 // route handler, the same computeLoanValues contract.
 function computeCarMonthValues(car, snapshot, prevSnapshot, ctx) {
+  const legs = computeCarCostLegs(car, snapshot.year, snapshot.month, ctx);
   const baselineMileage = prevSnapshot ? prevSnapshot.mileage_km : car.initial_mileage_km;
   const baselineSource = prevSnapshot ? 'previous_snapshot' : 'car_initial';
   const rawDelta = snapshot.mileage_km - baselineMileage;
@@ -60,7 +61,47 @@ function computeCarMonthValues(car, snapshot, prevSnapshot, ctx) {
   const energyIncomplete = fuelCost === null || electricCost === null;
   const energyCost = (fuelCost ?? 0) + (electricCost ?? 0);
 
-  const cycle = findCycleForCalendarMonth(ctx.cycles, snapshot.year, snapshot.month);
+  return {
+    has_snapshot: true,
+    km_driven: kmDriven,
+    baseline_mileage_km: baselineMileage,
+    baseline_source: baselineSource,
+    mileage_anomaly: mileageAnomaly,
+    fuel_cost: fuelCost,
+    electric_cost: electricCost,
+    energy_cost: energyCost,
+    energy_incomplete: energyIncomplete,
+    ...legs,
+    total_cost: energyCost + legs.costs_total,
+    unknown_count: legs.legs_unknown_count + (energyIncomplete ? 1 : 0),
+  };
+}
+
+// A calendar month with no mileage snapshot (#360): the linked expenses and ad-hoc costs
+// are still real, so they're counted; only the energy leg is unknown (no km to price).
+// Missing energy here is not an "unknown" in unknown_count — that counts items pending
+// cycle data or consumption inputs; a missing snapshot is reported as has_snapshot: false.
+function computeCarGapMonthValues(car, year, month, ctx) {
+  const legs = computeCarCostLegs(car, year, month, ctx);
+  return {
+    year,
+    month,
+    has_snapshot: false,
+    km_driven: null,
+    fuel_cost: null,
+    electric_cost: null,
+    energy_cost: null,
+    energy_incomplete: true,
+    ...legs,
+    total_cost: legs.costs_total,
+    unknown_count: legs.legs_unknown_count,
+  };
+}
+
+// The cost legs that don't depend on mileage — linked monthly items, linked annual items
+// and ad-hoc expenses — for one calendar month.
+function computeCarCostLegs(car, year, month, ctx) {
+  const cycle = findCycleForCalendarMonth(ctx.cycles, year, month);
 
   // Monthly items (Fixed/Budget) tagged to this car. Without a cycle for this calendar
   // month, nothing about it has been budgeted yet — every linked item is genuinely
@@ -181,25 +222,16 @@ function computeCarMonthValues(car, snapshot, prevSnapshot, ctx) {
     .all(car.id);
   const oneOffAdhoc = db
     .prepare("SELECT id, name, value FROM car_adhoc_expenses WHERE car_id = ? AND recurrence = 'one_off' AND year = ? AND month = ? ORDER BY created_at")
-    .all(car.id, snapshot.year, snapshot.month);
+    .all(car.id, year, month);
   const adhocBreakdown = [
     ...recurringAdhoc.map((r) => ({ id: r.id, name: r.name, amount: r.value, recurrence: 'monthly' })),
     ...oneOffAdhoc.map((r) => ({ id: r.id, name: r.name, amount: r.value, recurrence: 'one_off' })),
   ];
   const adhocTotal = adhocBreakdown.reduce((sum, item) => sum + item.amount, 0);
 
-  const totalCost = energyCost + monthlyTotal + annualTotal + adhocTotal;
-  const unknownCount = monthlyUnknownCount + (energyIncomplete ? 1 : 0) + annualUnknownCount;
-
   return {
-    km_driven: kmDriven,
-    baseline_mileage_km: baselineMileage,
-    baseline_source: baselineSource,
-    mileage_anomaly: mileageAnomaly,
-    fuel_cost: fuelCost,
-    electric_cost: electricCost,
-    energy_cost: energyCost,
-    energy_incomplete: energyIncomplete,
+    costs_total: monthlyTotal + annualTotal + adhocTotal,
+    legs_unknown_count: monthlyUnknownCount + annualUnknownCount,
     cycle: cycle ? { id: cycle.id, year: cycle.year, month: cycle.month, is_closed: !!cycle.is_closed } : null,
     monthly_expenses: monthlyBreakdown,
     monthly_expenses_total: monthlyTotal,
@@ -208,8 +240,6 @@ function computeCarMonthValues(car, snapshot, prevSnapshot, ctx) {
     annual_expenses_total: annualTotal,
     adhoc_expenses: adhocBreakdown,
     adhoc_expenses_total: adhocTotal,
-    total_cost: totalCost,
-    unknown_count: unknownCount,
   };
 }
 
@@ -225,16 +255,18 @@ function summarizeGroup(months, year) {
     adhoc_expenses_total: 0,
     total_cost: 0,
     snapshot_count: 0,
+    missing_snapshot_count: 0,
     unknown_count: 0,
   };
   for (const m of months) {
-    base.km_driven += m.km_driven;
-    base.energy_cost += m.energy_cost;
+    base.km_driven += m.km_driven ?? 0;
+    base.energy_cost += m.energy_cost ?? 0;
     base.monthly_expenses_total += m.monthly_expenses_total;
     base.annual_expenses_total += m.annual_expenses_total;
     base.adhoc_expenses_total += m.adhoc_expenses_total ?? 0;
     base.total_cost += m.total_cost;
-    base.snapshot_count += 1;
+    if (m.has_snapshot === false) base.missing_snapshot_count += 1;
+    else base.snapshot_count += 1;
     base.unknown_count += m.unknown_count;
   }
   return base;
@@ -256,11 +288,15 @@ function summarizeCarMonths(monthsWithValues, now = new Date()) {
     currentYear
   );
 
+  // The 12 months ending at the current month when it has a row (its snapshot was taken),
+  // otherwise at the previous one: the current month only gets a row once snapshotted (#360),
+  // so ending at it regardless would leave a 12-month window with 11 months in it.
   const nowIdx = now.getFullYear() * 12 + (now.getMonth() + 1);
-  const cutoffIdx = nowIdx - 11;
+  const endIdx = monthsWithValues.some((m) => m.year * 12 + m.month === nowIdx) ? nowIdx : nowIdx - 1;
+  const cutoffIdx = endIdx - 11;
   const last12Months = monthsWithValues.filter((m) => {
     const idx = m.year * 12 + m.month;
-    return idx >= cutoffIdx && idx <= nowIdx;
+    return idx >= cutoffIdx && idx <= endIdx;
   });
   const last12 = summarizeGroup(last12Months, null);
   const avgMonthlyCost = last12Months.length > 0 ? last12.total_cost / last12Months.length : null;
@@ -425,15 +461,57 @@ function validateAdhocExpenseFields(body, existing) {
 }
 
 // ── Helpers shared across route handlers ───────────────────────────────────
-function loadCarMonthsWithValues(car, ctx) {
+// How far back months without a snapshot are filled in; older snapshots are still included.
+const GAP_FILL_MONTHS = 120;
+
+// The calendar months a car's costs are reported for (#360): from its first month (its first
+// snapshot, or the month it was added if that's earlier) through the previous calendar month —
+// the last complete one, the same month the 1st-of-month reminder asks a snapshot for — or the
+// latest snapshot if that's later. A month without a snapshot still counts its linked expenses
+// and ad-hoc costs, so skipping a snapshot no longer drops paid insurance or tax from the totals.
+// The current month joins once its snapshot exists. Pure: no DB.
+function carReportingMonths(car, snapshots, now = new Date()) {
+  const idx = (y, m) => y * 12 + (m - 1);
+  const created = /^(\d{4})-(\d{2})/.exec(car.created_at || '');
+  const prevMonthIdx = idx(now.getFullYear(), now.getMonth() + 1) - 1;
+  let start = created ? idx(Number(created[1]), Number(created[2])) : prevMonthIdx;
+  let end = prevMonthIdx;
+  for (const s of snapshots) {
+    start = Math.min(start, idx(s.year, s.month));
+    end = Math.max(end, idx(s.year, s.month));
+  }
+  const bySnapshot = new Map(snapshots.map((s) => [idx(s.year, s.month), s]));
+  const gapFrom = end - (GAP_FILL_MONTHS - 1);
+  const out = [];
+  for (let i = start; i <= end; i++) {
+    const snapshot = bySnapshot.get(i) ?? null;
+    if (!snapshot && i < gapFrom) continue;
+    out.push({ year: Math.floor(i / 12), month: (i % 12) + 1, snapshot });
+  }
+  return out;
+}
+
+function loadCarMonthsWithValues(car, ctx, now = new Date()) {
   const snapshots = db.prepare('SELECT * FROM car_months WHERE car_id = ? ORDER BY year, month').all(car.id);
   const monthsAsc = [];
   let prev = null;
-  for (const s of snapshots) {
-    monthsAsc.push({ ...s, ...computeCarMonthValues(car, s, prev, ctx) });
-    prev = s;
+  for (const { year, month, snapshot } of carReportingMonths(car, snapshots, now)) {
+    if (snapshot) {
+      monthsAsc.push({ ...snapshot, ...computeCarMonthValues(car, snapshot, prev, ctx) });
+      prev = snapshot;
+    } else {
+      monthsAsc.push(computeCarGapMonthValues(car, year, month, ctx));
+    }
   }
   return monthsAsc;
+}
+
+// The previous calendar month's row — what the Car Expenses tab's KPIs add up across cars, so
+// every car contributes the same month (#360). null when the car didn't exist yet.
+function previousMonthRow(monthsAsc, now = new Date()) {
+  const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const m = now.getMonth() === 0 ? 12 : now.getMonth();
+  return monthsAsc.find((r) => r.year === y && r.month === m) ?? null;
 }
 
 function findPrevSnapshot(carId, year, month) {
@@ -454,7 +532,7 @@ router.get('/cars', (req, res) => {
 
   const result = cars.map((car) => {
     const monthsAsc = loadCarMonthsWithValues(car, ctx);
-    const latest = monthsAsc.length ? monthsAsc[monthsAsc.length - 1] : null;
+    const latest = [...monthsAsc].reverse().find((m) => m.has_snapshot) ?? null;
     const summary = summarizeCarMonths(monthsAsc);
     const ytdRow = summary.per_year.find((y) => y.year === currentYear);
 
@@ -469,6 +547,7 @@ router.get('/cars', (req, res) => {
       ...car,
       latest_snapshot: latest ? { year: latest.year, month: latest.month, mileage_km: latest.mileage_km } : null,
       latest_month: latest,
+      previous_month: previousMonthRow(monthsAsc),
       linked_monthly_count: linkedMonthlyCount,
       linked_annual_count: linkedAnnualCount,
       ytd_total_cost: ytdRow ? ytdRow.total_cost : 0,
@@ -504,6 +583,7 @@ router.post('/cars', (req, res) => {
     ...car,
     latest_snapshot: null,
     latest_month: null,
+    previous_month: null,
     linked_monthly_count: 0,
     linked_annual_count: 0,
     ytd_total_cost: 0,
@@ -722,6 +802,9 @@ module.exports.computeCarMonthValues = computeCarMonthValues;
 module.exports.findCycleForCalendarMonth = findCycleForCalendarMonth;
 module.exports.buildCarCostContext = buildCarCostContext;
 module.exports.summarizeCarMonths = summarizeCarMonths;
+module.exports.carReportingMonths = carReportingMonths;
+module.exports.loadCarMonthsWithValues = loadCarMonthsWithValues;
+module.exports.previousMonthRow = previousMonthRow;
 module.exports.validateCarFields = validateCarFields;
 module.exports.validateCarMonthFields = validateCarMonthFields;
 module.exports.validateAdhocExpenseFields = validateAdhocExpenseFields;

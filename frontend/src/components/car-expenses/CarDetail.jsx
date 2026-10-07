@@ -70,6 +70,7 @@ export default function CarDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [showSnapshotForm, setShowSnapshotForm] = useState(false);
   const [editingSnapshot, setEditingSnapshot] = useState(null);
+  const [snapshotPreset, setSnapshotPreset] = useState(null);
   const [showAdhocForm, setShowAdhocForm] = useState(false);
   const [editingAdhoc, setEditingAdhoc] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -162,7 +163,10 @@ export default function CarDetail() {
   if (error && !car) return <div className="alert alert-error">{error}</div>;
   if (!car) return null;
 
-  const latest = car.months[0] ?? null;
+  // car.months also lists calendar months without a snapshot (#360), newest first; the
+  // odometer, latest-month figures and the snapshot form's carry-forward use real snapshots.
+  const snapshots = car.months.filter((m) => m.has_snapshot);
+  const latest = snapshots[0] ?? null;
   const hasLinkedItems = car.linked_monthly_items.length + car.linked_annual_items.length > 0;
 
   return (
@@ -413,7 +417,13 @@ export default function CarDetail() {
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No snapshots yet.</p>
             ) : (
               car.summary.per_year.map((y) => (
-                <StatRow key={y.year} label={String(y.year)} value={formatEur(y.total_cost)} />
+                <StatRow
+                  key={y.year}
+                  label={y.missing_snapshot_count > 0
+                    ? `${y.year} · ${y.missing_snapshot_count} month${y.missing_snapshot_count === 1 ? '' : 's'} without a snapshot`
+                    : String(y.year)}
+                  value={formatEur(y.total_cost)}
+                />
               ))
             )}
           </CollapsibleSection>
@@ -421,14 +431,14 @@ export default function CarDetail() {
       </div>
 
       <CollapsibleSection
-        title="Monthly snapshots"
+        title="Months"
         icon={faCalendarDays}
         accent="var(--text-muted)"
         collapsed={snapshotsCollapsed}
         onToggle={() => setSnapshotsCollapsed((v) => !v)}
       >
         <div style={{ marginBottom: '0.75rem' }}>
-          <button className="btn-secondary" onClick={() => { setEditingSnapshot(null); setShowSnapshotForm(true); }}>
+          <button className="btn-secondary" onClick={() => { setEditingSnapshot(null); setSnapshotPreset(null); setShowSnapshotForm(true); }}>
             <FontAwesomeIcon icon={faPlus} style={{ marginRight: '0.4rem' }} />New snapshot
           </button>
         </div>
@@ -447,17 +457,24 @@ export default function CarDetail() {
                 <span style={{ flex: '0 0 70px' }} />
               </div>
               {car.months.map((m) => {
-                const expanded = expandedMonths.has(m.id);
+                const rowKey = m.id ?? `gap-${m.year}-${m.month}`;
+                const expanded = expandedMonths.has(rowKey);
+                const gap = !m.has_snapshot;
                 return (
-                  <div key={m.id} style={{ borderBottom: '1px solid var(--border-default)' }}>
+                  <div key={rowKey} style={{ borderBottom: '1px solid var(--border-default)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0', fontSize: 13.5 }}>
                       <FontAwesomeIcon
                         icon={expanded ? faChevronDown : faChevronRight}
                         style={{ fontSize: 11, color: 'var(--text-muted)', width: 14, cursor: 'pointer' }}
-                        onClick={() => toggleMonth(m.id)}
+                        onClick={() => toggleMonth(rowKey)}
                       />
-                      <span style={{ flex: 1.4, minWidth: 0, fontWeight: 600, cursor: 'pointer' }} onClick={() => toggleMonth(m.id)}>
+                      <span style={{ flex: 1.4, minWidth: 0, fontWeight: 600, cursor: 'pointer' }} onClick={() => toggleMonth(rowKey)}>
                         {MONTH_NAMES[m.month - 1]} {m.year}
+                        {gap && (
+                          <span style={{ marginLeft: 6 }} title="No mileage recorded for this month: its linked expenses and ad-hoc costs count, but no fuel/electricity">
+                            <Badge variant="warning">No snapshot</Badge>
+                          </span>
+                        )}
                         {m.unknown_count > 0 && (
                           <FontAwesomeIcon icon={faTriangleExclamation} title="Some items are pending cycle data" style={{ marginLeft: 6, fontSize: 10, color: 'var(--color-warning)' }} />
                         )}
@@ -466,6 +483,16 @@ export default function CarDetail() {
                       <span style={{ flex: 1, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.energy_cost)}</span>
                       <span style={{ flex: 1, textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatEur(m.total_cost)}</span>
                       <span style={{ flex: '0 0 70px', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                        {gap ? (
+                          <button
+                            type="button"
+                            onClick={() => { setEditingSnapshot(null); setSnapshotPreset({ year: m.year, month: m.month }); setShowSnapshotForm(true); }}
+                            title={`Add the ${MONTH_NAMES[m.month - 1]} ${m.year} snapshot`}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-brand)', padding: 2 }}
+                          >
+                            <FontAwesomeIcon icon={faPlus} style={{ fontSize: 12 }} />
+                          </button>
+                        ) : (<>
                         <button
                           type="button"
                           onClick={() => { setEditingSnapshot(m); setShowSnapshotForm(true); }}
@@ -482,14 +509,21 @@ export default function CarDetail() {
                         >
                           <FontAwesomeIcon icon={faTrash} style={{ fontSize: 12 }} />
                         </button>
+                        </>)}
                       </span>
                     </div>
                     {expanded && (
                       <div style={{ marginLeft: 22, paddingBottom: 8 }}>
-                        <StatRow label="Odometer" value={formatKm(m.mileage_km)} />
-                        <StatRow label="Baseline" value={`${formatKm(m.baseline_mileage_km)} (${m.baseline_source === 'car_initial' ? 'initial mileage' : 'previous snapshot'})`} />
-                        {(car.fuel_type === 'gas' || car.fuel_type === 'hybrid') && <LineItemRow name="Fuel" amount={m.fuel_cost} />}
-                        {(car.fuel_type === 'electric' || car.fuel_type === 'hybrid') && <LineItemRow name="Electricity" amount={m.electric_cost} />}
+                        {gap ? (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '0.3rem 0' }}>
+                            No mileage recorded — fuel/electricity isn't counted for this month.
+                          </div>
+                        ) : (<>
+                          <StatRow label="Odometer" value={formatKm(m.mileage_km)} />
+                          <StatRow label="Baseline" value={`${formatKm(m.baseline_mileage_km)} (${m.baseline_source === 'car_initial' ? 'initial mileage' : 'previous snapshot'})`} />
+                          {(car.fuel_type === 'gas' || car.fuel_type === 'hybrid') && <LineItemRow name="Fuel" amount={m.fuel_cost} />}
+                          {(car.fuel_type === 'electric' || car.fuel_type === 'hybrid') && <LineItemRow name="Electricity" amount={m.electric_cost} />}
+                        </>)}
                         {m.monthly_expenses.map((item) => (
                           <LineItemRow key={item.template_item_id} name={item.name} amount={item.amount} status={item.status} />
                         ))}
@@ -524,10 +558,11 @@ export default function CarDetail() {
         <CarMonthFormModal
           dossierId={dossierId}
           car={car}
-          months={car.months}
+          months={snapshots}
           snapshot={editingSnapshot}
-          onSave={() => { setShowSnapshotForm(false); setEditingSnapshot(null); load(); }}
-          onClose={() => { setShowSnapshotForm(false); setEditingSnapshot(null); }}
+          presetPeriod={snapshotPreset}
+          onSave={() => { setShowSnapshotForm(false); setEditingSnapshot(null); setSnapshotPreset(null); load(); }}
+          onClose={() => { setShowSnapshotForm(false); setEditingSnapshot(null); setSnapshotPreset(null); }}
         />
       )}
       {showAdhocForm && (

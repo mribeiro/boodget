@@ -51,10 +51,11 @@ function computeDefaultPeriod(months, now) {
   return now.getMonth() === 0 ? { year: now.getFullYear() - 1, month: 12 } : { year: now.getFullYear(), month: now.getMonth() };
 }
 
-export default function CarMonthFormModal({ dossierId, car, months, snapshot, onSave, onClose }) {
+export default function CarMonthFormModal({ dossierId, car, months, snapshot, presetPeriod, onSave, onClose }) {
   const isEdit = !!snapshot;
   const now = new Date();
-  const defaultPrev = computeDefaultPeriod(months, now);
+  // presetPeriod: opened from a month listed without a snapshot, to fill exactly that month.
+  const defaultPrev = presetPeriod ?? computeDefaultPeriod(months, now);
 
   const [year, setYear] = useState(snapshot?.year ?? defaultPrev.year);
   const [month, setMonth] = useState(snapshot?.month ?? defaultPrev.month);

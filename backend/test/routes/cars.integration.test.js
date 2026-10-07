@@ -419,3 +419,39 @@ describe('End-to-end car cost', () => {
     expect(res.body.unknown_count).toBe(0);
   });
 });
+
+describe('Car costs for months without a snapshot (#360)', () => {
+  it("counts a paid linked expense in a month with no snapshot, and the tab gets last month's figures", async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const car = createCar(db, { dossierId: dossier.id, name: 'Daily Driver', fuel_type: 'gas', initial_mileage_km: 1000 });
+    const now = new Date();
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const twoBack = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    db.prepare('UPDATE cars SET created_at = ? WHERE id = ?').run(`${iso(twoBack)} 09:00:00`, car.id);
+    // A snapshot two months back; none for last month.
+    createCarMonth(db, { carId: car.id, year: twoBack.getFullYear(), month: twoBack.getMonth() + 1, mileage_km: 1500, avg_l_per_100km: 6, cost_per_l: 2 });
+    // Last month's cycle (it ends in last month) holds the linked insurance, paid.
+    const tpl = createExpenseTemplateItem(db, { dossierId: dossier.id, section: 'expense', type: 'Fixed', name: 'Insurance', value: 40, day_of_payment: 5, car_id: car.id });
+    const cycle = createExpenseCycle(db, {
+      dossierId: dossier.id, year: twoBack.getFullYear(), month: twoBack.getMonth() + 1,
+      actual_start_date: iso(new Date(prev.getFullYear(), prev.getMonth(), 1)), actual_end_date: iso(new Date(prev.getFullYear(), prev.getMonth(), 20)),
+    });
+    db.prepare(
+      "INSERT INTO cycle_items (id, cycle_id, template_item_id, section, name, type, value, day_of_payment, paid, spent, done, position) VALUES ('ci-ins', ?, ?, 'expense', 'Insurance', 'Fixed', 40, 5, 1, 0, 0, 0)"
+    ).run(cycle.id, tpl.id);
+    const agent = await loggedInAgent(buildTestApp(), user);
+
+    const detail = (await agent.get(`/api/dossiers/${dossier.id}/cars/${car.id}`)).body;
+    const gap = detail.months.find((m) => m.year === prev.getFullYear() && m.month === prev.getMonth() + 1);
+    expect(gap).toMatchObject({ has_snapshot: false, km_driven: null, energy_cost: null, monthly_expenses_total: 40, total_cost: 40 });
+    const prevYear = detail.summary.per_year.find((y) => y.year === prev.getFullYear());
+    expect(prevYear.missing_snapshot_count).toBe(1);
+    expect(detail.summary.last_12_months.total_cost).toBeCloseTo(40 + 60, 5); // insurance + 500 km × 6 L/100km × 2 €
+
+    const list = (await agent.get(`/api/dossiers/${dossier.id}/cars`)).body;
+    expect(list[0].previous_month).toMatchObject({ has_snapshot: false, total_cost: 40 });
+    expect(list[0].latest_month).toMatchObject({ has_snapshot: true, km_driven: 500 });
+  });
+});

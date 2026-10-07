@@ -7,6 +7,8 @@ const {
   validateCarFields,
   validateCarMonthFields,
   validateAdhocExpenseFields,
+  carReportingMonths,
+  previousMonthRow,
 } = require('../../src/routes/cars');
 const {
   createUser,
@@ -106,6 +108,55 @@ describe('summarizeCarMonths', () => {
     const summary = summarizeCarMonths([], new Date(2025, 1, 15));
     expect(summary.avg_monthly_cost).toBeNull();
     expect(summary.per_year).toEqual([]);
+  });
+});
+
+describe('carReportingMonths (#360)', () => {
+  const now = new Date(2026, 9, 6); // 6 Oct 2026 → previous calendar month is Sep 2026
+  const label = (rows) => rows.map((r) => `${r.year}-${r.month}${r.snapshot ? '*' : ''}`);
+
+  it('runs from the month the car was added to the previous calendar month, gaps included', () => {
+    const car = { created_at: '2026-06-14 10:00:00' };
+    const rows = carReportingMonths(car, [{ year: 2026, month: 7 }], now);
+    expect(label(rows)).toEqual(['2026-6', '2026-7*', '2026-8', '2026-9']);
+  });
+
+  it('starts at an earlier first snapshot and extends to a current-month snapshot', () => {
+    const car = { created_at: '2026-09-01 00:00:00' };
+    const rows = carReportingMonths(car, [{ year: 2026, month: 7 }, { year: 2026, month: 10 }], now);
+    expect(label(rows)).toEqual(['2026-7*', '2026-8', '2026-9', '2026-10*']);
+  });
+
+  it('is empty for a car added this month with no snapshots', () => {
+    expect(carReportingMonths({ created_at: '2026-10-02 08:00:00' }, [], now)).toEqual([]);
+  });
+
+  it('fills gaps only for the last 120 months, keeping older snapshots', () => {
+    const rows = carReportingMonths({ created_at: '2000-01-01 00:00:00' }, [{ year: 2001, month: 5 }], now);
+    expect(rows[0]).toMatchObject({ year: 2001, month: 5 });
+    expect(rows.filter((r) => !r.snapshot)).toHaveLength(120);
+  });
+});
+
+describe('summarizeCarMonths with months without a snapshot (#360)', () => {
+  it('counts their costs, treats their km/energy as nothing, and reports them', () => {
+    const months = [
+      { year: 2026, month: 8, has_snapshot: true, km_driven: 500, energy_cost: 40, monthly_expenses_total: 50, annual_expenses_total: 0, adhoc_expenses_total: 0, total_cost: 90, unknown_count: 0 },
+      { year: 2026, month: 9, has_snapshot: false, km_driven: null, energy_cost: null, monthly_expenses_total: 50, annual_expenses_total: 120, adhoc_expenses_total: 0, total_cost: 170, unknown_count: 0 },
+    ];
+    const summary = summarizeCarMonths(months, new Date(2026, 9, 6));
+    expect(summary.ytd).toMatchObject({ total_cost: 260, km_driven: 500, energy_cost: 40, snapshot_count: 1, missing_snapshot_count: 1 });
+    // The window ends at September (October has no row yet), so both months are in it.
+    expect(summary.avg_monthly_cost).toBeCloseTo(130, 5);
+  });
+});
+
+describe('previousMonthRow (#360)', () => {
+  it("returns the previous calendar month's row, across a year boundary too", () => {
+    const rows = [{ year: 2025, month: 12, id: 'dec' }, { year: 2026, month: 9, id: 'sep' }];
+    expect(previousMonthRow(rows, new Date(2026, 9, 6)).id).toBe('sep');
+    expect(previousMonthRow(rows, new Date(2026, 0, 10)).id).toBe('dec');
+    expect(previousMonthRow(rows, new Date(2026, 7, 1))).toBeNull();
   });
 });
 

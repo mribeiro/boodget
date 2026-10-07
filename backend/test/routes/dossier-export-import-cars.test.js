@@ -73,8 +73,10 @@ describe('Dossier export/import — cars (v17)', () => {
     expect(newCar.fuel_type).toBe('hybrid');
 
     const detailRes = await agent.get(`/api/dossiers/${newDossierId}/cars/${newCar.id}`);
-    expect(detailRes.body.months).toHaveLength(1);
-    expect(detailRes.body.months[0].mileage_km).toBe(700);
+    // months also lists the calendar months without a snapshot (#360); one real snapshot.
+    const snapshots = detailRes.body.months.filter((m) => m.has_snapshot);
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0].mileage_km).toBe(700);
     expect(detailRes.body.adhoc_expenses).toHaveLength(1);
     expect(detailRes.body.adhoc_expenses[0]).toMatchObject({ name: 'Insurance (wife pays)', value: 45, recurrence: 'monthly', status: 'active' });
 
