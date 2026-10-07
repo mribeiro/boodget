@@ -86,6 +86,33 @@ describe('dossier import robustness (#330)', () => {
     expect(linked.name).toBe('constructor');
   });
 
+  it('keeps an ad-hoc cycle item unlinked even when a template item shares its name (#380)', async () => {
+    const user = createUser(db);
+    const dossier = createDossier(db, { creatorId: user.id });
+    const tpl = createExpenseTemplateItem(db, { dossierId: dossier.id, section: 'expense', name: 'Groceries', value: 300 });
+    const cycle = createExpenseCycle(db, { dossierId: dossier.id, year: 2026, month: 1 });
+    createCycleItem(db, { cycleId: cycle.id, section: 'expense', name: 'Groceries', value: 300, template_item_id: tpl.id, position: 0 });
+    createCycleItem(db, { cycleId: cycle.id, section: 'expense', name: 'Groceries', value: 80, template_item_id: null, position: 1 });
+    const agent = await agentFor(user);
+    const exported = (await agent.get(`/api/dossiers/${dossier.id}/export`)).body;
+    const linkedValues = (dossierId) => db.prepare(
+      `SELECT ci.value FROM cycle_items ci JOIN expense_cycles c ON c.id = ci.cycle_id
+        WHERE c.dossier_id = ? AND ci.template_item_id IS NOT NULL ORDER BY ci.value`
+    ).all(dossierId).map((r) => r.value);
+
+    const res = await agent.post('/api/dossiers/import').send(exported);
+
+    expect(res.status).toBe(201);
+    expect(linkedValues(res.body.id)).toEqual([300]);
+
+    // An export from before ids were carried (no template_item_id key) still links by name.
+    const old = JSON.parse(JSON.stringify(exported));
+    old.version = 17;
+    for (const ci of old.cycles[0].items) delete ci.template_item_id;
+    const oldRes = await agent.post('/api/dossiers/import').send(old);
+    expect(linkedValues(oldRes.body.id)).toEqual([80, 300]);
+  });
+
   it("keeps a month's snapshot account that has no entry", async () => {
     const user = createUser(db);
     const dossier = createDossier(db, { creatorId: user.id });

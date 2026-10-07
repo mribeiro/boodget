@@ -193,12 +193,21 @@ router.post('/import', (req, res) => {
     // account with that name.
     const accountNameToId = Object.create(null);
     for (const a of (data.accounts || [])) firstByName(accountNameToId, a.name, accountIdMap[a.id]);
-    const resolveTemplate = (oldId, section, name) =>
+    // `entry`/`idKey` say where the id came from: a v18+ export carries the key even when the
+    // value is null, and a null there means "not linked" (an ad-hoc cycle item, a distribution
+    // with no account), so it must not be re-linked to a same-named item by the name fallback
+    // (#380) — that would e.g. pull an ad-hoc expense into the Emergency Fund average, which
+    // only counts template-linked items. Without the key (older exports) the name decides.
+    const idIsExplicitNull = (entry, idKey) =>
+      data.version >= 18 && entry != null && idKey in entry && entry[idKey] == null;
+    const resolveTemplate = (oldId, section, name, entry, idKey) =>
       (oldId != null && templateIdMap[oldId]) ||
-      (name != null ? (section === 'expense' ? expenseTemplateNameToId : templateNameToId)[name] : null) ||
+      (!idIsExplicitNull(entry, idKey) && name != null ? (section === 'expense' ? expenseTemplateNameToId : templateNameToId)[name] : null) ||
       null;
-    const resolveAccount = (oldId, name) =>
-      (oldId != null && accountIdMap[oldId]) || (name != null ? accountNameToId[name] : null) || null;
+    const resolveAccount = (oldId, name, entry, idKey) =>
+      (oldId != null && accountIdMap[oldId]) ||
+      (!idIsExplicitNull(entry, idKey) && name != null ? accountNameToId[name] : null) ||
+      null;
 
     // Cars (v16+) — imported before the expense/annual templates below, since their car_id
     // tags are re-linked by car name (same convention as account_name/linked_expense_name).
@@ -284,7 +293,7 @@ router.post('/import', (req, res) => {
       if (ti.id != null) templateIdMap[ti.id] = newId;
       if (ti.section === 'distribution') firstByName(templateNameToId, ti.name, newId);
       if (ti.section === 'expense') firstByName(expenseTemplateNameToId, ti.name, newId);
-      const accountId = resolveAccount(ti.account_id, ti.account_name);
+      const accountId = resolveAccount(ti.account_id, ti.account_name, ti, 'account_id');
       const carId = ti.car_name ? (carNameToId[ti.car_name] ?? null) : null;
       insertTemplateItem.run(newId, dossierId, ti.section, ti.name, ti.type ?? null, ti.value ?? 0, ti.day_of_payment ?? null, ti.position ?? 0, ti.classification ?? null, ti.must_amount ?? null, ti.want_amount ?? null, ti.save_amount ?? null, ti.paperless_tag_id ?? null, ti.exclude_from_emergency_fund ? 1 : 0, accountId, carId);
     }
@@ -350,8 +359,8 @@ router.post('/import', (req, res) => {
       const actualEndDate = c.actual_end_date ?? toIsoDate(computeTheoreticalCycleEndDate(c.year, c.month, cycleStartDay, cycleWeekendAdjustment));
       insertCycle.run(cycleId, dossierId, c.year, c.month, c.previous_balance ?? 0, c.is_closed ? 1 : 0, c.final_real_balance ?? null, cycleStartDay, cycleWeekendAdjustment, actualStartDate, actualEndDate);
       for (const ci of (c.items || [])) {
-        const templateItemId = resolveTemplate(ci.template_item_id, ci.section, ci.name);
-        const accountId = resolveAccount(ci.account_id, ci.account_name);
+        const templateItemId = resolveTemplate(ci.template_item_id, ci.section, ci.name, ci, 'template_item_id');
+        const accountId = resolveAccount(ci.account_id, ci.account_name, ci, 'account_id');
         insertCycleItem.run(uuidv4(), cycleId, templateItemId, ci.section, ci.name, ci.type ?? null, ci.value ?? 0, ci.day_of_payment ?? null, ci.paid ? 1 : 0, ci.spent ?? 0, ci.done ? 1 : 0, ci.position ?? 0, ci.paperless_tag_id ?? null, ci.exclude_from_emergency_fund ? 1 : 0, accountId);
       }
       // income_items is version 14+. Versions <= 13 only carried a flat c.salary — synthesize
