@@ -13,6 +13,7 @@ import {
   faPlus,
   faVault,
   faCalendarDays,
+  faChartLine,
   faCalendar,
   faTableCells,
   faBullseye,
@@ -28,6 +29,7 @@ import {
 const NAV_ITEMS = [
   { key: 'capital',         icon: faVault,             label: 'Capital' },
   { key: 'expenses',        icon: faCalendarDays,      label: 'Monthly Expenses' },
+  { key: 'forecast',        icon: faChartLine,         label: 'Forecast' },
   { key: 'annual-expenses', icon: faCalendar,          label: 'Annual Expenses' },
   { key: 'workbench',       icon: faTableCells,        label: 'Workbench' },
   { key: 'goals',           icon: faBullseye,          label: 'Goals' },
