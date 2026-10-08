@@ -79,7 +79,7 @@ Implementation: `backend/src/routes/forecast.js`.
   - an amber warning for a negative cycle or a fund shortfall;
   - an amber note for each untracked loan.
 - **`KpiStrip`**: the closing at the end of the horizon, the lowest closing (red when negative), and the annual fund (its closing, or "Short X €" in red at the first shortfall).
-- **Chart**: a recharts line chart of the cycle closing (brand colour) and the annual fund (green, only when configured), with a dashed red zero line. Line animation is off, so a re-render never leaves the lines half-drawn.
+- **Chart**: a recharts line chart of the cycle closing (brand colour) and the annual fund (green, only when configured), with a dashed red zero line (named in the legend as "0 € (below = in the red)", since it's a fixed baseline, not a series). Line animation is off, so a re-render never leaves the lines half-drawn.
 - **"What if I take…"**: one `Checkbox` per draft loan.
 - **Cycle table**: one row per cycle with a "Current"/"Opened" badge for stored cycles and icons for a loan ending or installments due. Columns are income, out (expenses + distributions), closing (red when negative) and annual fund. Each row expands to show the dates, the source, the arithmetic and the events. The table scrolls horizontally on phones (`min-width: 560px`).
 - The result is published to `pageContext`, so the AI chat can use the page.
@@ -96,3 +96,47 @@ Implementation: `backend/src/routes/forecast.js`.
 - a `closing_series` with the annual fund closing.
 
 It never includes the per-cycle item breakdown. All three prompt intros describe it: a negative cycle or a fund shortfall is a concrete upcoming risk, a loan ending is freed-up capacity, and the whole thing is a projection.
+
+## 9. Validation dossier
+
+The preview seed (`backend/src/db/seed.js`, `SEED_ON_EMPTY=true`) includes **"Forecast — Validation"**, a dossier built so that every forecast figure is a round number someone can check by hand. Its dates are all relative to today, so the figures are the same whenever it's seeded. `backend/test/db/seed.test.js` pins them.
+
+Setup:
+- **Income template**: Salary 2.100 €.
+- **Expense template**:
+  - Rent 900 €, Utilities 120 € and Car Loan Payment 350 € (Fixed);
+  - Groceries, a Budget item with a 400 € max;
+  - distributions Annual fund 250 € (contributing to the annual fund) and Savings 100 €.
+- **Cycles**:
+  - three closed cycles, where Groceries spent 360/340/350 €, so the "usual" average is 350 €;
+  - the current cycle (idx0), opening 150 €;
+  - the next cycle (idx1), already opened, with a one-off Dentist 200 € on top of the template.
+- **Loans** (all 0% TAN, so payments are exact):
+  - Car Loan, active, 1.400 € over 4 months = 350 €, linked to Car Loan Payment; its last payment falls in idx3;
+  - Personal Loan, active, 600 € over 12 months = 50 €, no linked expense, so it's untracked; its last payment falls in idx11;
+  - Kitchen Renovation, a draft, 6.000 € over 48 months = 125 €.
+- **Annual fund**: Annual Savings at 700 € in the latest Capital snapshot, plus Annual fund at 250 € per cycle. Installments fall on day 1 of the month each cycle ends in:
+  - Car Insurance 600 € (idx2);
+  - Holiday 1.500 € (idx4);
+  - IMI 2 × 450 € (idx5 and idx11).
+  - That's 3.000 € a year in and 3.000 € a year out, so the pattern repeats in the second year.
+
+Expected (planned budgets, no draft):
+
+| Cycle | idx0 | idx1 | idx2 | idx3 | idx4 | idx5 | idx6 | idx7 | idx8 | idx9 | idx10 | idx11 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Closing | 80 | −190 | −260 | **−330** | −50 | 230 | 510 | 790 | 1.070 | 1.350 | 1.630 | 1.910 |
+| Annual fund | 950 | 1.200 | 850 | 1.100 | **−150** | −350 | −100 | 150 | 400 | 650 | 900 | 700 |
+
+- **Closings**:
+  - each cycle moves by −70 € (−20 € from the template plus the untracked 50 €), with idx1 also paying the Dentist;
+  - after the Car Loan ends, each cycle moves by +280 €;
+  - after the Personal Loan ends, by +330 €, reaching 5.870 € at idx23.
+- **Flags**:
+  - `negative_cycle` at idx1;
+  - lowest closing −330 € at idx3;
+  - `fund_shortfall` for Holiday at idx4, short by 150 €;
+  - `untracked_loan` for Personal Loan;
+  - `loan_ends` events at idx3 (Car Loan, frees 350 €) and idx11 (Personal Loan, frees 50 €).
+- **"Usual" budgets** add 50 € per cycle: 130, −90, −110, −130, 200, 530, …
+- **Ticking Kitchen Renovation** takes 125 € more per cycle: −45, −440, −635, −830, −675, −520, …

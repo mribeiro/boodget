@@ -192,6 +192,7 @@ export default function ForecastTab({ dossierId }) {
           {data.fund_configured && (
             <span><span style={{ display: 'inline-block', width: 10, height: 3, background: 'var(--color-success)', marginRight: 6, verticalAlign: 'middle' }} />Annual fund</span>
           )}
+          <span><span style={{ display: 'inline-block', width: 18, height: 0, borderTop: '2px dashed var(--color-danger)', marginRight: 6, verticalAlign: 'middle' }} />0 € (below = in the red)</span>
           {!data.fund_configured && (
             <span style={{ color: 'var(--text-muted)' }}>Annual fund not set up (Annual Expenses → contributing accounts/distributions)</span>
           )}
