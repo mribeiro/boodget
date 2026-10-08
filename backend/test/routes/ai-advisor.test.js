@@ -196,8 +196,25 @@ describe('buildDossierContext trimming caps', () => {
     expect(forecast.closing_series).toHaveLength(12);
     expect(forecast.first_negative_cycle).toMatchObject({ closing: -200 });
     expect(forecast.lowest_projected_closing.closing).toBe(-2400);
+    // No Capital snapshot yet → no capital projection.
+    expect(forecast.capital).toBeNull();
     // Only the trimmed summary — never the per-cycle item breakdown.
     expect(forecast.cycles).toBeUndefined();
+  });
+
+  it("summarizes the forecast's Capital projection when there's a snapshot", () => {
+    const { dossier } = setup();
+    const { createAccount, createMonth, createExpenseTemplateItem } = require('../fixtures/builders');
+    const acc = createAccount(db, { dossierId: dossier.id, money_category: 'active' });
+    createMonth(db, { dossierId: dossier.id, year: 2026, month: 1, filled: true, accountIds: [acc.id], values: { [acc.id]: 8000 } });
+    createExpenseTemplateItem(db, { dossierId: dossier.id, section: 'distribution', name: 'Investments', value: 900, save_amount: 900 });
+    db.prepare('UPDATE dossiers SET forecast_expected_return_pct = 4 WHERE id = ?').run(dossier.id);
+
+    const { forecast } = JSON.parse(buildDossierContext(dossier.id));
+
+    expect(forecast.capital).toMatchObject({ snapshot_month: '2026-01', today: 8000, saved_over_horizon: 10800, expected_return_pct: 4 });
+    expect(forecast.capital.growth_over_horizon).toBeGreaterThan(0);
+    expect(forecast.closing_series[0].capital).toEqual(expect.any(Number));
   });
 
   it('caps a car\'s monthly_series at the 12 most recent months', () => {

@@ -7,7 +7,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer,
 } from 'recharts';
 import { api } from '../../services/api';
-import { formatNumber } from '../../utils/numbers';
+import { formatNumber, parseRateInput } from '../../utils/numbers';
 import { publishPageContext, clearPageContext } from '../../utils/pageContext';
 import KpiStrip from '../ui/KpiStrip';
 import Checkbox from '../ui/Checkbox';
@@ -16,6 +16,18 @@ import Badge from '../ui/Badge';
 function fmt(v) {
   if (v == null) return '—';
   return formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// "2026-10" → "October 2026"
+function fmtYearMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${y}`;
+}
+
+function fmtSigned(v) {
+  return (v < 0 ? '− ' : '+ ') + fmt(Math.abs(v));
 }
 
 function fmtShortDate(iso) {
@@ -69,12 +81,15 @@ export default function ForecastTab({ dossierId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(new Set());
+  const [returnInput, setReturnInput] = useState('');
+  const [returnError, setReturnError] = useState('');
 
   const load = useCallback(async () => {
     setError('');
     try {
       const f = await api.getForecast(dossierId, { horizon, budget: budgetMode, includeDraft: includeDrafts });
       setData(f);
+      setReturnInput(f.capital?.return_pct != null ? String(f.capital.return_pct).replace('.', ',') : '');
       publishPageContext({ label: `Forecast (${horizon} cycles, ${budgetMode} budgets)`, data: f });
     } catch (err) {
       setError(err.message);
@@ -94,6 +109,25 @@ export default function ForecastTab({ dossierId }) {
     });
   }
 
+  // The expected return is a dossier setting, saved as soon as the field is left.
+  async function saveReturn() {
+    const trimmed = returnInput.trim();
+    const value = trimmed === '' ? null : parseRateInput(trimmed);
+    if (value !== null && (!Number.isFinite(value) || value < 0 || value > 30)) {
+      setReturnError('Enter a percentage between 0 and 30, or leave it empty.');
+      return;
+    }
+    setReturnError('');
+    const current = data?.capital?.return_pct ?? null;
+    if ((value || null) === current) return;
+    try {
+      await api.updateDossierSettings(dossierId, { forecast_expected_return_pct: value || null });
+      await load();
+    } catch (err) {
+      setReturnError(err.message);
+    }
+  }
+
   function toggleDraft(id) {
     setIncludeDrafts((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
@@ -108,6 +142,9 @@ export default function ForecastTab({ dossierId }) {
     closing: c.closing,
     fund: c.annual_fund ? c.annual_fund.closing : null,
   }));
+  const capitalData = data.capital
+    ? [{ label: 'Today', capital: data.capital.start }, ...data.cycles.map((c) => ({ label: shortCycle(c.name), capital: c.capital.closing }))]
+    : [];
   const warnings = data.flags.filter((f) => f.type !== 'untracked_loan');
   const notes = data.flags.filter((f) => f.type === 'untracked_loan');
 
@@ -132,7 +169,8 @@ export default function ForecastTab({ dossierId }) {
 
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 'var(--space-4)' }}>
         The current cycle from its real items, then every later cycle from your expense and income templates.
-        Each cycle opens with the previous one's projected closing. A projection, not a promise.
+        Each cycle opens with the previous one's projected closing. Below it, your Capital carried forward with
+        what you save. A projection, not a promise.
       </p>
 
       {data.template_fallbacks.length > 0 && (
@@ -162,6 +200,12 @@ export default function ForecastTab({ dossierId }) {
           value: shortfall ? `Short ${fmt(shortfall.short_by)}` : fmt(last.annual_fund?.closing),
           note: shortfall ? `${shortfall.name}, ${shortfall.cycle}` : `at the end of ${last.name}`,
           highlight: shortfall ? 'danger' : 'success',
+        },
+        data.capital && {
+          label: `Capital, end of ${last.name}`,
+          value: fmt(data.capital.end),
+          note: `${fmtSigned(data.capital.end - data.capital.start)} from today`,
+          highlight: data.capital.end >= data.capital.start ? 'success' : 'danger',
         },
       ]} />
 
@@ -199,6 +243,68 @@ export default function ForecastTab({ dossierId }) {
         </div>
       </div>
 
+      <div className="card" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+          <div style={{ fontWeight: 600, fontSize: 15 }}>Capital</div>
+          {data.capital && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+              Expected return
+              <input
+                type="text"
+                inputMode="decimal"
+                value={returnInput}
+                placeholder="0"
+                onChange={(e) => setReturnInput(e.target.value)}
+                onBlur={saveReturn}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                aria-label="Expected annual return (%)"
+                style={{ width: 64, textAlign: 'right' }}
+              />
+              % / year
+            </label>
+          )}
+        </div>
+        {returnError && <div className="alert alert-error" style={{ marginBottom: 'var(--space-3)' }}>{returnError}</div>}
+        {!data.capital ? (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+            No Capital snapshot yet. Fill one in on the Capital tab to see your Capital projected forward.
+          </p>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 'var(--space-3)' }}>
+              Your {fmtYearMonth(data.capital.as_of)} snapshot (idle + active) carried forward: each cycle's leftover, plus the Save
+              part of your distributions, minus annual bills{data.capital.return_pct ? `, plus ${String(data.capital.return_pct).replace('.', ',')}% a year on invested money` : ''}.
+              The current cycle only counts what isn't paid, spent or done yet.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 'var(--space-5)', rowGap: 4, fontSize: 13, marginBottom: 'var(--space-3)' }}>
+              <span><span style={{ color: 'var(--text-muted)' }}>Today </span><strong>{fmt(data.capital.start)}</strong></span>
+              <span><span style={{ color: 'var(--text-muted)' }}>Saved over {data.cycles.length} cycles </span><strong>{fmt(data.capital.saved_total)}</strong></span>
+              {data.capital.return_pct != null && (
+                <span><span style={{ color: 'var(--text-muted)' }}>Growth </span><strong>{fmt(data.capital.growth_total)}</strong></span>
+              )}
+              <span><span style={{ color: 'var(--text-muted)' }}>End of {last.name} </span><strong>{fmt(data.capital.end)}</strong></span>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={capitalData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={{ stroke: 'var(--border-default)' }} tickLine={false} />
+                <YAxis
+                  domain={['auto', 'auto']}
+                  tickFormatter={(v) => formatNumber(v, { notation: 'compact' }) + ' €'}
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={70}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Line isAnimationActive={false} type="monotone" dataKey="capital" name="Capital" stroke="var(--color-brand)" strokeWidth={2.5}
+                  dot={{ fill: 'var(--color-brand)', stroke: 'var(--bg-card)', strokeWidth: 2, r: 3 }} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </>
+        )}
+      </div>
+
       {data.draft_loans.length > 0 && (
         <div className="card" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-2)' }}>What if I take…</div>
@@ -215,7 +321,7 @@ export default function ForecastTab({ dossierId }) {
 
       <div className="card" style={{ padding: 0 }}>
         <div style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: 560 }}>
+          <div style={{ minWidth: data.capital ? 660 : 560 }}>
             <div style={{ display: 'flex', gap: 8, padding: '0.6rem 1rem', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', borderBottom: '1px solid var(--border-default)' }}>
               <span style={{ width: 14 }} />
               <span style={{ flex: 1.4 }}>Cycle</span>
@@ -223,6 +329,7 @@ export default function ForecastTab({ dossierId }) {
               <span style={{ flex: 1, textAlign: 'right' }}>Out</span>
               <span style={{ flex: 1, textAlign: 'right' }}>Closing</span>
               {data.fund_configured && <span style={{ flex: 1, textAlign: 'right' }}>Annual fund</span>}
+              {data.capital && <span style={{ flex: 1.1, textAlign: 'right' }}>Capital</span>}
             </div>
             {data.cycles.map((c, i) => {
               const open = expanded.has(i);
@@ -246,6 +353,9 @@ export default function ForecastTab({ dossierId }) {
                     {data.fund_configured && (
                       <span style={{ flex: 1, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: fundShort ? 'var(--color-danger)' : undefined }}>{fmt(c.annual_fund?.closing)}</span>
                     )}
+                    {c.capital && (
+                      <span style={{ flex: 1.1, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(c.capital.closing)}</span>
+                    )}
                   </div>
                   {open && (
                     <div style={{ padding: '0 1rem 0.75rem 2.4rem', fontSize: 12.5, color: 'var(--text-secondary)' }}>
@@ -255,6 +365,13 @@ export default function ForecastTab({ dossierId }) {
                       <div>Opening {fmt(c.opening)} + income {fmt(c.income)} − expenses {fmt(c.expenses)} − distributions {fmt(c.distributions)}</div>
                       {c.annual_fund && (
                         <div>Annual fund: {fmt(c.annual_fund.opening)} + {fmt(c.annual_fund.in)} in{c.annual_fund.out.length ? ` − ${fmt(c.annual_fund.out.reduce((s, o) => s + o.amount, 0))} out` : ''} = {fmt(c.annual_fund.closing)}</div>
+                      )}
+                      {c.capital && (
+                        <div>
+                          Capital: {fmt(c.capital.opening)} {fmtSigned(c.capital.cash_flow)} cash flow{i === 0 ? ' still to go' : ''} + {fmt(c.capital.saved)} kept as savings
+                          {c.capital.growth ? ` + ${fmt(c.capital.growth)} growth` : ''}
+                          {c.capital.annual_bills ? ` − ${fmt(c.capital.annual_bills)} annual bills` : ''} = {fmt(c.capital.closing)}
+                        </div>
                       )}
                       {c.events.length > 0 && (
                         <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>

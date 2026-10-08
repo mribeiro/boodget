@@ -205,7 +205,7 @@ function computeSummary(cycle, items, incomeTotal = 0) {
 router.get('/settings', (req, res) => {
   if (!canAccess(req.params.id, req.user.id)) return res.status(404).json({ error: 'Dossier not found' });
   const dossier = db
-    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct, forecast_expected_return_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: dossier.cycle_start_day ?? 25,
@@ -226,6 +226,7 @@ router.get('/settings', (req, res) => {
     ai_user_context: dossier.ai_user_context ?? '',
     reference_salary: dossier.reference_salary ?? null,
     loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
+    forecast_expected_return_pct: dossier.forecast_expected_return_pct ?? null,
   });
 });
 
@@ -257,6 +258,7 @@ router.patch('/settings', (req, res) => {
     ai_user_context,
     reference_salary,
     loans_max_salary_pct,
+    forecast_expected_return_pct,
   } = req.body;
 
   if (cycle_start_day !== undefined && !isValidDay(cycle_start_day)) {
@@ -321,6 +323,12 @@ router.patch('/settings', (req, res) => {
       return res.status(400).json({ error: 'loans_max_salary_pct must be null or a number between 0 and 100' });
     }
   }
+  if (forecast_expected_return_pct !== undefined && forecast_expected_return_pct !== null) {
+    const v = forecast_expected_return_pct;
+    if (typeof v !== 'number' || isNaN(v) || v < 0 || v > 30) {
+      return res.status(400).json({ error: 'forecast_expected_return_pct must be null or a number between 0 and 30' });
+    }
+  }
 
   const updates = [];
   const params = [];
@@ -353,6 +361,7 @@ router.patch('/settings', (req, res) => {
   if (ai_user_context !== undefined) { updates.push('ai_user_context = ?'); params.push(ai_user_context || null); }
   if (reference_salary !== undefined) { updates.push('reference_salary = ?'); params.push(reference_salary); }
   if (loans_max_salary_pct !== undefined) { updates.push('loans_max_salary_pct = ?'); params.push(loans_max_salary_pct); }
+  if (forecast_expected_return_pct !== undefined) { updates.push('forecast_expected_return_pct = ?'); params.push(forecast_expected_return_pct); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -361,7 +370,7 @@ router.patch('/settings', (req, res) => {
   console.log(`[settings] Updated settings for dossier ${req.params.id} by user ${req.user.username}: ${updates.map((u) => u.split(' = ')[0]).join(', ')}`);
 
   const updated = db
-    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, capital_snapshot_warning_day, next_cycle_warning_day, previous_cycle_close_warning_day, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_token, paperless_date_field_id, paperless_amount_field_id, expense_notification_days_before, ai_enabled, ai_model, ai_api_key, ai_user_context, reference_salary, loans_max_salary_pct, forecast_expected_return_pct FROM dossiers WHERE id = ?')
     .get(req.params.id);
   res.json({
     cycle_start_day: updated.cycle_start_day ?? 25,
@@ -382,6 +391,7 @@ router.patch('/settings', (req, res) => {
     ai_user_context: updated.ai_user_context ?? '',
     reference_salary: updated.reference_salary ?? null,
     loans_max_salary_pct: updated.loans_max_salary_pct ?? null,
+    forecast_expected_return_pct: updated.forecast_expected_return_pct ?? null,
   });
 });
 

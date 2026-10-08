@@ -792,10 +792,11 @@ module.exports = function seed() {
     // ai-spec/SPECIFICATION_FORECAST.md §9 for the expected table). Cycles are
     // indexed from the current one (idx0); idxK ends in the month K after it.
     //
-    // Cycle track — template: income 2100, expenses 1770 (Rent 900, Utilities 120,
-    // Car Loan Payment 350, Groceries max 400), distributions 350 (Annual fund 250,
-    // Savings 100), plus an untracked 50 €/month loan → −70 per cycle.
-    //   idx0 (current, real items): 150 + 2100 − 1770 − 350 − 50       = 80
+    // Cycle track — template: income 2900, expenses 1770 (Rent 900, Utilities 120,
+    // Car Loan Payment 350, Groceries max 400), distributions 1150 (Annual fund 250,
+    // Savings 100, Investments 600, Personal 200), plus an untracked 50 €/month loan
+    // → −70 per cycle.
+    //   idx0 (current, real items): 150 + 2900 − 1770 − 1150 − 50      = 80
     //   idx1 (already opened, + a one-off Dentist 200)                = −190 ← first negative
     //   idx2 −260 · idx3 −330 (lowest; Car Loan's last payment)
     //   idx4 −50  (Car Loan Payment drops out → +280 per cycle) … idx11 1910
@@ -807,6 +808,13 @@ module.exports = function seed() {
     // (day 1 of the month the cycle ends in): Car Insurance 600 (idx2), Holiday 1500
     // (idx4 → short by 150), IMI 2×450 (idx5, idx11). 3000/year in, 3000/year out:
     //   950, 1200, 850, 1100, −150, −350, −100, 150, 400, 650, 900, 700, then repeats.
+    //
+    // Capital — snapshot 12000 (Current Account 1250 + Annual Savings 700 + Investments
+    // 10050). Each cycle keeps 1000 of its distributions: Annual fund 250 (contributing),
+    // Savings 100 and Investments 600 (all Save), Personal 50 (Save 50 of 200).
+    //   idx0 only takes what's still outstanding: −620 unpaid/unspent − 1150 + 1000 kept → 11230
+    //   then 11960, 12290, 13220, 13000, 13830, 15110 … 20230, 21060 (idx11) … 34020 (idx23).
+    // No expected return is set, so the figures stay round; set one on the tab to see growth.
     // Loans are at 0% TAN so their payments are exact (1400/4 = 350, 600/12 = 50).
     // ══════════════════════════════════════════════════════════════════════
     const dF = mkDossier(userId, 'Forecast — Validation', {
@@ -814,27 +822,30 @@ module.exports = function seed() {
       next_cycle_warning_day:           warningOff,
       previous_cycle_close_warning_day: warningOff,
       emergency_fund_cycles_to_average: 6,
-      reference_salary: 2100,
+      reference_salary: 2900,
     });
 
     const dFAccs = mkAccounts(dF, [
       { group_name: 'Bank', name: 'Current Account', type: 'Current Account',       money_category: 'idle'   },
-      { group_name: 'Bank', name: 'Annual Savings',  type: 'Guaranteed Investment', money_category: 'active' },
+      { group_name: 'Bank',   name: 'Annual Savings',  type: 'Guaranteed Investment', money_category: 'active' },
+      { group_name: 'Broker', name: 'Investments',     type: 'Risk Investment',       money_category: 'active' },
     ]);
-    mkMonth(dF, dFAccs, prevCalYear, prevCalMonth, [1100, 450]);
-    mkMonth(dF, dFAccs, calYear,     calMonth,     [1250, 700]); // fund opening = 700
+    mkMonth(dF, dFAccs, prevCalYear, prevCalMonth, [1100, 450, 9100]);
+    mkMonth(dF, dFAccs, calYear,     calMonth,     [1250, 700, 10050]); // fund opening = 700; Capital = 12000
 
     db.prepare(
       'INSERT INTO income_template_items (id, dossier_id, name, default_value, position) VALUES (?, ?, ?, ?, ?)'
-    ).run(uuidv4(), dF, 'Salary', 2100, 1);
+    ).run(uuidv4(), dF, 'Salary', 2900, 1);
 
     const dFTemplate = [
-      { section: 'expense',      name: 'Rent',             type: 'Fixed',  value: 900, day_of_payment: 1,    classification: 'must', save_amount: null },
-      { section: 'expense',      name: 'Utilities',        type: 'Fixed',  value: 120, day_of_payment: 10,   classification: 'must', save_amount: null },
-      { section: 'expense',      name: 'Car Loan Payment', type: 'Fixed',  value: 350, day_of_payment: 8,    classification: 'must', save_amount: null },
-      { section: 'expense',      name: 'Groceries',        type: 'Budget', value: 400, day_of_payment: null, classification: 'must', save_amount: null },
-      { section: 'distribution', name: 'Annual fund',      type: null,     value: 250, day_of_payment: null, classification: null,   save_amount: 250  },
-      { section: 'distribution', name: 'Savings',          type: null,     value: 100, day_of_payment: null, classification: null,   save_amount: 100  },
+      { section: 'expense',      name: 'Rent',             type: 'Fixed',  value: 900, day_of_payment: 1,    classification: 'must' },
+      { section: 'expense',      name: 'Utilities',        type: 'Fixed',  value: 120, day_of_payment: 10,   classification: 'must' },
+      { section: 'expense',      name: 'Car Loan Payment', type: 'Fixed',  value: 350, day_of_payment: 8,    classification: 'must' },
+      { section: 'expense',      name: 'Groceries',        type: 'Budget', value: 400, day_of_payment: null, classification: 'must' },
+      { section: 'distribution', name: 'Annual fund',      type: null,     value: 250, day_of_payment: null, classification: null, split: [0, 0, 250] },
+      { section: 'distribution', name: 'Savings',          type: null,     value: 100, day_of_payment: null, classification: null, split: [0, 0, 100] },
+      { section: 'distribution', name: 'Investments',      type: null,     value: 600, day_of_payment: null, classification: null, split: [0, 0, 600] },
+      { section: 'distribution', name: 'Personal',         type: null,     value: 200, day_of_payment: null, classification: null, split: [0, 150, 50] },
     ];
     const insertFTemplate = db.prepare(
       `INSERT INTO expense_template_items
@@ -843,9 +854,9 @@ module.exports = function seed() {
     );
     const dFTemplateIds = dFTemplate.map((t, i) => {
       const id = uuidv4();
-      const isDist = t.section === 'distribution';
+      const [must, want, save] = t.split ?? [null, null, null]; // Must / Want / Save
       insertFTemplate.run(id, dF, t.section, t.name, t.type, t.value, t.day_of_payment, t.classification,
-        isDist ? 0 : null, isDist ? 0 : null, t.save_amount, i + 1);
+        must, want, save, i + 1);
       return id;
     });
 
@@ -861,20 +872,22 @@ module.exports = function seed() {
       { section: 'expense',      name: 'Groceries',        type: 'Budget', value: 400, day_of_payment: null, spent: groceriesSpent },
       { section: 'distribution', name: 'Annual fund',      type: null,     value: 250, day_of_payment: null, done },
       { section: 'distribution', name: 'Savings',          type: null,     value: 100, day_of_payment: null, done },
+      { section: 'distribution', name: 'Investments',      type: null,     value: 600, day_of_payment: null, done },
+      { section: 'distribution', name: 'Personal',         type: null,     value: 200, day_of_payment: null, done },
     ];
 
     // Three closed cycles: Groceries spent 360/340/350 → "usual" average 350.
     const setFinal = db.prepare('UPDATE expense_cycles SET final_real_balance = ? WHERE id = ?');
     [[-3, 120, 360, 135], [-2, 135, 340, 140], [-1, 140, 350, 150]].forEach(([n, prevBal, spent, finalBal]) => {
       const { year, month } = fCycle(n);
-      const id = mkCycle(dF, year, month, 2100, prevBal, true, fItems({ paid: [1, 1, 1], groceriesSpent: spent, done: 1 }));
+      const id = mkCycle(dF, year, month, 2900, prevBal, true, fItems({ paid: [1, 1, 1], groceriesSpent: spent, done: 1 }));
       setFinal.run(finalBal, id);
     });
 
     // idx0: the current cycle, opening 150 (the last closed cycle's final balance).
-    mkCycle(dF, curCycleYear, curCycleMonth, 2100, 150, false, fItems({ paid: [1, 1, 0], groceriesSpent: 180, done: 0 }));
+    mkCycle(dF, curCycleYear, curCycleMonth, 2900, 150, false, fItems({ paid: [1, 1, 0], groceriesSpent: 180, done: 0 }));
     // idx1: already opened, with a one-off Dentist bill on top of the template.
-    mkCycle(dF, nextCycleYear, nextCycleMonth, 2100, 0, false, [
+    mkCycle(dF, nextCycleYear, nextCycleMonth, 2900, 0, false, [
       ...fItems({ paid: [0, 0, 0], groceriesSpent: 0, done: 0 }),
       { section: 'expense', name: 'Dentist', type: 'Fixed', value: 200, day_of_payment: 3, paid: 0 },
     ]);
@@ -894,19 +907,19 @@ module.exports = function seed() {
     const fN0 = displayMonthOf(curCycleYear, curCycleMonth);
     mkLoan(dF, {
       // Linked to "Car Loan Payment": last payment on day 8 of N0+3 → falls in idx3.
-      name: 'Car Loan', status: 'active', interest_rate: 0, salary: 2100,
+      name: 'Car Loan', status: 'active', interest_rate: 0, salary: 2900,
       remaining_balance: 1400, balance_as_of: ym(fN0.year, fN0.month),
       end_date: addMonthsYM(fN0.year, fN0.month, 3), day_of_payment: 8,
       expense_template_item_id: dFTemplateIds[2],
     });
     mkLoan(dF, {
       // No linked expense → "untracked", added by the forecast itself until idx11.
-      name: 'Personal Loan', status: 'active', interest_rate: 0, salary: 2100,
+      name: 'Personal Loan', status: 'active', interest_rate: 0, salary: 2900,
       remaining_balance: 600, balance_as_of: ym(fN0.year, fN0.month),
       end_date: addMonthsYM(fN0.year, fN0.month, 11), day_of_payment: 15,
     });
     mkLoan(dF, {
-      name: 'Kitchen Renovation', status: 'draft', interest_rate: 0, salary: 2100,
+      name: 'Kitchen Renovation', status: 'draft', interest_rate: 0, salary: 2900,
       principal: 6000, term_months: 48,
     });
 

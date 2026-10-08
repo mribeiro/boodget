@@ -155,7 +155,7 @@ router.post('/import', (req, res) => {
 
   const doImport = db.transaction(() => {
     db.prepare(
-      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO dossiers (id, name, creator_id, currency, cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct, forecast_expected_return_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       dossierId, finalName, req.user.id, data.dossier.currency || 'EUR', data.dossier.cycle_start_day ?? 25,
       // Versions <= 12 predate this setting; 'none' is the correct historical default.
@@ -173,7 +173,12 @@ router.post('/import', (req, res) => {
       isAllowedAiModel(data.dossier.ai_model) ? data.dossier.ai_model : DEFAULT_AI_MODEL,
       data.dossier.ai_user_context ?? null,
       data.dossier.reference_salary ?? null,
-      data.dossier.loans_max_salary_pct ?? null
+      data.dossier.loans_max_salary_pct ?? null,
+      // Absent before the Forecast's capital track; anything but a 0–30 number (e.g. a
+      // hand-edited export) imports as "no return".
+      Number.isFinite(data.dossier.forecast_expected_return_pct) && data.dossier.forecast_expected_return_pct >= 0 && data.dossier.forecast_expected_return_pct <= 30
+        ? data.dossier.forecast_expected_return_pct
+        : null
     );
 
     const accountIdMap = Object.create(null);
@@ -587,7 +592,7 @@ router.get('/:id/export', (req, res) => {
   const access = canAccess(req.params.id, req.user.id);
   if (!access) return res.status(404).json({ error: 'Dossier not found' });
 
-  const dossier = db.prepare('SELECT name, currency, cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct FROM dossiers WHERE id = ?').get(req.params.id);
+  const dossier = db.prepare('SELECT name, currency, cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_months_multiplier, emergency_fund_cycles_to_average, paperless_url, paperless_date_field_id, paperless_amount_field_id, ai_enabled, ai_model, ai_user_context, reference_salary, loans_max_salary_pct, forecast_expected_return_pct FROM dossiers WHERE id = ?').get(req.params.id);
   const accounts = db
     .prepare('SELECT id, group_name, name, type, money_category, can_receive_transfers, archived, position FROM accounts WHERE dossier_id = ? ORDER BY position, group_name, name')
     .all(req.params.id);
@@ -857,6 +862,7 @@ router.get('/:id/export', (req, res) => {
       ai_user_context: dossier.ai_user_context ?? null,
       reference_salary: dossier.reference_salary ?? null,
       loans_max_salary_pct: dossier.loans_max_salary_pct ?? null,
+      forecast_expected_return_pct: dossier.forecast_expected_return_pct ?? null,
     },
     accounts,
     months: months.map((m) => ({

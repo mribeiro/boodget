@@ -23,6 +23,11 @@ describe('seed: Forecast — Validation dossier', () => {
     expect(f.cycles.slice(0, 12).map((c) => c.annual_fund.closing)).toEqual([
       950, 1200, 850, 1100, -150, -350, -100, 150, 400, 650, 900, 700,
     ]);
+    expect(f.cycles.map((c) => c.capital.closing)).toEqual([
+      11230, 11960, 12290, 13220, 13000, 13830, 15110, 16390, 17670, 18950, 20230, 21060,
+      22390, 23720, 24450, 25780, 25610, 26490, 27820, 29150, 30480, 31810, 33140, 34020,
+    ]);
+    expect(f.capital).toEqual({ as_of: expect.any(String), start: 12000, end: 34020, saved_total: 24000, growth_total: 0, return_pct: null });
     expect(f.template_fallbacks).toEqual([]);
     expect(f.lowest).toMatchObject({ cycle_index: 3, closing: -330 });
     expect(f.flags.map((x) => [x.type, x.cycle_index ?? x.name])).toEqual([
@@ -42,5 +47,13 @@ describe('seed: Forecast — Validation dossier', () => {
     const withDraft = computeForecast(inputs, { horizon: 6, includeDraftLoanIds: [draft.draft_loans[0].id] });
     expect(draft.draft_loans).toMatchObject([{ name: 'Kitchen Renovation', monthly_payment: 125 }]);
     expect(withDraft.cycles.map((c) => c.closing)).toEqual([-45, -440, -635, -830, -675, -520]);
+  });
+
+  it('grows invested money once an expected return is set', () => {
+    const f = computeForecast(inputs, { horizon: 12, returnPct: 4 });
+    // Annual Savings 700 + Investments 10050 invested, at (1.04)^(1/12) − 1 a month.
+    expect(f.cycles[0].capital.growth).toBeCloseTo(10750 * (Math.pow(1.04, 1 / 12) - 1), 2);
+    expect(f.capital.growth_total).toBeGreaterThan(500);
+    expect(f.capital.end).toBeCloseTo(21060 + f.capital.growth_total, 1);
   });
 });

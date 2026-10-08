@@ -6,11 +6,15 @@ const { loadCycleWindows, findCycleContainingDate } = require('../utils/cycleWin
 const { computeLoanValues, daysInMonth } = require('./loans');
 
 // Cash-flow forecast (#349): the next N expense cycles projected forward, read-only and
-// computed on the fly — nothing here is stored. Two tracks:
+// computed on the fly — nothing here is stored. Three tracks:
 // - the cycle track (main account): each cycle opens with the previous one's projected
 //   closing and closes at opening + income − expenses − distributions;
 // - the annual fund track: the contributing accounts' latest balance, plus the
-//   contributing distributions each cycle, minus the annual installments due in it.
+//   contributing distributions each cycle, minus the annual installments due in it;
+// - the capital track: the latest Capital snapshot (idle + active) carried forward. A
+//   distribution's Save part (and all of a contributing annual-fund distribution) stays in
+//   Capital — it's only moved to another account — while the rest of it is spent; annual
+//   installments leave it; invested money grows at the dossier's expected return.
 // The current cycle (and any later one already opened) uses its real items; cycles not
 // opened yet use the template, dated with the dossier's live settings (a forward-looking
 // prediction, which CLAUDE.md allows for cycles that don't exist yet).
@@ -67,8 +71,11 @@ function budgetAmount(item, budgetMode, averages) {
  * - loans[]: { id, name, status, monthly_payment, expense_template_item_id, last_due_date, is_matured }
  * - installments[]: { date, name, amount } — unpaid annual installments
  * - fund: null (not configured) | { opening, distribution_ids[] }
+ * - save_amounts: { [templateItemId] | ['name:'+name]: Save part of a distribution }
+ * - capital: null (no filled snapshot) | { idle, active, as_of: 'YYYY-MM' }
+ * - expected_return_pct: annual % applied to invested money (null = none)
  */
-function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', includeDraftLoanIds = [] } = {}) {
+function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', includeDraftLoanIds = [], returnPct } = {}) {
   const windows = inputs.windows.slice(0, horizon);
   const loans = inputs.loans || [];
   const fundIds = new Set(inputs.fund?.distribution_ids || []);
@@ -85,7 +92,26 @@ function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', include
   let fundBalance = inputs.fund ? inputs.fund.opening : null;
   let fundShortfallFlagged = false;
 
+  // Capital: cash (idle accounts) takes each cycle's leftover; invested money (active
+  // accounts) takes what's saved, grows at the expected return and pays the annual bills.
+  const saveAmounts = inputs.save_amounts || {};
+  const keptOf = (it) => {
+    const value = it.value || 0;
+    if (fundIds.has(it.template_item_id)) return value;
+    const save = saveAmounts[it.template_item_id ?? ''] ?? saveAmounts[`name:${it.name}`] ?? 0;
+    return Math.max(0, Math.min(save, value));
+  };
+  const annualReturn = returnPct !== undefined ? returnPct : inputs.expected_return_pct;
+  const monthlyRate = annualReturn > 0 ? Math.pow(1 + annualReturn / 100, 1 / 12) - 1 : 0;
+  let idle = inputs.capital ? inputs.capital.idle : null;
+  let invested = inputs.capital ? inputs.capital.active : null;
+  let savedTotal = 0;
+  let growthTotal = 0;
+
   windows.forEach((w, index) => {
+    // The first cycle is already running: its income is in the accounts (cycles start on
+    // payday) and whatever's paid, spent or done is too, so Capital only takes what's left.
+    const running = index === 0;
     const events = [];
     const stored = w.stored;
     if (stored && index === 0) opening = stored.previous_balance || 0;
@@ -106,14 +132,23 @@ function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', include
     let expenses = 0;
     let distributions = 0;
     let fundIn = 0;
+    let capitalOut = 0; // what leaves the cash accounts this cycle (Capital view)
+    let kept = 0;       // the part of it that's only moved to invested accounts
     for (const it of items) {
       if (it.section === 'expense') {
-        expenses += it.type === 'Budget' ? budgetAmount(it, budgetMode, inputs.budget_averages || {}) : it.value || 0;
+        const amount = it.type === 'Budget' ? budgetAmount(it, budgetMode, inputs.budget_averages || {}) : it.value || 0;
+        expenses += amount;
+        if (!running) capitalOut += amount;
+        else capitalOut += it.type === 'Budget' ? amount - (it.spent || 0) : it.paid ? 0 : amount;
       } else {
         distributions += it.value || 0;
         // A contributing distribution feeds the annual fund — unless it's already done in a
         // running cycle, in which case it's already in the accounts' balance.
         if (fundIds.has(it.template_item_id) && !it.done) fundIn += it.value || 0;
+        if (!(running && it.done)) {
+          capitalOut += it.value || 0;
+          kept += keptOf(it);
+        }
       }
     }
 
@@ -122,11 +157,13 @@ function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', include
     for (const loan of untracked) {
       if (!loan.last_due_date || w.start <= loan.last_due_date) {
         expenses += loan.monthly_payment || 0;
+        capitalOut += loan.monthly_payment || 0;
         events.push({ type: 'untracked_loan_payment', loan_id: loan.id, name: loan.name, amount: round2(loan.monthly_payment || 0) });
       }
     }
     for (const loan of drafts) {
       expenses += loan.monthly_payment || 0;
+      capitalOut += loan.monthly_payment || 0;
       events.push({ type: 'draft_loan_payment', loan_id: loan.id, name: loan.name, amount: round2(loan.monthly_payment || 0) });
     }
     // A linked loan's last payment falls in this cycle: from the next cycle on, its expense
@@ -171,6 +208,26 @@ function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', include
       events.push({ type: 'installment_due', name: inst.name, amount: round2(inst.amount), date: toIsoDate(inst.date) });
     }
 
+    let capital = null;
+    if (idle != null) {
+      const capitalOpening = idle + invested;
+      const cashFlow = (running ? 0 : income) - capitalOut;
+      const growth = Math.max(invested, 0) * monthlyRate;
+      const annualBills = due.reduce((sum, inst) => sum + inst.amount, 0);
+      idle += cashFlow;
+      invested += kept + growth - annualBills;
+      savedTotal += kept;
+      growthTotal += growth;
+      capital = {
+        opening: round2(capitalOpening),
+        cash_flow: round2(cashFlow),
+        saved: round2(kept),
+        growth: round2(growth),
+        annual_bills: round2(annualBills),
+        closing: round2(idle + invested),
+      };
+    }
+
     cycles.push({
       name: cycleName(w.end),
       start: toIsoDate(w.start),
@@ -182,6 +239,7 @@ function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', include
       distributions: round2(distributions),
       closing: round2(closing),
       annual_fund: annualFund,
+      capital,
       events,
     });
     opening = closing;
@@ -204,6 +262,16 @@ function computeForecast(inputs, { horizon = 12, budgetMode = 'planned', include
     lowest: lowest == null ? null : { cycle_index: lowest, cycle: cycles[lowest].name, closing: cycles[lowest].closing },
     fund_configured: inputs.fund != null,
     template_fallbacks: inputs.template.fallbacks || [],
+    capital: inputs.capital
+      ? {
+          as_of: inputs.capital.as_of,
+          start: round2(inputs.capital.idle + inputs.capital.active),
+          end: cycles.length ? cycles[cycles.length - 1].capital.closing : round2(inputs.capital.idle + inputs.capital.active),
+          saved_total: round2(savedTotal),
+          growth_total: round2(growthTotal),
+          return_pct: annualReturn > 0 ? annualReturn : null,
+        }
+      : null,
     draft_loans: loans.filter((l) => l.status === 'draft').map((l) => ({ id: l.id, name: l.name, monthly_payment: round2(l.monthly_payment || 0), included: includeDraftLoanIds.includes(l.id) })),
   };
 }
@@ -218,7 +286,7 @@ function loadStoredCycle(cycleRow) {
 
 function loadForecastInputs(dossierId, now = new Date()) {
   const dossier = db
-    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_cycles_to_average FROM dossiers WHERE id = ?')
+    .prepare('SELECT cycle_start_day, cycle_start_weekend_adjustment, emergency_fund_cycles_to_average, forecast_expected_return_pct FROM dossiers WHERE id = ?')
     .get(dossierId);
   const startDay = dossier.cycle_start_day ?? 25;
   const adjustment = dossier.cycle_start_weekend_adjustment ?? 'none';
@@ -279,7 +347,15 @@ function loadForecastInputs(dossierId, now = new Date()) {
     }
   }
 
-  const templateRows = db.prepare('SELECT id, section, name, type, value FROM expense_template_items WHERE dossier_id = ?').all(dossierId);
+  const templateRows = db.prepare('SELECT id, section, name, type, value, save_amount FROM expense_template_items WHERE dossier_id = ?').all(dossierId);
+  // A distribution's Save part, by template id — and by name, for a running cycle's items
+  // orphaned by a template bulk-replace. Cycle items don't carry the split themselves.
+  const saveAmounts = {};
+  for (const t of templateRows) {
+    if (t.section !== 'distribution' || !(t.save_amount > 0)) continue;
+    saveAmounts[t.id] = t.save_amount;
+    saveAmounts[`name:${t.name}`] ??= t.save_amount;
+  }
   const incomeTemplateCount = db.prepare('SELECT COUNT(*) AS n FROM income_template_items WHERE dossier_id = ?').get(dossierId).n;
   const template = {
     income_total: db.prepare('SELECT COALESCE(SUM(default_value), 0) AS t FROM income_template_items WHERE dossier_id = ?').get(dossierId).t,
@@ -380,10 +456,10 @@ function loadForecastInputs(dossierId, now = new Date()) {
         WHERE aed.dossier_id = ?`
     )
     .all(dossierId).map((r) => r.id);
+  const lastMonth = db.prepare('SELECT id, year, month FROM months WHERE dossier_id = ? AND filled = 1 ORDER BY year DESC, month DESC LIMIT 1').get(dossierId);
   let fund = null;
   if (accountIds.length || distIds.length) {
     let fundOpening = 0;
-    const lastMonth = db.prepare('SELECT id FROM months WHERE dossier_id = ? AND filled = 1 ORDER BY year DESC, month DESC LIMIT 1').get(dossierId);
     if (lastMonth && accountIds.length) {
       const ph = accountIds.map(() => '?').join(',');
       fundOpening = db
@@ -396,7 +472,33 @@ function loadForecastInputs(dossierId, now = new Date()) {
     fund = { opening: fundOpening, distribution_ids: distIds };
   }
 
-  return { windows, opening_balance: openingBalance, template, budget_averages: budgetAverages, loans, installments, fund };
+  // Capital: the latest filled snapshot, split into cash (idle) and invested (active) money —
+  // the same total the Capital tab shows (stocks excluded).
+  let capital = null;
+  if (lastMonth) {
+    const totals = db
+      .prepare(
+        `SELECT COALESCE(SUM(CASE WHEN a.money_category = 'idle' THEN me.value END), 0) AS idle,
+                COALESCE(SUM(CASE WHEN a.money_category = 'active' THEN me.value END), 0) AS active
+           FROM month_entries me JOIN accounts a ON a.id = me.account_id
+          WHERE me.month_id = ?`
+      )
+      .get(lastMonth.id);
+    capital = { idle: totals.idle, active: totals.active, as_of: `${lastMonth.year}-${String(lastMonth.month).padStart(2, '0')}` };
+  }
+
+  return {
+    windows,
+    opening_balance: openingBalance,
+    template,
+    budget_averages: budgetAverages,
+    loans,
+    installments,
+    fund,
+    save_amounts: saveAmounts,
+    capital,
+    expected_return_pct: dossier.forecast_expected_return_pct ?? null,
+  };
 }
 
 // A short summary for the AI Advisor context: the lowest projected cycle, the first fund
@@ -415,7 +517,22 @@ function summarizeForecastForAi(forecast) {
     annual_fund_first_shortfall: shortfall ? { cycle: shortfall.cycle, item: shortfall.name, date: shortfall.date, short_by: shortfall.short_by } : null,
     loan_endings: loanEnds,
     untracked_loans: forecast.flags.filter((f) => f.type === 'untracked_loan').map((f) => f.name),
-    closing_series: forecast.cycles.map((c) => ({ cycle: c.name, closing: c.closing, annual_fund: c.annual_fund ? c.annual_fund.closing : null })),
+    capital: forecast.capital
+      ? {
+          snapshot_month: forecast.capital.as_of,
+          today: forecast.capital.start,
+          projected_end: forecast.capital.end,
+          saved_over_horizon: forecast.capital.saved_total,
+          growth_over_horizon: forecast.capital.growth_total,
+          expected_return_pct: forecast.capital.return_pct,
+        }
+      : null,
+    closing_series: forecast.cycles.map((c) => ({
+      cycle: c.name,
+      closing: c.closing,
+      annual_fund: c.annual_fund ? c.annual_fund.closing : null,
+      capital: c.capital ? c.capital.closing : null,
+    })),
   };
 }
 
