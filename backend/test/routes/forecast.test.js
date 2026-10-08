@@ -10,6 +10,8 @@ const {
   createCycleIncomeItem,
   createIncomeTemplateItem,
   createLoan,
+  createAccount,
+  createMonth,
   loginAs,
 } = require('../fixtures/builders');
 const supertest = require('supertest');
@@ -161,6 +163,66 @@ describe('computeForecast (#349)', () => {
   });
 });
 
+describe('computeForecast — capital track', () => {
+  const capital = { idle: 1000, active: 5000, as_of: '2026-01' };
+
+  it('keeps the Save part of distributions in Capital and treats the rest as spent', () => {
+    // Savings 500, of which 300 is Save: 200 leaves Capital, 300 only moves to invested money.
+    const f = computeForecast(baseInputs({ capital, save_amounts: { save: 300 } }), { horizon: 3 });
+    // The first cycle is running: its income is already in the snapshot, everything else is
+    // still to go (nothing ticked): −900 −400 −500 cash, +300 kept.
+    expect(f.cycles[0].capital).toEqual({ opening: 6000, cash_flow: -1800, saved: 300, growth: 0, annual_bills: 0, closing: 4500 });
+    // Later cycles: 2000 − 1800 = +200 cash, +300 kept.
+    expect(f.cycles.map((c) => c.capital.closing)).toEqual([4500, 5000, 5500]);
+    expect(f.capital).toEqual({ as_of: '2026-01', start: 6000, end: 5500, saved_total: 900, growth_total: 0, return_pct: null });
+  });
+
+  it("only takes what's still outstanding in the running cycle", () => {
+    const stored = {
+      previous_balance: 0,
+      income_total: 2000,
+      items: [
+        { section: 'expense', type: 'Fixed', name: 'Rent', value: 900, paid: 1, template_item_id: 'rent' },
+        { section: 'expense', type: 'Budget', name: 'Groceries', value: 400, spent: 120, template_item_id: 'food' },
+        { section: 'distribution', name: 'Savings', value: 500, done: 1, template_item_id: 'save' },
+        { section: 'distribution', name: 'Invest', value: 200, done: 0, template_item_id: 'orphaned' },
+      ],
+    };
+    // 'Invest' is matched to its template Save part by name.
+    const inputs = baseInputs({ windows: windows(12, stored), capital, save_amounts: { save: 500, 'name:Invest': 200 } });
+    const f = computeForecast(inputs, { horizon: 1 });
+    // Rent paid, Savings done: only 280 of Groceries and the 200 Invest are left, all of it kept.
+    expect(f.cycles[0].capital).toMatchObject({ cash_flow: -480, saved: 200, closing: 6000 - 480 + 200 });
+  });
+
+  it('keeps a contributing annual-fund distribution whole and takes the installments out', () => {
+    const inputs = baseInputs({
+      capital,
+      fund: { opening: 0, distribution_ids: ['save'] },
+      installments: [{ date: new Date(2026, 2, 1), name: 'Insurance', amount: 1200 }],
+    });
+    const f = computeForecast(inputs, { horizon: 2 });
+    // First cycle: 6000 − 1800 + 500 kept = 4700; second: 4700 + 200 + 500 − 1200.
+    expect(f.cycles[1].capital).toEqual({ opening: 4700, cash_flow: 200, saved: 500, growth: 0, annual_bills: 1200, closing: 4200 });
+  });
+
+  it('grows invested money at the expected return, compounded monthly', () => {
+    const inputs = baseInputs({ capital: { idle: 0, active: 12000, as_of: '2026-01' }, expected_return_pct: 6 });
+    const rate = Math.pow(1.06, 1 / 12) - 1;
+    const f = computeForecast(inputs, { horizon: 2 });
+    expect(f.cycles[0].capital.growth).toBeCloseTo(12000 * rate, 2);
+    expect(f.capital.return_pct).toBe(6);
+    // An explicit option overrides the dossier setting.
+    expect(computeForecast(inputs, { horizon: 2, returnPct: 0 }).capital.growth_total).toBe(0);
+  });
+
+  it('has no capital track without a Capital snapshot', () => {
+    const f = computeForecast(baseInputs(), { horizon: 2 });
+    expect(f.capital).toBeNull();
+    expect(f.cycles[0].capital).toBeNull();
+  });
+});
+
 describe('GET /forecast (#349)', () => {
   async function setup() {
     const user = createUser(db);
@@ -212,6 +274,24 @@ describe('GET /forecast (#349)', () => {
 
     expect(plain.body.draft_loans[0]).toMatchObject({ id: loan.id, included: false });
     expect(withDraft.body.cycles[0].expenses).toBeGreaterThan(plain.body.cycles[0].expenses);
+  });
+
+  it('projects Capital from the latest snapshot, the Save parts and the expected return', async () => {
+    const { dossier, agent } = await setup();
+    db.prepare('UPDATE dossiers SET forecast_expected_return_pct = 5 WHERE id = ?').run(dossier.id);
+    const cash = createAccount(db, { dossierId: dossier.id, name: 'Current', money_category: 'idle' });
+    const invest = createAccount(db, { dossierId: dossier.id, name: 'Broker', money_category: 'active' });
+    const rsu = createAccount(db, { dossierId: dossier.id, name: 'RSUs', money_category: 'stocks' });
+    createMonth(db, { dossierId: dossier.id, year: 2026, month: 1, filled: true, accountIds: [cash.id, invest.id, rsu.id], values: { [cash.id]: 1000, [invest.id]: 9000, [rsu.id]: 50000 } });
+    createExpenseTemplateItem(db, { dossierId: dossier.id, section: 'distribution', name: 'Investments', value: 900, must_amount: 0, want_amount: 0, save_amount: 900 });
+
+    const res = await agent.get(`/api/dossiers/${dossier.id}/forecast?horizon=6`);
+
+    // Stocks are left out, as on the Capital tab.
+    expect(res.body.capital).toMatchObject({ as_of: '2026-01', start: 10000, return_pct: 5 });
+    expect(res.body.cycles[0].capital).toMatchObject({ opening: 10000, cash_flow: -900, saved: 900 });
+    expect(res.body.capital.saved_total).toBe(5400);
+    expect(res.body.capital.growth_total).toBeGreaterThan(0);
   });
 
   it('rejects an unknown horizon or budget mode', async () => {

@@ -48,6 +48,7 @@ function createDossier(db, overrides = {}) {
     'emergency_fund_cycles_to_average',
     'reference_salary',
     'loans_max_salary_pct',
+    'forecast_expected_return_pct',
     'ai_enabled',
     'ai_model',
     'ai_api_key',

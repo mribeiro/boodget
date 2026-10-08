@@ -1099,6 +1099,17 @@ const migrations = [
       }
     },
   },
+  {
+    // Expected annual return (%) the Forecast applies to invested money when projecting
+    // Capital forward. NULL = no growth, deposits only.
+    id: '050_forecast_expected_return',
+    up() {
+      const cols = db.prepare('PRAGMA table_info(dossiers)').all();
+      if (!cols.find((c) => c.name === 'forecast_expected_return_pct')) {
+        db.exec('ALTER TABLE dossiers ADD COLUMN forecast_expected_return_pct REAL');
+      }
+    },
+  },
 ];
 
 for (const migration of migrations) {
