@@ -17,6 +17,7 @@ import WorkbenchTab from './workbench/WorkbenchTab';
 import GoalsTab from './goals/GoalsTab';
 import LoansTab from './loans/LoansTab';
 import CarExpensesTab from './car-expenses/CarExpensesTab';
+import ForecastTab from './forecast/ForecastTab';
 import SubscriptionsTab from './subscriptions/SubscriptionsTab';
 import EmergencyFundTab from './emergency-fund/EmergencyFundTab';
 import AnnualExpensesTab from './annual-expenses/AnnualExpensesTab';
@@ -261,6 +262,10 @@ export default function DossierView() {
 
       {activeTab === 'expenses' && (
         <ExpensesTab dossierId={id} />
+      )}
+
+      {activeTab === 'forecast' && (
+        <ForecastTab dossierId={id} />
       )}
 
       {activeTab === 'annual-expenses' && (

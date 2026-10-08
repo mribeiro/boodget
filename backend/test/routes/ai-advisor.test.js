@@ -184,6 +184,22 @@ describe('buildDossierContext trimming caps', () => {
     expect(carCtx.cost_per_l).toBeUndefined();
   });
 
+  it('includes a trimmed 12-cycle forecast summary (#349)', () => {
+    const { dossier } = setup();
+    const { createIncomeTemplateItem, createExpenseTemplateItem } = require('../fixtures/builders');
+    createIncomeTemplateItem(db, { dossierId: dossier.id, name: 'Salary', default_value: 1000 });
+    createExpenseTemplateItem(db, { dossierId: dossier.id, section: 'expense', type: 'Fixed', name: 'Rent', value: 1200, day_of_payment: 1 });
+
+    const { forecast } = JSON.parse(buildDossierContext(dossier.id));
+
+    expect(forecast.horizon_cycles).toBe(12);
+    expect(forecast.closing_series).toHaveLength(12);
+    expect(forecast.first_negative_cycle).toMatchObject({ closing: -200 });
+    expect(forecast.lowest_projected_closing.closing).toBe(-2400);
+    // Only the trimmed summary — never the per-cycle item breakdown.
+    expect(forecast.cycles).toBeUndefined();
+  });
+
   it('caps a car\'s monthly_series at the 12 most recent months', () => {
     const { dossier } = setup();
     const { createCar, createCarMonth } = require('../fixtures/builders');

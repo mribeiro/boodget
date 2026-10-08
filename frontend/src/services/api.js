@@ -149,6 +149,11 @@ export const api = {
 
   // Emergency Fund
   getEmergencyFundStatus: (dossierId) => request('GET', `/dossiers/${dossierId}/emergency-fund/status`),
+  getForecast: (dossierId, { horizon = 12, budget = 'planned', includeDraft = [] } = {}) => {
+    const qs = new URLSearchParams({ horizon: String(horizon), budget });
+    if (includeDraft.length) qs.set('include_draft', includeDraft.join(','));
+    return request('GET', `/dossiers/${dossierId}/forecast?${qs}`);
+  },
   getEmergencyFundAccounts: (dossierId) => request('GET', `/dossiers/${dossierId}/emergency-fund/accounts`),
   setEmergencyFundAccounts: (dossierId, account_ids) =>
     request('PUT', `/dossiers/${dossierId}/emergency-fund/accounts`, { account_ids }),

@@ -15,6 +15,7 @@ const { isAllowedAiModel, DEFAULT_AI_MODEL } = aiAdvisorRouter;
 const loansRouter = require('./loans');
 const subscriptionsRouter = require('./subscriptions');
 const carsRouter = require('./cars');
+const forecastRouter = require('./forecast');
 
 // Anchor month for an active loan imported from a pre-v15 export (which carried no
 // balance_as_of). Mirrors migration 042's backfill: the effective current period, unless
@@ -975,6 +976,7 @@ router.use('/:id', aiAdvisorRouter);
 router.use('/:id', loansRouter);
 router.use('/:id', subscriptionsRouter);
 router.use('/:id', carsRouter);
+router.use('/:id', forecastRouter);
 
 module.exports = router;
 module.exports.mergeExportedInstallments = mergeExportedInstallments;
